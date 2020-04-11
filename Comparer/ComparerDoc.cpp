@@ -163,7 +163,7 @@ bool CComparerDoc::ReadSource4View(ComparerPane *pane)
 
 	if (pane->curFrameID >= pane->frames) {
 		LOGWRN("Invalid frameID(%d) for %s",
-			pane->curFrameID, CT2A(file->GetFileName()));
+			pane->curFrameID, CT2A(file->GetFileName()).m_psz);
 		memset(pane->rgbBuf, 0, ROUNDUP_DWORD(mW) * mH * QIMG_DST_RGB_BYTES); // black
 		return true;
 	}

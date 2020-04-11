@@ -101,7 +101,7 @@ void SReqListener::request(const ReqMsg &msg) {
 	SMutex::Autolock autoLock(mLock);
 
 	if (mQueue->size() >= mQueue->maxSize()) {
-		LOGVBS("%s: wait for queueing, current size: %lu",
+		LOGVBS("%s: wait for queueing, current size: %llu",
 			mName.c_str(), mQueue->size());
 		QASSERT(mQueue->size() == mQueue->maxSize());
 
