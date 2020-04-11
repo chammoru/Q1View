@@ -58,13 +58,13 @@ Mat qGetSkin(const Mat &src)
 	// OpenCV scales the YCrCb components, so that they
 	// cover the whole value range of [0,255], so there's
 	// no need to scale the values:
-	cvtColor(src, src_ycrcb, CV_BGR2YCrCb);
+	cvtColor(src, src_ycrcb, COLOR_BGR2YCrCb);
 	// OpenCV scales the Hue Channel to [0,180] for
 	// 8bit images, so make sure we are operating on
 	// the full spectrum from [0,360] by using floating
 	// point precision:
 	src.convertTo(src_hsv, CV_32FC3);
-	cvtColor(src_hsv, src_hsv, CV_BGR2HSV);
+	cvtColor(src_hsv, src_hsv, COLOR_BGR2HSV);
 	// Now scale the values between [0,255]:
 	normalize(src_hsv, src_hsv, 0.0, 255.0, NORM_MINMAX, CV_32FC3);
 
@@ -111,13 +111,13 @@ Mat qGetSkinBin(const Mat &src) // Binary
 	// OpenCV scales the YCrCb components, so that they
 	// cover the whole value range of [0,255], so there's
 	// no need to scale the values:
-	cvtColor(src, src_ycrcb, CV_BGR2YCrCb);
+	cvtColor(src, src_ycrcb, COLOR_BGR2YCrCb);
 	// OpenCV scales the Hue Channel to [0,180] for
 	// 8bit images, so make sure we are operating on
 	// the full spectrum from [0,360] by using floating
 	// point precision:
 	src.convertTo(src_hsv, CV_32FC3);
-	cvtColor(src_hsv, src_hsv, CV_BGR2HSV);
+	cvtColor(src_hsv, src_hsv, COLOR_BGR2HSV);
 	// Now scale the values between [0,255]:
 	normalize(src_hsv, src_hsv, 0.0, 255.0, NORM_MINMAX, CV_32FC3);
 

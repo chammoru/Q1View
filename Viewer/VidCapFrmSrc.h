@@ -34,21 +34,21 @@ public:
 		
 		mNextFrame = 0;
 
-		mFrames = static_cast<long>(mVidCap.get(CV_CAP_PROP_FRAME_COUNT));
+		mFrames = static_cast<long>(mVidCap.get(cv::CAP_PROP_FRAME_COUNT));
 
 		return true;
 	}
 
 	virtual void ConfigureDoc(CViewerDoc *pDoc)
 	{
-		pDoc->mW = static_cast<int>(mVidCap.get(CV_CAP_PROP_FRAME_WIDTH));
-		pDoc->mH = static_cast<int>(mVidCap.get(CV_CAP_PROP_FRAME_HEIGHT));
+		pDoc->mW = static_cast<int>(mVidCap.get(cv::CAP_PROP_FRAME_WIDTH));
+		pDoc->mH = static_cast<int>(mVidCap.get(cv::CAP_PROP_FRAME_HEIGHT));
 
 		pDoc->mColorSpace = QIMAGE_CS_BGR888;
 		pDoc->mCsc2Rgb888 = qimage_bgr888_to_bgr888;
 		pDoc->mCsLoadInfo = qimage_rgb888_load_info;
 
-		double dfps = mVidCap.get(CV_CAP_PROP_FPS);
+		double dfps = mVidCap.get(cv::CAP_PROP_FPS);
 
 		pDoc->mFps = int(dfps + 0.5f);
 	}
@@ -56,7 +56,7 @@ public:
 	virtual bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)
 	{
 		if (pDoc->mCurFrameID != mNextFrame) {
-			bool ok = mVidCap.set(CV_CAP_PROP_POS_FRAMES, pDoc->mCurFrameID);
+			bool ok = mVidCap.set(cv::CAP_PROP_POS_FRAMES, pDoc->mCurFrameID);
 			if (!ok)
 				return false;
 		}
@@ -85,7 +85,7 @@ public:
 
 		mNextFrame = id;
 
-		return mVidCap.set(CV_CAP_PROP_POS_FRAMES, id);
+		return mVidCap.set(cv::CAP_PROP_POS_FRAMES, id);
 	}
 
 	virtual bool Play(CViewerDoc *pDoc)

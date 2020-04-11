@@ -320,7 +320,7 @@ Mat RobustMatcher::ransacTest(const vector<cv::DMatch>& matches,
 	Mat fundamental = cv::findFundamentalMat(
 			Mat(points1), Mat(points2), // matching points
 			inliers,      // match status (inlier or outlier)
-			CV_FM_RANSAC, // RANSAC method
+			FM_RANSAC, // RANSAC method
 			mDistance,     // distance to epipolar line (for RANSAC)
 			mConfidence);  // confidence probability (for RANSAC)
 #endif
@@ -441,7 +441,7 @@ Mat RobustMatcher::match(Mat& image1, Mat& image2) // input images
 		// Compute 7 or 8-point F from all accepted matches
 		fundamental = cv::findFundamentalMat(
 				Mat(points1), Mat(points2), // matching points
-				CV_FM_8POINT);
+				FM_8POINT);
 #endif
 	}
 

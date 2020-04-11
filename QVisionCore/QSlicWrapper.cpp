@@ -12,7 +12,7 @@ using namespace cv;
 void qDisplaySlicSuperPixel(const Mat &image, Mat &labelMap, vector<Point2d> *centroid)
 {
 	Mat imageRgba;
-	cvtColor(image, imageRgba, CV_BGR2BGRA);
+	cvtColor(image, imageRgba, COLOR_BGR2BGRA);
 	if (centroid) {
 		for (size_t i = 0; i < (*centroid).size(); i++) {
 			circle(imageRgba, (*centroid)[i], 2,
