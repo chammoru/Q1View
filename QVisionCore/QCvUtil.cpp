@@ -74,8 +74,8 @@ double calIoU(const Vec4i &bb, const Vec4i &bbgt)
 void putTxtW(Mat &img, const string &msg, const Point &loc,
 					  float scale, int oTick, int iTick)
 {
-	putText(img, msg, loc, FONT_HERSHEY_SIMPLEX, scale, Scalar::all(0x00), oTick, CV_AA);
-	putText(img, msg, loc, FONT_HERSHEY_SIMPLEX, scale, Scalar::all(0xff), iTick, CV_AA);
+	putText(img, msg, loc, FONT_HERSHEY_SIMPLEX, scale, Scalar::all(0x00), oTick, LINE_AA);
+	putText(img, msg, loc, FONT_HERSHEY_SIMPLEX, scale, Scalar::all(0xff), iTick, LINE_AA);
 }
 
 // for transparent png

@@ -397,7 +397,7 @@ public:
 		float scale = 1.0f / powf(mStep, (float)level);
 		tW = (int)(w * scale + 0.5);
 		tH = (int)(h * scale + 0.5);
-		resize(mImage, scaleTmp, Size(tW, tH), 0., 0., CV_INTER_AREA);
+		resize(mImage, scaleTmp, Size(tW, tH), 0., 0., INTER_AREA);
 		LsvmFeatureMap *featureMap = getFeatureMap(scaleTmp, mSideLength);
 		normalizeAndTruncate(featureMap, VAL_OF_TRUNCATE);
 		PCAFeatureMap(featureMap);
