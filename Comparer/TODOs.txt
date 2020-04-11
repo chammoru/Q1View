@@ -1,0 +1,24 @@
+# TODO
+FrmInfoView에 보여주는 계산을 Thread로 하기
+Video의 Frame도 보여주기
+README.md에 FrmInfoView (중간PSNR,SSIM 텍스트), FrmsInfoView(그래프), PosInfoView(왼쪽 빨간색라인)의 구조보여주기
+pixel단위로 틀린 점 보여주기 (overlay로)
+좌우 x(close) 버튼 만들기
+좌우에 파일이름 보여주기
+File Open Dialog에서 파일 두개 지정할 수 있게 하기
+명령어 인자에 두개의 파일 지원하기
+아래 FrmsInfoView에서 마우스 스크롤로 graph확대 축소하기
+파일이 변경되었을 때 자동으로 update하게 하기
+
+# DONE
+zoom in-out할때 exp ratio 사용
+pixel 값보여주기
+Comparer에서도 Grid, RGB value보여주기
+. 확대시 Client만 움직일 수 있도록 반영
+. mBmi 제거
+. 축소하는 코드도 확대하는 코드와 같이 쓰도록
+. 확대시 회색 boundary 보여주게 하기
+. 확대시 rgb value 보여주기
+(bug) zoom in-out하다가 이미지가 작아졌을 때, 양쪽의 크기가 약간 달라지는 문제 해결
+h key로 hex, decimal 변환하기
+비율보여주기

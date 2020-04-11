@@ -1,0 +1,29 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SSafeCQTest", "SSafeCQTest.vcproj", "{B16DE310-5699-4B24-A5E2-101CA5FB333D}"
+	ProjectSection(ProjectDependencies) = postProject
+		{9F2E09BE-9CC5-4460-80A0-0AB612F78BA0} = {9F2E09BE-9CC5-4460-80A0-0AB612F78BA0}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SMultithreadPlus", "..\..\build\x86_windows\SMultithreadPlus.vcproj", "{9F2E09BE-9CC5-4460-80A0-0AB612F78BA0}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B16DE310-5699-4B24-A5E2-101CA5FB333D}.Debug|Win32.ActiveCfg = Debug|Win32
+		{B16DE310-5699-4B24-A5E2-101CA5FB333D}.Debug|Win32.Build.0 = Debug|Win32
+		{B16DE310-5699-4B24-A5E2-101CA5FB333D}.Release|Win32.ActiveCfg = Release|Win32
+		{B16DE310-5699-4B24-A5E2-101CA5FB333D}.Release|Win32.Build.0 = Release|Win32
+		{9F2E09BE-9CC5-4460-80A0-0AB612F78BA0}.Debug|Win32.ActiveCfg = Debug|Win32
+		{9F2E09BE-9CC5-4460-80A0-0AB612F78BA0}.Debug|Win32.Build.0 = Debug|Win32
+		{9F2E09BE-9CC5-4460-80A0-0AB612F78BA0}.Release|Win32.ActiveCfg = Release|Win32
+		{9F2E09BE-9CC5-4460-80A0-0AB612F78BA0}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
