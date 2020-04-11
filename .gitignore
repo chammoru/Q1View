@@ -348,3 +348,27 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+## Kyuwon Kim
+
+# Visual Studio files
+Debug/
+Release/
+x64/
+ipch/
+*.suo
+*.sdf
+*.exe
+*.aps
+*.idc
+*.filters
+*.opensdf
+*.ncb
+.vs/
+
+*.o
+*.d
+*.a
+*.user
+*.swp
+.depend
