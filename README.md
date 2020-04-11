@@ -1,6 +1,6 @@
 # Q1View
 
-## Project Description
+## Project description
 A developer-friendly media viewer
 
 ## build environment
@@ -14,7 +14,7 @@ A developer-friendly media viewer
 | Viewer      |  Viewer\Viewer.sln    |
 
 
-## Cmake option for OpenCV 4.3.0
+## Cmake options for OpenCV 4.3.0
 CMAKE_OPTIONS='-DBUILD_DOCS:BOOL=OFF -DWITH_CUDA:BOOL=OFF -DBUILD_EXAMPLES:BOOL=OFF  -DWITH_GSTREAMER:BOOL=OFF -DWITH_OPENCLAMDBLAS:BOOL=OFF -DBUILD_PERF_TESTS:BOOL=OFF -DWITH_OPENCLAMDFFT:BOOL=OFF -DBUILD_SHARED_LIBS:BOOL=OFF -DBUILD_TESTS:BOOL=OFF -DWITH_OPENCL_D3D11_NV:BOOL=OFF -DBUILD_PACKAGE:BOOL=OFF -DWITH_OPENCL:BOOL=OFF -DOPENCV_DNN_OPENCL:BOOL=OFF -DBUILD_WITH_STATIC_CRT:BOOL=OFF'
 
 ## TODO
