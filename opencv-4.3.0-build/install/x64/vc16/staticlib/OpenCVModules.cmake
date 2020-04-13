@@ -16,7 +16,7 @@ set(CMAKE_IMPORT_FILE_VERSION 1)
 set(_targetsDefined)
 set(_targetsNotDefined)
 set(_expectedTargets)
-foreach(_expectedTarget zlib libjpeg-turbo libtiff libwebp libjasper libpng IlmImf ippiw libprotobuf quirc ittnotify ade ocv.3rdparty.ffmpeg ocv.3rdparty.dshow ocv.3rdparty.msmf opencv_core opencv_flann opencv_imgproc opencv_ml opencv_photo opencv_dnn opencv_features2d opencv_gapi opencv_imgcodecs opencv_videoio opencv_calib3d opencv_highgui opencv_objdetect opencv_stitching opencv_video)
+foreach(_expectedTarget zlib libjpeg-turbo libtiff libwebp libjasper libpng IlmImf ippiw libprotobuf quirc ittnotify ade ocv.3rdparty.ffmpeg opencv_core opencv_flann opencv_imgproc opencv_ml opencv_photo opencv_dnn opencv_features2d opencv_gapi opencv_imgcodecs opencv_videoio opencv_calib3d opencv_highgui opencv_objdetect opencv_stitching opencv_video)
   list(APPEND _expectedTargets ${_expectedTarget})
   if(NOT TARGET ${_expectedTarget})
     list(APPEND _targetsNotDefined ${_expectedTarget})
@@ -107,24 +107,6 @@ set_target_properties(ocv.3rdparty.ffmpeg PROPERTIES
   INTERFACE_SYSTEM_INCLUDE_DIRECTORIES ""
 )
 
-# Create imported target ocv.3rdparty.dshow
-add_library(ocv.3rdparty.dshow INTERFACE IMPORTED)
-
-set_target_properties(ocv.3rdparty.dshow PROPERTIES
-  INTERFACE_COMPILE_DEFINITIONS "HAVE_DSHOW"
-  INTERFACE_INCLUDE_DIRECTORIES ""
-  INTERFACE_SYSTEM_INCLUDE_DIRECTORIES ""
-)
-
-# Create imported target ocv.3rdparty.msmf
-add_library(ocv.3rdparty.msmf INTERFACE IMPORTED)
-
-set_target_properties(ocv.3rdparty.msmf PROPERTIES
-  INTERFACE_COMPILE_DEFINITIONS "HAVE_MSMF;HAVE_MSMF_DXVA"
-  INTERFACE_INCLUDE_DIRECTORIES ""
-  INTERFACE_SYSTEM_INCLUDE_DIRECTORIES ""
-)
-
 # Create imported target opencv_core
 add_library(opencv_core STATIC IMPORTED)
 
@@ -192,7 +174,7 @@ set_target_properties(opencv_imgcodecs PROPERTIES
 add_library(opencv_videoio STATIC IMPORTED)
 
 set_target_properties(opencv_videoio PROPERTIES
-  INTERFACE_LINK_LIBRARIES "\$<LINK_ONLY:opencv_core>;\$<LINK_ONLY:opencv_imgproc>;\$<LINK_ONLY:opencv_imgcodecs>;opencv_core;opencv_imgproc;opencv_imgcodecs;\$<LINK_ONLY:ippiw>;\$<LINK_ONLY:ippicv>;\$<LINK_ONLY:ocv.3rdparty.dshow>;\$<LINK_ONLY:ocv.3rdparty.msmf>;\$<LINK_ONLY:ocv.3rdparty.ffmpeg>"
+  INTERFACE_LINK_LIBRARIES "\$<LINK_ONLY:opencv_core>;\$<LINK_ONLY:opencv_imgproc>;\$<LINK_ONLY:opencv_imgcodecs>;opencv_core;opencv_imgproc;opencv_imgcodecs;\$<LINK_ONLY:ippiw>;\$<LINK_ONLY:ippicv>;\$<LINK_ONLY:ocv.3rdparty.ffmpeg>"
 )
 
 # Create imported target opencv_calib3d
