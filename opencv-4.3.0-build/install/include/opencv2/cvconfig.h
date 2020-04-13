@@ -47,11 +47,11 @@
 /* #undef HAVE_CUFFT */
 
 /* DirectX */
-#define HAVE_DIRECTX
-#define HAVE_DIRECTX_NV12
+/* #undef HAVE_DIRECTX */
+/* #undef HAVE_DIRECTX_NV12 */
 #define HAVE_D3D11
-#define HAVE_D3D10
-#define HAVE_D3D9
+/* #undef HAVE_D3D10 */
+/* #undef HAVE_D3D9 */
 
 /* Eigen Matrix & Linear Algebra Library */
 /* #undef HAVE_EIGEN */
