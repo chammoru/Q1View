@@ -8,10 +8,12 @@ class CComparerViewC;
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include "FrmSrc.h"
+#include "MatFrmSrc.h"
+#include "RawFrmSrc.h"
+
 struct SQPane
 {
-	CFile file;
-	cv::Mat mOcvMat;
 	size_t origSceneSize;
 	size_t origBufSize;
 	BYTE *origBuf;
@@ -24,7 +26,10 @@ struct SQPane
 	size_t yuv420BufSize;
 	QIMAGE_CSC_FN csc2rgb888;
 
-	SQPane()
+	std::vector<FrmSrc*> frmSrcs;
+	FrmSrc* frmSrc;
+
+	inline SQPane()
 	: origSceneSize(0)
 	, origBufSize(0)
 	, origBuf(NULL)
@@ -36,10 +41,20 @@ struct SQPane
 	, rgbBufSize(0)
 	, yuv420BufSize(0)
 	, csc2rgb888(qcsc_info_table[QIMG_DEF_CS_IDX].csc2rgb888)
-	{}
-
-	virtual ~SQPane()
+	, frmSrc(NULL)
 	{
+		// ADD MORE FRAME SOURCES, IF NEEDED
+		frmSrcs.push_back(new MatFrmSrc(this));
+		frmSrcs.push_back(new RawFrmSrc(this));
+	}
+
+	inline virtual ~SQPane()
+	{
+		closeFrmSrcs();
+
+		for (auto it = std::begin(frmSrcs); it != std::end(frmSrcs); it++)
+			delete* it;
+
 		if (origBuf)
 			delete [] origBuf;
 
@@ -50,7 +65,7 @@ struct SQPane
 			delete [] yuv420Buf;
 	}
 
-	void SetColorInfo(const struct qcsc_info * const ci)
+	inline void SetColorInfo(const struct qcsc_info * const ci)
 	{
 		colorSpace = ci->cs;
 		csc2rgb888 = ci->csc2rgb888;
@@ -62,7 +77,59 @@ struct SQPane
 			csc2yuv420 = NULL;
 	}
 
-	inline bool isOcvMat() const { return mOcvMat.data != NULL; }
+	void openFrmSrc(const CString &pathName)
+	{
+		closeFrmSrcs();
+
+		auto it = std::begin(frmSrcs);
+		for (; it != std::end(frmSrcs); it++) {
+			bool ok = (*it)->Open(pathName);
+			if (ok) {
+				frmSrc = *it;
+				break;
+			}
+		}
+		ASSERT(it != std::end(frmSrcs));
+	}
+
+	void closeFrmSrcs() {
+		for (auto it = std::begin(frmSrcs); it != std::end(frmSrcs); it++) {
+			if ((*it)->IsAvailable())
+				(*it)->Release();
+		}
+		frmSrc = NULL;
+	}
+
+	inline bool GetResolution(CString &pathName, int* w, int* h) {
+		for (auto it = std::begin(frmSrcs); it != std::end(frmSrcs); it++) {
+			bool ok = (*it)->GetResolution(pathName, w, h);
+			if (ok) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	inline const struct qcsc_info* GetColorSpace(CString &pathName,
+			struct qcsc_info* sortedCscInfo) {
+		for (auto it = std::begin(frmSrcs); it != std::end(frmSrcs); it++) {
+			const qcsc_info* ci = (*it)->GetColorSpace(pathName, sortedCscInfo);
+			if (ci != NULL)
+				return ci;
+		}
+
+		return NULL;
+	}
+
+	inline bool isAvail() const
+	{
+		return frmSrc && frmSrc->IsAvailable();
+	}
+
+	inline void FillSceneBuf(BYTE* origBuf, long curFrameID) {
+		frmSrc->FillSceneBuf(origBuf, curFrameID);
+	}
 };
 
 struct ComparerPane : public SQPane
@@ -71,21 +138,33 @@ struct ComparerPane : public SQPane
 	int bufOffset2, bufOffset3;
 	CComparerViewC *pView;
 
-	ULONGLONG fileSize;
 	long frames;
 	long curFrameID;
 
-	virtual ~ComparerPane() {}
+	inline virtual ~ComparerPane()
+	{
+	}
 
-	ComparerPane()
+	inline ComparerPane()
 	: pathName(_T(""))
 	, bufOffset2(0)
 	, bufOffset3(0)
 	, pView(NULL)
-	, fileSize(0L)
 	, frames(0)
 	, curFrameID(0)
-	{}
+	{
+	}
 
-	inline bool isAvail() const { return fileSize > 0 || mOcvMat.data; }
+	void openFrmSrc()
+	{
+		SQPane::openFrmSrc(pathName);
+		frames = frmSrc->GetFrameNum();
+	}
+
+	inline void Release()
+	{
+		closeFrmSrcs();
+		frames = 0;
+		pathName.Empty();
+	}
 };
