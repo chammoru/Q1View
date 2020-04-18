@@ -85,8 +85,10 @@ public:
 	bool ReadSource4View(ComparerPane *pane);
 	bool IsRGBCompare(const SQPane *paneA, const SQPane *paneB) const;
 	void RefleshPaneImages(ComparerPane *paneA, bool settingChanged);
-	inline ComparerPane *GetOppositePane(ComparerPane *pane)
-	{ return pane == mPane + IMG_VIEW_L ? mPane + IMG_VIEW_R : mPane + IMG_VIEW_L; }
+	inline ComparerPane* GetOppositePane(ComparerPane* pane)
+	{
+		return pane == mPane + IMG_VIEW_L ? mPane + IMG_VIEW_R : mPane + IMG_VIEW_L;
+	}
 	void KillPlayTimer();
 	bool OffsetScenes(long offset);
 	void MarkImgViewProcessing();

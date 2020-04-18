@@ -21,15 +21,6 @@ FileScanThread::~FileScanThread(void)
 	delete [] mFrmCmpInfo;
 }
 
-static inline void closeSQPane(SQPane *scanInfo) {
-	CFile *file = &scanInfo->file;
-	if (file->m_hFile != CFile::hFileNull)
-		file->Close();
-
-	cv::Mat &ocvMat = scanInfo->mOcvMat;
-	ocvMat.release();
-}
-
 void FileScanThread::setup()
 {
 	// NOTE: this delete should be here in the same thread of a caller
@@ -56,24 +47,8 @@ SmpError FileScanThread::readyToRun()
 	for (int i = 0; i < CComparerDoc::IMG_VIEW_MAX; i++) {
 		const ComparerPane *pane = &mDoc->mPane[i];
 		SQPane *scanInfo = &mScanInfo[i];
-		closeSQPane(scanInfo);
-
-		if (pane->isOcvMat()) {
-			cv::Mat &ocvMat = scanInfo->mOcvMat;
-			const CString &pathName = pane->pathName;
-			std::string str = CT2A(pathName);
-			ocvMat = cv::imread(str, 1);
-		} else {
-			CFile *file = &scanInfo->file;
-			CFileException e;
-			BOOL ok = file->Open(pane->pathName,
-				CFile::modeRead | CFile::shareDenyNone | CFile::typeBinary, &e);
-			if (!ok) {
-				e.ReportError();
-				return SMP_FAIL;
-			}
-		}
-
+		scanInfo->closeFrmSrcs();
+		scanInfo->openFrmSrc(pane->pathName);
 		scanInfo->origSceneSize = pane->origSceneSize;
 		if (scanInfo->origSceneSize > scanInfo->origBufSize) {
 			if (scanInfo->origBuf)
@@ -100,21 +75,7 @@ bool FileScanThread::threadLoop()
 {
 	for (int i = 0; i < CComparerDoc::IMG_VIEW_MAX; i++) {
 		SQPane *scanInfo = &mScanInfo[i];
-		size_t origSceneSize = scanInfo->origSceneSize;
-
-		if (scanInfo->isOcvMat()) {
-			cv::Mat &ocvMat = scanInfo->mOcvMat;
-			memcpy(scanInfo->origBuf, ocvMat.data, origSceneSize);
-		} else {
-			CFile *file = &scanInfo->file;
-			UINT nRead = file->Read(scanInfo->origBuf, UINT(origSceneSize));
-			if (nRead < origSceneSize) {
-				LOGWRN("The remaining data is too short to be one frame");
-
-				// initialize the remaining buffer
-				memset(scanInfo->origBuf + nRead, 0, origSceneSize - nRead);
-			}
-		}
+		scanInfo->FillSceneBuf(scanInfo->origBuf, -1);
 	}
 
 	SQPane *scanInfoL = &mScanInfo[CComparerDoc::IMG_VIEW_L];

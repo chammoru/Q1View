@@ -216,12 +216,15 @@
     <ClCompile Include="FrmCmpStrategy.cpp" />
     <ClCompile Include="FrmInfoView.cpp" />
     <ClCompile Include="FrmsInfoView.cpp" />
+    <ClCompile Include="FrmSrc.cpp" />
     <ClCompile Include="MainFrm.cpp" />
+    <ClCompile Include="MatFrmSrc.cpp" />
     <ClCompile Include="MetricCal.cpp" />
     <ClCompile Include="PosInfoView.cpp" />
     <ClCompile Include="QMenuItem.cpp" />
     <ClCompile Include="QImageDiff.cpp" />
     <ClCompile Include="QSplitterWnd.cpp" />
+    <ClCompile Include="RawFrmSrc.cpp" />
     <ClCompile Include="RgbFrmCmpStrategy.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -244,12 +247,15 @@
     <ClInclude Include="FrmCmpStrategy.h" />
     <ClInclude Include="FrmInfoView.h" />
     <ClInclude Include="FrmsInfoView.h" />
+    <ClInclude Include="FrmSrc.h" />
     <ClInclude Include="MainFrm.h" />
+    <ClInclude Include="MatFrmSrc.h" />
     <ClInclude Include="MetricCal.h" />
     <ClInclude Include="PosInfoView.h" />
     <ClInclude Include="QMenuItem.h" />
     <ClInclude Include="QImageDiff.h" />
     <ClInclude Include="QSplitterWnd.h" />
+    <ClInclude Include="RawFrmSrc.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="RgbFrmCmpStrategy.h" />
     <ClInclude Include="stdafx.h" />

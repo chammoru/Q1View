@@ -154,37 +154,19 @@ void CComparerDoc::Dump(CDumpContext& dc) const
 
 bool CComparerDoc::ReadSource4View(ComparerPane *pane)
 {
-	CFile *file = &pane->file;
-
-	if (file->m_hFile == CFile::hFileNull && !pane->isOcvMat()) {
-		LOGWRN("File is not available");
+	if (!pane->isAvail()) {
+		LOGWRN("Pane is not available");
 		return false;
 	}
 
 	if (pane->curFrameID >= pane->frames) {
 		LOGWRN("Invalid frameID(%d) for %s",
-			pane->curFrameID, CT2A(file->GetFileName()).m_psz);
+			pane->curFrameID, CT2A(pane->pathName).m_psz);
 		memset(pane->rgbBuf, 0, ROUNDUP_DWORD(mW) * mH * QIMG_DST_RGB_BYTES); // black
 		return true;
 	}
 
-	size_t origSceneSize = pane->origSceneSize;
-
-	if (pane->isOcvMat()) {
-		cv::Mat &ocvMat = pane->mOcvMat;
-		memcpy(pane->origBuf, ocvMat.data, origSceneSize);
-	} else {
-		ULONGLONG pos = ULONGLONG(pane->curFrameID) * origSceneSize;
-		file->Seek(pos, CFile::begin);
-
-		UINT nRead = file->Read(pane->origBuf, UINT(origSceneSize));
-		if (nRead < origSceneSize) {
-			LOGWRN("The remaining data is too short to be one frame");
-
-			// initialize the remaining buffer
-			memset(pane->origBuf + nRead, 0, origSceneSize - nRead);
-		}
-	}
+	pane->FillSceneBuf(pane->origBuf, pane->curFrameID);
 
 	BYTE *y = pane->origBuf;
 	BYTE *u = pane->origBuf + pane->bufOffset2;
@@ -209,9 +191,6 @@ void CComparerDoc::setDstSize()
 
 void CComparerDoc::LoadSourceImage(ComparerPane *pane)
 {
-	CFile *file = &pane->file;
-	CString *pathName = &pane->pathName;
-
 	pane->origSceneSize = pane->csLoadInfo(mW, mH, &pane->bufOffset2, &pane->bufOffset3);
 	if (pane->origBufSize < pane->origSceneSize) {
 		if (pane->origBuf)
@@ -236,25 +215,7 @@ void CComparerDoc::LoadSourceImage(ComparerPane *pane)
 		}
 	}
 
-	if (file->m_hFile != CFile::hFileNull)
-		file->Close();
-
-	if (pane->isOcvMat()) {
-		pane->fileSize = 0;
-		pane->frames = 1;
-	} else {
-		CFileException e;
-		BOOL ok = file->Open(*pathName,
-			CFile::modeRead | CFile::shareDenyNone | CFile::typeBinary, &e);
-		if (!ok) {
-			e.ReportError();
-			return;
-		}
-
-		pane->fileSize = file->GetLength();
-		pane->frames = long(pane->fileSize / pane->origSceneSize);
-		pane->frames = MAX(pane->frames, 1); // check exceptional case
-	}
+	pane->openFrmSrc();
 	pane->curFrameID = 0;
 
 	setDstSize();
@@ -361,70 +322,36 @@ void CComparerDoc::RefleshPaneImages(ComparerPane *paneA, bool settingChanged)
 
 void CComparerDoc::ProcessDocument(ComparerPane *pane)
 {
-	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
-	ComparerPane *other = GetOppositePane(pane);
-
-	bool settingChanged = false;
-	char szFileName[MAX_PATH + 1];
-
-	cv::Mat &ocvMat = pane->mOcvMat;
-	CString &pathName = pane->pathName;
-	std::string str = CT2A(pathName);
-	ocvMat = cv::imread(str, 1);
-
-	const struct qcsc_info *ci;
 	int w = 0, h = 0;
-	if (ocvMat.data != NULL) {
-		if (!other->pathName.IsEmpty() &&
-				(mW != ocvMat.cols || mH != ocvMat.rows)) {
-			other->mOcvMat.release();
-			other->fileSize = 0;
-			other->frames = 0;
-			other->pathName.Empty();
-		}
-
-		w = ocvMat.cols;
-		h = ocvMat.rows;
-
-		ci = qimage_find_cs(mSortedCscInfo, "bgr888");
-	} else {
-		CString fileName = pathName.Mid(pathName.ReverseFind('\\') + 1);
-		fileName.MakeLower();
-
-		strncpy_s(szFileName, CT2A(fileName), MAX_PATH);
-
-		int error = qimage_parse_w_h(szFileName, &w, &h);
-		if (error) {
-			LOGWRN("width and height is not found");
-		} else if (mW != w || mH != h) {
-			if (!other->pathName.IsEmpty() && (mW != w || mH != h)) {
-				LOGINF("new width and height");
-				// TODO: make a new release method (here, I only considered mOcvMat),
-				// which releases all resources for all possible source types
-				other->mOcvMat.release();
-				other->fileSize = 0;
-				other->frames = 0;
-				other->pathName.Empty();
-			}
-		}
-
-		ci = qimage_find_cs(mSortedCscInfo, szFileName);
+	bool success = pane->GetResolution(pane->pathName , &w, &h);
+	if (!success) {
+		LOGWRN("FrmSrc failed to get resolution info");
+		return;
 	}
 
+	bool settingChanged = false;
 	if (mW != w || mH != h) {
+		LOGINF("new width (%d) and height (%d)", w, h);
+		ComparerPane* other = GetOppositePane(pane);
+		if (!other->pathName.IsEmpty()) {
+			other->Release();
+		}
+
 		mW = w;
 		mH = h;
 
 		settingChanged = true;
 
+		CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 		pMainFrm->UpdateResolutionLabel(mW, mH);
 		pMainFrm->CheckResolutionRadio(mW, mH);
 	}
 
+	const struct qcsc_info* ci = pane->GetColorSpace(pane->pathName, mSortedCscInfo);
 	if (ci == NULL) {
 		LOGWRN("color space is not found");
 	} else {
-		// Since I just changeed the menu title and id when It clicked,
+		// Since I just changed the menu title and id when It clicked,
 		// Whole new setting might be necessary
 		pane->SetColorInfo(ci);
 
