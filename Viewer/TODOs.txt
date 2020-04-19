@@ -1,8 +1,12 @@
 # TODO
 한글 파일 열때 문제 없도록...
   궁극적으로 opencv의 findDecoder에서 _wfopen을 통해서 읽을 수 있어야 한다.
-  https://github.com/huangqinjin/wmain#conclusion-for-all-utf8-on-windows 에서 보니깐 Visual Studio를 2015로 올리고 locale을 바꾸면 될 것 같기도...
-
+Input Sync
+  Viewer가 여러 개 실행되고 있다면 특정한 키를 통해서 Input Event가 서로 공유될 수 있도록 하면 여러 이미지와 비교도 가능할 것이다 (Comparer는 두개 이미지만 비교 가능하다).
+  구현방법을 살짝 기술하면, 제일 먼저 실행되는 Viewer를 IPC나 Socket통신의 서버로 동작하게 하고,
+  이후 여러개의 Viewer가 실행되었을 때 하나의 Viewer process에서 발생되는 input event를 Observer 패턴을 통해서 Broadcast할 수 있을 것 같다.
+  제일 먼저 샐행되는 Viewer process가 실행되는 Viewer process의 리스트를 가지고 있고 사용자의 input event를 broadcasting하는 process가 될 것이다.
+  
 # DONE
 mouse pointer의 좌표 정보 보여주기
 CS 및 Size를 UI에서 수동으로도 설정 가능하도록 하기
