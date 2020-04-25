@@ -1,6 +1,9 @@
 # TODO
+이미지보는 배율을 바꾼 상태에서 갑자기 새로운 이미지를 Drag&Drop으로 Open했을때 배율이 리셋되지 않아서 확대된 새 이미지가 보여짐
+Viewer처럼 FPS를 조절 할 수 있도록 수정하기
+지금 ComparerView에서만 Space로 Play할 수 있는데, PosInfoView에서도 Play할 수 있도록 수정하기
+현재 VidCapFrmSrc를 통한 Video Play가 느림, ffmpeg에서 연속적으로 frame을 추출하지 않아서 발생하는 문제로 보임, ffmpeg에서 계속 frame을 가지고 오되 필요없는 frame은 버리는 scheme을 취해야 겠음
 FrmInfoView에 보여주는 계산을 Thread로 하기
-Video의 Frame도 보여주기
 README.md에 FrmInfoView (중간PSNR,SSIM 텍스트), FrmsInfoView(그래프), PosInfoView(왼쪽 빨간색라인)의 구조보여주기
 pixel단위로 틀린 점 보여주기 (overlay로)
 좌우 x(close) 버튼 만들기
@@ -22,3 +25,4 @@ Comparer에서도 Grid, RGB value보여주기
 (bug) zoom in-out하다가 이미지가 작아졌을 때, 양쪽의 크기가 약간 달라지는 문제 해결
 h key로 hex, decimal 변환하기
 비율보여주기
+Video의 Frame도 보여주기
