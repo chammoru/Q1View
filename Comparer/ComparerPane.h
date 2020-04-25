@@ -9,6 +9,7 @@ class CComparerViewC;
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include "FrmSrc.h"
+#include "VidCapFrmSrc.h"
 #include "MatFrmSrc.h"
 #include "RawFrmSrc.h"
 
@@ -44,6 +45,7 @@ struct SQPane
 	, frmSrc(NULL)
 	{
 		// ADD MORE FRAME SOURCES, IF NEEDED
+		frmSrcs.push_back(new VidCapFrmSrc(this));
 		frmSrcs.push_back(new MatFrmSrc(this));
 		frmSrcs.push_back(new RawFrmSrc(this));
 	}
@@ -127,8 +129,8 @@ struct SQPane
 		return frmSrc && frmSrc->IsAvailable();
 	}
 
-	inline void FillSceneBuf(BYTE* origBuf, long curFrameID) {
-		frmSrc->FillSceneBuf(origBuf, curFrameID);
+	inline bool FillSceneBuf(BYTE* origBuf, long frameID) {
+		return frmSrc->FillSceneBuf(origBuf, frameID);
 	}
 };
 

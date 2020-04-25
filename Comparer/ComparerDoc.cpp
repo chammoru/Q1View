@@ -166,7 +166,8 @@ bool CComparerDoc::ReadSource4View(ComparerPane *pane)
 		return true;
 	}
 
-	pane->FillSceneBuf(pane->origBuf, pane->curFrameID);
+	if (!pane->FillSceneBuf(pane->origBuf, pane->curFrameID))
+		return false;
 
 	BYTE *y = pane->origBuf;
 	BYTE *u = pane->origBuf + pane->bufOffset2;

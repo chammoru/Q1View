@@ -17,6 +17,7 @@ public:
 
 	virtual ~RawFrmSrc()
 	{
+		Release();
 		for (int i = 0; i < NUM_THREADS; i++)
 			delete mCscRequesters[i];
 	}
@@ -38,7 +39,7 @@ public:
 		return true;
 	}
 
-	virtual void ConfigureDoc(CViewerDoc *pDoc)
+	virtual inline void ConfigureDoc(CViewerDoc *pDoc)
 	{
 		int ret;
 		CString fileName = mFilePath.Mid(mFilePath.ReverseFind('\\') + 1);
@@ -66,7 +67,7 @@ public:
 		qimage_parse_arg(szFileName, &pDoc->mFps, "fps");
 	}
 
-	virtual bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)
+	virtual inline bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)
 	{
 		if (mFile.m_hFile == CFile::hFileNull) {
 			LOGERR("File is not available");
@@ -91,13 +92,13 @@ public:
 		return true;
 	}
 
-	virtual long CalNumFrame(CViewerDoc *pDoc)
+	virtual inline long CalNumFrame(CViewerDoc *pDoc)
 	{
 		mFrames = long(mFile.GetLength() / pDoc->mOrigSceneSize);
 		return mFrames;
 	}
 
-	virtual bool SetFramePos(CViewerDoc *pDoc, long id)
+	virtual inline bool SetFramePos(CViewerDoc *pDoc, long id)
 	{
 		if (id >= mFrames)
 			return false;
@@ -110,7 +111,7 @@ public:
 		return true;
 	}
 
-	virtual bool Play(CViewerDoc *pDoc)
+	virtual inline bool Play(CViewerDoc *pDoc)
 	{
 		int i = 0;
 

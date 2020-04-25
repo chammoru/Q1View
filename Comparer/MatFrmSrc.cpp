@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "MatFrmSrc.h"
-#include "ComparerDoc.h"
 #include "QImageStr.h"
+#include "ComparerPane.h"
 
 using namespace cv;
 
@@ -9,6 +9,7 @@ MatFrmSrc::MatFrmSrc(SQPane *pane) : FrmSrc(pane) {}
 
 MatFrmSrc::~MatFrmSrc()
 {
+	Release();
 }
 
 bool MatFrmSrc::Open(const CString& filePath)
@@ -60,7 +61,9 @@ bool MatFrmSrc::IsAvailable()
 	return mOcvMat.data != NULL;
 }
 
-void MatFrmSrc::FillSceneBuf(BYTE* origBuf, long curFrameID)
+bool MatFrmSrc::FillSceneBuf(BYTE* origBuf, long frameID)
 {
 	memcpy(origBuf, mOcvMat.data, mPane->origSceneSize);
+
+	return true;
 }

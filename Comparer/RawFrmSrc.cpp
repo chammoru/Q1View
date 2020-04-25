@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "RawFrmSrc.h"
-#include "ComparerDoc.h"
 #include "QImageStr.h"
+#include "ComparerPane.h"
 #include "QDebug.h"
 #include "QCommon.h"
 
@@ -12,6 +12,7 @@ RawFrmSrc::RawFrmSrc(SQPane *pane)
 
 RawFrmSrc::~RawFrmSrc()
 {
+	Release();
 }
 
 bool RawFrmSrc::Open(const CString& filePath)
@@ -79,10 +80,10 @@ bool RawFrmSrc::IsAvailable()
 	return mFile != CFile::hFileNull && mFileSize > 0;
 }
 
-void RawFrmSrc::FillSceneBuf(BYTE* origBuf, long curFrameID)
+bool RawFrmSrc::FillSceneBuf(BYTE* origBuf, long frameID)
 {
-	if (curFrameID >= 0) {
-		ULONGLONG pos = ULONGLONG(curFrameID) * mPane->origSceneSize;
+	if (frameID >= 0) {
+		ULONGLONG pos = ULONGLONG(frameID) * mPane->origSceneSize;
 		mFile.Seek(pos, CFile::begin);
 	}
 
@@ -93,4 +94,6 @@ void RawFrmSrc::FillSceneBuf(BYTE* origBuf, long curFrameID)
 		// initialize the remaining buffer
 		memset(origBuf + nRead, 0, mPane->origSceneSize - nRead);
 	}
+
+	return true;
 }

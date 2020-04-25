@@ -14,7 +14,7 @@ public:
 	virtual const struct qcsc_info* GetColorSpace(CString &pathName,
 		struct qcsc_info* sortedCscInfo) = 0;
 	virtual bool IsAvailable() = 0;
-	virtual void FillSceneBuf(BYTE *origBuf, long curFrameID) = 0;
+	virtual bool FillSceneBuf(BYTE *origBuf, long frameID) = 0;
 
 protected:
 	SQPane *mPane;

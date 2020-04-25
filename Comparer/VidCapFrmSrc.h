@@ -3,22 +3,22 @@
 #include <opencv2/highgui/highgui.hpp>
 #include "FrmSrc.h"
 
-class MatFrmSrc : public FrmSrc
+class VidCapFrmSrc : public FrmSrc
 {
 public:
-	MatFrmSrc(SQPane *pane);
+	VidCapFrmSrc(SQPane* pane);
 
-	virtual ~MatFrmSrc();
+	virtual ~VidCapFrmSrc();
 	virtual bool Open(const CString& filePath);
 	virtual int GetFrameNum();
 	virtual void Release();
-	virtual bool GetResolution(CString &pathName, int* w, int* h);
-	virtual const struct qcsc_info* GetColorSpace(CString &pathName,
+	virtual bool GetResolution(CString& pathName, int* w, int* h);
+	virtual const struct qcsc_info* GetColorSpace(CString& pathName,
 		struct qcsc_info* sortedCscInfo);
 	virtual bool IsAvailable();
 	virtual bool FillSceneBuf(BYTE* origBuf, long frameID);
 
 private:
-	cv::Mat mOcvMat;
+	cv::VideoCapture mVidCap;
+	int mW, mH;
 };
-

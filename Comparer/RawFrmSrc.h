@@ -1,8 +1,6 @@
 #pragma once
 #include "FrmSrc.h"
 
-class CComparerDoc;
-
 class RawFrmSrc : public FrmSrc
 {
 public:
@@ -16,7 +14,7 @@ public:
 	virtual const struct qcsc_info* GetColorSpace(CString &pathName,
 		struct qcsc_info* sortedCscInfo);
 	virtual bool IsAvailable();
-	virtual void FillSceneBuf(BYTE* origBuf, long curFrameID);
+	virtual bool FillSceneBuf(BYTE* origBuf, long frameID);
 
 private:
 	CFile mFile;
