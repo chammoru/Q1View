@@ -19,6 +19,7 @@ public:
 
 	virtual ~VidCapFrmSrc()
 	{
+		Release();
 		delete mVidCapThread;
 	}
 
@@ -26,10 +27,7 @@ public:
 	{
 		std::string str = CT2A(filePath.GetString());
 
-		mVidCap.open(str);
-
-		bool opened = mVidCap.isOpened();
-		if (!opened)
+		if (!mVidCap.open(str) || !mVidCap.isOpened())
 			return false;
 		
 		mNextFrame = 0;
@@ -39,7 +37,7 @@ public:
 		return true;
 	}
 
-	virtual void ConfigureDoc(CViewerDoc *pDoc)
+	virtual inline void ConfigureDoc(CViewerDoc *pDoc)
 	{
 		pDoc->mW = static_cast<int>(mVidCap.get(cv::CAP_PROP_FRAME_WIDTH));
 		pDoc->mH = static_cast<int>(mVidCap.get(cv::CAP_PROP_FRAME_HEIGHT));
@@ -53,7 +51,7 @@ public:
 		pDoc->mFps = int(dfps + 0.5f);
 	}
 
-	virtual bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)
+	virtual inline bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)
 	{
 		if (pDoc->mCurFrameID != mNextFrame) {
 			bool ok = mVidCap.set(cv::CAP_PROP_POS_FRAMES, pDoc->mCurFrameID);
@@ -65,20 +63,21 @@ public:
 		if (pDoc->mRot == QROT_090 || pDoc->mRot == QROT_270)
 			QSWAP(w, h);
 
-		cv::Mat matTemp(h, w, CV_8UC3, buf, w * QIMG_DST_RGB_BYTES);
+		cv::Mat matTemp(h, w, CV_8UC3, buf, w * (size_t)QIMG_DST_RGB_BYTES);
 		mVidCap >> matTemp;
+		matTemp.release();
 
 		mNextFrame = pDoc->mCurFrameID + 1;
 
 		return true;
 	}
 
-	virtual long CalNumFrame(CViewerDoc *pDoc)
+	virtual inline long CalNumFrame(CViewerDoc *pDoc)
 	{
 		return mFrames;
 	}
 
-	virtual bool SetFramePos(CViewerDoc *pDoc, long id)
+	virtual inline bool SetFramePos(CViewerDoc *pDoc, long id)
 	{
 		if (id >= mFrames)
 			return false;
@@ -88,7 +87,7 @@ public:
 		return mVidCap.set(cv::CAP_PROP_POS_FRAMES, id);
 	}
 
-	virtual bool Play(CViewerDoc *pDoc)
+	virtual inline bool Play(CViewerDoc *pDoc)
 	{
 		bool ok = mVidCapThread->setup(pDoc);
 		ASSERT(ok);

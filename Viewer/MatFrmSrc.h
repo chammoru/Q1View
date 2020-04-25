@@ -18,6 +18,7 @@ public:
 
 	virtual ~MatFrmSrc()
 	{
+		Release();
 		delete mFileFinderThread;
 	}
 
@@ -28,7 +29,7 @@ public:
 		return mOcvMat.data != NULL;
 	}
 
-	virtual void ConfigureDoc(CViewerDoc *pDoc)
+	virtual inline void ConfigureDoc(CViewerDoc *pDoc)
 	{
 		pDoc->mW = mOcvMat.cols;
 		pDoc->mH = mOcvMat.rows;
@@ -38,7 +39,7 @@ public:
 		pDoc->mCsLoadInfo = qimage_rgb888_load_info;
 	}
 
-	virtual bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)
+	virtual inline bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)
 	{
 		size_t matSize = mOcvMat.total() * mOcvMat.elemSize();
 		memcpy(buf, mOcvMat.data, matSize);
@@ -50,7 +51,7 @@ public:
 
 	virtual long CalNumFrame(CViewerDoc *pDoc) { return 1; }
 
-	virtual bool SetFramePos(CViewerDoc *pDoc, long id)
+	virtual inline bool SetFramePos(CViewerDoc *pDoc, long id)
 	{
 		long count = id - 1;
 		if (count <= 0)
@@ -92,7 +93,7 @@ public:
 		return true;
 	}
 
-	virtual bool Play(CViewerDoc *pDoc)
+	virtual inline bool Play(CViewerDoc *pDoc)
 	{
 		bool ok = mFileFinderThread->setup(pDoc);
 		if (!ok)
