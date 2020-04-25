@@ -292,6 +292,8 @@ void CPosInfoView::OnLButtonDown(UINT nFlags, CPoint point)
 	if (!paneL->isAvail() && !paneR->isAvail())
 		return;
 
+	pDoc->KillPlayTimer();
+
 	CPoint ulCorner = GetScrollPosition();
 
 	int frameID = (ulCorner.y + point.y) / (mPosLinesPerFrame + 1);
