@@ -61,9 +61,21 @@ bool MatFrmSrc::IsAvailable()
 	return mOcvMat.data != NULL;
 }
 
-bool MatFrmSrc::FillSceneBuf(BYTE* origBuf, long frameID)
+bool MatFrmSrc::FillSceneBuf(BYTE* origBuf)
 {
 	memcpy(origBuf, mOcvMat.data, mPane->origSceneSize);
 
+	return true;
+}
+
+long MatFrmSrc::GetNextFrameID()
+{
+	return 0L;
+}
+
+bool MatFrmSrc::SetNextFrameID(long frameID)
+{
+	if (frameID != 0)
+		return false;
 	return true;
 }

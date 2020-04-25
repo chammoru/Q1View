@@ -48,7 +48,7 @@ SmpError FileScanThread::readyToRun()
 		const ComparerPane *pane = &mDoc->mPane[i];
 		SQPane *scanInfo = &mScanInfo[i];
 		scanInfo->closeFrmSrcs();
-		scanInfo->openFrmSrc(pane->pathName);
+		scanInfo->OpenFrmSrc(pane->pathName);
 		scanInfo->origSceneSize = pane->origSceneSize;
 		if (scanInfo->origSceneSize > scanInfo->origBufSize) {
 			if (scanInfo->origBuf)
@@ -75,7 +75,7 @@ bool FileScanThread::threadLoop()
 {
 	for (int i = 0; i < CComparerDoc::IMG_VIEW_MAX; i++) {
 		SQPane *scanInfo = &mScanInfo[i];
-		scanInfo->FillSceneBuf(scanInfo->origBuf, -1);
+		scanInfo->FillSceneBuf(scanInfo->origBuf);
 	}
 
 	SQPane *scanInfoL = &mScanInfo[CComparerDoc::IMG_VIEW_L];

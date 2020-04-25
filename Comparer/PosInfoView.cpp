@@ -306,7 +306,7 @@ void CPosInfoView::OnLButtonDown(UINT nFlags, CPoint point)
 		idx = CComparerDoc::IMG_VIEW_R;
 
 	ComparerPane *pane = &pDoc->mPane[idx];
-	pane->curFrameID = frameID;
+	pane->SetNextFrameID(frameID);
 	pDoc->ReadSource4View(pane);
 
 	IFrmCmpStrategy *compareStrategy = pDoc->mFrmCmpStrategy;

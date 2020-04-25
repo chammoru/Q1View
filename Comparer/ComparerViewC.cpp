@@ -609,6 +609,10 @@ void CComparerViewC::OnCsChange(UINT nID)
 	}
 }
 
+#define ADJUSTMENT               7
+#define FPS                      30
+#define MILLISECONDS_PER_FRAME   (((1000) / FPS) - ADJUSTMENT)
+
 void CComparerViewC::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
 	// TODO: Add your message handler code here and/or call default
@@ -630,17 +634,10 @@ void CComparerViewC::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	case VK_SPACE:
 		if (!pDoc->mIsPlaying) {
 			pDoc->mIsPlaying = true;
-			pDoc->mPlayStartTime = GetTickCount64();
-			pMainFrm->SetTimer(CTI_ID_PLAY, USER_TIMER_MINIMUM, NULL);
-			bool changed = pDoc->OffsetScenes(1);
+			pMainFrm->SetTimer(CTI_ID_PLAY, MILLISECONDS_PER_FRAME, NULL);
+			bool changed = pDoc->NextScenes();
 			if (!changed)
 				pDoc->SetScenes(0);
-
-			for (int i = 0; i < CComparerDoc::IMG_VIEW_MAX; i++) {
-				ComparerPane *pane = &pDoc->mPane[i];
-
-				pDoc->mPlayStartID[i] = pane->curFrameID;
-			}
 		} else {
 			pDoc->KillPlayTimer();
 		}

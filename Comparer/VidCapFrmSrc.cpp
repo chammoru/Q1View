@@ -73,19 +73,27 @@ bool VidCapFrmSrc::IsAvailable()
 	return  mVidCap.isOpened();
 }
 
-bool VidCapFrmSrc::FillSceneBuf(BYTE* origBuf, long frameID)
+bool VidCapFrmSrc::FillSceneBuf(BYTE* origBuf)
 {
-	if (frameID >= 0) {
-		bool ok = mVidCap.set(cv::CAP_PROP_POS_FRAMES, frameID);
-		if (!ok) {
-			LOGWRN("failed to mVidCap.set with frameID[%d]", frameID);
-			return false;
-		}
-	}
-
 	cv::Mat matTemp(mH, mW, CV_8UC3, origBuf, mW * (size_t)QIMG_DST_RGB_BYTES);
 	mVidCap >> matTemp;
 	matTemp.release();
+
+	return true;
+}
+
+long VidCapFrmSrc::GetNextFrameID()
+{
+	return static_cast<long>(mVidCap.get(cv::CAP_PROP_POS_FRAMES));
+}
+
+bool VidCapFrmSrc::SetNextFrameID(long frameID)
+{
+	bool ok = mVidCap.set(cv::CAP_PROP_POS_FRAMES, frameID);
+	if (!ok) {
+		LOGWRN("failed to mVidCap.set with frameID[%d]", frameID);
+		return false;
+	}
 
 	return true;
 }
