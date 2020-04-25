@@ -61,9 +61,6 @@ public:
 	RgbFrmCmpStrategy *mRgbCompare;
 	CString mPendingFile;
 	bool mIsPlaying;
-	ULONGLONG mPlayStartTime;
-	long mPlayStartID[IMG_VIEW_MAX];
-	long mPrevFrameOffset4Play;
 	float mPreN;
 	int mPreMaxL;
 	int mNnOffsetBufSize;
@@ -94,6 +91,8 @@ public:
 	void MarkImgViewProcessing();
 	bool CheckImgViewProcessing();
 	bool SetScenes(long frameID);
+	void SetScene(long frameID, ComparerPane* pane, bool& updated);
+	bool NextScenes();
 	void setDstSize();
 
 // Overrides

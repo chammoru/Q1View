@@ -50,8 +50,6 @@ CComparerDoc::CComparerDoc()
 , mYuvCompare(new YuvFrmCmpStrategy())
 , mRgbCompare(new RgbFrmCmpStrategy())
 , mIsPlaying(false)
-, mPlayStartTime(0UL)
-, mPrevFrameOffset4Play(-1)
 , mPreN(0.0f)
 , mPreMaxL(0)
 , mNnOffsetBufSize(0)
@@ -80,9 +78,6 @@ CComparerDoc::CComparerDoc()
 	ASSERT(mSortedCscInfo != NULL);
 
 	qimage_sort_cs(mSortedCscInfo);
-
-	for (int i = 0; i < IMG_VIEW_MAX; i++)
-		mPlayStartID[i] = 0;
 }
 
 CComparerDoc::~CComparerDoc()
@@ -159,14 +154,13 @@ bool CComparerDoc::ReadSource4View(ComparerPane *pane)
 		return false;
 	}
 
-	if (pane->curFrameID >= pane->frames) {
-		LOGWRN("Invalid frameID(%d) for %s",
-			pane->curFrameID, CT2A(pane->pathName).m_psz);
-		memset(pane->rgbBuf, 0, ROUNDUP_DWORD(mW) * mH * QIMG_DST_RGB_BYTES); // black
-		return true;
+	long nextFrameID = pane->GetNextFrameID();
+	if (nextFrameID >= pane->frames) {
+		LOGWRN("Invalid frameID(%d) for %s", nextFrameID, CT2A(pane->pathName).m_psz);
+		return false;
 	}
 
-	if (!pane->FillSceneBuf(pane->origBuf, pane->curFrameID))
+	if (!pane->FillSceneBuf(pane->origBuf))
 		return false;
 
 	BYTE *y = pane->origBuf;
@@ -216,8 +210,7 @@ void CComparerDoc::LoadSourceImage(ComparerPane *pane)
 		}
 	}
 
-	pane->openFrmSrc();
-	pane->curFrameID = 0;
+	pane->OpenFrmSrc();
 
 	setDstSize();
 
@@ -416,27 +409,30 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	return TRUE;
 }
 
+void CComparerDoc::SetScene(long frameID, ComparerPane* pane, bool& updated)
+{
+	if (frameID < 0) {
+		pane->SetNextFrameID(0);
+	} else if (frameID < pane->frames) {
+		pane->SetNextFrameID(frameID);
+		updated = true;
+	} else {
+		pane->SetNextFrameID(pane->frames - 1);
+	}
+
+	ReadSource4View(pane);
+}
+
 bool CComparerDoc::OffsetScenes(long offset)
 {
 	bool updated = false;
 
 	for (int i = 0; i < IMG_VIEW_MAX; i++) {
 		ComparerPane *pane = &mPane[i];
-
-		long frameID = pane->curFrameID + offset;
-		if (frameID < 0) {
-			pane->curFrameID = 0;
-		} else if (frameID < mMaxFrames) {
-			pane->curFrameID = frameID;
-			updated = true;
-		} else {
-			pane->curFrameID = mMaxFrames - 1;
-		}
-
 		if (!pane->isAvail())
 			continue;
 
-		ReadSource4View(pane);
+		SetScene(pane->curFrameID + offset, pane, updated);
 	}
 
 	return updated;
@@ -448,20 +444,31 @@ bool CComparerDoc::SetScenes(long frameID)
 
 	for (int i = 0; i < IMG_VIEW_MAX; i++) {
 		ComparerPane *pane = &mPane[i];
+		if (!pane->isAvail())
+			continue;
 
-		if (frameID < 0) {
-			pane->curFrameID = 0;
-		} else if (frameID < mMaxFrames) {
-			pane->curFrameID = frameID;
-			updated = true;
-		} else {
-			pane->curFrameID = mMaxFrames - 1;
-		}
+		SetScene(frameID, pane, updated);
+	}
+
+	return updated;
+}
+
+bool CComparerDoc::NextScenes()
+{
+	bool updated = false;
+
+	for (int i = 0; i < IMG_VIEW_MAX; i++) {
+		ComparerPane* pane = &mPane[i];
 
 		if (!pane->isAvail())
 			continue;
 
-		ReadSource4View(pane);
+		long before = pane->curFrameID;
+		if (pane->curFrameID < pane->frames - 1)
+			ReadSource4View(pane);
+		long after = pane->curFrameID;
+		if (before != after)
+			updated = true;
 	}
 
 	return updated;
@@ -473,8 +480,6 @@ void CComparerDoc::KillPlayTimer()
 
 	pMainFrm->KillTimer(CTI_ID_PLAY);
 	mIsPlaying = false;
-	mPlayStartTime = 0UL;
-	mPrevFrameOffset4Play = -1;
 }
 
 void CComparerDoc::MarkImgViewProcessing()

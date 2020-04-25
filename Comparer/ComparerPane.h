@@ -8,6 +8,8 @@ class CComparerViewC;
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include <QDebug.h>
+
 #include "FrmSrc.h"
 #include "VidCapFrmSrc.h"
 #include "MatFrmSrc.h"
@@ -26,6 +28,7 @@ struct SQPane
 	size_t rgbBufSize;
 	size_t yuv420BufSize;
 	QIMAGE_CSC_FN csc2rgb888;
+	long curFrameID;
 
 	std::vector<FrmSrc*> frmSrcs;
 	FrmSrc* frmSrc;
@@ -42,6 +45,7 @@ struct SQPane
 	, rgbBufSize(0)
 	, yuv420BufSize(0)
 	, csc2rgb888(qcsc_info_table[QIMG_DEF_CS_IDX].csc2rgb888)
+	, curFrameID(-1L)
 	, frmSrc(NULL)
 	{
 		// ADD MORE FRAME SOURCES, IF NEEDED
@@ -79,7 +83,7 @@ struct SQPane
 			csc2yuv420 = NULL;
 	}
 
-	void openFrmSrc(const CString &pathName)
+	void OpenFrmSrc(const CString &pathName)
 	{
 		closeFrmSrcs();
 
@@ -129,8 +133,12 @@ struct SQPane
 		return frmSrc && frmSrc->IsAvailable();
 	}
 
-	inline bool FillSceneBuf(BYTE* origBuf, long frameID) {
-		return frmSrc->FillSceneBuf(origBuf, frameID);
+	inline bool FillSceneBuf(BYTE* origBuf) {
+		long candidateCurFrameID = frmSrc->GetNextFrameID();
+		bool ok = frmSrc->FillSceneBuf(origBuf);
+		if (ok)
+			curFrameID = candidateCurFrameID;
+		return ok;
 	}
 };
 
@@ -141,7 +149,6 @@ struct ComparerPane : public SQPane
 	CComparerViewC *pView;
 
 	long frames;
-	long curFrameID;
 
 	inline virtual ~ComparerPane()
 	{
@@ -153,13 +160,12 @@ struct ComparerPane : public SQPane
 	, bufOffset3(0)
 	, pView(NULL)
 	, frames(0)
-	, curFrameID(0)
 	{
 	}
 
-	void openFrmSrc()
+	void OpenFrmSrc()
 	{
-		SQPane::openFrmSrc(pathName);
+		SQPane::OpenFrmSrc(pathName);
 		frames = frmSrc->GetFrameNum();
 	}
 
@@ -168,5 +174,26 @@ struct ComparerPane : public SQPane
 		closeFrmSrcs();
 		frames = 0;
 		pathName.Empty();
+	}
+
+	inline long GetNextFrameID()
+	{
+		if (frmSrc)
+			return frmSrc->GetNextFrameID();
+
+		return 0L;
+	}
+
+	inline bool SetNextFrameID(long nextFrameID)
+	{
+		if (frmSrc) {
+			if (nextFrameID < frames) {
+				return frmSrc->SetNextFrameID(nextFrameID);
+			} else {
+				frmSrc->SetNextFrameID(curFrameID); // repeat current frame
+			}
+		}
+
+		return false;
 	}
 };

@@ -80,19 +80,33 @@ bool RawFrmSrc::IsAvailable()
 	return mFile != CFile::hFileNull && mFileSize > 0;
 }
 
-bool RawFrmSrc::FillSceneBuf(BYTE* origBuf, long frameID)
+bool RawFrmSrc::FillSceneBuf(BYTE* origBuf)
 {
-	if (frameID >= 0) {
-		ULONGLONG pos = ULONGLONG(frameID) * mPane->origSceneSize;
-		mFile.Seek(pos, CFile::begin);
-	}
-
 	UINT nRead = mFile.Read(origBuf, UINT(mPane->origSceneSize));
 	if (nRead < mPane->origSceneSize) {
 		LOGWRN("The remaining data is too short to be one frame");
 
 		// initialize the remaining buffer
 		memset(origBuf + nRead, 0, mPane->origSceneSize - nRead);
+	}
+
+	return true;
+}
+
+long RawFrmSrc::GetNextFrameID()
+{
+	return long(mFile.GetPosition() / mPane->origSceneSize);
+}
+
+bool RawFrmSrc::SetNextFrameID(long frameID)
+{
+	try {
+		ULONGLONG pos = ULONGLONG(frameID) * mPane->origSceneSize;
+		mFile.Seek(pos, CFile::begin);
+	} catch (CFileException *e) {
+		LOGWRN("Failed to Seek to frameID %ld", frameID);
+		e->Delete();
+		return false;
 	}
 
 	return true;

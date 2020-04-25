@@ -22,6 +22,7 @@
 
 #include <QImageStr.h>
 #include <QImageViewerCmn.h>
+#include <QDebug.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -203,9 +204,6 @@ void CMainFrame::OnSize(UINT nType, int cx, int cy)
 	mCompSplitter.RecalcLayout();
 }
 
-#define FPS            30
-#define FRAME_PERIOD   (1000 / FPS)
-
 void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 {
 	// TODO: Add your message handler code here and/or call default
@@ -237,27 +235,12 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 		if (isProcessing)
 			break;
 
-		ULONGLONG elapsed = GetTickCount64() - pDoc->mPlayStartTime;
-		unsigned long s = unsigned long(elapsed / 1000);
-		unsigned long ms = elapsed % 1000;
-		long frameOffset4Play = s * FPS + ms / FRAME_PERIOD;
-
-		if (frameOffset4Play == pDoc->mPrevFrameOffset4Play)
-			break;
-
-		pDoc->mPrevFrameOffset4Play = frameOffset4Play;
-
-		long idxL = CComparerDoc::IMG_VIEW_L;
-		ComparerPane *paneL = pDoc->mPane + idxL;
-		long frameOffset = pDoc->mPlayStartID[idxL] + frameOffset4Play - paneL->curFrameID;
-		bool updated = pDoc->OffsetScenes(frameOffset);
-
+		bool updated = pDoc->NextScenes();
 		pDoc->MarkImgViewProcessing();
 
 		// pDoc->UpdateAllViews(NULL) is slow than the below code 
 		for (int i = 0; i < CComparerDoc::IMG_VIEW_MAX; i++) {
 			CComparerViewC *pView = pDoc->mPane[i].pView;
-
 			pView->Invalidate(FALSE);
 		}
 		pPosInfoView = pDoc->mPosInfoView;

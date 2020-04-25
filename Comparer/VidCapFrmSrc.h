@@ -16,7 +16,9 @@ public:
 	virtual const struct qcsc_info* GetColorSpace(CString& pathName,
 		struct qcsc_info* sortedCscInfo);
 	virtual bool IsAvailable();
-	virtual bool FillSceneBuf(BYTE* origBuf, long frameID);
+	virtual bool FillSceneBuf(BYTE* origBuf);
+	virtual long GetNextFrameID();
+	virtual bool SetNextFrameID(long frameID);
 
 private:
 	cv::VideoCapture mVidCap;
