@@ -5,7 +5,6 @@
 #define IDD_ABOUTBOX                    100
 #define IDD_CUSTOM_SIZE                 101
 #define IDR_MAINFRAME                   128
-#define IDR_ViewerTYPE                  129
 #define IDB_PROGRESS                    138
 #define IDD_CUSTOM_FPS                  139
 #define IDC_EDIT_CUSTOM_WIDTH           1000
