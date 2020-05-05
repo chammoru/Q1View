@@ -211,6 +211,7 @@
     <ClCompile Include="ComparerViewC.cpp" />
     <ClCompile Include="ComparerViewL.cpp" />
     <ClCompile Include="ComparerViewR.cpp" />
+    <ClCompile Include="CustomFpsDlg.cpp" />
     <ClCompile Include="CustomSizeDlg.cpp" />
     <ClCompile Include="FileScanThread.cpp" />
     <ClCompile Include="FrmCmpStrategy.cpp" />
@@ -242,6 +243,7 @@
     <ClInclude Include="ComparerViewC.h" />
     <ClInclude Include="ComparerViewL.h" />
     <ClInclude Include="ComparerViewR.h" />
+    <ClInclude Include="CustomFpsDlg.h" />
     <ClInclude Include="CustomSizeDlg.h" />
     <ClInclude Include="FileScanThread.h" />
     <ClInclude Include="FrmCmpInfo.h" />
