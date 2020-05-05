@@ -213,6 +213,15 @@ void CComparerDoc::LoadSourceImage(ComparerPane *pane)
 
 	pane->OpenFrmSrc();
 
+	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
+	double fps = pane->GetFps();
+	if (fps > 0) {
+		mFps = fps;
+		pMainFrm->UpdateFpsLabel(fps);
+		pMainFrm->CheckFpsRadio(fps);
+		pMainFrm->DrawMenuBar();
+	}
+
 	setDstSize();
 
 	for (int i = 0; i < IMG_VIEW_MAX; i++) {
@@ -239,7 +248,6 @@ void CComparerDoc::LoadSourceImage(ComparerPane *pane)
 
 	ReadSource4View(pane);
 
-	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	pMainFrm->UpdateMagnication(mN);
 }
 

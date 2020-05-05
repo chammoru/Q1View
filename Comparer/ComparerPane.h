@@ -196,4 +196,9 @@ struct ComparerPane : public SQPane
 
 		return false;
 	}
+
+	inline double GetFps()
+	{
+		return frmSrc->GetFps();
+	}
 };

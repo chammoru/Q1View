@@ -111,3 +111,15 @@ bool RawFrmSrc::SetNextFrameID(long frameID)
 
 	return true;
 }
+
+double RawFrmSrc::GetFps()
+{
+	double fps = - 1;
+	CString fileName = mFile.GetFileName();
+	fileName.MakeLower();
+	char szFileName[MAX_PATH + 1];
+	strncpy_s(szFileName, CT2A(fileName), MAX_PATH);
+	qimage_parse_arg(szFileName, &fps, "fps");
+
+	return fps;
+}

@@ -19,6 +19,7 @@ public:
 	virtual bool FillSceneBuf(BYTE* origBuf);
 	virtual long GetNextFrameID();
 	virtual bool SetNextFrameID(long frameID);
+	virtual double GetFps();
 
 private:
 	cv::VideoCapture mVidCap;
