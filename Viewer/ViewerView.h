@@ -167,7 +167,7 @@ public:
 	void SetPlayTimer(CViewerDoc* pDoc);
 	void KillPlayTimer();
 	void KillPlayTimerSafe();
-	void PrintPlaySpeed(int fps);
+	void PrintPlaySpeed(double fps);
 	void ScaleRgbBuf(BYTE *rgbBuffer, BYTE **rgbDst, QGridInfo &gi);
 	void SetCursorCoordinates(const CPoint &pt);
 	void Initialize(int nFrame, size_t rgbStride, int w, int h);

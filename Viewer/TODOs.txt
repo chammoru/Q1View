@@ -6,7 +6,8 @@ Input Sync
   구현방법을 살짝 기술하면, 제일 먼저 실행되는 Viewer를 IPC나 Socket통신의 서버로 동작하게 하고,
   이후 여러개의 Viewer가 실행되었을 때 하나의 Viewer process에서 발생되는 input event를 Observer 패턴을 통해서 Broadcast할 수 있을 것 같다.
   제일 먼저 샐행되는 Viewer process가 실행되는 Viewer process의 리스트를 가지고 있고 사용자의 input event를 broadcasting하는 process가 될 것이다.
-  
+FPS 맞추기
+  과거 10초 동안 처리된 수와 처리해야 할 frame수를 비교해서 그 비율을 구하고 그것에 따라서 time간격을 다시 setting 하기
 # DONE
 mouse pointer의 좌표 정보 보여주기
 CS 및 Size를 UI에서 수동으로도 설정 가능하도록 하기

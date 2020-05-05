@@ -37,8 +37,8 @@ public:
 	void UpdateCsLabel(const TCHAR *csLabel);
 	void CheckCsRadio(int cs);
 	void UpdateMagnication(float n, int wDst, int hDst);
-	void UpdateFpsLabel(int fps);
-	void CheckFpsRadio(int fps);
+	void UpdateFpsLabel(double fps);
+	void CheckFpsRadio(double fps);
 	void AddMainMenu();
 	void RefreshView();
 

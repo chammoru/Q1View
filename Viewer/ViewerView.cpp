@@ -428,7 +428,7 @@ void CViewerView::SetPlayTimer(CViewerDoc* pDoc)
 	mIsPlaying = true;
 	mPreKeyFrameStamp = 0;
 	mPlayFrameCount = 0;
-	mTimerID = timeSetEvent(1000 / pDoc->mFps, mTc.wPeriodMin, PlayTimerThread,
+	mTimerID = timeSetEvent(ROUND2I(1000 / pDoc->mFps), mTc.wPeriodMin, PlayTimerThread,
 		(DWORD_PTR)this, TIME_PERIODIC);
 }
 
@@ -445,21 +445,21 @@ void CViewerView::KillPlayTimer()
 	timeEndPeriod(mTc.wPeriodMin);
 
 	CViewerDoc* pDoc = GetDocument();
-	Sleep(1000 / pDoc->mFps); // make sure all timer event passed
+	Sleep(ROUND2I(1000 / pDoc->mFps)); // make sure all timer event passed
 
 	std::vector<FrmSrc *> &frmSrcs = pDoc->mFrmSrcs;
 	for (auto it = std::begin(frmSrcs); it != std::end(frmSrcs); it++)
 		(*it)->Stop();
 }
 
-void CViewerView::PrintPlaySpeed(int fps)
+void CViewerView::PrintPlaySpeed(double fps)
 {
 	mPlayFrameCount++;
 
-	if (mPlayFrameCount % fps == 1) {
+	if (mPlayFrameCount % ROUND2I(fps) == 1) {
 		ULONGLONG cur = ::GetTickCount64();
 		if (mPreKeyFrameStamp)
-			LOGINF("%d fps takes %llu msec", fps, cur - mPreKeyFrameStamp);
+			LOGINF("%f fps takes %llu msec", fps, cur - mPreKeyFrameStamp);
 
 		mPreKeyFrameStamp = cur;
 	}

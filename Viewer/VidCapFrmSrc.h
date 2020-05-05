@@ -46,9 +46,7 @@ public:
 		pDoc->mCsc2Rgb888 = qimage_bgr888_to_bgr888;
 		pDoc->mCsLoadInfo = qimage_rgb888_load_info;
 
-		double dfps = mVidCap.get(cv::CAP_PROP_FPS);
-
-		pDoc->mFps = int(dfps + 0.5f);
+		pDoc->mFps = mVidCap.get(cv::CAP_PROP_FPS);
 	}
 
 	virtual inline bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)
