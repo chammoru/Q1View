@@ -8,12 +8,12 @@ class CCustomFpsDlg : public CDialog
 	DECLARE_DYNAMIC(CCustomFpsDlg)
 
 public:
-	CCustomFpsDlg(int &fps, CWnd* pParent = NULL);   // standard constructor
+	CCustomFpsDlg(double &fps, CWnd* pParent = NULL);   // standard constructor
 	virtual ~CCustomFpsDlg();
 
 // Dialog Data
 	enum { IDD = IDD_CUSTOM_FPS };
-	int &mFps;
+	double &mFps;
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support

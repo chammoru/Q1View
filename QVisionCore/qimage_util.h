@@ -11,10 +11,10 @@ void qimage_crop(qu8 *src, int sStride, qu8 *dst, int x0, int y0, int dStride, i
 
 // JUST ADD HERE, IF YOU WANT ADDITIONAL RESOLUTION, THIS'S IT!
 static const char *qfps_info_table[] = {
-	"15fps",
-	"24fps",
-	"30fps",
-	"60fps",
+	"15.00fps",
+	"24.00fps",
+	"30.00fps",
+	"60.00fps",
 
 	"C&ustom...",
 };

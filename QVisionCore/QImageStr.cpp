@@ -9,6 +9,12 @@
 #include "QImageViewerCmn.h"
 #include "qimage_cs.h"
 
+
+static inline bool isdouble(int C)
+{
+	return isdigit(C) || (char)C == '.';
+}
+
 int qimage_parse_num(const char *str, int *num)
 {
 	int ret = 0;
@@ -116,6 +122,38 @@ find_next:
     } while (tmp);
 
     return 1; /* couldn't find */
+}
+
+int qimage_parse_arg(char* str, double* num, const char* key)
+{
+	char* ptr, * tmp;
+
+	ptr = str;
+
+	do
+	{
+		std::string str;
+		const char *ref = tmp = strstr(ptr, key);
+		if (tmp == NULL || tmp == str || !isdouble((int)tmp[-1]))
+			goto find_next;
+
+		tmp--;
+
+		while (tmp >= ptr && isdouble((int)*tmp))
+			tmp--;
+
+		for (char* c = tmp + 1; c < ref; c++) {
+			str += *c;
+		}
+		*num = std::stod(str);
+
+		return 0; /* found */
+
+find_next:
+		ptr = tmp + 2;
+	} while (tmp);
+
+	return 1; /* couldn't find */
 }
 
 static int qimage_strlen_compare(const void *a, const void *b)

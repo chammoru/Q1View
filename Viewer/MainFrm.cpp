@@ -206,7 +206,7 @@ void CMainFrame::UpdateCsLabel(const TCHAR *csLabel)
 		(UINT_PTR)mCsMenu.m_hMenu, csLabel);
 }
 
-void CMainFrame::UpdateFpsLabel(int fps)
+void CMainFrame::UpdateFpsLabel(double fps)
 {
 	if (GetMenu() == NULL)
 		return;
@@ -214,7 +214,7 @@ void CMainFrame::UpdateFpsLabel(int fps)
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
 
 	CString str;
-	str.Format(_T("%df&ps"), fps);
+	str.Format(_T("%.2ff&ps"), fps);
 	GetMenu()->ModifyMenu(MENU_POS_FPS, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mFpsMenu.m_hMenu, str);
 }
@@ -258,7 +258,7 @@ void CMainFrame::CheckCsRadio(int cs)
 		id, MF_CHECKED | MF_BYCOMMAND);
 }
 
-void CMainFrame::CheckFpsRadio(int fps)
+void CMainFrame::CheckFpsRadio(double fps)
 {
 	if (GetMenu() == NULL)
 		return;
@@ -291,7 +291,7 @@ void CMainFrame::AddMainMenu()
 	GetMenu()->InsertMenu(MENU_POS_COLORSPACE, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mCsMenu.m_hMenu, str);
 
-	str.Format(_T("%df&ps"), VIEWER_DEF_FPS);
+	str.Format(_T("%0.2ff&ps"), VIEWER_DEF_FPS);
 	GetMenu()->InsertMenu(3, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mFpsMenu.m_hMenu, str);
 }
@@ -430,9 +430,8 @@ void CMainFrame::OnFpsChange(UINT nID)
 	CMenu *subMenu = GetMenu()->GetSubMenu(MENU_POS_FPS);
 	subMenu->GetMenuString(nID, str, MF_BYCOMMAND);
 
-	int fps = -1;
-	int error = qimage_parse_num(CW2A(str), &fps);
-	if (error) {
+	double fps = _wtof(str);
+	if (fps == 0) {
 		fps = pDoc->mFps;
 
 		CCustomFpsDlg dlg(fps);

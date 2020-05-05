@@ -11,7 +11,7 @@
 
 IMPLEMENT_DYNAMIC(CCustomFpsDlg, CDialog)
 
-CCustomFpsDlg::CCustomFpsDlg(int &fps, CWnd* pParent /*=NULL*/)
+CCustomFpsDlg::CCustomFpsDlg(double &fps, CWnd* pParent /*=NULL*/)
 	: mFps(fps), CDialog(CCustomFpsDlg::IDD, pParent)
 {
 
@@ -26,7 +26,7 @@ void CCustomFpsDlg::DoDataExchange(CDataExchange* pDX)
 	CDialog::DoDataExchange(pDX);
 
 	DDX_Text(pDX, IDC_EDIT_CUSTOM_FPS, mFps);
-	DDV_MinMaxUInt(pDX, mFps, 1, 300);
+	DDV_MinMaxDouble(pDX, mFps, 1, 300);
 }
 
 

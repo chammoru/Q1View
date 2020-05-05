@@ -79,7 +79,7 @@ public:
 	// For Multithreading Play
 	SBufferPool *mBufferPool;
 	SSafeCQ<BufferInfo> *mBufferQueue;
-	int mFps;
+	double mFps;
 
 	// Various Color Formats
 	QIMAGE_CS mColorSpace;
