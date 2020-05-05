@@ -17,6 +17,7 @@ public:
 	virtual bool FillSceneBuf(BYTE *origBuf) = 0;
 	virtual long GetNextFrameID() = 0;
 	virtual bool SetNextFrameID(long frameID) = 0;
+	virtual double GetFps() = 0;
 
 protected:
 	SQPane *mPane;

@@ -97,3 +97,8 @@ bool VidCapFrmSrc::SetNextFrameID(long frameID)
 
 	return true;
 }
+
+double VidCapFrmSrc::GetFps()
+{
+	return mVidCap.get(cv::CAP_PROP_FPS);
+}

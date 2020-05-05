@@ -79,3 +79,8 @@ bool MatFrmSrc::SetNextFrameID(long frameID)
 		return false;
 	return true;
 }
+
+double MatFrmSrc::GetFps()
+{
+	return -1;
+}
