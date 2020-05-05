@@ -60,6 +60,7 @@ CComparerDoc::CComparerDoc()
 , mRgbHex(_T("%02X\n%02X\n%02X"))
 , mRgbDec(_T("%03d\n%03d\n%03d"))
 , mRgbFormat(mRgbDec)
+, mFps(COMPARER_DEF_FPS)
 {
 	// TODO: add one-time construction code here
 	BITMAPINFOHEADER &bmiHeader = mBmi.bmiHeader;

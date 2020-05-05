@@ -11,6 +11,7 @@
 
 #include "QCommon.h"
 #include "QDebug.h"
+#include "QMath.h"
 
 #include <QImageViewerCmn.h>
 #include <QImageStr.h>
@@ -609,10 +610,6 @@ void CComparerViewC::OnCsChange(UINT nID)
 	}
 }
 
-#define ADJUSTMENT               7
-#define FPS                      30
-#define MILLISECONDS_PER_FRAME   (((1000) / FPS) - ADJUSTMENT)
-
 void CComparerViewC::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
 	// TODO: Add your message handler code here and/or call default
@@ -634,7 +631,7 @@ void CComparerViewC::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	case VK_SPACE:
 		if (!pDoc->mIsPlaying) {
 			pDoc->mIsPlaying = true;
-			pMainFrm->SetTimer(CTI_ID_PLAY, MILLISECONDS_PER_FRAME, NULL);
+			pMainFrm->SetTimer(CTI_ID_PLAY, ROUND2I((1000 / pDoc->mFps) - FPS_ADJUSTMENT), NULL);
 			bool changed = pDoc->NextScenes();
 			if (!changed)
 				pDoc->SetScenes(0);

@@ -15,6 +15,8 @@
 #define PANE_DEF_W            CANVAS_DEF_W
 #define PANE_DEF_H            (CANVAS_DEF_H + GUESS_CONTROLS_H)
 #define MIN_SIDE              10
+#define COMPARER_DEF_FPS      30.0
+#define FPS_ADJUSTMENT        7
 
 class CComparerDoc;
 class FileScanThread;
@@ -70,6 +72,7 @@ public:
 	const CString mRgbHex;
 	const CString mRgbDec;
 	CString mRgbFormat;
+	double mFps;
 
 #ifdef MORU_FMAT_HW
 	cv::Mat mFundamental;

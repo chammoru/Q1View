@@ -19,7 +19,7 @@
 #define NUM_BUFFER_QUEUE      (NUM_THREADS * 3)
 #define VIEWER_DEF_W          500
 #define VIEWER_DEF_H          392
-#define VIEWER_DEF_FPS        30
+#define VIEWER_DEF_FPS        30.0
 
 enum ID_MSG {
 	MSG_QUIT = 0x7fff0000,

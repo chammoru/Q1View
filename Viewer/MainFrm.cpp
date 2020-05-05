@@ -292,7 +292,7 @@ void CMainFrame::AddMainMenu()
 		(UINT_PTR)mCsMenu.m_hMenu, str);
 
 	str.Format(_T("%0.2ff&ps"), VIEWER_DEF_FPS);
-	GetMenu()->InsertMenu(3, MF_BYPOSITION | MF_POPUP,
+	GetMenu()->InsertMenu(MENU_POS_FPS, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mFpsMenu.m_hMenu, str);
 }
 
@@ -301,7 +301,6 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	if (CFrameWnd::OnCreate(lpCreateStruct) == -1)
 		return -1;
 
-	// TODO:  Add your specialized creation code here
 	int i;
 	CString str;
 
@@ -330,8 +329,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	}
 
 	mFpsMenu.AppendMenu(MF_SEPARATOR);
-	mFpsMenu.AppendMenu(MF_STRING, ID_FPS_START + i,
-		CA2W(qfps_info_table[i]));
+	mFpsMenu.AppendMenu(MF_STRING, ID_FPS_START + i, CA2W(qfps_info_table[i]));
 
 	AddMainMenu();
 
@@ -360,7 +358,6 @@ void CMainFrame::RefreshView()
 
 void CMainFrame::OnResolutionChange(UINT nID)
 {
-	// TODO: Add your command handler code here
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
 
 	CString str;
@@ -393,7 +390,6 @@ void CMainFrame::OnResolutionChange(UINT nID)
 
 void CMainFrame::OnCsChange(UINT nID)
 {
-	// TODO: Add your command handler code here
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
 
 	CString str;
@@ -423,7 +419,6 @@ void CMainFrame::OnCsChange(UINT nID)
 
 void CMainFrame::OnFpsChange(UINT nID)
 {
-	// TODO: Add your command handler code here
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
 
 	CString str;

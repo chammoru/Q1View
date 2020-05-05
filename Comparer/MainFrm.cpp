@@ -19,6 +19,8 @@
 #include "FileScanThread.h"
 
 #include "CustomSizeDlg.h"
+#include "CustomFpsDlg.h"
+#include "qimage_util.h"
 
 #include <QImageStr.h>
 #include <QImageViewerCmn.h>
@@ -43,6 +45,7 @@ IMPLEMENT_DYNCREATE(CMainFrame, CFrameWnd)
 BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_COMMAND_RANGE(ID_RESOLUTION_START, ID_RESOLUTION_END, CMainFrame::OnResolutionChange)
 	ON_COMMAND_RANGE(ID_METRIC_START, ID_METRIC_END, CMainFrame::OnMetricChange)
+	ON_COMMAND_RANGE(ID_FPS_START, ID_FPS_END, &CMainFrame::OnFpsChange)
 	ON_WM_SIZE()
 	ON_WM_TIMER()
 	ON_WM_DESTROY()
@@ -59,10 +62,12 @@ CMainFrame::CMainFrame()
 	// TODO: add member initialization code here
 	mResolutionMenu.CreatePopupMenu();
 	mMetricMenu.CreatePopupMenu();
+	mFpsMenu.CreatePopupMenu();
 }
 
 CMainFrame::~CMainFrame()
 {
+	mFpsMenu.DestroyMenu();
 	mMetricMenu.DestroyMenu();
 	mResolutionMenu.DestroyMenu();
 }
@@ -266,6 +271,7 @@ void CMainFrame::OnDestroy()
 
 #define MENU_POS_RESOLUTION       1
 #define MENU_POS_METRIC           2
+#define MENU_POS_FPS              3
 
 void CMainFrame::CheckResolutionRadio(int w, int h)
 {
@@ -291,9 +297,21 @@ void CMainFrame::UpdateResolutionLabel(int w, int h)
 		(UINT_PTR)mResolutionMenu.m_hMenu, str);
 }
 
+void CMainFrame::UpdateFpsLabel(double fps)
+{
+	if (GetMenu() == NULL)
+		return;
+
+	CComparerDoc* pDoc = static_cast<CComparerDoc*>(GetActiveDocument());
+
+	CString str;
+	str.Format(_T("%.2ff&ps"), fps);
+	GetMenu()->ModifyMenu(MENU_POS_FPS, MF_BYPOSITION | MF_POPUP,
+		(UINT_PTR)mFpsMenu.m_hMenu, str);
+}
+
 void CMainFrame::OnResolutionChange(UINT nID)
 {
-	// TODO: Add your command handler code here
 	CComparerDoc *pDoc = static_cast<CComparerDoc *>(GetActiveDocument());
 
 	CString str;
@@ -325,6 +343,35 @@ void CMainFrame::OnResolutionChange(UINT nID)
 	RefreshAllViews();
 }
 
+void CMainFrame::OnFpsChange(UINT nID)
+{
+	CComparerDoc* pDoc = static_cast<CComparerDoc*>(GetActiveDocument());
+
+	CString str;
+	CMenu* subMenu = GetMenu()->GetSubMenu(MENU_POS_FPS);
+	subMenu->GetMenuString(nID, str, MF_BYCOMMAND);
+
+	double fps = _wtof(str);
+	if (fps == 0) {
+		fps = pDoc->mFps;
+
+		CCustomFpsDlg dlg(fps);
+
+		if (IDOK != dlg.DoModal())
+			return;
+	}
+
+	if (pDoc->mFps == fps)
+		return;
+
+	UpdateFpsLabel(fps);
+	CheckFpsRadio(fps);
+
+	pDoc->mFps = fps;
+
+	DrawMenuBar();
+}
+
 void CMainFrame::CheckMetricRadio()
 {
 	CMenu *subMenu = GetMenu()->GetSubMenu(MENU_POS_METRIC);
@@ -340,6 +387,27 @@ void CMainFrame::UpdateMetricLabel()
 		(UINT_PTR)mMetricMenu.m_hMenu, metric);
 }
 
+void CMainFrame::CheckFpsRadio(double fps)
+{
+	if (GetMenu() == NULL)
+		return;
+
+	unsigned int i;
+	int num = -1;
+	for (i = 0; i < ARRAY_SIZE(qfps_info_table) - 1; i++) {
+		qimage_parse_num(qfps_info_table[i], &num);
+		if (num == fps)
+			break;
+	}
+
+	UINT id = ID_FPS_START + i;
+
+	CMenu* subMenu = GetMenu()->GetSubMenu(MENU_POS_FPS);
+
+	subMenu->CheckMenuRadioItem(ID_FPS_START, ID_FPS_END,
+		id, MF_CHECKED | MF_BYCOMMAND);
+}
+
 void CMainFrame::UpdateMagnication(float n)
 {
 	CString str;
@@ -352,7 +420,6 @@ void CMainFrame::UpdateMagnication(float n)
 
 void CMainFrame::OnMetricChange(UINT nID)
 {
-	// TODO: Add your command handler code here
 	mMetricIdx = nID - ID_METRIC_START;
 
 	UpdateMetricLabel();
@@ -367,10 +434,10 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	if (CFrameWnd::OnCreate(lpCreateStruct) == -1)
 		return -1;
 
-	// TODO:  Add your specialized creation code here
 	int i;
 	CString str;
 
+	// size menu
 	for (i = 0; i < ARRAY_SIZE(qresolution_info_table) - 1; i++) {
 		mResolutionMenu.AppendMenu(MF_STRING, ID_RESOLUTION_START + i,
 			CA2W(qresolution_info_table[i]));
@@ -387,6 +454,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	CheckResolutionRadio(CANVAS_DEF_W, CANVAS_DEF_H);
 
+	// metric menu
 	const qmetric_info *qmi;
 	for (i = 0; i < METRIC_COUNT; i++) {
 		qmi = qmetric_info_table + i;
@@ -400,6 +468,21 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 			(UINT_PTR)mMetricMenu.m_hMenu, str);
 
 	CheckMetricRadio();
+
+	// fps menu
+	for (i = 0; i < ARRAY_SIZE(qfps_info_table) - 1; i++) {
+		mFpsMenu.AppendMenu(MF_STRING, ID_FPS_START + i,
+			CA2W(qfps_info_table[i]));
+	}
+
+	mFpsMenu.AppendMenu(MF_SEPARATOR);
+	mFpsMenu.AppendMenu(MF_STRING, ID_FPS_START + i, CA2W(qfps_info_table[i]));
+
+	str.Format(_T("%0.2ff&ps"), COMPARER_DEF_FPS);
+	GetMenu()->InsertMenu(MENU_POS_FPS, MF_BYPOSITION | MF_POPUP,
+		(UINT_PTR)mFpsMenu.m_hMenu, str);
+
+	CheckFpsRadio(COMPARER_DEF_FPS);
 
 	return 0;
 }
