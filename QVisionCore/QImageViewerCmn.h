@@ -13,7 +13,7 @@
 
 #define COLOR_PIXEL_TEXT   RGB(0xe0, 0xe0, 0xe0)
 
-#define QIMG_MAX_LENGTH    4096
+#define QIMG_MAX_LENGTH    10000
 
 int QDeterminDestPos(int lenCanvas, int lenDst, float &offset, float ratio);
 float QGetFitRatio(float ratio, int w, int h, int wCanvas, int hCanvas);
