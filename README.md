@@ -7,7 +7,7 @@ A developer-friendly media viewer
 - Visual Sutdio 16 2019, Win64
 - OpenCV 4.3.0
 
-## What to open at first
+## What to open first
 | Sub-project |  Solution file        |
 | ----------- |  ---------------------|
 | Comparer    |  Comparer\Comparer.sln|
