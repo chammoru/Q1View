@@ -21,3 +21,10 @@ CMAKE_OPTIONS='-DBUILD_DOCS:BOOL=OFF -DWITH_CUDA:BOOL=OFF -DBUILD_EXAMPLES:BOOL=
 - QVisionCore refactor/namespace q1
 - Prefix를 기존에 Qcv, Q 다양하게 붙였는데 통일 필요
 - 파일이름도 QImage, QVision 다양하게 붙였는데 수정 필요
+
+- Explain how to build
+- The location of TODO files (if you're interested in, you can contribute)
+- Explain how to support new raw formats (한중 코드 수정 방법)
+- 알려진 문제들
+- 영역선택하는 방법
+- '?' 선택되었을 때 나오는 모든 메뉴
