@@ -17,7 +17,7 @@
 #include "RawFrmSrc.h"
 #include "ViewerCmn.h"
 
-#include "QImageOcv.h"
+#include "QOcv.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW

@@ -8,7 +8,7 @@
 
 #include "SMutex.h"
 
-#include <QImageViewerCmn.h>
+#include <QViewerCmn.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>

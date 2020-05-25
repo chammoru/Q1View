@@ -1,5 +1,5 @@
 #include "QMath.h"
-#include "QImageViewerCmn.h"
+#include "QViewerCmn.h"
 
 using namespace std;
 
