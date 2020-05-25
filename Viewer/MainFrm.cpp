@@ -18,7 +18,7 @@
 #include "CustomFpsDlg.h"
 
 #include <QImageStr.h>
-#include <QImageViewerCmn.h>
+#include <QViewerCmn.h>
 #include "qimage_util.h"
 
 #include "FrmSrc.h"

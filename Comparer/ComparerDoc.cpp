@@ -13,11 +13,11 @@
 #include "YuvFrmCmpStrategy.h"
 #include "RgbFrmCmpStrategy.h"
 #include "MetricCal.h"
-#include "QImageViewerCmn.h"
+#include "QViewerCmn.h"
 
 #include "QImageStr.h"
 
-#include "QImageViewerCmn.h"
+#include "QViewerCmn.h"
 #include "QDebug.h"
 
 #ifdef _DEBUG

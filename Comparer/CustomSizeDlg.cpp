@@ -6,7 +6,7 @@
 
 #include "CustomSizeDlg.h"
 #include <QImageStr.h>
-#include <QImageViewerCmn.h>
+#include <QViewerCmn.h>
 
 // CCustomSizeDlg dialog
 

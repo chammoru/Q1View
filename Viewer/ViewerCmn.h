@@ -2,7 +2,7 @@
 
 #include "stdafx.h"
 #include "ViewerDoc.h"
-#include <QImageOcv.h>
+#include <QOcv.h>
 #include <QCvUtil.h>
 
 static inline BufferInfo PostProcess(

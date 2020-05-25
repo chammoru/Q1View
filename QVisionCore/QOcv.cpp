@@ -2,7 +2,7 @@
 
 #include "QDebug.h"
 #include "QTickMeter.h"
-#include "QImageOcv.h"
+#include "QOcv.h"
 #include "QDerivative.h"
 
 #include <opencv2/objdetect/objdetect.hpp>

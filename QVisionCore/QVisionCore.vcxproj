@@ -19,23 +19,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="fgs_filter.cpp" />
-    <ClCompile Include="pff_segment\disjoint-set.cpp" />
-    <ClCompile Include="pff_segment\filter.cpp" />
-    <ClCompile Include="pff_segment\segment-graph.cpp" />
-    <ClCompile Include="pff_segment\segment-image.cpp" />
-    <ClCompile Include="QColorName.cpp" />
     <ClCompile Include="QCvUtil.cpp" />
     <ClCompile Include="QDerivative.cpp" />
-    <ClCompile Include="QFeatureExtraction.cpp" />
-    <ClCompile Include="QImageDPM.cpp" />
-    <ClCompile Include="QImageDpmParse.cpp" />
-    <ClCompile Include="QImageEpipol.cpp" />
-    <ClCompile Include="QImageMatcher.cpp" />
-    <ClCompile Include="QImageOcv.cpp" />
-    <ClCompile Include="QImageSkin.cpp" />
+    <ClCompile Include="QOcv.cpp" />
     <ClCompile Include="QImageStr.cpp" />
-    <ClCompile Include="QImageViewerCmn.cpp" />
+    <ClCompile Include="QViewerCmn.cpp" />
     <ClCompile Include="qimage_cs.c">
       <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Default</CompileAs>
     </ClCompile>
@@ -46,43 +34,18 @@
       <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Default</CompileAs>
     </ClCompile>
     <ClCompile Include="QRotate.cpp" />
-    <ClCompile Include="QSlicWrapper.cpp" />
-    <ClCompile Include="QStructuralEdge.cpp" />
-    <ClCompile Include="QSuperPixel.cpp" />
-    <ClCompile Include="SLIC.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="fgs_filter.hpp" />
-    <ClInclude Include="pff_segment\convolve.h" />
-    <ClInclude Include="pff_segment\disjoint-set.h" />
-    <ClInclude Include="pff_segment\filter.h" />
-    <ClInclude Include="pff_segment\image.h" />
-    <ClInclude Include="pff_segment\imconv.h" />
-    <ClInclude Include="pff_segment\imutil.h" />
-    <ClInclude Include="pff_segment\misc.h" />
-    <ClInclude Include="pff_segment\segment-graph.h" />
-    <ClInclude Include="QColorName.h" />
     <ClInclude Include="QCvUtil.h" />
     <ClInclude Include="QDerivative.h" />
-    <ClInclude Include="QFeatureExtraction.h" />
-    <ClInclude Include="QImageDPM.h" />
-    <ClInclude Include="QImageDpmParse.h" />
-    <ClInclude Include="QImageEpipol.h" />
-    <ClInclude Include="QImageMatcher.h" />
-    <ClInclude Include="QImageOcv.h" />
-    <ClInclude Include="QImageSkin.h" />
+    <ClInclude Include="QOcv.h" />
     <ClInclude Include="QImageStr.h" />
-    <ClInclude Include="QImageViewerCmn.h" />
+    <ClInclude Include="QViewerCmn.h" />
     <ClInclude Include="qimage_cs.h" />
     <ClInclude Include="qimage_metrics.h" />
     <ClInclude Include="qimage_util.h" />
     <ClInclude Include="QRotate.h" />
-    <ClInclude Include="QSlicWrapper.h" />
-    <ClInclude Include="QStructuralEdge.h" />
-    <ClInclude Include="QSuperPixel.h" />
     <ClInclude Include="QTickMeter.h" />
-    <ClInclude Include="segment-image.h" />
-    <ClInclude Include="SLIC.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SMultithreadPlus\build\x86_windows\SMultithreadPlus.vcxproj">

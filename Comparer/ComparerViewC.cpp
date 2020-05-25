@@ -13,7 +13,7 @@
 #include "QDebug.h"
 #include "QMath.h"
 
-#include <QImageViewerCmn.h>
+#include <QViewerCmn.h>
 #include <QImageStr.h>
 
 #ifdef MORU_FMAT_HW

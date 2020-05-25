@@ -2,7 +2,7 @@
 #include "stdafx.h"
 #include "FrmProvideThread.h"
 #include "ViewerCmn.h"
-#include "QImageOcv.h"
+#include "QOcv.h"
 
 bool FrmProvideThread::threadLoop()
 {

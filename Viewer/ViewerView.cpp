@@ -11,7 +11,7 @@
 #include "QMath.h"
 #include "QDebug.h"
 
-#include "QImageViewerCmn.h"
+#include "QViewerCmn.h"
 #include "qimage_cs.h"
 #include "qimage_util.h"
 

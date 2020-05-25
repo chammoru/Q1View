@@ -2,7 +2,7 @@
 
 // CComparerViewC view
 #include "QMenuItem.h"
-#include "QImageViewerCmn.h"
+#include "QViewerCmn.h"
 
 #define QMENUITEM_IN_MARGIN_H     6
 #define QMENUITEM_IN_MARGIN_W     8
