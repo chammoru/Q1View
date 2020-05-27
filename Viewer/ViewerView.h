@@ -168,7 +168,7 @@ public:
 	void KillPlayTimer();
 	void KillPlayTimerSafe();
 	void PrintPlaySpeed(double fps);
-	void ScaleRgbBuf(BYTE *rgbBuffer, BYTE **rgbDst, QGridInfo &gi);
+	void ScaleRgbBuf(BYTE *rgbBuffer, BYTE **rgbDst, q1::GridInfo &gi);
 	void SetCursorCoordinates(const CPoint &pt);
 	void Initialize(int nFrame, size_t rgbStride, int w, int h);
 	void OnMouseMenu(UINT nID);
@@ -177,7 +177,7 @@ public:
 	void ChangeZoom(short zDelta, CPoint &pt);
 	cv::Mat CreateRoiMat(int x0, int y0, int w, int h);
 	void ToggleFullScreen();
-	void DrawRgbText(CDC *pDC, QGridInfo &gi);
+	void DrawRgbText(CDC *pDC, q1::GridInfo &gi);
 	void ToggleHelp();
 	void DrawHelpMenu(CDC *pDC);
 	void DrawCursorCoordinates(CDC *pDC);
@@ -189,10 +189,10 @@ private:
 	CRect CvtCoord2Show(const CRect &rt);
 	void FindFile(CViewerDoc* pDoc, UINT nChar);
 	void SetDstSize();
-	void _ScaleRgb(BYTE *src, BYTE *dst, int sDst, QGridInfo &gi);
+	void _ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi);
 	void Interpolate(BYTE *src, long xStart, long xEnd, long yStart, long yEnd, BYTE *dst);
 	void NearestNeighbor(BYTE *src, long xStart, long xEnd, long yStart, long yEnd,
-		long gap, QGridInfo &gi, BYTE *dst);
+		long gap, q1::GridInfo &gi, BYTE *dst);
 	int DrawBoxInfoText(CDC *pDC, CRect &rect, COLORREF color, int hAccumGap);
 
 // Overrides

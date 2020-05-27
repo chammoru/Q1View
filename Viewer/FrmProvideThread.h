@@ -7,7 +7,7 @@
 
 #include "ViewerDoc.h"
 
-class QImageProcessor;
+class ImageProcessor;
 
 class FrmProvideThread : public SThread
 {
@@ -15,7 +15,7 @@ public:
 	FrmProvideThread(SBufferPool * pBufferPool,
 					SSafeCQ<BufferInfo> *pBufferQueue,
 					long *pPlayFrameID,
-					QImageProcessor *pBgr888Processor)
+					q1::ImageProcessor *pBgr888Processor)
 	: mBufferQueue(pBufferQueue)
 	, mBufferPool(pBufferPool)
 	, mPlayFrameIdPtr(pPlayFrameID)
@@ -85,6 +85,6 @@ protected:
 	int mColorSpace;
 	int mBufOffset2, mBufOffset3;
 	QIMAGE_CSC_FN mCsc2Rgb888;
-	QImageProcessor *mBgr888Processor;
+	q1::ImageProcessor *mBgr888Processor;
 	QROTATION mRot;
 };

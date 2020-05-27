@@ -4,7 +4,7 @@
 FileFinderThread::FileFinderThread(SBufferPool * pBufferPool,
 								 SSafeCQ<BufferInfo> *pBufferQueue,
 								 long *pPlayFrameID,
-								 QImageProcessor *pBgr888Processor)
+								 q1::ImageProcessor *pBgr888Processor)
 : FrmProvideThread(pBufferPool, pBufferQueue, pPlayFrameID, pBgr888Processor)
 {
 }

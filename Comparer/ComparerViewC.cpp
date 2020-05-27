@@ -96,7 +96,7 @@ void CComparerViewC::OnInitialUpdate()
 }
 
 void CComparerViewC::ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *dst, int sDst,
-										  QGridInfo &gi)
+										  q1::GridInfo &gi)
 {
 	long gap, yStart, yEnd, xStart, xEnd, yBase, xBase;
 
@@ -130,11 +130,11 @@ void CComparerViewC::ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *d
 
 	if (pDoc->mN >= ZOOM_GRID_START) {
 		// investigate y-axis pixel border
-		investigatePixelBorder(pDoc->mNnOffsetBuf, yStart, yEnd, yBase, pDoc->mHDst,
+		q1::InvestigatePixelBorder(pDoc->mNnOffsetBuf, yStart, yEnd, yBase, pDoc->mHDst,
 			&gi.y, &gi.Hs, pDoc->mNnOffsetYBorderFlag);
 
 		// investigate x-axis border
-		investigatePixelBorder(pDoc->mNnOffsetBuf, xStart, xEnd, xBase, pDoc->mWDst,
+		q1::InvestigatePixelBorder(pDoc->mNnOffsetBuf, xStart, xEnd, xBase, pDoc->mWDst,
 			&gi.x, &gi.Ws, pDoc->mNnOffsetXBorderFlag);
 
 		gi.pixelMap.create(int(gi.Hs.size()), int(gi.Ws.size()), CV_8UC3);
@@ -145,15 +145,15 @@ void CComparerViewC::ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *d
 				gi.pixelMap.at<cv::Vec3b>(i, j) = cv::Vec3b(src_x);
 			}
 		}
-		scaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(pDoc->mW), gap,
+		q1::ScaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(pDoc->mW), gap,
 			pDoc->mNnOffsetYBorderFlag, pDoc->mNnOffsetXBorderFlag, pDoc->mNnOffsetBuf, dst);
 	} else {
-		scaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(pDoc->mW), gap,
+		q1::ScaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(pDoc->mW), gap,
 			pDoc->mNnOffsetBuf, dst);
 	}
 }
 
-void CComparerViewC::ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, QGridInfo &gi)
+void CComparerViewC::ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridInfo &gi)
 {
 	int sDst = ROUNDUP_DWORD(mWClient);
 	int rgbBufSize = sDst * mHClient * QIMG_DST_RGB_BYTES;
@@ -226,7 +226,7 @@ void CComparerViewC::OnDraw(CDC *pDC)
 	if (pDoc->mWDst < mWCanvas || pDoc->mHDst < mHCanvas)
 		memDC.BitBlt(0, 0, mWCanvas, mHCanvas, NULL, 0, 0, WHITENESS);
 
-	QGridInfo gi;
+	q1::GridInfo gi;
 	ScaleRgbBuf(pDoc, pane->rgbBuf, gi); // update mRgbBuf
 #ifdef USE_STRETCH_DIB
 	StretchDIBits(memDC.m_hDC,
@@ -413,8 +413,8 @@ void CComparerViewC::AdjustWindowSize() const
 
 void CComparerViewC::DeterminDestOriginCoord(CComparerDoc *pDoc)
 {
-	mXDst = QDeterminDestPos(mWCanvas, pDoc->mWDst, pDoc->mXOff, pDoc->mN);
-	mYDst = QDeterminDestPos(mHCanvas, pDoc->mHDst, pDoc->mYOff, pDoc->mN);
+	mXDst = q1::DeterminDestPos(mWCanvas, pDoc->mWDst, pDoc->mXOff, pDoc->mN);
+	mYDst = q1::DeterminDestPos(mHCanvas, pDoc->mHDst, pDoc->mYOff, pDoc->mN);
 }
 
 void CComparerViewC::Initialize(CComparerDoc *pDoc)
@@ -589,7 +589,7 @@ void CComparerViewC::OnCsChange(UINT nID)
 	str.MakeLower();
 
 	const struct qcsc_info * const ci =
-		qimage_find_cs(pDoc->mSortedCscInfo, CT2A(str));
+		q1::image_find_cs(pDoc->mSortedCscInfo, CT2A(str));
 	if (ci == NULL) {
 		LOGERR("couldn't get the right index of color space");
 		return;

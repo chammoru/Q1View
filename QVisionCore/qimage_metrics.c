@@ -1,6 +1,6 @@
 #include "qimage_metrics.h"
 
-double PSNR(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w)
+double qPSNR(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w)
 {
 	int i, j;
 	qu32 sum_dxd = 0;
@@ -113,8 +113,7 @@ static double ssim_window(qu8 *src, qu8 *dst, int real_w, int px_w)
 	return ssim;
 }
 
-
-double SSIM(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w)
+double qSSIM(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w)
 {
 	double mean_ssim, total_ssim = 0;
 	int real_w = w * px_w;

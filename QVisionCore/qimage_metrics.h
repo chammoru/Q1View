@@ -19,14 +19,14 @@ struct qmetric_info
 	const double max_val;
 };
 
-double PSNR(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w);
-double SSIM(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w);
+double qPSNR(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w);
+double qSSIM(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w);
 
 static const struct qmetric_info qmetric_info_table[] =
 {
-	{ "PSNR", PSNR,   0.0f, 120.0f },
+	{ "PSNR", qPSNR,   0.0f, 120.0f },
 
-	{ "SSIM", SSIM,  -1.0f, 1.0f },
+	{ "SSIM", qSSIM,  -1.0f, 1.0f },
 
 	/* ... add more metric info */
 };

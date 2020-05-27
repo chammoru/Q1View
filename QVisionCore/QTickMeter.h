@@ -3,6 +3,8 @@
 
 #include <opencv2/core/core.hpp>
 
+namespace q1 {
+
 class QTickMeter
 {
 public:
@@ -30,5 +32,7 @@ private:
 	int64 sumTime;
 	int64 startTime;
 };
+
+} // namespace q1
 
 #endif /* __QTICK_METER__ */

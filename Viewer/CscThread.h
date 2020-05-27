@@ -1,13 +1,14 @@
 #pragma once
 
 #include "FrmProvideThread.h"
+#include "QOcv.h"
 
 class CscThread : public FrmProvideThread {
 public:
 	CscThread(SBufferPool * pBufferPool,
 			SSafeCQ<BufferInfo> *pBufferQueue,
 			long *pPlayFrameID,
-			QImageProcessor *pBgr888Processor);
+			q1::ImageProcessor *pBgr888Processor);
 
 	virtual ~CscThread();
 

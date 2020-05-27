@@ -109,4 +109,4 @@ Mat laplacian(const Mat &Gx, const Mat &Gy, int ddepth)
 	return Gxx + Gyy;
 }
 
-}
+} // namespace q1

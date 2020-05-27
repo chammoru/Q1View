@@ -50,6 +50,6 @@ cv::Mat rotate_aligned3b_090(const cv::Mat &src);
 cv::Mat rotate_aligned3b_180(const cv::Mat &src);
 cv::Mat rotate_aligned3b_270(const cv::Mat &src);
 
-}
+} // namespace q1
 
 #endif /* __CVUTIL_H__ */

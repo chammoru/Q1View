@@ -4,6 +4,8 @@
 #include <QCommon.h>
 #include <opencv2/core/core.hpp>
 
+namespace q1 {
+
 #define ZOOM_GAMMA         4.f
 #define ZOOM_RATIO(_D)     exp((_D) / ZOOM_GAMMA)
 #define ZOOM_DELTA(_N)     (ZOOM_GAMMA * log(_N))
@@ -15,22 +17,22 @@
 
 #define QIMG_MAX_LENGTH    10000
 
-int QDeterminDestPos(int lenCanvas, int lenDst, float &offset, float ratio);
-float QGetFitRatio(float ratio, int w, int h, int wCanvas, int hCanvas);
-float QGetBestFitRatio(int w, int h, int wCanvas, int hCanvas);
-void investigatePixelBorder(qu16 *nOffsetBuf,
+int DeterminDestPos(int lenCanvas, int lenDst, float &offset, float ratio);
+float GetFitRatio(float ratio, int w, int h, int wCanvas, int hCanvas);
+float GetBestFitRatio(int w, int h, int wCanvas, int hCanvas);
+void InvestigatePixelBorder(qu16 *nOffsetBuf,
 							int start, int end, int base, int nDst,
 							int *gridDim, std::vector<int> *cellCounts,
 							qu8 *nOffsetBorderFlag);
-void scaleUsingOffset(qu8 *src, int yStart, int yEnd, int xStart, int xEnd, int stride, int gap,
+void ScaleUsingOffset(qu8 *src, int yStart, int yEnd, int xStart, int xEnd, int stride, int gap,
 					  qu16 * nOffsetBuf, qu8 *dst);
-void scaleUsingOffset(qu8 *src, int yStart, int yEnd, int xStart, int xEnd, int stride, int gap,
+void ScaleUsingOffset(qu8 *src, int yStart, int yEnd, int xStart, int xEnd, int stride, int gap,
 					  qu8 *nOffsetYBorderFlag, qu8 *nOffsetXBorderFlag,
 					  qu16 * nOffsetBuf, qu8 *dst);
-float QGetNextN(float curN, float fitN, float nextD);
+float GetNextN(float curN, float fitN, float nextD);
 
 // JUST ADD HERE, IF YOU WANT MORE RESOLUTION, THIS'S IT!
-static const char *qresolution_info_table[] = {
+static const char *resolution_info_table[] = {
 	"176x144 (QCIF)",
 	"320x240 (QVGA)",
 	"352x288 (CIF)",
@@ -49,10 +51,12 @@ static const char *qresolution_info_table[] = {
 	"C&ustom...",
 };
 
-struct QGridInfo
+struct GridInfo
 {
 	int y, x;
 	std::vector<int> Hs;
 	std::vector<int> Ws;
 	cv::Mat pixelMap;
 };
+
+} // namespace q1

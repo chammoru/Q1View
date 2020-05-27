@@ -65,7 +65,7 @@ const struct qcsc_info* VidCapFrmSrc::GetColorSpace(CString& pathName,
 		return NULL;
 
 	vidCap.release();
-	return qimage_find_cs(sortedCscInfo, "bgr888");
+	return q1::image_find_cs(sortedCscInfo, "bgr888");
 }
 
 bool VidCapFrmSrc::IsAvailable()

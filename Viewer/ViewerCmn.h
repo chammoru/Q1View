@@ -6,7 +6,7 @@
 #include <QCvUtil.h>
 
 static inline BufferInfo PostProcess(
-	int colorSpace, QImageProcessor *bgr888Processor,
+	int colorSpace, q1::ImageProcessor *bgr888Processor,
 	int w, int h,
 	BYTE *src, BYTE *dst,
 	int bufOffset2, int bufOffset3,

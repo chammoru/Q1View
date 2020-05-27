@@ -8,6 +8,7 @@
 
 #include "SSafeCQ.h"
 #include "SBufferPool.h"
+#include "QOcv.h"
 
 #include "qimage_cs.h"
 #include "FileChangeNotiThread.h"
@@ -45,7 +46,7 @@ enum QROTATION {
 };
 
 class FrmSrc;
-class QImageProcessor;
+class ImageProcessor;
 class FileChangeNotiThread;
 
 class CViewerDoc : public CDocument
@@ -92,7 +93,7 @@ public:
 	std::vector<FrmSrc *> mFrmSrcs;
 	FrmSrc *mFrmSrc;
 
-	QImageProcessor *mBgr888Processor;
+	q1::ImageProcessor *mBgr888Processor;
 	FileChangeNotiThread *mFileChangeNotiThread;
 
 // Operations
