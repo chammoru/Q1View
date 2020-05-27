@@ -166,7 +166,7 @@ struct ComparerPane : public SQPane
 	void OpenFrmSrc()
 	{
 		SQPane::OpenFrmSrc(pathName);
-		frames = frmSrc->GetFrameNum();
+		frames = QMAX(frmSrc->GetFrameNum(), 1);
 	}
 
 	inline void Release()
