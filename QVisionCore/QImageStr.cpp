@@ -9,13 +9,14 @@
 #include "QViewerCmn.h"
 #include "qimage_cs.h"
 
+namespace q1 {
 
 static inline bool isdouble(int C)
 {
 	return isdigit(C) || (char)C == '.';
 }
 
-int qimage_parse_num(const char *str, int *num)
+int image_parse_num(const char *str, int *num)
 {
 	int ret = 0;
 	long val;
@@ -55,7 +56,7 @@ failed_strtol:
  * if found, return 0
  * else return 1
  */
-int qimage_parse_w_h(const char *str, int *w, int *h)
+int image_parse_w_h(const char *str, int *w, int *h)
 {
 	unsigned int i;
 	size_t len;
@@ -79,11 +80,11 @@ int qimage_parse_w_h(const char *str, int *w, int *h)
 				}
 			}
 
-			err = qimage_parse_num(str + pos, w);
+			err = image_parse_num(str + pos, w);
 			if (err < 0)
 				goto failed_parse;
 
-			err = qimage_parse_num(str + i + 1, h);
+			err = image_parse_num(str + i + 1, h);
 			if (err < 0)
 				goto failed_parse;
 
@@ -96,7 +97,7 @@ failed_parse:
 	return 1;
 }
 
-int qimage_parse_arg(char *str, int *num, const char *key)
+int image_parse_arg(char *str, int *num, const char *key)
 {
     char *ptr, *tmp;
 
@@ -113,7 +114,7 @@ int qimage_parse_arg(char *str, int *num, const char *key)
         while (tmp >= ptr && isdigit((int)*tmp))
             tmp--;
 
-        qimage_parse_num(tmp + 1, num);
+        image_parse_num(tmp + 1, num);
 
         return 0; /* found */
 
@@ -124,7 +125,7 @@ find_next:
     return 1; /* couldn't find */
 }
 
-int qimage_parse_arg(char* str, double* num, const char* key)
+int image_parse_arg(char* str, double* num, const char* key)
 {
 	char* ptr, * tmp;
 
@@ -164,7 +165,7 @@ static int qimage_strlen_compare(const void *a, const void *b)
 	return strlen(l->name) < strlen(r->name);
 }
 
-void qimage_sort_cs(struct qcsc_info *ci)
+void image_sort_cs(struct qcsc_info *ci)
 {
 	memcpy(ci, qcsc_info_table, sizeof(qcsc_info_table));
 
@@ -178,7 +179,7 @@ void qimage_sort_cs(struct qcsc_info *ci)
  * NOTE: 1. name should not be NULL
  *       2. should be used after qimage_sort_cs
  */
-const struct qcsc_info * const qimage_find_cs(struct qcsc_info *ci,
+const struct qcsc_info * const image_find_cs(struct qcsc_info *ci,
 											   const char *name)
 {
 	unsigned int i;
@@ -194,7 +195,7 @@ const struct qcsc_info * const qimage_find_cs(struct qcsc_info *ci,
 	return NULL;
 }
 
-const char *qimage_find_cs_name(struct qcsc_info *ci, int cs)
+const char *image_find_cs_name(struct qcsc_info *ci, int cs)
 {
 	unsigned int i;
 
@@ -207,17 +208,19 @@ const char *qimage_find_cs_name(struct qcsc_info *ci, int cs)
 	return NULL;
 }
 
-int qimage_resolution_idx(int w_ref, int h_ref)
+int image_resolution_idx(int w_ref, int h_ref)
 {
 	int i;
-	for (i = 0; i < ARRAY_SIZE(qresolution_info_table); i++)
+	for (i = 0; i < ARRAY_SIZE(resolution_info_table); i++)
 	{
 		int w = 0, h = 0;
 
-		int error = qimage_parse_w_h(qresolution_info_table[i], &w, &h);
+		int error = image_parse_w_h(resolution_info_table[i], &w, &h);
 		if (!error && w_ref == w && h_ref == h)
 			return i;
 	}
 
 	return -1;
 }
+
+} // namespace q1

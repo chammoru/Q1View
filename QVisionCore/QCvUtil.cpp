@@ -222,4 +222,4 @@ Mat rotate_aligned3b_270(const Mat &src)
 	return dst_aligned4;
 }
 
-}
+} // namespace q1

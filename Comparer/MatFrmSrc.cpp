@@ -53,7 +53,7 @@ const struct qcsc_info* MatFrmSrc::GetColorSpace(CString &pathName,
 		return NULL;
 
 	ocvMat.release();
-	return qimage_find_cs(sortedCscInfo, "bgr888");
+	return q1::image_find_cs(sortedCscInfo, "bgr888");
 }
 
 bool MatFrmSrc::IsAvailable()

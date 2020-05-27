@@ -47,13 +47,13 @@ public:
 		char szFileName[MAX_PATH + 1];
 		strncpy_s(szFileName, CT2A(fileName), MAX_PATH);
 
-		ret = qimage_parse_w_h(szFileName, &pDoc->mW, &pDoc->mH);
+		ret = q1::image_parse_w_h(szFileName, &pDoc->mW, &pDoc->mH);
 		if (ret) {
 			LOGWRN("width or height is not found");
 		}
 
 		const struct qcsc_info * const ci =
-			qimage_find_cs(pDoc->mSortedCscInfo, szFileName);
+			q1::image_find_cs(pDoc->mSortedCscInfo, szFileName);
 		if (ci == NULL) {
 			LOGWRN("color space is not found");
 		} else  {
@@ -64,7 +64,7 @@ public:
 			pDoc->mCsLoadInfo = ci->cs_load_info;
 		}
 
-		qimage_parse_arg(szFileName, &pDoc->mFps, "fps");
+		q1::image_parse_arg(szFileName, &pDoc->mFps, "fps");
 	}
 
 	virtual inline bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)

@@ -53,9 +53,9 @@ public:
 	void CheckCsRadio(int cs);
 	void UpdateCsLabel(const TCHAR *csLabel);
 	virtual void ProcessDocument(CComparerDoc *pDoc) = 0;
-	void ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, QGridInfo &gi);
+	void ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridInfo &gi);
 	void ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *dst, int sDst,
-		QGridInfo &gi);
+		q1::GridInfo &gi);
 
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg void OnDropFiles(HDROP hDropInfo);

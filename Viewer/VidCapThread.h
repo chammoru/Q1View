@@ -12,7 +12,7 @@ public:
 					SSafeCQ<BufferInfo> *pBufferQueue,
 					cv::VideoCapture &vidCap,
 					long *pPlayFrameID,
-					QImageProcessor *pBgr888Processor);
+					q1::ImageProcessor *pBgr888Processor);
 
 	virtual ~VidCapThread();
 

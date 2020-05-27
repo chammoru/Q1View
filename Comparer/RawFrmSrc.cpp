@@ -56,7 +56,7 @@ bool RawFrmSrc::GetResolution(CString &pathName, int* w, int* h)
 	CString fileName = parseLowerFileName(pathName);
 	strncpy_s(szFileName, CT2A(fileName), MAX_PATH);
 
-	int error = qimage_parse_w_h(szFileName, w, h);
+	int error = q1::image_parse_w_h(szFileName, w, h);
 	if (error) {
 		LOGWRN("width and height is not found");
 		return false;
@@ -72,7 +72,7 @@ const struct qcsc_info* RawFrmSrc::GetColorSpace(CString &pathName,
 	CString fileName = parseLowerFileName(pathName);
 	strncpy_s(szFileName, CT2A(fileName), MAX_PATH);
 
-	return qimage_find_cs(sortedCscInfo, szFileName);
+	return q1::image_find_cs(sortedCscInfo, szFileName);
 }
 
 bool RawFrmSrc::IsAvailable()
@@ -119,7 +119,7 @@ double RawFrmSrc::GetFps()
 	fileName.MakeLower();
 	char szFileName[MAX_PATH + 1];
 	strncpy_s(szFileName, CT2A(fileName), MAX_PATH);
-	qimage_parse_arg(szFileName, &fps, "fps");
+	q1::image_parse_arg(szFileName, &fps, "fps");
 
 	return fps;
 }

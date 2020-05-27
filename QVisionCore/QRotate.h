@@ -10,4 +10,4 @@ namespace q1 {
 
 cv::Mat rotate(const cv::Mat &img, int degree);
 
-}
+} // namespace q1

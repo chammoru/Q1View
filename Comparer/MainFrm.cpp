@@ -276,11 +276,11 @@ void CMainFrame::OnDestroy()
 void CMainFrame::CheckResolutionRadio(int w, int h)
 {
 	UINT id;
-	int idx = qimage_resolution_idx(w, h);
+	int idx = q1::image_resolution_idx(w, h);
 	if (idx >= 0)
 		id = ID_RESOLUTION_START + (UINT)idx;
 	else
-		id = ID_RESOLUTION_START + ARRAY_SIZE(qresolution_info_table) - 1;
+		id = ID_RESOLUTION_START + ARRAY_SIZE(q1::resolution_info_table) - 1;
 
 	CMenu *subMenu = GetMenu()->GetSubMenu(MENU_POS_RESOLUTION);
 
@@ -319,7 +319,7 @@ void CMainFrame::OnResolutionChange(UINT nID)
 	subMenu->GetMenuString(nID, str, MF_BYCOMMAND);
 
 	int w = 0, h = 0;
-	int error = qimage_parse_w_h(CT2A(str), &w, &h);
+	int error = q1::image_parse_w_h(CT2A(str), &w, &h);
 	if (error != 0) {
 		w = pDoc->mW;
 		h = pDoc->mH;
@@ -395,7 +395,7 @@ void CMainFrame::CheckFpsRadio(double fps)
 	unsigned int i;
 	int num = -1;
 	for (i = 0; i < ARRAY_SIZE(qfps_info_table) - 1; i++) {
-		qimage_parse_num(qfps_info_table[i], &num);
+		q1::image_parse_num(qfps_info_table[i], &num);
 		if (num == fps)
 			break;
 	}
@@ -438,14 +438,14 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	CString str;
 
 	// size menu
-	for (i = 0; i < ARRAY_SIZE(qresolution_info_table) - 1; i++) {
+	for (i = 0; i < ARRAY_SIZE(q1::resolution_info_table) - 1; i++) {
 		mResolutionMenu.AppendMenu(MF_STRING, ID_RESOLUTION_START + i,
-			CA2W(qresolution_info_table[i]));
+			CA2W(q1::resolution_info_table[i]));
 	}
 
 	mResolutionMenu.AppendMenu(MF_SEPARATOR);
 	mResolutionMenu.AppendMenu(MF_STRING, ID_RESOLUTION_START + i,
-		CA2W(qresolution_info_table[i]));
+		CA2W(q1::resolution_info_table[i]));
 
 	str.Format(_T("%d&x%d"), CANVAS_DEF_W, CANVAS_DEF_H);
 

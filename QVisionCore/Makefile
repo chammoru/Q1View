@@ -10,16 +10,9 @@ CPPFLAGS := $(CCO_FLAGS) $(ENV_CPPFLAGS)
 TARGET_LIB := libQVisionCore.a
 
 CSRCS :=
-CPPSRCS := QImageDPM.cpp QImageEpipol.cpp QImageOcv.cpp \
-           QImageDpmParse.cpp QImageMatcher.cpp QImageSkin.cpp \
-		   SLIC.cpp QSlicWrapper.cpp structured_edge_detection.cpp \
-		   QColorName.cpp \
-		   QCvUtil.cpp \
-		   QSuperPixel.cpp \
-		   pff_segment/filter.cpp \
-		   pff_segment/segment-image.cpp \
-		   pff_segment/segment-graph.cpp \
-		   pff_segment/disjoint-set.cpp
+CPPSRCS := QImageOcv.cpp \
+           QImageMatcher.cpp \
+		   QCvUtil.cpp
 
 OBJS := $(CSRCS:.c=.o) $(CPPSRCS:.cpp=.o)
 DEPS := $(OBJS:.o=.d)

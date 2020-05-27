@@ -256,8 +256,8 @@ void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h)
 
 	// mWClient, mHClient, mWCanvas, mHCanvas were set in OnSize function
 
-	mXDst = QDeterminDestPos(mWCanvas, mWDst, mXOff, mN);
-	mYDst = QDeterminDestPos(mHCanvas, mHDst, mYOff, mN);
+	mXDst = q1::DeterminDestPos(mWCanvas, mWDst, mXOff, mN);
+	mYDst = q1::DeterminDestPos(mHCanvas, mHDst, mYOff, mN);
 
 	memset(&mStableRgbBufferInfo, 0, sizeof(BufferInfo));
 
@@ -329,7 +329,7 @@ void CViewerView::Interpolate(BYTE *src, long xStart, long xEnd, long yStart, lo
 }
 
 void CViewerView::NearestNeighbor(BYTE *src, long xStart, long xEnd, long yStart, long yEnd,
-						  long gap, QGridInfo &gi, BYTE *dst)
+						  long gap, q1::GridInfo &gi, BYTE *dst)
 {
 	long xBase = mXDst > 0 ? mXDst : 0;
 	long yBase = mYDst > 0 ? mYDst : 0;
@@ -337,11 +337,11 @@ void CViewerView::NearestNeighbor(BYTE *src, long xStart, long xEnd, long yStart
 	// Nearest Neighborhood
 	if (mN >= ZOOM_GRID_START) {
 		// investigate y-axis pixel border
-		investigatePixelBorder(mNnOffsetBuf, yStart, yEnd, yBase, mHDst,
+		q1::InvestigatePixelBorder(mNnOffsetBuf, yStart, yEnd, yBase, mHDst,
 			&gi.y, &gi.Hs, mNnOffsetYBorderFlag);
 
 		// investigate x-axis border
-		investigatePixelBorder(mNnOffsetBuf, xStart, xEnd, xBase, mWDst,
+		q1::InvestigatePixelBorder(mNnOffsetBuf, xStart, xEnd, xBase, mWDst,
 			&gi.x, &gi.Ws, mNnOffsetXBorderFlag);
 
 		gi.pixelMap.create(int(gi.Hs.size()), int(gi.Ws.size()), CV_8UC3);
@@ -352,15 +352,15 @@ void CViewerView::NearestNeighbor(BYTE *src, long xStart, long xEnd, long yStart
 				gi.pixelMap.at<cv::Vec3b>(i, j) = cv::Vec3b(src_x);
 			}
 		}
-		scaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(mW), gap,
+		q1::ScaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(mW), gap,
 			mNnOffsetYBorderFlag, mNnOffsetXBorderFlag, mNnOffsetBuf, dst);
 	} else {
-		scaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(mW), gap,
+		q1::ScaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(mW), gap,
 			mNnOffsetBuf, dst);
 	}
 }
 
-void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, QGridInfo &gi)
+void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 {
 	long gap, yStart, yEnd, xStart, xEnd;
 
@@ -465,7 +465,7 @@ void CViewerView::PrintPlaySpeed(double fps)
 	}
 }
 
-void CViewerView::ScaleRgbBuf(BYTE *src, BYTE **pDst, QGridInfo &gi)
+void CViewerView::ScaleRgbBuf(BYTE *src, BYTE **pDst, q1::GridInfo &gi)
 {
 	int sDst = ROUNDUP_DWORD(mWClient);
 	int rgbBufSize = sDst * mHClient * QIMG_DST_RGB_BYTES;
@@ -593,7 +593,7 @@ static void Convert2YYY(BYTE *srcBgr, BYTE *dstYyy, int stride, int w, int h)
 	}
 }
 
-void CViewerView::DrawRgbText(CDC *pDC, QGridInfo &gi)
+void CViewerView::DrawRgbText(CDC *pDC, q1::GridInfo &gi)
 {
 	CString label;
 	CRect refRect;
@@ -801,7 +801,7 @@ void CViewerView::OnDraw(CDC *pDC)
 		src = mYBuf;
 	}
 
-	QGridInfo gi;
+	q1::GridInfo gi;
 	if (src)
 		ScaleRgbBuf(src, &mRgbBuf, gi);
 #ifdef USE_STRETCH_DIB
@@ -941,11 +941,11 @@ void CViewerView::ChangeZoom(short zDelta, CPoint &pt)
 	if (mN <= 1 && zDelta < 0) {
 		// reduce the image size to less than its canvas size,
 		// only if client area is small
-		mN = QGetFitRatio(mN, mW, mH, mWCanvas, mHCanvas);
+		mN = q1::GetFitRatio(mN, mW, mH, mWCanvas, mHCanvas);
 	} else {
 		float d = mD + zDelta / WHEEL_DELTA;
-		float fitN = QGetBestFitRatio(mW, mH, mWCanvas, mHCanvas);
-		mN = QGetNextN(mN, fitN, d);
+		float fitN = q1::GetBestFitRatio(mW, mH, mWCanvas, mHCanvas);
+		mN = q1::GetNextN(mN, fitN, d);
 	}
 	mD = ZOOM_DELTA(mN);
 
@@ -954,8 +954,8 @@ void CViewerView::ChangeZoom(short zDelta, CPoint &pt)
 	mXOff += xShift / mN;
 	mYOff += yShift / mN;
 
-	mXDst = QDeterminDestPos(mWCanvas, mWDst, mXOff, mN);
-	mYDst = QDeterminDestPos(mHCanvas, mHDst, mYOff, mN);
+	mXDst = q1::DeterminDestPos(mWCanvas, mWDst, mXOff, mN);
+	mYDst = q1::DeterminDestPos(mHCanvas, mHDst, mYOff, mN);
 
 	SetCursorCoordinates(clientPoint);
 
@@ -1172,8 +1172,8 @@ void CViewerView::OnMouseMove(UINT nFlags, CPoint point)
 			mXOff = mXInitOff + (point.x - mPointS.x) / mN;
 			mYOff = mYInitOff + (point.y - mPointS.y) / mN;
 
-			mXDst = QDeterminDestPos(mWCanvas, mWDst, mXOff, mN);
-			mYDst = QDeterminDestPos(mHCanvas, mHDst, mYOff, mN);
+			mXDst = q1::DeterminDestPos(mWCanvas, mWDst, mXOff, mN);
+			mYDst = q1::DeterminDestPos(mHCanvas, mHDst, mYOff, mN);
 
 			::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_HAND));
 			Invalidate(FALSE);
@@ -1525,8 +1525,8 @@ void CViewerView::OnSize(UINT nType, int cx, int cy)
 	mWCanvas = mWClient;
 	mHCanvas = mHClient - mHProgress;
 
-	mXDst = QDeterminDestPos(mWCanvas, mWDst, mXOff, mN);
-	mYDst = QDeterminDestPos(mHCanvas, mHDst, mYOff, mN);
+	mXDst = q1::DeterminDestPos(mWCanvas, mWDst, mXOff, mN);
+	mYDst = q1::DeterminDestPos(mHCanvas, mHDst, mYOff, mN);
 
 	mRcProgress.SetRect(0, mHCanvas, mWClient, mHClient);
 }

@@ -13,4 +13,4 @@ cv::Mat laplacian(const cv::Mat &Gx, const cv::Mat &Gy, int ddepth);
 // fast gradient from CV_8UCn -> CV_16SCn
 void fastGradient32Sx2(const cv::Mat &bgr3u, cv::Mat &Gx, cv::Mat &Gy);
 
-}
+} // namespace q1

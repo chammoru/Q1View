@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FrmProvideThread.h"
+#include "QOcv.h"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -10,7 +11,7 @@ public:
 	FileFinderThread(SBufferPool * pBufferPool,
 		SSafeCQ<BufferInfo> *pBufferQueue,
 		long *pPlayFrameID,
-		QImageProcessor *pBgr888Processor);
+		q1::ImageProcessor *pBgr888Processor);
 
 	virtual ~FileFinderThread();
 

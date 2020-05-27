@@ -64,11 +64,10 @@ CViewerDoc::CViewerDoc()
 		static_cast<struct qcsc_info *>(malloc(sizeof(qcsc_info_table)));
 	ASSERT(mSortedCscInfo != NULL);
 
-	qimage_sort_cs(mSortedCscInfo);
+	q1::image_sort_cs(mSortedCscInfo);
 
 	// ADD QIMAGEPROCESSOR HERE, IF NEEDED
-	// mBgr888Processor = new QHoGCascade;
-	// mBgr888Processor = new QLatenSvm;
+	// mBgr888Processor = new SomeDetector;
 
 	// ADD MORE FRAME SOURCES, IF NEEDED
 	mFrmSrcs.push_back(new MatFrmSrc(this));
@@ -344,7 +343,7 @@ void CViewerDoc::UpdateMenu()
 	pMainFrm->UpdateResolutionLabel(mW, mH);
 	pMainFrm->CheckResolutionRadio(mW, mH);
 
-	const char *cs_name = qimage_find_cs_name(mSortedCscInfo, mColorSpace);
+	const char *cs_name = q1::image_find_cs_name(mSortedCscInfo, mColorSpace);
 	if (cs_name) {
 		CString str = CA2W(cs_name);
 		pMainFrm->UpdateCsLabel(str.MakeUpper());

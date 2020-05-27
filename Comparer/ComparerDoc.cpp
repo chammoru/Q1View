@@ -78,7 +78,7 @@ CComparerDoc::CComparerDoc()
 		static_cast<struct qcsc_info *>(malloc(sizeof(qcsc_info_table)));
 	ASSERT(mSortedCscInfo != NULL);
 
-	qimage_sort_cs(mSortedCscInfo);
+	q1::image_sort_cs(mSortedCscInfo);
 }
 
 CComparerDoc::~CComparerDoc()
@@ -374,11 +374,11 @@ void CComparerDoc::ViewOnMouseWheel(short zDelta, int wCanvas, int hCanvas)
 		return;
 
 	if (mN <= 1 && zDelta < 0) {
-		mN = QGetFitRatio(mN, mW, mH, wCanvas, hCanvas);
+		mN = q1::GetFitRatio(mN, mW, mH, wCanvas, hCanvas);
 	} else {
 		float d = mD + zDelta / WHEEL_DELTA;
-		float fitN = QGetBestFitRatio(mW, mH, wCanvas, hCanvas);
-		mN = QGetNextN(mN, fitN, d);
+		float fitN = q1::GetBestFitRatio(mW, mH, wCanvas, hCanvas);
+		mN = q1::GetNextN(mN, fitN, d);
 	}
 	mD = ZOOM_DELTA(mN);
 
