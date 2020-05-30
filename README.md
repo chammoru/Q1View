@@ -19,8 +19,10 @@ CMAKE_OPTIONS='-DBUILD_DOCS:BOOL=OFF -DWITH_CUDA:BOOL=OFF -DBUILD_EXAMPLES:BOOL=
 
 ## TODO
 - Explain how to build
+- Explain How to use
 - The location of TODO files (if you're interested in, you can contribute)
 - Explain how to support new raw formats (한줄 코드 수정 방법)
 - Explain the known problems
 - Explain how to select regions
 - Detailed 'help' menu description shown when pressed '?'
+- Support audio play
