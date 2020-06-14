@@ -9,10 +9,10 @@ A developer-friendly media viewer
 
 ## Explain how to build
 Open the next solution file for each Viewer and Comparer project.
-| Sub-project |  Solution file        |
-| ----------- |  ---------------------|
-| Comparer    |  Comparer\Comparer.sln|
-| Viewer      |  Viewer\Viewer.sln    |
+| Sub-project |  Solution file         | Project Directory               |
+| ----------- |  --------------------- | ------------------------------- |
+| Viewer      |  Viewer\Viewer.sln     | [Viewer\\](Viewer/README.md)      |
+| Comparer    |  Comparer\Comparer.sln | [Comparer\\](Comparer/README.md)  |
 
 Then, press F7 button. Done. It is that easy.
 
@@ -24,7 +24,8 @@ CMAKE_OPTIONS='-DBUILD_DOCS:BOOL=OFF -DWITH_CUDA:BOOL=OFF -DBUILD_EXAMPLES:BOOL=
   - Detailed 'help' menu description shown when pressed '?'
   - Show & Play all raw and encoded files. (Even many image files in a directory)
   - Explain how to select regions
-  - Copy&paste to/from Clipboard
+  - Copy&paste to/from clipboard
 - The location of TODO files (if you're interested in, you can contribute)
 - Explain how to support new raw formats (한줄 코드 수정 방법)
+- Explain the TODO list that you might contribute
 - Explain the known problems
