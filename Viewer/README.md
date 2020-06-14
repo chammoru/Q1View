@@ -1,5 +1,5 @@
 ## Todo
-- [ ] 한글 파일 열때 문제 없도록...
+- [ ] 한글파일을 open할때 문제 없도록 해야 한다. (현재 일부 Windows버전에서 발생)
   -  궁극적으로 opencv의 findDecoder에서 _wfopen을 통해서 읽을 수 있어야 한다.
 - [ ] Input Sync
   - Viewer가 여러 개 실행되고 있다면 특정한 키를 통해서 Input Event가 서로 공유될 수 있도록 하면 여러 이미지와 비교도 가능할 것이다 (Comparer는 두개 이미지만 비교 가능하다).
