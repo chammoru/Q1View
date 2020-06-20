@@ -9,8 +9,9 @@ A developer-friendly media viewer
 
 ## Explain how to build
 Open the next solution file for each Viewer and Comparer project.
-| Sub-project |  Solution file         | Project Directory               |
-| ----------- |  --------------------- | ------------------------------- |
+
+| Sub-project |  Solution file         | Project Directory                 |
+| ----------- |  --------------------- | --------------------------------- |
 | Viewer      |  Viewer\Viewer.sln     | [Viewer\\](Viewer/README.md)      |
 | Comparer    |  Comparer\Comparer.sln | [Comparer\\](Comparer/README.md)  |
 
@@ -30,3 +31,23 @@ CMAKE_OPTIONS='-DBUILD_DOCS:BOOL=OFF -DWITH_CUDA:BOOL=OFF -DBUILD_EXAMPLES:BOOL=
 - TODOs and known problems are desribed in each Viewer and Comparer project.
 - You can add your own functionalities by going through the `review` process.
 - If you're interested in, you can also implement one of the TODO list.
+
+## Video explanations
+
+### Intro
+[![Youtube URL](https://img.youtube.com/vi/b8VgRVnrxL4/mqdefault.jpg)](https://youtu.be/b8VgRVnrxL4)
+
+### Viewer 1
+[![Youtube URL](https://img.youtube.com/vi/g6K9bRTKJjY/mqdefault.jpg)](https://youtu.be/g6K9bRTKJjY)
+
+### Viewer 2
+[![Youtube URL](https://img.youtube.com/vi/ROpGsgRDdRE/mqdefault.jpg)](https://youtu.be/ROpGsgRDdRE)
+
+### Comparer
+[![Youtube URL](https://img.youtube.com/vi/EybIIBZLV8Q/mqdefault.jpg)](https://youtu.be/EybIIBZLV8Q)
+
+### Source code
+[![Youtube URL](https://img.youtube.com/vi/ZbpRkBzK64Q/mqdefault.jpg)](https://youtu.be/ZbpRkBzK64Q)
+
+### TODOs and etc.
+[![Youtube URL](https://img.youtube.com/vi/s2dngkHUFpQ/mqdefault.jpg)](https://youtu.be/s2dngkHUFpQ)

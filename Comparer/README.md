@@ -1,4 +1,6 @@
 ## TODO
+- [ ] 커서의 Pixel 위치 보여주기 (Viewer에 있는 기능)
+- [ ] Interpolation 적용할 수 있도록 하기 (Viewer에 있는 기능)
 - [ ] 지금 ComparerView에서만 Space로 Play할 수 있다. PosInfoView에서도 Play할 수 있도록 수정하기
 - [ ] FrmInfoView에 보여주는 계산을 Thread로 하기
 - [ ] README.md에 FrmInfoView (중간 PSNR, SSIM 텍스트), FrmsInfoView(그래프), PosInfoView(왼쪽 빨간색라인)의 구조보여주기
