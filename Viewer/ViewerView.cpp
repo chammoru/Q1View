@@ -325,7 +325,7 @@ void CViewerView::Interpolate(BYTE *src, long xStart, long xEnd, long yStart, lo
 	ySum /= yLen * QIMG_DST_RGB_BYTES;
 	cv::Point2f center(xSum, ySum);
 	cv::getRectSubPix(srcMat, patchSize, center, patch);
-	cv::resize(patch, dstMat, dstMat.size(), 0, 0, cv::INTER_LANCZOS4);
+	cv::resize(patch, dstMat, dstMat.size(), 0, 0, cv::INTER_LINEAR);
 }
 
 void CViewerView::NearestNeighbor(BYTE *src, long xStart, long xEnd, long yStart, long yEnd,
