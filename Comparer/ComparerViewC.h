@@ -5,7 +5,6 @@
 #include "QViewerCmn.h"
 
 #define QMENUITEM_IN_MARGIN_H     6
-#define QMENUITEM_IN_MARGIN_W     8
 
 class CComparerViewC : public CScrollView
 {
@@ -38,9 +37,9 @@ public:
 	bool mIsClicked;
 	CRect mRcControls;
 	CRect mRcCsQMenu;
-	CRect mRcBlankStatic;
+	CRect mRcNameQMenu;
 	CMenu mCsMenu;
-	CStatic mBlankStatic;
+	CQMenuItem mNameQMenu;
 	CQMenuItem mCsQMenu;
 	bool mProcessing;
 	int mRgbBufSize;
@@ -52,6 +51,7 @@ public:
 	void DeterminDestOriginCoord(CComparerDoc *pDoc);
 	void CheckCsRadio(int cs);
 	void UpdateCsLabel(const TCHAR *csLabel);
+	void UpdateFileName(const TCHAR* filename);
 	virtual void ProcessDocument(CComparerDoc *pDoc) = 0;
 	void ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridInfo &gi);
 	void ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *dst, int sDst,

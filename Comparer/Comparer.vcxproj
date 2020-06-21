@@ -265,6 +265,7 @@
     <ClInclude Include="targetver.h" />
     <ClInclude Include="VidCapFrmSrc.h" />
     <ClInclude Include="YuvFrmCmpStrategy.h" />
+    <ClInclude Include="ComparerUtil.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\Comparer.ico" />

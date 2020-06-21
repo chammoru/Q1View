@@ -13,6 +13,8 @@ class CQMenuItem : public CWnd
 	CBrush mNormBkBrush, mOverBkBrush;
 	CBrush *mBkBrush;
 	CMenu *mMenu;
+	DWORD mTextHorizAlign;
+	CString mTextBlank; // For left and right padding of menu items (cosmetic purpose)
 
 public:
 	CQMenuItem();
@@ -20,11 +22,13 @@ public:
 
 	void DefaultSetting(CDC *pDC, CString &str);
 	void CalcRect(CRect *rect);
+	void SetWindowText(LPCTSTR lpszWindowName);
 
 protected:
 	DECLARE_MESSAGE_MAP()
 public:
-	BOOL CQMenuItem::Create(LPCTSTR lpszWindowName, CRect &rect, CWnd* pParentWnd, CMenu *pMenu);
+	BOOL Create(LPCTSTR lpszWindowName, CRect &rect, CWnd* pParentWnd, CMenu *pMenu,
+		DWORD textHorizAlign=DT_CENTER);
 	afx_msg void OnPaint();
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
