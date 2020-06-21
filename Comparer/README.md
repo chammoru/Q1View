@@ -6,7 +6,6 @@
 - [ ] README.md에 FrmInfoView (중간 PSNR, SSIM 텍스트), FrmsInfoView(그래프), PosInfoView(왼쪽 빨간색라인)의 구조보여주기
 - [ ] 픽셀단위로 틀린 부분 보여주기 (분홍색 overlay로 표시)
 - [ ] 좌우 윈도우에 x(close) 버튼 만들기
-- [ ] 좌우 윈도우에 파일이름 보여주기
 - [ ] File Open Dialog에서 파일 두개 지정할 수 있게 하기
 - [ ] 명령어 인자에 두개의 파일 지원하기
 - [ ] 아래 FrmsInfoView에서 마우스 스크롤로 graph확대 축소하기
@@ -25,3 +24,4 @@
 - [x] 비율보여주기
 - [x] Video의 Frame도 보여주기
 - [x] Viewer처럼 FPS를 조절 할 수 있도록 수정하기
+- [x] 좌우 윈도우에 파일이름 보여주기
