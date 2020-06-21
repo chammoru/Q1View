@@ -98,7 +98,7 @@ void CComparerViewC::OnInitialUpdate()
 void CComparerViewC::ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *dst, int sDst,
 										  q1::GridInfo &gi)
 {
-	long gap, yStart, yEnd, xStart, xEnd, yBase, xBase;
+	long gap, yStart, yEnd, xStart, xEnd;
 
 	if (mYDst > 0 || mXDst > 0) // client window is bigger -> center
 		memset(dst, 0xff, sDst * mHClient * QIMG_DST_RGB_BYTES);
@@ -108,11 +108,9 @@ void CComparerViewC::ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *d
 		dst += sDst * mYDst * QIMG_DST_RGB_BYTES;
 		yStart = 0;
 		yEnd = pDoc->mHDst;
-		yBase = mYDst;
 	} else {
 		yStart = -mYDst;
 		yEnd = mHClient - mYDst - mRcControls.bottom;
-		yBase = 0;
 	}
 
 	if (mXDst > 0) {
@@ -120,36 +118,18 @@ void CComparerViewC::ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *d
 		dst += mXDst * QIMG_DST_RGB_BYTES;
 		xStart = 0;
 		xEnd = pDoc->mWDst;
-		xBase = mXDst;
 	} else {
 		gap = (sDst - mWClient) * QIMG_DST_RGB_BYTES;
 		xStart = -mXDst;
 		xEnd = mWClient - mXDst;
-		xBase = 0;
 	}
 
-	if (pDoc->mN >= ZOOM_GRID_START) {
-		// investigate y-axis pixel border
-		q1::InvestigatePixelBorder(pDoc->mNnOffsetBuf, yStart, yEnd, yBase, pDoc->mHDst,
-			&gi.y, &gi.Hs, pDoc->mNnOffsetYBorderFlag);
-
-		// investigate x-axis border
-		q1::InvestigatePixelBorder(pDoc->mNnOffsetBuf, xStart, xEnd, xBase, pDoc->mWDst,
-			&gi.x, &gi.Ws, pDoc->mNnOffsetXBorderFlag);
-
-		gi.pixelMap.create(int(gi.Hs.size()), int(gi.Ws.size()), CV_8UC3);
-		for (int i = 0, y = yStart; i < gi.pixelMap.rows; y += gi.Hs[i], i++) {
-			BYTE *src_y = src + pDoc->mNnOffsetBuf[y] * ROUNDUP_DWORD(pDoc->mW);
-			for (int j = 0, x = xStart; j < gi.pixelMap.cols; x += gi.Ws[j], j++) {
-				BYTE *src_x = src_y + pDoc->mNnOffsetBuf[x];
-				gi.pixelMap.at<cv::Vec3b>(i, j) = cv::Vec3b(src_x);
-			}
-		}
-		q1::ScaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(pDoc->mW), gap,
-			pDoc->mNnOffsetYBorderFlag, pDoc->mNnOffsetXBorderFlag, pDoc->mNnOffsetBuf, dst);
+	if (pDoc->mInterpol) {
+		q1::Interpolate(src, pDoc->mH, pDoc->mW, mWCanvas, xStart, xEnd, yStart, yEnd, pDoc->mNnOffsetBuf, dst);
 	} else {
-		q1::ScaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(pDoc->mW), gap,
-			pDoc->mNnOffsetBuf, dst);
+		q1::NearestNeighbor(src, pDoc->mH, pDoc->mW, pDoc->mHDst, pDoc->mWDst, mXDst, mYDst, pDoc->mN,
+			xStart, xEnd, yStart, yEnd, gap, gi,
+			pDoc->mNnOffsetBuf, pDoc->mNnOffsetYBorderFlag, pDoc->mNnOffsetXBorderFlag, dst);
 	}
 }
 
@@ -650,6 +630,10 @@ void CComparerViewC::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	case 'H': // hex RGB value
 		pDoc->mHexMode = !pDoc->mHexMode;
 		pDoc->mRgbFormat = pDoc->mHexMode ? pDoc->mRgbHex : pDoc->mRgbDec;
+		Invalidate(FALSE);
+		break;
+	case 'I':
+		pDoc->mInterpol = !pDoc->mInterpol;
 		Invalidate(FALSE);
 		break;
 	}

@@ -17,8 +17,6 @@
 
 #include "FrmSrc.h"
 
-#include <opencv2/imgproc/imgproc.hpp>
-
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -306,60 +304,6 @@ void CViewerView::ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID)
 	pDC->DrawText(str, &barTextRect, DT_SINGLELINE | DT_RIGHT |  DT_VCENTER);
 }
 
-void CViewerView::Interpolate(BYTE *src, long xStart, long xEnd, long yStart, long yEnd, BYTE *dst)
-{
-	int xLen = xEnd - xStart;
-	int yLen = yEnd - yStart;
-	cv::Mat patch;
-	cv::Mat srcMat(mH, mW, CV_8UC3, src, ROUNDUP_DWORD(mW) * QIMG_DST_RGB_BYTES);
-	cv::Mat dstMat(yLen, xLen, CV_8UC3, dst, ROUNDUP_DWORD(mWCanvas) * QIMG_DST_RGB_BYTES);
-	cv::Size patchSize(
-		(mNnOffsetBuf[xEnd - 1] - mNnOffsetBuf[xStart]) / QIMG_DST_RGB_BYTES + 1,
-		(mNnOffsetBuf[yEnd - 1] - mNnOffsetBuf[yStart]) / QIMG_DST_RGB_BYTES + 1);
-	float xSum = 0.f, ySum = 0.f;
-	for (int x = xStart; x < xEnd; x++)
-		xSum += mNnOffsetBuf[x];
-	xSum /= xLen * QIMG_DST_RGB_BYTES;
-	for (int y = yStart; y < yEnd; y++)
-		ySum += mNnOffsetBuf[y];
-	ySum /= yLen * QIMG_DST_RGB_BYTES;
-	cv::Point2f center(xSum, ySum);
-	cv::getRectSubPix(srcMat, patchSize, center, patch);
-	cv::resize(patch, dstMat, dstMat.size(), 0, 0, cv::INTER_LINEAR);
-}
-
-void CViewerView::NearestNeighbor(BYTE *src, long xStart, long xEnd, long yStart, long yEnd,
-						  long gap, q1::GridInfo &gi, BYTE *dst)
-{
-	long xBase = mXDst > 0 ? mXDst : 0;
-	long yBase = mYDst > 0 ? mYDst : 0;
-
-	// Nearest Neighborhood
-	if (mN >= ZOOM_GRID_START) {
-		// investigate y-axis pixel border
-		q1::InvestigatePixelBorder(mNnOffsetBuf, yStart, yEnd, yBase, mHDst,
-			&gi.y, &gi.Hs, mNnOffsetYBorderFlag);
-
-		// investigate x-axis border
-		q1::InvestigatePixelBorder(mNnOffsetBuf, xStart, xEnd, xBase, mWDst,
-			&gi.x, &gi.Ws, mNnOffsetXBorderFlag);
-
-		gi.pixelMap.create(int(gi.Hs.size()), int(gi.Ws.size()), CV_8UC3);
-		for (int i = 0, y = yStart; i < gi.pixelMap.rows; y += gi.Hs[i], i++) {
-			BYTE *src_y = src + mNnOffsetBuf[y] * ROUNDUP_DWORD(mW);
-			for (int j = 0, x = xStart; j < gi.pixelMap.cols; x += gi.Ws[j], j++) {
-				BYTE *src_x = src_y + mNnOffsetBuf[x];
-				gi.pixelMap.at<cv::Vec3b>(i, j) = cv::Vec3b(src_x);
-			}
-		}
-		q1::ScaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(mW), gap,
-			mNnOffsetYBorderFlag, mNnOffsetXBorderFlag, mNnOffsetBuf, dst);
-	} else {
-		q1::ScaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(mW), gap,
-			mNnOffsetBuf, dst);
-	}
-}
-
 void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 {
 	long gap, yStart, yEnd, xStart, xEnd;
@@ -389,9 +333,10 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 	}
 
 	if (mInterpol) {
-		Interpolate(src, xStart, xEnd, yStart, yEnd, dst);
+		q1::Interpolate(src, mH, mW, mWCanvas, xStart, xEnd, yStart, yEnd, mNnOffsetBuf, dst);
 	} else {
-		NearestNeighbor(src, xStart, xEnd, yStart, yEnd, gap, gi, dst);
+		q1::NearestNeighbor(src, mH, mW, mHDst, mWDst, mXDst, mYDst, mN, xStart, xEnd,
+			yStart, yEnd, gap, gi, mNnOffsetBuf, mNnOffsetYBorderFlag, mNnOffsetXBorderFlag, dst);
 	}
 }
 
