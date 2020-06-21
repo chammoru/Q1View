@@ -14,6 +14,7 @@
 #include "RgbFrmCmpStrategy.h"
 #include "MetricCal.h"
 #include "QViewerCmn.h"
+#include "ComparerUtil.h"
 
 #include "QImageStr.h"
 
@@ -364,6 +365,10 @@ void CComparerDoc::ProcessDocument(ComparerPane *pane)
 		pView->UpdateCsLabel(str.MakeUpper());
 		pView->CheckCsRadio(ci->cs);
 	}
+
+	CString fileName = getBaseName(pane->pathName);
+	CComparerViewC* pView = pane->pView;
+	pView->UpdateFileName(fileName);
 
 	RefleshPaneImages(pane, settingChanged);
 }

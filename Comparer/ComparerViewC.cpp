@@ -50,7 +50,7 @@ CComparerViewC::CComparerViewC()
 
 	mRcControls.SetRectEmpty();
 	mRcCsQMenu.SetRectEmpty();
-	mRcBlankStatic.SetRectEmpty();
+	mRcNameQMenu.SetRectEmpty();
 }
 
 CComparerViewC::~CComparerViewC()
@@ -310,16 +310,16 @@ int CComparerViewC::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	mCsQMenu.Create(str, mRcCsQMenu, this, &mCsMenu);
 	mCsQMenu.CalcRect(&mRcCsQMenu);
-	mRcCsQMenu.InflateRect(0, 0, QMENUITEM_IN_MARGIN_W, QMENUITEM_IN_MARGIN_H);
+	mRcCsQMenu.InflateRect(0, 0, 0, QMENUITEM_IN_MARGIN_H);
 	mCsQMenu.MoveWindow(&mRcCsQMenu);
 
 	mRcControls.bottom = mRcCsQMenu.bottom;
 
-	mRcBlankStatic.bottom = mRcControls.bottom;
-	mRcBlankStatic.left = mRcCsQMenu.right;
-
-	mBlankStatic.Create(NULL, WS_CHILD | WS_VISIBLE,
-		mRcBlankStatic, this, STATIC_BLANK_EVENT_ID);
+	mRcNameQMenu.left = mRcCsQMenu.right;
+	mNameQMenu.Create(CString(""), mRcNameQMenu, this, NULL, DT_RIGHT);
+	mNameQMenu.CalcRect(&mRcNameQMenu);
+	mRcNameQMenu.InflateRect(0, 0, 0, QMENUITEM_IN_MARGIN_H);
+	mNameQMenu.MoveWindow(&mRcNameQMenu);
 
 	return 0;
 }
@@ -476,9 +476,9 @@ void CComparerViewC::OnSize(UINT nType, int cx, int cy)
 	mWCanvas = mWClient;
 	mHCanvas = mHClient - mRcControls.bottom;
 
-	mRcBlankStatic.right = mWClient;
-	if (mBlankStatic.GetSafeHwnd())
-		mBlankStatic.MoveWindow(mRcBlankStatic);
+	mRcNameQMenu.right = mWClient;
+	if (mNameQMenu.GetSafeHwnd())
+		mNameQMenu.MoveWindow(mRcNameQMenu);
 
 	DeterminDestOriginCoord(pDoc);
 }
@@ -571,12 +571,20 @@ void CComparerViewC::UpdateCsLabel(const TCHAR *csLabel)
 {
 	mCsQMenu.SetWindowText(csLabel);
 	mCsQMenu.CalcRect(&mRcCsQMenu);
-	mRcCsQMenu.InflateRect(0, 0, QMENUITEM_IN_MARGIN_W, QMENUITEM_IN_MARGIN_H);
+	mRcCsQMenu.InflateRect(0, 0, 0, QMENUITEM_IN_MARGIN_H);
 	mCsQMenu.MoveWindow(&mRcCsQMenu);
 
-	mRcBlankStatic.left = mRcCsQMenu.right;
+	mRcNameQMenu.left = mRcCsQMenu.right;
+	mNameQMenu.MoveWindow(mRcNameQMenu);
+}
 
-	mBlankStatic.MoveWindow(mRcBlankStatic);
+void CComparerViewC::UpdateFileName(const TCHAR* filename)
+{
+	mNameQMenu.SetWindowText(filename);
+	mCsQMenu.CalcRect(&mRcCsQMenu);
+
+	mRcNameQMenu.left = mRcCsQMenu.right;
+	mNameQMenu.MoveWindow(mRcNameQMenu);
 }
 
 void CComparerViewC::OnCsChange(UINT nID)

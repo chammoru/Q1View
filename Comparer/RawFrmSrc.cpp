@@ -4,6 +4,7 @@
 #include "ComparerPane.h"
 #include "QDebug.h"
 #include "QCommon.h"
+#include "ComparerUtil.h"
 
 RawFrmSrc::RawFrmSrc(SQPane *pane)
 : FrmSrc(pane)
@@ -44,7 +45,7 @@ void RawFrmSrc::Release()
 
 static CString parseLowerFileName(CString& pathName)
 {
-	CString fileName = pathName.Mid(pathName.ReverseFind('\\') + 1);
+	CString fileName = getBaseName(pathName);
 	fileName.MakeLower();
 
 	return fileName;

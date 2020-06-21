@@ -13,6 +13,7 @@ IMPLEMENT_DYNAMIC(CQMenuItem, CWnd)
 
 CQMenuItem::CQMenuItem()
 : mMouseIn(false)
+, mTextBlank(" ")
 {
 	WNDCLASS wndcls;
 	HINSTANCE hInst = AfxGetInstanceHandle();
@@ -79,12 +80,14 @@ END_MESSAGE_MAP()
 
 
 
-BOOL CQMenuItem::Create(LPCTSTR lpszWindowName, CRect &rect, CWnd* pParentWnd, CMenu *pMenu)
+BOOL CQMenuItem::Create(LPCTSTR lpszWindowName, CRect &rect, CWnd* pParentWnd, CMenu *pMenu,
+	DWORD textHorizAlign)
 {
 	mMenu = pMenu;
+	mTextHorizAlign = textHorizAlign;
 
 	// TODO: Add your specialized code here and/or call the base class
-	return CWnd::Create(_T("CQMenuItem"), lpszWindowName,
+	return CWnd::Create(_T("CQMenuItem"), mTextBlank + lpszWindowName + mTextBlank,
 		WS_VISIBLE | WS_CHILD, rect, pParentWnd, 0xffff);
 }
 
@@ -104,7 +107,7 @@ void CQMenuItem::CalcRect(CRect *rect)
 	CString str;
 
 	DefaultSetting(&dc, str);
-	dc.DrawText(str, rect, DT_CENTER | DT_VCENTER | DT_CALCRECT);
+	dc.DrawText(str, rect, mTextHorizAlign | DT_VCENTER | DT_CALCRECT);
 }
 
 void CQMenuItem::OnPaint()
@@ -130,7 +133,7 @@ void CQMenuItem::OnPaint()
 	CRect rect = mRcClient;
 	rect.InflateRect(0, 0, 1, 1);
 	memDC.Rectangle(&rect);
-	memDC.DrawText(str, &mRcClient, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+	memDC.DrawText(str, &mRcClient, DT_SINGLELINE | mTextHorizAlign | DT_VCENTER);
 
 	dc.BitBlt(0, 0, w, h, &memDC, 0, 0, SRCCOPY);
 }
@@ -138,15 +141,18 @@ void CQMenuItem::OnPaint()
 void CQMenuItem::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	// TODO: Add your message handler code here and/or call default
-	mMouseIn = false;
-	mBkBrush = &mNormBkBrush;
-	Invalidate(FALSE);
+	if (mMenu) {
+		mMouseIn = false;
 
-	CRect rect;
-	GetWindowRect(&rect);
+		mBkBrush = &mNormBkBrush;
+		Invalidate(FALSE);
 
-	mMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON,
-		rect.left, rect.bottom, GetParent());
+		CRect rect;
+		GetWindowRect(&rect);
+
+		mMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON,
+			rect.left, rect.bottom, GetParent());
+	}
 
 	CWnd::OnLButtonDown(nFlags, point);
 }
@@ -171,25 +177,32 @@ void CQMenuItem::OnSize(UINT nType, int cx, int cy)
 void CQMenuItem::OnMouseMove(UINT nFlags, CPoint point)
 {
 	// TODO: Add your message handler code here and/or call default
-	SetCapture();
+	if (mMenu) {
+		SetCapture();
 
-	CRect rcWindow;
-	GetWindowRect(&rcWindow);
-	ScreenToClient(&rcWindow);
+		CRect rcWindow;
+		GetWindowRect(&rcWindow);
+		ScreenToClient(&rcWindow);
 
-	if (rcWindow.PtInRect(point))
-	{
-		if (!mMouseIn) {
-			mMouseIn = true;
-			mBkBrush = &mOverBkBrush;
+		if (rcWindow.PtInRect(point))
+		{
+			if (!mMouseIn) {
+				mMouseIn = true;
+				mBkBrush = &mOverBkBrush;
+				Invalidate(FALSE);
+			}
+		} else {
+			mMouseIn = false;
+			mBkBrush = &mNormBkBrush;
+			::ReleaseCapture();
 			Invalidate(FALSE);
 		}
-	} else {
-		mMouseIn = false;
-		mBkBrush = &mNormBkBrush;
-		::ReleaseCapture();
-		Invalidate(FALSE);
 	}
 
 	CWnd::OnMouseMove(nFlags, point);
+}
+
+void CQMenuItem::SetWindowText(LPCTSTR lpszWindowName)
+{
+	CWnd::SetWindowText(mTextBlank + lpszWindowName + mTextBlank);
 }
