@@ -190,9 +190,6 @@ private:
 	void FindFile(CViewerDoc* pDoc, UINT nChar);
 	void SetDstSize();
 	void _ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi);
-	void Interpolate(BYTE *src, long xStart, long xEnd, long yStart, long yEnd, BYTE *dst);
-	void NearestNeighbor(BYTE *src, long xStart, long xEnd, long yStart, long yEnd,
-		long gap, q1::GridInfo &gi, BYTE *dst);
 	int DrawBoxInfoText(CDC *pDC, CRect &rect, COLORREF color, int hAccumGap);
 
 // Overrides

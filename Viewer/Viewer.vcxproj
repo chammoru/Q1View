@@ -256,6 +256,7 @@
     <ResourceCompile Include="Viewer.rc" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="README.md" />
     <None Include="res\Viewer.rc2" />
     <None Include="Viewer.reg" />
   </ItemGroup>

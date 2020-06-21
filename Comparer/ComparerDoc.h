@@ -73,6 +73,7 @@ public:
 	const CString mRgbDec;
 	CString mRgbFormat;
 	double mFps;
+	bool mInterpol;
 
 #ifdef MORU_FMAT_HW
 	cv::Mat mFundamental;

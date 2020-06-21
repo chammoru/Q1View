@@ -275,6 +275,7 @@
     <ResourceCompile Include="Comparer.rc" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="README.md" />
     <None Include="res\Comparer.rc2" />
   </ItemGroup>
   <ItemGroup>

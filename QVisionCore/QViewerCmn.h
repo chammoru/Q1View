@@ -17,6 +17,14 @@ namespace q1 {
 
 #define QIMG_MAX_LENGTH    10000
 
+struct GridInfo
+{
+	int y, x;
+	std::vector<int> Hs;
+	std::vector<int> Ws;
+	cv::Mat pixelMap;
+};
+
 int DeterminDestPos(int lenCanvas, int lenDst, float &offset, float ratio);
 float GetFitRatio(float ratio, int w, int h, int wCanvas, int hCanvas);
 float GetBestFitRatio(int w, int h, int wCanvas, int hCanvas);
@@ -30,6 +38,11 @@ void ScaleUsingOffset(qu8 *src, int yStart, int yEnd, int xStart, int xEnd, int 
 					  qu8 *nOffsetYBorderFlag, qu8 *nOffsetXBorderFlag,
 					  qu16 * nOffsetBuf, qu8 *dst);
 float GetNextN(float curN, float fitN, float nextD);
+void NearestNeighbor(qu8* src, int h, int w, int hDst, int wDst, int xDst, int yDst, float n,
+	long xStart, long xEnd, long yStart, long yEnd, long gap, GridInfo& gi, qu16* nOffsetBuf,
+	qu8* nOffsetYBorderFlag, qu8* nOffsetXBorderFlag, qu8* dst);
+void Interpolate(qu8* src, int h, int w, int wCanvas, long xStart, long xEnd,
+	long yStart, long yEnd, qu16* nOffsetBuf, qu8* dst);
 
 // JUST ADD HERE, IF YOU WANT MORE RESOLUTION, THIS'S IT!
 static const char *resolution_info_table[] = {
@@ -49,14 +62,6 @@ static const char *resolution_info_table[] = {
 	"4096x2160 (Cinema UHD)",
 
 	"C&ustom...",
-};
-
-struct GridInfo
-{
-	int y, x;
-	std::vector<int> Hs;
-	std::vector<int> Ws;
-	cv::Mat pixelMap;
 };
 
 } // namespace q1

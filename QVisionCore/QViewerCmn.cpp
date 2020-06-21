@@ -1,5 +1,8 @@
 #include "QMath.h"
 #include "QViewerCmn.h"
+#include "qimage_cs.h"
+
+#include <opencv2/imgproc/imgproc.hpp>
 
 using namespace std;
 
@@ -190,4 +193,59 @@ namespace q1 {
 		return nextN;
 	}
 
+	void NearestNeighbor(qu8* src, int h, int w, int hDst, int wDst, int xDst, int yDst, float n,
+		long xStart, long xEnd, long yStart, long yEnd, long gap, GridInfo& gi, qu16* nOffsetBuf,
+		qu8* nOffsetYBorderFlag, qu8* nOffsetXBorderFlag, qu8* dst)
+	{
+		long xBase = xDst > 0 ? xDst : 0;
+		long yBase = yDst > 0 ? yDst : 0;
+
+		// Nearest Neighborhood
+		if (n >= ZOOM_GRID_START) {
+			// investigate y-axis pixel border
+			InvestigatePixelBorder(nOffsetBuf, yStart, yEnd, yBase, hDst,
+				&gi.y, &gi.Hs, nOffsetYBorderFlag);
+
+			// investigate x-axis border
+			InvestigatePixelBorder(nOffsetBuf, xStart, xEnd, xBase, wDst,
+				&gi.x, &gi.Ws, nOffsetXBorderFlag);
+
+			gi.pixelMap.create(int(gi.Hs.size()), int(gi.Ws.size()), CV_8UC3);
+			for (int i = 0, y = yStart; i < gi.pixelMap.rows; y += gi.Hs[i], i++) {
+				qu8* src_y = src + nOffsetBuf[y] * ROUNDUP_DWORD(w);
+				for (int j = 0, x = xStart; j < gi.pixelMap.cols; x += gi.Ws[j], j++) {
+					qu8* src_x = src_y + nOffsetBuf[x];
+					gi.pixelMap.at<cv::Vec3b>(i, j) = cv::Vec3b(src_x);
+				}
+			}
+			ScaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(w), gap,
+				nOffsetYBorderFlag, nOffsetXBorderFlag, nOffsetBuf, dst);
+		} else {
+			ScaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(w), gap,
+				nOffsetBuf, dst);
+		}
+	}
+
+	void Interpolate(qu8* src, int h, int w, int wCanvas, long xStart, long xEnd,
+		long yStart, long yEnd, qu16 *nOffsetBuf, qu8* dst)
+	{
+		int xLen = xEnd - xStart;
+		int yLen = yEnd - yStart;
+		cv::Mat patch;
+		cv::Mat srcMat(h, w, CV_8UC3, src, ROUNDUP_DWORD(w) * QIMG_DST_RGB_BYTES);
+		cv::Mat dstMat(yLen, xLen, CV_8UC3, dst, ROUNDUP_DWORD(wCanvas) * QIMG_DST_RGB_BYTES);
+		cv::Size patchSize(
+			(nOffsetBuf[xEnd - 1] - nOffsetBuf[xStart]) / QIMG_DST_RGB_BYTES + 1,
+			(nOffsetBuf[yEnd - 1] - nOffsetBuf[yStart]) / QIMG_DST_RGB_BYTES + 1);
+		float xSum = 0.f, ySum = 0.f;
+		for (int x = xStart; x < xEnd; x++)
+			xSum += nOffsetBuf[x];
+		xSum /= xLen * QIMG_DST_RGB_BYTES;
+		for (int y = yStart; y < yEnd; y++)
+			ySum += nOffsetBuf[y];
+		ySum /= yLen * QIMG_DST_RGB_BYTES;
+		cv::Point2f center(xSum, ySum);
+		cv::getRectSubPix(srcMat, patchSize, center, patch);
+		cv::resize(patch, dstMat, dstMat.size(), 0, 0, cv::INTER_LINEAR);
+	}
 } // namespace q1
