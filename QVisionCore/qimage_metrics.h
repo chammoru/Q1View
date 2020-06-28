@@ -34,6 +34,7 @@ static const struct qmetric_info qmetric_info_table[] =
 #define METRIC_COUNT         ARRAY_SIZE(qmetric_info_table)
 
 #define METRIC_PSNR_IDX      0
+#define METRIC_START_IDX     METRIC_PSNR_IDX
 
 #ifdef __cplusplus
 }

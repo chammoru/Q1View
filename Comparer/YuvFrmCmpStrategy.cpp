@@ -45,7 +45,7 @@ void YuvFrmCmpStrategy::RecordMetrics(BYTE *a, BYTE *b,
 	int chroma_w = (mW + 1) >> 1;
 	int chroma_h = (mH + 1) >> 1;
 
-	for (int i = METRIC_PSNR_IDX; i < METRIC_COUNT; i++) {
+	for (int i = METRIC_START_IDX; i < METRIC_COUNT; i++) {
 		double *metric = metrics[i];
 		const qmetric_info *qminfo = &qmetric_info_table[i];
 
@@ -55,10 +55,29 @@ void YuvFrmCmpStrategy::RecordMetrics(BYTE *a, BYTE *b,
 	}
 }
 
-void YuvFrmCmpStrategy::CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB,
-									   double metrics[METRIC_COUNT][QPLANES]) const
+void YuvFrmCmpStrategy::RecordMetrics(BYTE* a, BYTE* b, CString scores[METRIC_COUNT]) const
 {
-	RecordMetrics(GetYuv420Addr(paneA), GetYuv420Addr(paneB), metrics);
+	int bufOffset2 = 0, bufOffset3 = 0;
+	qimage_yuv420_load_info(mW, mH, &bufOffset2, &bufOffset3);
+
+	int chroma_w = (mW + 1) >> 1;
+	int chroma_h = (mH + 1) >> 1;
+
+	for (int i = METRIC_START_IDX; i < METRIC_COUNT; i++) {
+		CString &score = scores[i];
+		const qmetric_info* qminfo = &qmetric_info_table[i];
+
+		double metric0 = qminfo->measure(a, b, mW, mH, mW, 1);
+		double metric1 = qminfo->measure(a + bufOffset2, b + bufOffset2, chroma_w, chroma_h, chroma_w, 1);
+		double metric2 = qminfo->measure(a + bufOffset3, b + bufOffset3, chroma_w, chroma_h, chroma_w, 1);
+		score.Format(_T("%.4f %.4f %.4f"), metric0, metric1, metric2);
+	}
+}
+
+void YuvFrmCmpStrategy::CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB,
+									   CString scores[METRIC_COUNT]) const
+{
+	RecordMetrics(GetYuv420Addr(paneA), GetYuv420Addr(paneB), scores);
 }
 
 void YuvFrmCmpStrategy::DiffNMetrics(SQPane *paneA, SQPane *paneB,

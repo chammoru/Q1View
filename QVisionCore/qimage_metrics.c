@@ -6,7 +6,7 @@ double qPSNR(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w)
 	qu32 sum_dxd = 0;
 	double MSE, PMSE;
 	const int MAXi = 255; 
-	int margin = stride - w;
+	int margin = (stride - w) * px_w;
 
 	for (i = 0; i < h; i++) {
 		for (j = 0; j < w; j++) {
@@ -18,8 +18,8 @@ double qPSNR(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w)
 			sum_dxd += d * d;
 		}
 
-		src += 3 * margin;
-		dst += 3 * margin;
+		src += margin;
+		dst += margin;
 	}
 
 	MSE = (double)sum_dxd / (w * h);
