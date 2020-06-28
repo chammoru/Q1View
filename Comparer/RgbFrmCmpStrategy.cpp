@@ -36,7 +36,7 @@ void RgbFrmCmpStrategy::RecordMetrics(BYTE *a, BYTE *b,
 {
 	int stride = ROUNDUP_DWORD(mW);
 
-	for (int i = METRIC_PSNR_IDX; i < METRIC_COUNT; i++) {
+	for (int i = METRIC_START_IDX; i < METRIC_COUNT; i++) {
 		double *metric = metrics[i];
 		const qmetric_info *qminfo = &qmetric_info_table[i];
 
@@ -46,10 +46,26 @@ void RgbFrmCmpStrategy::RecordMetrics(BYTE *a, BYTE *b,
 	}
 }
 
-void RgbFrmCmpStrategy::CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB,
-									   double metrics[METRIC_COUNT][QPLANES]) const
+void RgbFrmCmpStrategy::RecordMetrics(BYTE* a, BYTE* b, CString scores[METRIC_COUNT]) const
 {
-	RecordMetrics(paneA->rgbBuf, paneB->rgbBuf, metrics);
+	int stride = ROUNDUP_DWORD(mW);
+
+	for (int i = METRIC_START_IDX; i < METRIC_COUNT; i++) {
+		CString &score = scores[i];
+		const qmetric_info* qminfo = &qmetric_info_table[i];
+
+		// Calculate similarity metrics as if each pixel channel is an independent pixel.
+		// This is the scheme that OpenCV and TensorFlow adopt for their PSNR APIs.
+		double metric = qminfo->measure(a, b, mW * QIMG_DST_RGB_BYTES, mH,
+			stride * QIMG_DST_RGB_BYTES, 1);
+		score.Format(_T("%.4f"), metric);
+	}
+}
+
+void RgbFrmCmpStrategy::CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB,
+									   CString scores[METRIC_COUNT]) const
+{
+	RecordMetrics(paneA->rgbBuf, paneB->rgbBuf, scores);
 }
 
 void RgbFrmCmpStrategy::DiffNMetrics(SQPane *paneA, SQPane *paneB,

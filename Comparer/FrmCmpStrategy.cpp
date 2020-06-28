@@ -11,15 +11,13 @@ void IFrmCmpStrategy::CalMetrics(ComparerPane *paneA, ComparerPane *paneB, CStri
 	}
 	frmState.Empty();
 
-	double metrics[METRIC_COUNT][QPLANES];
-	CalMetricsImpl(paneA, paneB, metrics);
-	for (int i = METRIC_PSNR_IDX; i < METRIC_COUNT; i++) {
-		double *metric = metrics[i];
+	CString scores[METRIC_COUNT];
+	CalMetricsImpl(paneA, paneB, scores);
+	for (int i = METRIC_START_IDX; i < METRIC_COUNT; i++) {
 		const qmetric_info *qminfo = &qmetric_info_table[i];
 		CString metricName = CA2W(qminfo->name);
 
-		frmState.AppendFormat(_T(" %s(%.4f %.4f %.4f)"),
-			metricName, metric[0], metric[1], metric[2]);
+		frmState.AppendFormat(_T(" %s(%s)"), metricName, scores[i]);
 	}
 }
 

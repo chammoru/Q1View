@@ -17,6 +17,7 @@ class RgbFrmCmpStrategy : public IFrmCmpStrategy
 	}
 
 	void RecordMetrics(BYTE *a, BYTE *b, double metrics[METRIC_COUNT][QPLANES]) const;
+	void RecordMetrics(BYTE* a, BYTE* b, CString scores[METRIC_COUNT]) const;
 
 public:
 	RgbFrmCmpStrategy() : IFrmCmpStrategy(sRgbPlaneLabels) {}
@@ -24,7 +25,7 @@ public:
 
 	static BYTE *ConvertToRgb888(SQPane *pane, int w, int h);
 	virtual void CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB,
-		double metrics[METRIC_COUNT][QPLANES]) const;
+		CString scores[METRIC_COUNT]) const;
 	virtual void DiffNMetrics(SQPane *paneA, SQPane *paneB,
 		double metrics[METRIC_COUNT][QPLANES], list<RLC> rlc[QPLANES]) const;
 	virtual void AllocBuffer(SQPane *paneL, SQPane *paneR) const;
