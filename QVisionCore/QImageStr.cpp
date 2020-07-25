@@ -162,7 +162,7 @@ static int qimage_strlen_compare(const void *a, const void *b)
 	struct qcsc_info *l = (struct qcsc_info *)a;
 	struct qcsc_info *r = (struct qcsc_info *)b;
 
-	return strlen(l->name) < strlen(r->name);
+	return (int)strlen(r->name) - (int)strlen(l->name);
 }
 
 void image_sort_cs(struct qcsc_info *ci)
