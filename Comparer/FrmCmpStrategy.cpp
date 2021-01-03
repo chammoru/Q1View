@@ -11,14 +11,11 @@ void IFrmCmpStrategy::CalMetrics(ComparerPane *paneA, ComparerPane *paneB, CStri
 	}
 	frmState.Empty();
 
-	CString scores[METRIC_COUNT];
+	std::vector<CString> scores;
 	CalMetricsImpl(paneA, paneB, scores);
-	for (int i = METRIC_START_IDX; i < METRIC_COUNT; i++) {
-		const qmetric_info *qminfo = &qmetric_info_table[i];
-		CString metricName = CA2W(qminfo->name);
-
-		frmState.AppendFormat(_T(" %s(%s)"), metricName, scores[i]);
-	}
+	for (CString score: scores)
+		frmState.AppendFormat(_T(" %s"), score);
+	frmState.TrimLeft();
 }
 
 void IFrmCmpStrategy::FlagDiffLine(const list<RLC> *rlc, bool *flags, int n, short rate) const

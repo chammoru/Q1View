@@ -22,7 +22,7 @@ class YuvFrmCmpStrategy : public IFrmCmpStrategy
 	}
 
 	void RecordMetrics(BYTE *a, BYTE *b, double metrics[METRIC_COUNT][QPLANES]) const;
-	void RecordMetrics(BYTE* a, BYTE* b, CString scores[METRIC_COUNT]) const;
+	void RecordMetrics(BYTE* a, BYTE* b, std::vector<CString>& scores) const;
 
 public:
 	YuvFrmCmpStrategy() : IFrmCmpStrategy(sYuvPlaneLabels) {}
@@ -30,7 +30,7 @@ public:
 
 	static BYTE *ConvertToYuv420(SQPane *pane, int w, int h);
 	virtual void CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB,
-		CString scores[METRIC_COUNT]) const;
+		std::vector<CString>& scores) const;
 	virtual void DiffNMetrics(SQPane *paneA, SQPane *paneB,
 		double metrics[METRIC_COUNT][QPLANES], list<RLC> rlc[QPLANES]) const;
 	virtual void AllocBuffer(SQPane *paneL, SQPane *paneR) const;
