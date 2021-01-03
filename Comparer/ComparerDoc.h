@@ -11,12 +11,14 @@
 
 #define CANVAS_DEF_W          352
 #define CANVAS_DEF_H          288
-#define GUESS_CONTROLS_H      18
+#define CONTROLS_H_GUESSED    21  // QMENUITEM_IN_MARGIN_H + alpha, in CComparerView::OnCreate()
 #define PANE_DEF_W            CANVAS_DEF_W
-#define PANE_DEF_H            (CANVAS_DEF_H + GUESS_CONTROLS_H)
+#define PANE_DEF_H            (CANVAS_DEF_H + CONTROLS_H_GUESSED)
 #define MIN_SIDE              10
 #define COMPARER_DEF_FPS      30.0
 #define FPS_ADJUSTMENT        7
+#define COMPARER_DEF_VIEWS    2
+#define COMPARING_VIEWS_NUM   2
 
 class CComparerDoc;
 class FileScanThread;
@@ -35,10 +37,11 @@ protected: // create from serialization only
 
 // Attributes
 public:
-	enum PANE_INDEX
+	enum PANE_ID
 	{
-		IMG_VIEW_R = 0,
-		IMG_VIEW_L = 1,
+		IMG_VIEW_1,
+		IMG_VIEW_2,
+		IMG_VIEW_3,
 		IMG_VIEW_MAX,
 	};
 
@@ -75,21 +78,17 @@ public:
 	double mFps;
 	bool mInterpol;
 
-#ifdef MORU_FMAT_HW
-	cv::Mat mFundamental;
-#endif
-
 // Operations
 public:
 	void ProcessDocument(ComparerPane *pane);
 	void LoadSourceImage(ComparerPane *pane);
 	bool ReadSource4View(ComparerPane *pane);
 	bool IsRGBCompare(const SQPane *paneA, const SQPane *paneB) const;
-	void RefleshPaneImages(ComparerPane *paneA, bool settingChanged);
-	inline ComparerPane* GetOppositePane(ComparerPane* pane)
-	{
-		return pane == mPane + IMG_VIEW_L ? mPane + IMG_VIEW_R : mPane + IMG_VIEW_L;
+	void RefleshPaneImages(ComparerPane *pane, bool settingChanged);
+	inline ComparerPane* GetOppositePane(ComparerPane* pane) {
+		return pane == mPane + IMG_VIEW_1 ? mPane + IMG_VIEW_2 : mPane + IMG_VIEW_1;
 	}
+	std::vector<ComparerPane*> GetOtherPanes(ComparerPane* pane);
 	void KillPlayTimer();
 	bool OffsetScenes(long offset);
 	void MarkImgViewProcessing();
@@ -98,6 +97,7 @@ public:
 	void SetScene(long frameID, ComparerPane* pane, bool& updated);
 	bool NextScenes();
 	void setDstSize();
+	bool isFixedResolution();
 
 // Overrides
 public:

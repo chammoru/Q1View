@@ -17,7 +17,7 @@ class FileScanThread : public SThread
 	int mFrmCmpInfoSize;
 	FrmCmpInfo *mFrmCmpInfo;
 	int mCurFrames;
-	SQPane mScanInfo[CComparerDoc::IMG_VIEW_MAX];
+	SQPane mScanInfo[COMPARING_VIEWS_NUM];
 	IFrmCmpStrategy *mFrmCmpStrategy;
 
 public:

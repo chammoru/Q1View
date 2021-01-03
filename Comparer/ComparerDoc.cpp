@@ -6,7 +6,7 @@
 #include "Comparer.h"
 
 #include "ComparerDoc.h"
-#include "ComparerViewC.h"
+#include "ComparerView.h"
 #include "PosInfoView.h"
 #include "MainFrm.h"
 #include "FileScanThread.h"
@@ -226,14 +226,13 @@ void CComparerDoc::LoadSourceImage(ComparerPane *pane)
 
 	setDstSize();
 
-	for (int i = 0; i < IMG_VIEW_MAX; i++) {
-		CComparerViewC *pView = mPane[i].pView;
-
+	for (int i = 0; i < pMainFrm->mCurViews; i++) {
+		CComparerView *pView = mPane[i].pView;
 		pView->Initialize(this);
 	}
 
 	int stride = ROUNDUP_DWORD(mW);
-	size_t rgbBufSize = stride * mH * QIMG_DST_RGB_BYTES;
+	size_t rgbBufSize = stride * mH * ((int)QIMG_DST_RGB_BYTES);
 	if (rgbBufSize > pane->rgbBufSize) {
 		pane->rgbBufSize = rgbBufSize;
 
@@ -266,45 +265,32 @@ bool CComparerDoc::IsRGBCompare(const SQPane *paneA,
 	}
 }
 
-#ifdef MORU_FMAT_HW
-#include "QImageEpipol.h"
-#endif
-
-void CComparerDoc::RefleshPaneImages(ComparerPane *paneA, bool settingChanged)
+void CComparerDoc::RefleshPaneImages(ComparerPane *pane, bool settingChanged)
 {
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	pMainFrm->KillTimer(CTI_ID_POS_INVALIDATE);
 	KillPlayTimer();
 
-	LoadSourceImage(paneA);
+	LoadSourceImage(pane);
 
-	ComparerPane *paneB = GetOppositePane(paneA);
-	if (paneB->isAvail()) {
+	ComparerPane *opposite = GetOppositePane(pane);
+	if (opposite->isAvail()) {
 		if (settingChanged)
-			LoadSourceImage(paneB);
+			LoadSourceImage(opposite);
 
 		// This routine should be located after checking settingChanged
 		// And should be before mFileScanThread->setup()
-		mMaxFrames = max(paneA->frames, paneB->frames);
-		mMinFrames = min(paneA->frames, paneB->frames);
+		mMaxFrames = max(pane->frames, opposite->frames);
+		mMinFrames = min(pane->frames, opposite->frames);
 
-#ifdef MORU_FMAT_HW
-		if (paneA->isOcvMat() && paneB->isOcvMat()) {
-			if (mPane + IMG_VIEW_R == paneB)
-				mFundamental = qGetFundamentalMat(paneA->mOcvMat, paneB->mOcvMat);
-			else
-				mFundamental = qGetFundamentalMat(paneB->mOcvMat, paneA->mOcvMat);
-		}
-#endif
-
-		bool rgbCompare = IsRGBCompare(paneA, paneB);
+		bool rgbCompare = IsRGBCompare(pane, opposite);
 		if (rgbCompare)
 			mFrmCmpStrategy = mRgbCompare;
 		else
 			mFrmCmpStrategy = mYuvCompare;
 
 		mFrmCmpStrategy->Setup(mW, mH);
-		mFrmCmpStrategy->CalMetrics(paneA, paneB, mFrmState);
+		mFrmCmpStrategy->CalMetrics(pane, opposite, pMainFrm->mMetricIdx, mFrmState);
 
 		mFileScanThread->requestExitAndWait();
 		mFileScanThread->setup(); // uses mMinFrames and frmCmpInfo is updated
@@ -317,7 +303,7 @@ void CComparerDoc::RefleshPaneImages(ComparerPane *paneA, bool settingChanged)
 
 		pMainFrm->SetTimer(CTI_ID_POS_INVALIDATE, VIT_INVALIDATE_DUR, NULL);
 	} else {
-		mMaxFrames = max(paneA->frames, paneB->frames);
+		mMaxFrames = max(pane->frames, opposite->frames);
 		mMinFrames = 0;
 	}
 
@@ -337,21 +323,18 @@ void CComparerDoc::ProcessDocument(ComparerPane *pane)
 	bool settingChanged = false;
 	if (mW != w || mH != h) {
 		LOGINF("new width (%d) and height (%d)", w, h);
-		ComparerPane* other = GetOppositePane(pane);
-		if (!other->pathName.IsEmpty()) {
-			other->Release();
+		for (auto other : GetOtherPanes(pane)) {
+			if (!other->pathName.IsEmpty())
+				other->Release();
 		}
 
 		mW = w;
 		mH = h;
 
 		settingChanged = true;
-
-		CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
-		pMainFrm->UpdateResolutionLabel(mW, mH);
-		pMainFrm->CheckResolutionRadio(mW, mH);
 	}
 
+	CComparerView* pView = pane->pView;
 	const struct qcsc_info* ci = pane->GetColorSpace(pane->pathName, mSortedCscInfo);
 	if (ci == NULL) {
 		LOGWRN("color space is not found");
@@ -361,17 +344,18 @@ void CComparerDoc::ProcessDocument(ComparerPane *pane)
 		pane->SetColorInfo(ci);
 
 		CString str = CA2W(ci->name);
-		CComparerViewC *pView = pane->pView;
-
 		pView->UpdateCsLabel(str.MakeUpper());
 		pView->CheckCsRadio(ci->cs);
 	}
 
 	CString fileName = getBaseName(pane->pathName);
-	CComparerViewC* pView = pane->pView;
 	pView->UpdateFileName(fileName);
 
 	RefleshPaneImages(pane, settingChanged);
+
+	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
+	pMainFrm->UpdateResolutionLabel(mW, mH); // also, disable the resolution change if necessary
+	pMainFrm->CheckResolutionRadio(mW, mH);
 }
 
 void CComparerDoc::ViewOnMouseWheel(short zDelta, int wCanvas, int hCanvas)
@@ -408,17 +392,17 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 		return TRUE;
 	}
 
-	// Currently update only the left pane
-	ComparerPane *paneL = mPane + IMG_VIEW_L;
+	// Currently update only the first pane
+	ComparerPane *pane1 = mPane + IMG_VIEW_1;
 
-	if (paneL->pathName == lpszPathName)
+	if (pane1->pathName == lpszPathName)
 		return TRUE;
 
-	paneL->pathName = lpszPathName;
+	pane1->pathName = lpszPathName;
 
-	CComparerViewC *pView = paneL->pView;
-	pView->ProcessDocument(this);
-	pView->AdjustWindowSize();
+	CComparerView *pView = pane1->pView;
+	ProcessDocument(pView->mPane);
+	pView->AdjustWindowSize(pMainFrm->mCurViews);
 	UpdateAllViews(NULL);
 
 	return TRUE;
@@ -440,9 +424,10 @@ void CComparerDoc::SetScene(long frameID, ComparerPane* pane, bool& updated)
 
 bool CComparerDoc::OffsetScenes(long offset)
 {
+	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	bool updated = false;
 
-	for (int i = 0; i < IMG_VIEW_MAX; i++) {
+	for (int i = 0; i < pMainFrm->mCurViews; i++) {
 		ComparerPane *pane = &mPane[i];
 		if (!pane->isAvail())
 			continue;
@@ -470,9 +455,10 @@ bool CComparerDoc::SetScenes(long frameID)
 
 bool CComparerDoc::NextScenes()
 {
+	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	bool updated = false;
 
-	for (int i = 0; i < IMG_VIEW_MAX; i++) {
+	for (int i = 0; i < pMainFrm->mCurViews; i++) {
 		ComparerPane* pane = &mPane[i];
 
 		if (!pane->isAvail())
@@ -489,6 +475,18 @@ bool CComparerDoc::NextScenes()
 	return updated;
 }
 
+inline std::vector<ComparerPane*> CComparerDoc::GetOtherPanes(ComparerPane* pane)
+{
+	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
+	std::vector<ComparerPane*> otherPanes;
+	for (int i = 0; i < pMainFrm->mCurViews; i++) {
+		if (mPane + i != pane)
+			otherPanes.push_back(mPane + i);
+	}
+
+	return otherPanes;
+}
+
 void CComparerDoc::KillPlayTimer()
 {
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
@@ -499,26 +497,42 @@ void CComparerDoc::KillPlayTimer()
 
 void CComparerDoc::MarkImgViewProcessing()
 {
-	for (int i = 0; i < IMG_VIEW_MAX; i++) {
+	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
+	for (int i = 0; i < pMainFrm->mCurViews; i++) {
 		ComparerPane *pane = &mPane[i];
 
 		if (!pane->isAvail())
 			continue;
 
-		CComparerViewC *view = pane->pView;
+		CComparerView *view = pane->pView;
 		view->mProcessing = true;
 	}
 }
 
 bool CComparerDoc::CheckImgViewProcessing()
 {
+	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	bool isProcessing = false;
-	for (int i = 0; i < IMG_VIEW_MAX; i++) {
+	for (int i = 0; i < pMainFrm->mCurViews; i++) {
 		ComparerPane *pane = &mPane[i];
-		CComparerViewC *view = pane->pView;
+		CComparerView *view = pane->pView;
 		if (view->mProcessing)
 			isProcessing= true;
 	}
 
 	return isProcessing;
+}
+
+bool CComparerDoc::isFixedResolution()
+{
+	for (int i = 0; i < CComparerDoc::IMG_VIEW_MAX; i++) {
+		ComparerPane* pane = &mPane[i];
+		if (!pane)
+			continue;
+		FrmSrc* frmSrc = pane->frmSrc;
+		if (frmSrc && frmSrc->isFixedResolution())
+			return true;
+	}
+
+	return false;
 }

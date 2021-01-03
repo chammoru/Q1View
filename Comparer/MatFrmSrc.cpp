@@ -5,7 +5,7 @@
 
 using namespace cv;
 
-MatFrmSrc::MatFrmSrc(SQPane *pane) : FrmSrc(pane) {}
+MatFrmSrc::MatFrmSrc(SQPane *pane) : FrmSrc(pane, true) {}
 
 MatFrmSrc::~MatFrmSrc()
 {

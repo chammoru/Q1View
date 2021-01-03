@@ -5,7 +5,7 @@ struct SQPane;
 class FrmSrc
 {
 public:
-	FrmSrc(SQPane* pane);
+	FrmSrc(SQPane* pane, bool fixedResolution);
 	virtual ~FrmSrc() {}
 	virtual bool Open(const CString& filePath) = 0;
 	virtual int GetFrameNum() = 0;
@@ -18,9 +18,11 @@ public:
 	virtual long GetNextFrameID() = 0;
 	virtual bool SetNextFrameID(long frameID) = 0;
 	virtual double GetFps() = 0;
+	inline bool isFixedResolution() { return mFixedResolution; }
 
 protected:
 	SQPane *mPane;
 
 private:
+	bool mFixedResolution;
 };

@@ -6,7 +6,7 @@
 using namespace cv;
 
 VidCapFrmSrc::VidCapFrmSrc(SQPane* pane)
-: FrmSrc(pane)
+: FrmSrc(pane, true)
 , mW(-1)
 , mH(-1)
 {}

@@ -1,6 +1,6 @@
 #include "StdAfx.h"
 #include "ComparerDoc.h"
-#include "ComparerViewC.h"
+#include "ComparerView.h"
 #include "FrmCmpInfo.h"
 #include "FileScanThread.h"
 #include "FrmCmpStrategy.h"
@@ -44,7 +44,7 @@ SmpError FileScanThread::readyToRun()
 
 	mCurFrameID = 0;
 
-	for (int i = 0; i < CComparerDoc::IMG_VIEW_MAX; i++) {
+	for (int i = 0; i < COMPARING_VIEWS_NUM; i++) {
 		const ComparerPane *pane = &mDoc->mPane[i];
 		SQPane *scanInfo = &mScanInfo[i];
 		scanInfo->closeFrmSrcs();
@@ -65,21 +65,21 @@ SmpError FileScanThread::readyToRun()
 	}
 
 	mFrmCmpStrategy = mDoc->mFrmCmpStrategy;
-	mFrmCmpStrategy->AllocBuffer(&mScanInfo[CComparerDoc::IMG_VIEW_L],
-		&mScanInfo[CComparerDoc::IMG_VIEW_R]);
+	mFrmCmpStrategy->AllocBuffer(&mScanInfo[CComparerDoc::IMG_VIEW_1],
+		&mScanInfo[CComparerDoc::IMG_VIEW_2]);
 
 	return SMP_OK;
 }
 
 bool FileScanThread::threadLoop()
 {
-	for (int i = 0; i < CComparerDoc::IMG_VIEW_MAX; i++) {
+	for (int i = 0; i < COMPARING_VIEWS_NUM; i++) {
 		SQPane *scanInfo = &mScanInfo[i];
 		scanInfo->FillSceneBuf(scanInfo->origBuf);
 	}
 
-	SQPane *scanInfoL = &mScanInfo[CComparerDoc::IMG_VIEW_L];
-	SQPane *scanInfoR = &mScanInfo[CComparerDoc::IMG_VIEW_R];
+	SQPane *scanInfoL = &mScanInfo[CComparerDoc::IMG_VIEW_1];
+	SQPane *scanInfoR = &mScanInfo[CComparerDoc::IMG_VIEW_2];
 
 	double (*metrics)[QPLANES] = mFrmCmpInfo[mCurFrameID].mMetrics;
 	mFrmCmpStrategy->DiffNMetrics(scanInfoL, scanInfoR, metrics, mFrmCmpInfo[mCurFrameID].diffRLC);
