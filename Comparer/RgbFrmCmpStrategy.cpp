@@ -46,24 +46,26 @@ void RgbFrmCmpStrategy::RecordMetrics(BYTE *a, BYTE *b,
 	}
 }
 
-void RgbFrmCmpStrategy::RecordMetrics(BYTE* a, BYTE* b, CString scores[METRIC_COUNT]) const
+void RgbFrmCmpStrategy::RecordMetrics(BYTE* a, BYTE* b, std::vector<CString> &scores) const
 {
 	int stride = ROUNDUP_DWORD(mW);
 
 	for (int i = METRIC_START_IDX; i < METRIC_COUNT; i++) {
-		CString &score = scores[i];
+		CString score;
 		const qmetric_info* qminfo = &qmetric_info_table[i];
+		const CString metricName = CA2W(qminfo->name);
 
 		// Calculate similarity metrics as if each pixel channel is an independent pixel.
 		// This is the scheme that OpenCV and TensorFlow adopt for their PSNR APIs.
 		double metric = qminfo->measure(a, b, mW * QIMG_DST_RGB_BYTES, mH,
 			stride * QIMG_DST_RGB_BYTES, 1);
-		score.Format(_T("%.4f"), metric);
+		score.Format(_T("%s(%.4f)"), metricName, metric);
+		scores.push_back(score);
 	}
 }
 
 void RgbFrmCmpStrategy::CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB,
-									   CString scores[METRIC_COUNT]) const
+									   std::vector<CString> &scores) const
 {
 	RecordMetrics(paneA->rgbBuf, paneB->rgbBuf, scores);
 }

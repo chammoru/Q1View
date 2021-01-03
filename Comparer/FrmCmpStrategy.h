@@ -23,10 +23,10 @@ struct IFrmCmpStrategy
 	virtual void AllocBuffer(SQPane *paneL, SQPane *paneR) const = 0;
 	virtual void FlagTotalDiffLine(const list<RLC> rlc[QPLANES], bool *flags, int n) const = 0;
 	virtual void RecordMetrics(BYTE *a, BYTE *b, double metrics[METRIC_COUNT][QPLANES]) const = 0;
-	virtual void RecordMetrics(BYTE* a, BYTE* b, CString scores[METRIC_COUNT]) const = 0;
+	virtual void RecordMetrics(BYTE* a, BYTE* b, std::vector<CString>& scores) const = 0;
 
 protected:
 	virtual void CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB,
-		CString scores[METRIC_COUNT]) const = 0;
+		std::vector<CString>& scores) const = 0;
 	void FlagDiffLine(const list<RLC> *rlc, bool *flags, int n, short rate) const;
 };
