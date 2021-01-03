@@ -2,7 +2,7 @@
 
 #include "qimage_cs.h"
 
-class CComparerViewC;
+class CComparerView;
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -146,7 +146,7 @@ struct ComparerPane : public SQPane
 {
 	CString pathName;
 	int bufOffset2, bufOffset3;
-	CComparerViewC *pView;
+	CComparerView *pView;
 
 	long frames;
 

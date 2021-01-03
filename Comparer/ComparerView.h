@@ -1,16 +1,16 @@
 #pragma once
 
-// CComparerViewC view
+// CComparerView view
 #include "QMenuItem.h"
 #include "QViewerCmn.h"
 
 #define QMENUITEM_IN_MARGIN_H     6
 
-class CComparerViewC : public CScrollView
+class CComparerView : public CScrollView
 {
 protected:
-	CComparerViewC();           // protected constructor used by dynamic creation
-	virtual ~CComparerViewC();
+	CComparerView();           // protected constructor used by dynamic creation
+	virtual ~CComparerView();
 	CComparerDoc* GetDocument() const;
 
 public:
@@ -24,12 +24,13 @@ public:
 protected:
 	virtual void OnDraw(CDC *pDC);      // overridden to draw this view
 	virtual void OnInitialUpdate();     // first time after construct
-	virtual CComparerViewC *GetOppoView(CComparerDoc *pDoc) = 0;
-	virtual ComparerPane *GetPane(CComparerDoc* pDoc) const = 0;
+	std::vector<CComparerView *> GetOhterViews(CComparerDoc *pDoc);
+	ComparerPane *GetPane(CComparerDoc* pDoc) const;
 
 	DECLARE_MESSAGE_MAP()
 
 public:
+	ComparerPane *mPane;
 	int mXDst, mYDst;
 	int mWClient, mHClient;
 	int mWCanvas, mHCanvas;
@@ -46,13 +47,12 @@ public:
 	BYTE *mRgbBuf;
 	CFont mDefPixelTextFont;
 
-	void AdjustWindowSize() const;
+	void AdjustWindowSize(int numPrevViews, int splitBarChange = 0) const;
 	void Initialize(CComparerDoc *pDoc);
 	void DeterminDestOriginCoord(CComparerDoc *pDoc);
 	void CheckCsRadio(int cs);
 	void UpdateCsLabel(const TCHAR *csLabel);
 	void UpdateFileName(const TCHAR* filename);
-	virtual void ProcessDocument(CComparerDoc *pDoc) = 0;
 	void ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridInfo &gi);
 	void ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *dst, int sDst,
 		q1::GridInfo &gi);
@@ -72,6 +72,6 @@ public:
 };
 
 #ifndef _DEBUG  // debug version in ComparerView.cpp
-inline CComparerDoc* CComparerViewC::GetDocument() const
+inline CComparerDoc* CComparerView::GetDocument() const
 	{ return reinterpret_cast<CComparerDoc*>(m_pDocument); }
 #endif

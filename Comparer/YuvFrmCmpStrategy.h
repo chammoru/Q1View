@@ -22,14 +22,14 @@ class YuvFrmCmpStrategy : public IFrmCmpStrategy
 	}
 
 	void RecordMetrics(BYTE *a, BYTE *b, double metrics[METRIC_COUNT][QPLANES]) const;
-	void RecordMetrics(BYTE* a, BYTE* b, std::vector<CString>& scores) const;
+	void RecordMetrics(BYTE* a, BYTE* b, int metricIdx, std::vector<CString>& scores) const;
 
 public:
 	YuvFrmCmpStrategy() : IFrmCmpStrategy(sYuvPlaneLabels) {}
 	virtual ~YuvFrmCmpStrategy() {}
 
 	static BYTE *ConvertToYuv420(SQPane *pane, int w, int h);
-	virtual void CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB,
+	virtual void CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB, int metricIdx,
 		std::vector<CString>& scores) const;
 	virtual void DiffNMetrics(SQPane *paneA, SQPane *paneB,
 		double metrics[METRIC_COUNT][QPLANES], list<RLC> rlc[QPLANES]) const;

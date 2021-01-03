@@ -8,6 +8,7 @@
 #include "FrmCmpInfo.h"
 #include "FrmCmpStrategy.h"
 #include "FileScanThread.h"
+#include "MainFrm.h"
 
 // CPosInfoView
 
@@ -135,8 +136,8 @@ void CPosInfoView::DrawFrameRect(CDC* pDC, CRect *clipBox, int w)
 {
 	CComparerDoc* pDoc = GetDocument();
 
-	ComparerPane *paneL = &pDoc->mPane[CComparerDoc::IMG_VIEW_L];
-	ComparerPane *paneR = &pDoc->mPane[CComparerDoc::IMG_VIEW_R];
+	ComparerPane *paneL = &pDoc->mPane[CComparerDoc::IMG_VIEW_1];
+	ComparerPane *paneR = &pDoc->mPane[CComparerDoc::IMG_VIEW_2];
 
 	int outerRcH = mPosLinesPerFrame + 1;
 	int startFrameID = clipBox->top / outerRcH;
@@ -189,8 +190,8 @@ void CPosInfoView::OnDraw(CDC* pDC)
 	memDC.SetStretchBltMode(COLORONCOLOR);
 	memDC.SelectObject(bitmap);
 
-	ComparerPane *paneL = &pDoc->mPane[CComparerDoc::IMG_VIEW_L];
-	ComparerPane *paneR = &pDoc->mPane[CComparerDoc::IMG_VIEW_R];
+	ComparerPane *paneL = &pDoc->mPane[CComparerDoc::IMG_VIEW_1];
+	ComparerPane *paneR = &pDoc->mPane[CComparerDoc::IMG_VIEW_2];
 
 	memDC.BitBlt(0, 0, mWClient, h, NULL, 0, 0, WHITENESS);
 
@@ -286,8 +287,8 @@ void CPosInfoView::OnLButtonDown(UINT nFlags, CPoint point)
 	// TODO: Add your message handler code here and/or call default
 	CComparerDoc* pDoc = GetDocument();
 
-	ComparerPane *paneL = &pDoc->mPane[CComparerDoc::IMG_VIEW_L];
-	ComparerPane *paneR = &pDoc->mPane[CComparerDoc::IMG_VIEW_R];
+	ComparerPane *paneL = &pDoc->mPane[CComparerDoc::IMG_VIEW_1];
+	ComparerPane *paneR = &pDoc->mPane[CComparerDoc::IMG_VIEW_2];
 
 	if (!paneL->isAvail() && !paneR->isAvail())
 		return;
@@ -299,19 +300,21 @@ void CPosInfoView::OnLButtonDown(UINT nFlags, CPoint point)
 	int frameID = (ulCorner.y + point.y) / (mPosLinesPerFrame + 1);
 	frameID = min(frameID, pDoc->mMaxFrames - 1);
 
-	CComparerDoc::PANE_INDEX idx;
+	CComparerDoc::PANE_ID idx;
 	if (point.x < (mWClient >> 1))
-		idx = CComparerDoc::IMG_VIEW_L;
+		idx = CComparerDoc::IMG_VIEW_1;
 	else
-		idx = CComparerDoc::IMG_VIEW_R;
+		idx = CComparerDoc::IMG_VIEW_2;
 
 	ComparerPane *pane = &pDoc->mPane[idx];
 	pane->SetNextFrameID(frameID);
 	pDoc->ReadSource4View(pane);
 
 	IFrmCmpStrategy *compareStrategy = pDoc->mFrmCmpStrategy;
-	if (compareStrategy)
-		compareStrategy->CalMetrics(paneL, paneR, pDoc->mFrmState);
+	if (compareStrategy) {
+		CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
+		compareStrategy->CalMetrics(paneL, paneR, pMainFrm->mMetricIdx, pDoc->mFrmState);
+	}
 
 	pDoc->UpdateAllViews(NULL);
 

@@ -7,7 +7,7 @@
 #include "ComparerUtil.h"
 
 RawFrmSrc::RawFrmSrc(SQPane *pane)
-: FrmSrc(pane)
+: FrmSrc(pane, false)
 , mFileSize(0L)
 {}
 

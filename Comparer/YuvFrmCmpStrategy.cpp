@@ -55,7 +55,8 @@ void YuvFrmCmpStrategy::RecordMetrics(BYTE *a, BYTE *b,
 	}
 }
 
-void YuvFrmCmpStrategy::RecordMetrics(BYTE* a, BYTE* b, std::vector<CString>& scores) const
+void YuvFrmCmpStrategy::RecordMetrics(BYTE* a, BYTE* b, int metricIdx,
+	std::vector<CString>& scores) const
 {
 	int bufOffset2 = 0, bufOffset3 = 0;
 	qimage_yuv420_load_info(mW, mH, &bufOffset2, &bufOffset3);
@@ -63,23 +64,21 @@ void YuvFrmCmpStrategy::RecordMetrics(BYTE* a, BYTE* b, std::vector<CString>& sc
 	int chroma_w = (mW + 1) >> 1;
 	int chroma_h = (mH + 1) >> 1;
 
-	for (int i = METRIC_START_IDX; i < METRIC_COUNT; i++) {
-		CString score;
-		const qmetric_info* qminfo = &qmetric_info_table[i];
-		const CString metricName = CA2W(qminfo->name);
+	CString score;
+	const qmetric_info* qminfo = &qmetric_info_table[metricIdx];
+	const CString metricName = CA2W(qminfo->name);
 
-		double metric0 = qminfo->measure(a, b, mW, mH, mW, 1);
-		double metric1 = qminfo->measure(a + bufOffset2, b + bufOffset2, chroma_w, chroma_h, chroma_w, 1);
-		double metric2 = qminfo->measure(a + bufOffset3, b + bufOffset3, chroma_w, chroma_h, chroma_w, 1);
-		score.Format(_T("%s(%.4f %.4f %.4f)"), metricName, metric0, metric1, metric2);
-		scores.push_back(score);
-	}
+	double metric0 = qminfo->measure(a, b, mW, mH, mW, 1);
+	double metric1 = qminfo->measure(a + bufOffset2, b + bufOffset2, chroma_w, chroma_h, chroma_w, 1);
+	double metric2 = qminfo->measure(a + bufOffset3, b + bufOffset3, chroma_w, chroma_h, chroma_w, 1);
+	score.Format(_T("%s(%.4f %.4f %.4f)"), metricName, metric0, metric1, metric2);
+	scores.push_back(score);
 }
 
-void YuvFrmCmpStrategy::CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB,
-									   std::vector<CString> &scores) const
+void YuvFrmCmpStrategy::CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB, int metricIdx,
+	std::vector<CString> &scores) const
 {
-	RecordMetrics(GetYuv420Addr(paneA), GetYuv420Addr(paneB), scores);
+	RecordMetrics(GetYuv420Addr(paneA), GetYuv420Addr(paneB), metricIdx, scores);
 }
 
 void YuvFrmCmpStrategy::DiffNMetrics(SQPane *paneA, SQPane *paneB,

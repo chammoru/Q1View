@@ -17,6 +17,8 @@
 #define ID_METRIC_END                   0x72ff
 #define ID_FPS_START                    0x7300
 #define ID_FPS_END                      0x73ff
+#define ID_VIEWS_START                  0x7400
+#define ID_VIEWS_END                    0x74ff
 #define ID_MAGNIFY                      32771
 
 // Next default values for new objects

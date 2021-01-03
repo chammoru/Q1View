@@ -4,7 +4,8 @@
 #include "qimage_metrics.h"
 #include "QMath.h"
 
-void IFrmCmpStrategy::CalMetrics(ComparerPane *paneA, ComparerPane *paneB, CString &frmState) const
+void IFrmCmpStrategy::CalMetrics(ComparerPane *paneA, ComparerPane *paneB, int metricIdx,
+	CString &frmState) const
 {
 	if (paneA->curFrameID >= paneA->frames || paneB->curFrameID >= paneB->frames) {
 		return;
@@ -12,7 +13,7 @@ void IFrmCmpStrategy::CalMetrics(ComparerPane *paneA, ComparerPane *paneB, CStri
 	frmState.Empty();
 
 	std::vector<CString> scores;
-	CalMetricsImpl(paneA, paneB, scores);
+	CalMetricsImpl(paneA, paneB, metricIdx, scores);
 	for (CString score: scores)
 		frmState.AppendFormat(_T(" %s"), score);
 	frmState.TrimLeft();

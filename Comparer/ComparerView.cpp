@@ -4,9 +4,8 @@
 #include "stdafx.h"
 #include "Comparer.h"
 #include "ComparerDoc.h"
-#include "ComparerViewC.h"
-#include "ComparerViewL.h"
-#include "ComparerViewR.h"
+#include "ComparerView.h"
+#include "ComparerViews.h"
 #include "MainFrm.h"
 
 #include "QCommon.h"
@@ -16,13 +15,9 @@
 #include <QViewerCmn.h>
 #include <QImageStr.h>
 
-#ifdef MORU_FMAT_HW
-#include "QImageEpipol.h"
-#endif
+// CComparerView
 
-// CComparerViewC
-
-CComparerViewC::CComparerViewC()
+CComparerView::CComparerView()
 : mIsClicked(false)
 , mProcessing(false)
 , mRgbBufSize(0)
@@ -53,7 +48,7 @@ CComparerViewC::CComparerViewC()
 	mRcNameQMenu.SetRectEmpty();
 }
 
-CComparerViewC::~CComparerViewC()
+CComparerView::~CComparerView()
 {
 	mCsMenu.DestroyMenu();
 
@@ -62,8 +57,8 @@ CComparerViewC::~CComparerViewC()
 }
 
 
-BEGIN_MESSAGE_MAP(CComparerViewC, CScrollView)
-	ON_COMMAND_RANGE(ID_CS_START, ID_CS_END, CComparerViewC::OnCsChange)
+BEGIN_MESSAGE_MAP(CComparerView, CScrollView)
+	ON_COMMAND_RANGE(ID_CS_START, ID_CS_END, CComparerView::OnCsChange)
 	ON_WM_CREATE()
 	ON_WM_DROPFILES()
 	ON_WM_ERASEBKGND()
@@ -83,9 +78,9 @@ enum {
 	STATIC_BLANK_EVENT_ID,
 };
 
-// CComparerViewC drawing
+// CComparerView drawing
 
-void CComparerViewC::OnInitialUpdate()
+void CComparerView::OnInitialUpdate()
 {
 	CScrollView::OnInitialUpdate();
 
@@ -95,7 +90,7 @@ void CComparerViewC::OnInitialUpdate()
 	SetScrollSizes(MM_TEXT, sizeTotal);
 }
 
-void CComparerViewC::ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *dst, int sDst,
+void CComparerView::ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *dst, int sDst,
 										  q1::GridInfo &gi)
 {
 	long gap, yStart, yEnd, xStart, xEnd;
@@ -133,7 +128,7 @@ void CComparerViewC::ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *d
 	}
 }
 
-void CComparerViewC::ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridInfo &gi)
+void CComparerView::ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridInfo &gi)
 {
 	int sDst = ROUNDUP_DWORD(mWClient);
 	int rgbBufSize = sDst * mHClient * QIMG_DST_RGB_BYTES;
@@ -183,11 +178,11 @@ void CComparerViewC::ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridIn
 	bmiHeader.biHeight = -mHClient;
 }
 
-void CComparerViewC::OnDraw(CDC *pDC)
+void CComparerView::OnDraw(CDC *pDC)
 {
 	CComparerDoc *pDoc = GetDocument();
 	// TODO: add draw code here
-	// Let's try to avoid using IsKindOf(RUNTIME_CLASS(CComparerViewL)
+	// Let's try to avoid using IsKindOf(RUNTIME_CLASS(CComparerView1)
 
 	ComparerPane *pane = GetPane(pDoc);
 	if (!pane->isAvail()) {
@@ -252,22 +247,22 @@ void CComparerViewC::OnDraw(CDC *pDC)
 }
 
 
-// CComparerViewC diagnostics
+// CComparerView diagnostics
 
 #ifdef _DEBUG
-void CComparerViewC::AssertValid() const
+void CComparerView::AssertValid() const
 {
 	CScrollView::AssertValid();
 }
 
 #ifndef _WIN32_WCE
-void CComparerViewC::Dump(CDumpContext& dc) const
+void CComparerView::Dump(CDumpContext& dc) const
 {
 	CScrollView::Dump(dc);
 }
 #endif
 
-CComparerDoc* CComparerViewC::GetDocument() const // non-debug version is inline
+CComparerDoc* CComparerView::GetDocument() const // non-debug version is inline
 {
 	ASSERT(m_pDocument->IsKindOf(RUNTIME_CLASS(CComparerDoc)));
 	return (CComparerDoc*)m_pDocument;
@@ -275,9 +270,9 @@ CComparerDoc* CComparerViewC::GetDocument() const // non-debug version is inline
 #endif //_DEBUG
 
 
-// CComparerViewC message handlers
+// CComparerView message handlers
 
-int CComparerViewC::OnCreate(LPCREATESTRUCT lpCreateStruct)
+int CComparerView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
 	if (CScrollView::OnCreate(lpCreateStruct) == -1)
 		return -1;
@@ -304,7 +299,7 @@ int CComparerViewC::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	return 0;
 }
 
-void CComparerViewC::OnDropFiles(HDROP hDropInfo)
+void CComparerView::OnDropFiles(HDROP hDropInfo)
 {
 	// TODO: Add your message handler code here and/or call default
 	TCHAR szPathName[MAX_PATH];
@@ -322,23 +317,22 @@ void CComparerViewC::OnDropFiles(HDROP hDropInfo)
 		goto OnDropFilesDefault;
 
 	pane->pathName = szPathName;
-
-	ProcessDocument(pDoc);
-
-	AdjustWindowSize();
+	pDoc->ProcessDocument(mPane);
+	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
+	AdjustWindowSize(pMainFrm->mCurViews);
 	pDoc->UpdateAllViews(NULL);
 
 OnDropFilesDefault:
 	CScrollView::OnDropFiles(hDropInfo);
 }
 
-BOOL CComparerViewC::OnEraseBkgnd(CDC* pDC)
+BOOL CComparerView::OnEraseBkgnd(CDC* pDC)
 {
 	// TODO: Add your message handler code here and/or call default
 	return TRUE;
 }
 
-void CComparerViewC::AdjustWindowSize() const
+void CComparerView::AdjustWindowSize(int numPrevViews, int splitBarChange) const
 {
 	CComparerDoc* pDoc = GetDocument();
 	ASSERT_VALID(pDoc);
@@ -360,17 +354,17 @@ void CComparerViewC::AdjustWindowSize() const
 	GetClientRect(&viewRcClient);
 
 	// calculate the default gap between current window and client
-	int wGap = mainRcClient.Width() - viewRcClient.Width() * 2;
+	int wGap = mainRcClient.Width() - viewRcClient.Width() * numPrevViews;
 	int hGap = mainRcClient.Height() - viewRcClient.Height();
 
 	// get the parent window rect
 	int wViewClient = MAX(CANVAS_DEF_W, pDoc->mW);
 	int hViewClient = MAX(CANVAS_DEF_H, pDoc->mH) + mRcControls.bottom;
 
-	int wSplitClient = wViewClient * 2 + wGap;
-	int hSplitClient = hViewClient + hGap;
+	int wMainWindow = wViewClient * pMainFrm->mCurViews + wGap + splitBarChange;
+	int hMainWindow = hViewClient + hGap;
 
-	if (wSplitClient >= fullScnSz.cx || hSplitClient >= fullScnSz.cy) {
+	if (wMainWindow >= fullScnSz.cx || hMainWindow >= fullScnSz.cy) {
 		if (!pMainFrm->IsZoomed()) {
 			pMainFrm->SendMessage(WM_SYSCOMMAND, SC_MAXIMIZE, 
 				(LPARAM)pMainFrm->GetSafeHwnd());
@@ -384,27 +378,27 @@ void CComparerViewC::AdjustWindowSize() const
 			(LPARAM)pMainFrm->GetSafeHwnd());
 	}
 
-	CRect rcWin(0, 0, wSplitClient, hSplitClient);
+	CRect rcWin(0, 0, wMainWindow, hMainWindow);
 	::AdjustWindowRectEx(&rcWin, dsStyle, TRUE, dsStyleEx);
 
 	pMainFrm->SetWindowPos(NULL, 0, 0,
 		rcWin.Width(), rcWin.Height(), SWP_NOMOVE | SWP_FRAMECHANGED);
 }
 
-void CComparerViewC::DeterminDestOriginCoord(CComparerDoc *pDoc)
+void CComparerView::DeterminDestOriginCoord(CComparerDoc *pDoc)
 {
 	mXDst = q1::DeterminDestPos(mWCanvas, pDoc->mWDst, pDoc->mXOff, pDoc->mN);
 	mYDst = q1::DeterminDestPos(mHCanvas, pDoc->mHDst, pDoc->mYOff, pDoc->mN);
 }
 
-void CComparerViewC::Initialize(CComparerDoc *pDoc)
+void CComparerView::Initialize(CComparerDoc *pDoc)
 {
 	// mWClient, mHClient, mWCanvas, mHCanvas were set in OnSize function
 
 	DeterminDestOriginCoord(pDoc);
 }
 
-BOOL CComparerViewC::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
+BOOL CComparerView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 {
 	// TODO: Add your message handler code here and/or call default
 	CPoint clientPoint;
@@ -430,7 +424,8 @@ BOOL CComparerViewC::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 	pDoc->mYOff += yShift / pDoc->mN;
 
 	DeterminDestOriginCoord(pDoc);
-	GetOppoView(pDoc)->DeterminDestOriginCoord(pDoc);
+	for (auto view : GetOhterViews(pDoc))
+		view->DeterminDestOriginCoord(pDoc);
 
 	pDoc->UpdateAllViews(NULL);
 
@@ -438,7 +433,7 @@ OnMouseWheelDefault:
 	return CScrollView::OnMouseWheel(nFlags, zDelta, pt);
 }
 
-void CComparerViewC::OnSize(UINT nType, int cx, int cy)
+void CComparerView::OnSize(UINT nType, int cx, int cy)
 {
 	CScrollView::OnSize(nType, cx, cy);
 
@@ -463,7 +458,7 @@ void CComparerViewC::OnSize(UINT nType, int cx, int cy)
 	DeterminDestOriginCoord(pDoc);
 }
 
-void CComparerViewC::OnMouseMove(UINT nFlags, CPoint point)
+void CComparerView::OnMouseMove(UINT nFlags, CPoint point)
 {
 	// TODO: Add your message handler code here and/or call default
 	CComparerDoc* pDoc = GetDocument();
@@ -476,7 +471,8 @@ void CComparerViewC::OnMouseMove(UINT nFlags, CPoint point)
 		pDoc->mYOff = pDoc->mYInitOff + (point.y - mPointS.y) / pDoc->mN;
 
 		DeterminDestOriginCoord(pDoc);
-		GetOppoView(pDoc)->DeterminDestOriginCoord(pDoc);
+		for (auto view : GetOhterViews(pDoc))
+			view->DeterminDestOriginCoord(pDoc);
 
 		pDoc->UpdateAllViews(NULL);
 	}
@@ -485,7 +481,7 @@ OnMouseMoveDefault:
 	CScrollView::OnMouseMove(nFlags, point);
 }
 
-void CComparerViewC::OnLButtonDown(UINT nFlags, CPoint point)
+void CComparerView::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	// TODO: Add your message handler code here and/or call default
 	SetCapture();
@@ -507,7 +503,7 @@ void CComparerViewC::OnLButtonDown(UINT nFlags, CPoint point)
 	CScrollView::OnLButtonDown(nFlags, point);
 }
 
-void CComparerViewC::OnLButtonUp(UINT nFlags, CPoint point)
+void CComparerView::OnLButtonUp(UINT nFlags, CPoint point)
 {
 	// TODO: Add your message handler code here and/or call default
 	mIsClicked = false;
@@ -519,7 +515,7 @@ void CComparerViewC::OnLButtonUp(UINT nFlags, CPoint point)
 	::ReleaseCapture();
 }
 
-BOOL CComparerViewC::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
+BOOL CComparerView::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 {
 	// TODO: Add your message handler code here and/or call default
 	if (mIsClicked) {
@@ -531,7 +527,7 @@ BOOL CComparerViewC::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 	return CScrollView::OnSetCursor(pWnd, nHitTest, message);
 }
 
-void CComparerViewC::CheckCsRadio(int cs)
+void CComparerView::CheckCsRadio(int cs)
 {
 	unsigned int i;
 	for (i = 0; i < ARRAY_SIZE(qcsc_info_table); i++) {
@@ -547,7 +543,7 @@ void CComparerViewC::CheckCsRadio(int cs)
 		id, MF_CHECKED | MF_BYCOMMAND);
 }
 
-void CComparerViewC::UpdateCsLabel(const TCHAR *csLabel)
+void CComparerView::UpdateCsLabel(const TCHAR *csLabel)
 {
 	mCsQMenu.SetWindowText(csLabel);
 	mCsQMenu.CalcRect(&mRcCsQMenu);
@@ -558,7 +554,7 @@ void CComparerViewC::UpdateCsLabel(const TCHAR *csLabel)
 	mNameQMenu.MoveWindow(mRcNameQMenu);
 }
 
-void CComparerViewC::UpdateFileName(const TCHAR* filename)
+void CComparerView::UpdateFileName(const TCHAR* filename)
 {
 	mNameQMenu.SetWindowText(filename);
 	mCsQMenu.CalcRect(&mRcCsQMenu);
@@ -567,7 +563,7 @@ void CComparerViewC::UpdateFileName(const TCHAR* filename)
 	mNameQMenu.MoveWindow(mRcNameQMenu);
 }
 
-void CComparerViewC::OnCsChange(UINT nID)
+void CComparerView::OnCsChange(UINT nID)
 {
 	// TODO: Add your command handler code here
 	CComparerDoc* pDoc = GetDocument();
@@ -598,7 +594,7 @@ void CComparerViewC::OnCsChange(UINT nID)
 	}
 }
 
-void CComparerViewC::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
+void CComparerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
 	// TODO: Add your message handler code here and/or call default
 	CComparerDoc* pDoc = GetDocument();
@@ -646,46 +642,33 @@ void CComparerViewC::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	CScrollView::OnKeyDown(nChar, nRepCnt, nFlags);
 }
 
-void CComparerViewC::OnRButtonDown(UINT nFlags, CPoint point)
+std::vector<CComparerView *> CComparerView::GetOhterViews(CComparerDoc* pDoc)
 {
-#ifdef MORU_FMAT_HW
-	// TODO: Add your message handler code here and/or call default
-	CComparerDoc* pDoc = GetDocument();
+	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
+	std::vector<CComparerView *> otherViews;
 
-	float xCoord = (-mXDst + point.x) / pDoc->mN;
-	float yCoord = (-mYDst + point.y - mRcCsQMenu.bottom) / pDoc->mN;
-
-	std::vector<cv::Point2f> cvPts;
-	cvPts.push_back(cv::Point2f(xCoord, yCoord));
-	std::vector<cv::Vec3f> lines;
-
-	ComparerPane *paneMe = GetPane(pDoc);
-	ComparerPane *paneOpp = pDoc->GetOppositePane(paneMe);
-
-	if (!paneMe->isOcvMat() || !paneOpp->isOcvMat()) {
-		CScrollView::OnRButtonDown(nFlags, point);
-		return;
+	for (int i = 0; i < pMainFrm->mCurViews; i++) {
+		CComparerView* pView = pDoc->mPane[i].pView;
+		if (pView == this)
+			continue;
+		otherViews.push_back(pView);
 	}
 
-	bool isLeft = paneMe == pDoc->mPane + CComparerDoc::IMG_VIEW_L;
-	qGetEpilines(cvPts, isLeft, pDoc->mFundamental, lines);
+	return otherViews;
+}
 
-	cv::Ptr<cv::Mat> opp = new cv::Mat(pDoc->mH, pDoc->mW, CV_8UC3, paneOpp->rgbBuf, pDoc->mW * QIMG_DST_RGB_BYTES);
-	cv::vector<cv::Vec3f>::const_iterator it = lines.begin();
-	for (; it != lines.end(); ++it) {
-		// ax + by + c = 0;
-		float a = (*it)[0];
-		float b = (*it)[1];
-		float c = (*it)[2];
-
-		 cv::line(*opp,
-			cv::Point(0, int(-c / b + 0.5f)),
-			cv::Point(opp->cols, int(-(c + a * opp->cols) / b + 0.5f)),
-			cv::Scalar(0, 255, 0), 1, CV_AA);
+ComparerPane* CComparerView::GetPane(CComparerDoc* pDoc) const
+{
+	for (int i = 0; i < CComparerDoc::IMG_VIEW_MAX; i++) {
+		CComparerView* pView = pDoc->mPane[i].pView;
+		if (pView == this)
+			return &pDoc->mPane[i];
 	}
 
-	pDoc->UpdateAllViews(NULL);
+	return nullptr;
+}
 
-#endif
+void CComparerView::OnRButtonDown(UINT nFlags, CPoint point)
+{
 	CScrollView::OnRButtonDown(nFlags, point);
 }

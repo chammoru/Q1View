@@ -17,16 +17,18 @@ struct IFrmCmpStrategy
 	inline bool CheckIdentityWithPsnr(double psnr[QPLANES]) const
 	{ return qisinf(psnr[0]) && qisinf(psnr[1]) && qisinf(psnr[2]); }
 
-	void CalMetrics(ComparerPane *paneA, ComparerPane *paneB, CString &frmState) const;
+	void CalMetrics(ComparerPane *paneA, ComparerPane *paneB, int metricIdx,
+		CString &frmState) const;
 	virtual void DiffNMetrics(SQPane *paneA, SQPane *paneB,
 		double metrics[METRIC_COUNT][QPLANES], list<RLC> rlc[QPLANES]) const = 0;
 	virtual void AllocBuffer(SQPane *paneL, SQPane *paneR) const = 0;
 	virtual void FlagTotalDiffLine(const list<RLC> rlc[QPLANES], bool *flags, int n) const = 0;
 	virtual void RecordMetrics(BYTE *a, BYTE *b, double metrics[METRIC_COUNT][QPLANES]) const = 0;
-	virtual void RecordMetrics(BYTE* a, BYTE* b, std::vector<CString>& scores) const = 0;
+	virtual void RecordMetrics(BYTE* a, BYTE* b, int metricIdx,
+		std::vector<CString>& scores) const = 0;
 
 protected:
-	virtual void CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB,
+	virtual void CalMetricsImpl(ComparerPane *paneA, ComparerPane *paneB, int metricIdx,
 		std::vector<CString>& scores) const = 0;
 	void FlagDiffLine(const list<RLC> *rlc, bool *flags, int n, short rate) const;
 };
