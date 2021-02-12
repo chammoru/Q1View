@@ -319,7 +319,7 @@ void CComparerView::OnDropFiles(HDROP hDropInfo)
 	pane->pathName = szPathName;
 	pDoc->ProcessDocument(mPane);
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
-	AdjustWindowSize(pMainFrm->mCurViews);
+	AdjustWindowSize(pMainFrm->mViews);
 	pDoc->UpdateAllViews(NULL);
 
 OnDropFilesDefault:
@@ -361,7 +361,7 @@ void CComparerView::AdjustWindowSize(int numPrevViews, int splitBarChange) const
 	int wViewClient = MAX(CANVAS_DEF_W, pDoc->mW);
 	int hViewClient = MAX(CANVAS_DEF_H, pDoc->mH) + mRcControls.bottom;
 
-	int wMainWindow = wViewClient * pMainFrm->mCurViews + wGap + splitBarChange;
+	int wMainWindow = wViewClient * pMainFrm->mViews + wGap + splitBarChange;
 	int hMainWindow = hViewClient + hGap;
 
 	if (wMainWindow >= fullScnSz.cx || hMainWindow >= fullScnSz.cy) {
@@ -647,7 +647,7 @@ std::vector<CComparerView *> CComparerView::GetOhterViews(CComparerDoc* pDoc)
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	std::vector<CComparerView *> otherViews;
 
-	for (int i = 0; i < pMainFrm->mCurViews; i++) {
+	for (int i = 0; i < pMainFrm->mViews; i++) {
 		CComparerView* pView = pDoc->mPane[i].pView;
 		if (pView == this)
 			continue;

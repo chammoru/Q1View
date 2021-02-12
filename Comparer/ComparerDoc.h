@@ -42,6 +42,7 @@ public:
 		IMG_VIEW_1,
 		IMG_VIEW_2,
 		IMG_VIEW_3,
+		IMG_VIEW_4,
 		IMG_VIEW_MAX,
 	};
 
