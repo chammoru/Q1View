@@ -226,7 +226,7 @@ void CComparerDoc::LoadSourceImage(ComparerPane *pane)
 
 	setDstSize();
 
-	for (int i = 0; i < pMainFrm->mCurViews; i++) {
+	for (int i = 0; i < pMainFrm->mViews; i++) {
 		CComparerView *pView = mPane[i].pView;
 		pView->Initialize(this);
 	}
@@ -402,7 +402,7 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 
 	CComparerView *pView = pane1->pView;
 	ProcessDocument(pView->mPane);
-	pView->AdjustWindowSize(pMainFrm->mCurViews);
+	pView->AdjustWindowSize(pMainFrm->mViews);
 	UpdateAllViews(NULL);
 
 	return TRUE;
@@ -427,7 +427,7 @@ bool CComparerDoc::OffsetScenes(long offset)
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	bool updated = false;
 
-	for (int i = 0; i < pMainFrm->mCurViews; i++) {
+	for (int i = 0; i < pMainFrm->mViews; i++) {
 		ComparerPane *pane = &mPane[i];
 		if (!pane->isAvail())
 			continue;
@@ -458,7 +458,7 @@ bool CComparerDoc::NextScenes()
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	bool updated = false;
 
-	for (int i = 0; i < pMainFrm->mCurViews; i++) {
+	for (int i = 0; i < pMainFrm->mViews; i++) {
 		ComparerPane* pane = &mPane[i];
 
 		if (!pane->isAvail())
@@ -479,7 +479,7 @@ inline std::vector<ComparerPane*> CComparerDoc::GetOtherPanes(ComparerPane* pane
 {
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	std::vector<ComparerPane*> otherPanes;
-	for (int i = 0; i < pMainFrm->mCurViews; i++) {
+	for (int i = 0; i < pMainFrm->mViews; i++) {
 		if (mPane + i != pane)
 			otherPanes.push_back(mPane + i);
 	}
@@ -498,7 +498,7 @@ void CComparerDoc::KillPlayTimer()
 void CComparerDoc::MarkImgViewProcessing()
 {
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
-	for (int i = 0; i < pMainFrm->mCurViews; i++) {
+	for (int i = 0; i < pMainFrm->mViews; i++) {
 		ComparerPane *pane = &mPane[i];
 
 		if (!pane->isAvail())
@@ -513,7 +513,7 @@ bool CComparerDoc::CheckImgViewProcessing()
 {
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	bool isProcessing = false;
-	for (int i = 0; i < pMainFrm->mCurViews; i++) {
+	for (int i = 0; i < pMainFrm->mViews; i++) {
 		ComparerPane *pane = &mPane[i];
 		CComparerView *view = pane->pView;
 		if (view->mProcessing)

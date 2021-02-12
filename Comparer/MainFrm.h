@@ -47,7 +47,7 @@ private:
 
 public:
 	int mMetricIdx;
-	int mCurViews;
+	int mViews;
 	int mPreViews;
 	int mSplitBarW;
 

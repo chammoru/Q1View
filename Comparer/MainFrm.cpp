@@ -139,7 +139,8 @@ BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext)
 		rcClient.Height() - FRAMES_INFO_H - FRAME_INFO_H);
 	if (!mCompSplitter.CreateView(0, 0, RUNTIME_CLASS(CComparerView1), sz, pContext) ||
 		!mCompSplitter.CreateView(0, 1, RUNTIME_CLASS(CComparerView2), sz, pContext) ||
-		!mCompSplitter.CreateView(0, 2, RUNTIME_CLASS(CComparerView3), sz, pContext))
+		!mCompSplitter.CreateView(0, 2, RUNTIME_CLASS(CComparerView3), sz, pContext) ||
+		!mCompSplitter.CreateView(0, 3, RUNTIME_CLASS(CComparerView4), sz, pContext))
 		return FALSE;
 
 	sz.SetSize(rcClient.Width() - POS_INFO_W, FRAME_INFO_H);
