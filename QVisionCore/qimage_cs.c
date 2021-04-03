@@ -429,6 +429,55 @@ void qimage_rgba1010102_to_bgr888(qu8* bgr, qu8* src_rgb, qu8* n1, qu8* n2,
 	}
 }
 
+int qimage_rgb16u_load_info(int w, int h, int* bufoff2, int* bufoff3)
+{
+	int scene_size = w * h * 6;
+
+	if (bufoff2)
+		*bufoff2 = 0;
+
+	if (bufoff3)
+		*bufoff3 = 0;
+
+	return scene_size;
+}
+
+// https://developer.apple.com/documentation/accelerate/1642517-vimageconvert_argb16utoargb21010
+void qimage_rgb16u_to_bgr888(qu8* bgr, qu8* src_rgb, qu8* n1, qu8* n2,
+	int s_bgr, int w, int h)
+{
+	int i, j;
+	int gap;
+
+	gap = (s_bgr - w) * 3;
+	const int RGB16RangeMin = 0;
+	const int RGB16RangeMax = 0xffff; // 65535
+	const int range16 = RGB16RangeMax - RGB16RangeMin;
+	const int range16_half = range16 >> 1;
+
+	for (i = 0; i < h; i++)
+	{
+		for (j = 0; j < w; j++)
+		{
+			int R16 = ((qu16*)src_rgb)[0];
+			int G16 = ((qu16*)src_rgb)[2];
+			int B16 = ((qu16*)src_rgb)[4];
+
+			R16 = ((R16 - RGB16RangeMin) * UCHAR_MAX + range16_half) / range16;
+			G16 = ((G16 - RGB16RangeMin) * UCHAR_MAX + range16_half) / range16;
+			B16 = ((B16 - RGB16RangeMin) * UCHAR_MAX + range16_half) / range16;
+
+			*bgr++ = SAT_S32_TO_U8(B16);
+			*bgr++ = SAT_S32_TO_U8(G16);
+			*bgr++ = SAT_S32_TO_U8(R16);
+
+			src_rgb += 6;
+		}
+
+		bgr += gap;
+	}
+}
+
 int qimage_t256x16_load_info(int w, int h, int *bufoff2, int *bufoff3)
 {
 	int w_aligned = 2048;
