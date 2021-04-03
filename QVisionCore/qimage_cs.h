@@ -188,13 +188,6 @@ static const struct qcsc_info qcsc_info_table[] =
 		NULL,
 	},
 	{
-		QIMAGE_CS_RGBA1010102,
-		"rgba1010102",
-		qimage_rgba1010102_load_info,
-		qimage_rgba1010102_to_bgr888,
-		NULL,
-	},
-	{
 		QIMAGE_CS_RGB16U,
 		"rgb16u",
 		qimage_rgb16u_load_info,
