@@ -26,6 +26,7 @@ typedef enum _QIMAGE_CS
 	QIMAGE_CS_BGR888,
 	QIMAGE_CS_BGR565,
 	QIMAGE_CS_RGBA1010102,
+	QIMAGE_CS_ABGR2101010,
 	QIMAGE_CS_RGB16U,
 } QIMAGE_CS;
 
@@ -55,6 +56,7 @@ int qimage_rgba8888_load_info(int w, int h, int *bufoff2, int *bufoff3);
 int qimage_bgr888_load_info(int w, int h, int *bufoff2, int *bufoff3);
 int qimage_bgr565_load_info(int w, int h, int *bufoff2, int *bufoff3);
 int qimage_rgba1010102_load_info(int w, int h, int* bufoff2, int* bufoff3);
+int qimage_abgr2101010_load_info(int w, int h, int* bufoff2, int* bufoff3);
 int qimage_rgb16u_load_info(int w, int h, int* bufoff2, int* bufoff3);
 int qimage_t256x16_load_info(int w, int h, int *bufoff2, int *bufoff3);
 int qimage_grayscale_load_info(int w, int h, int *bufoff2, int *bufoff3);
@@ -74,6 +76,8 @@ void qimage_rgba8888_to_bgr888(qu8 *bgr, qu8 *src_argb, qu8 *n1, qu8 *n2,
 void qimage_bgr888_to_bgr888(qu8 *bgr, qu8 *src_rgb, qu8 *n1, qu8 *n2,
 							 int s_bgr, int w, int h);
 void qimage_rgba1010102_to_bgr888(qu8* bgr, qu8* src_rgb, qu8* n1, qu8* n2,
+	int s_bgr, int w, int h);
+void qimage_abgr2101010_to_bgr888(qu8* bgr, qu8* src_rgb, qu8* n1, qu8* n2,
 	int s_bgr, int w, int h);
 void qimage_rgb16u_to_bgr888(qu8* bgr, qu8* src_rgb, qu8* n1, qu8* n2,
 	int s_bgr, int w, int h);
@@ -185,6 +189,13 @@ static const struct qcsc_info qcsc_info_table[] =
 		"rgba1010102",
 		qimage_rgba1010102_load_info,
 		qimage_rgba1010102_to_bgr888,
+		NULL,
+	},
+	{
+		QIMAGE_CS_ABGR2101010,
+		"abgr2101010",
+		qimage_abgr2101010_load_info,
+		qimage_abgr2101010_to_bgr888,
 		NULL,
 	},
 	{

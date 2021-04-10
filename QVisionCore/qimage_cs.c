@@ -408,15 +408,65 @@ void qimage_rgba1010102_to_bgr888(qu8* bgr, qu8* src_rgb, qu8* n1, qu8* n2,
 	{
 		for (j = 0; j < w; j++)
 		{
-			qu32 rgb1010102 = ((qu32 *)src_rgb)[0];
+			qu32 rgba1010102 = ((qu32 *)src_rgb)[0];
 
-			int R10 = (rgb1010102 >> 22) & 0x3ff;
-			int G10 = (rgb1010102 >> 12) & 0x3ff;
-			int B10 = (rgb1010102 >>  2) & 0x3ff;
+			int R10 = (rgba1010102 >> 22) & 0x3ff;
+			int G10 = (rgba1010102 >> 12) & 0x3ff;
+			int B10 = (rgba1010102 >>  2) & 0x3ff;
 
 			R10 = ((R10 - RGB101010RangeMin) * UCHAR_MAX + range10_half) / range10;
 			G10 = ((G10 - RGB101010RangeMin) * UCHAR_MAX + range10_half) / range10;
 			B10 = ((B10 - RGB101010RangeMin) * UCHAR_MAX + range10_half) / range10;
+
+			*bgr++ = SAT_S32_TO_U8(B10);
+			*bgr++ = SAT_S32_TO_U8(G10);
+			*bgr++ = SAT_S32_TO_U8(R10);
+
+			src_rgb += 4;
+		}
+
+		bgr += gap;
+	}
+}
+
+int qimage_abgr2101010_load_info(int w, int h, int* bufoff2, int* bufoff3)
+{
+	int scene_size = w * h * 4;
+
+	if (bufoff2)
+		*bufoff2 = 0;
+
+	if (bufoff3)
+		*bufoff3 = 0;
+
+	return scene_size;
+}
+
+void qimage_abgr2101010_to_bgr888(qu8* bgr, qu8* src_rgb, qu8* n1, qu8* n2,
+	int s_bgr, int w, int h)
+{
+	int i, j;
+	int gap;
+
+	gap = (s_bgr - w) * 3;
+	const int RGB101010RangeMin = 0;
+	const int RGB101010RangeMax = 0x3ff; // 1023
+	const int range10 = RGB101010RangeMax - RGB101010RangeMin;
+	const int range10_half = range10 >> 1;
+
+	for (i = 0; i < h; i++)
+	{
+		for (j = 0; j < w; j++)
+		{
+			qu32 abgr2101010 = ((qu32*)src_rgb)[0];
+
+			int B10 = (abgr2101010 >> 20) & 0x3ff;
+			int G10 = (abgr2101010 >> 10) & 0x3ff;
+			int R10 = (abgr2101010 >>  0) & 0x3ff;
+
+			B10 = ((B10 - RGB101010RangeMin) * UCHAR_MAX + range10_half) / range10;
+			G10 = ((G10 - RGB101010RangeMin) * UCHAR_MAX + range10_half) / range10;
+			R10 = ((R10 - RGB101010RangeMin) * UCHAR_MAX + range10_half) / range10;
 
 			*bgr++ = SAT_S32_TO_U8(B10);
 			*bgr++ = SAT_S32_TO_U8(G10);
