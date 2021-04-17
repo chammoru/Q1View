@@ -474,7 +474,9 @@ void CComparerView::OnMouseMove(UINT nFlags, CPoint point)
 		for (auto view : GetOhterViews(pDoc))
 			view->DeterminDestOriginCoord(pDoc);
 
-		pDoc->UpdateAllViews(NULL);
+		Invalidate(FALSE);
+		for (auto view : GetOhterViews(pDoc))
+			view->Invalidate(FALSE);
 	}
 
 OnMouseMoveDefault:
