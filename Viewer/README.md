@@ -1,4 +1,5 @@
 ## Todo
+- [ ] Besides RGB, show YUV values of each pixel
 - [ ] 한글파일을 open할때 문제 없도록 해야 한다. (현재 일부 Windows버전에서 발생)
   -  궁극적으로 opencv의 findDecoder에서 _wfopen을 통해서 읽을 수 있어야 한다.
 - [ ] Input Sync
