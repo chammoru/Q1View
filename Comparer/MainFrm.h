@@ -43,7 +43,7 @@ private:
 	CQSplitterWnd mFrmInfoSplitter;
 	CQSplitterWnd mCompSplitter;
 	int mSplitMargin;
-	CMenu mResolutionMenu, mMetricMenu, mFpsMenu, mViewsMenu;
+	CMenu mResolutionMenu, mMetricMenu, mFpsMenu, mViewsMenu, mOptionsMenu;
 
 public:
 	int mMetricIdx;
@@ -60,6 +60,7 @@ public:
 	void UpdateMetricLabel();
 	void CheckFpsRadio(double fps);
 	void CheckViewsRadio(int views);
+	void CheckOptionsRadio(UINT nOptionID, bool checked);
 	void UpdateViewsLabel(int views);
 	void UpdateMagnication(float n);
 	void RefreshFrmsInfoView();
@@ -93,6 +94,7 @@ public:
 	afx_msg void OnMetricChange(UINT nID);
 	afx_msg void OnFpsChange(UINT nID);
 	afx_msg void OnViewsChange(UINT nID);
+	afx_msg void OnOptionsChange(UINT nID);
 	virtual void ActivateFrame(int nCmdShow = -1);
 };
 

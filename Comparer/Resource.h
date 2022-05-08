@@ -19,6 +19,8 @@
 #define ID_FPS_END                      0x73ff
 #define ID_VIEWS_START                  0x7400
 #define ID_VIEWS_END                    0x74ff
+#define ID_OPTIONS_START                0x7500
+#define ID_OPTIONS_END                  0x75ff
 #define ID_MAGNIFY                      32771
 
 // Next default values for new objects
