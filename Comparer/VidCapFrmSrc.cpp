@@ -3,27 +3,32 @@
 #include "QImageStr.h"
 #include "QDebug.h"
 
+#include <opencv2/imgproc/imgproc.hpp>
+
 using namespace cv;
 
 VidCapFrmSrc::VidCapFrmSrc(SQPane* pane)
 : FrmSrc(pane, true)
-, mW(-1)
-, mH(-1)
+, mSrcW(-1)
+, mSrcH(-1)
 {}
 
 VidCapFrmSrc::~VidCapFrmSrc()
 {
 }
 
-bool VidCapFrmSrc::Open(const CString& filePath)
+bool VidCapFrmSrc::Open(const CString& filePath, const struct qcsc_info* sortedCscInfo,
+	int srcW, int srcH, int dstW, int dstH)
 {
 	String str = CT2A(filePath.GetString());
 
 	if (!mVidCap.open(str) || !mVidCap.isOpened())
 		return false;
 
-	mW = static_cast<int>(mVidCap.get(cv::CAP_PROP_FRAME_WIDTH));
-	mH = static_cast<int>(mVidCap.get(cv::CAP_PROP_FRAME_HEIGHT));
+	mSrcW = static_cast<int>(mVidCap.get(cv::CAP_PROP_FRAME_WIDTH));
+	mSrcH = static_cast<int>(mVidCap.get(cv::CAP_PROP_FRAME_HEIGHT));
+	mDstW = dstW;
+	mDstH = dstH;
 
 	return true;
 }
@@ -38,8 +43,8 @@ void VidCapFrmSrc::Release()
 	if (IsAvailable())
 		mVidCap.release();
 
-	mW = -1;
-	mH = -1;
+	mSrcW = -1;
+	mSrcH = -1;
 }
 
 bool VidCapFrmSrc::GetResolution(CString& pathName, int* w, int* h)
@@ -56,8 +61,8 @@ bool VidCapFrmSrc::GetResolution(CString& pathName, int* w, int* h)
 	return true;
 }
 
-const struct qcsc_info* VidCapFrmSrc::GetColorSpace(CString& pathName,
-	struct qcsc_info* sortedCscInfo)
+const struct qcsc_info* VidCapFrmSrc::GetColorSpace(const CString& pathName,
+	const struct qcsc_info* sortedCscInfo, bool doReisze)
 {
 	String str = CT2A(pathName.GetString());
 	VideoCapture vidCap;
@@ -75,9 +80,19 @@ bool VidCapFrmSrc::IsAvailable()
 
 bool VidCapFrmSrc::FillSceneBuf(BYTE* origBuf)
 {
-	cv::Mat matTemp(mH, mW, CV_8UC3, origBuf, mW * (size_t)QIMG_DST_RGB_BYTES);
-	mVidCap >> matTemp;
-	matTemp.release();
+	if (mSrcW != mDstW || mSrcH != mDstH) {
+		Mat matSrcTemp(mSrcH, mSrcW, CV_8UC3);
+		mVidCap >> matSrcTemp;
+		Mat matDstTemp(mDstH, mDstW, CV_8UC3, origBuf, mDstW * (size_t)QIMG_DST_RGB_BYTES);
+		resize(matSrcTemp, matDstTemp, Size(mDstW, mDstH));
+		matSrcTemp.release();
+		memcpy(origBuf, matDstTemp.ptr(), matDstTemp.total() * matDstTemp.elemSize());
+		matDstTemp.release();
+	} else {
+		Mat matSrcTemp(mSrcH, mSrcW, CV_8UC3, origBuf, mSrcW * (size_t)QIMG_DST_RGB_BYTES);
+		mVidCap >> matSrcTemp;
+		matSrcTemp.release();
+	}
 
 	return true;
 }

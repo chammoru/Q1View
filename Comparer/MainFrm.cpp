@@ -630,6 +630,8 @@ void CMainFrame::RefreshAllViews()
 	for (int i = 0; i < mViews; i++) {
 		ComparerPane* pane = &pDoc->mPane[i];
 		if (pane->isAvail()) {
+			pane->srcW = pDoc->mW;
+			pane->srcH = pDoc->mH;
 			pDoc->RefleshPaneImages(pane, true);
 			refreshed = true;
 			break;

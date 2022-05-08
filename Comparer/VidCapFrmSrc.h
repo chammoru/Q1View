@@ -9,12 +9,13 @@ public:
 	VidCapFrmSrc(SQPane* pane);
 
 	virtual ~VidCapFrmSrc();
-	virtual bool Open(const CString& filePath);
+	virtual bool Open(const CString& filePath, const struct qcsc_info* sortedCscInfo,
+		int srcW, int srcH, int dstW, int dstH);
 	virtual int GetFrameNum();
 	virtual void Release();
 	virtual bool GetResolution(CString& pathName, int* w, int* h);
-	virtual const struct qcsc_info* GetColorSpace(CString& pathName,
-		struct qcsc_info* sortedCscInfo);
+	virtual const struct qcsc_info* GetColorSpace(const CString& pathName,
+		const struct qcsc_info* sortedCscInfo, bool doReisze);
 	virtual bool IsAvailable();
 	virtual bool FillSceneBuf(BYTE* origBuf);
 	virtual long GetNextFrameID();
@@ -23,5 +24,5 @@ public:
 
 private:
 	cv::VideoCapture mVidCap;
-	int mW, mH;
+	int mSrcW, mSrcH, mDstW, mDstH;
 };

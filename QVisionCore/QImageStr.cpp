@@ -179,8 +179,8 @@ void image_sort_cs(struct qcsc_info *ci)
  * NOTE: 1. name should not be NULL
  *       2. should be used after qimage_sort_cs
  */
-const struct qcsc_info * const image_find_cs(struct qcsc_info *ci,
-											   const char *name)
+const struct qcsc_info * const image_find_cs(const struct qcsc_info *ci,
+                                             const char *name)
 {
 	unsigned int i;
 

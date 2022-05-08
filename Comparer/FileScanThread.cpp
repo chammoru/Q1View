@@ -48,7 +48,6 @@ SmpError FileScanThread::readyToRun()
 		const ComparerPane *pane = &mDoc->mPane[i];
 		SQPane *scanInfo = &mScanInfo[i];
 		scanInfo->closeFrmSrcs();
-		scanInfo->OpenFrmSrc(pane->pathName);
 		scanInfo->origSceneSize = pane->origSceneSize;
 		if (scanInfo->origSceneSize > scanInfo->origBufSize) {
 			if (scanInfo->origBuf)
@@ -62,6 +61,8 @@ SmpError FileScanThread::readyToRun()
 		scanInfo->csc2yuv420 = pane->csc2yuv420;
 		scanInfo->csc2rgb888 = pane->csc2rgb888;
 		scanInfo->csLoadInfo = pane->csLoadInfo;
+		scanInfo->OpenFrmSrc(pane->pathName, mDoc->mSortedCscInfo,
+			pane->srcW, pane->srcH, mDoc->mW, mDoc->mH);
 	}
 
 	mFrmCmpStrategy = mDoc->mFrmCmpStrategy;

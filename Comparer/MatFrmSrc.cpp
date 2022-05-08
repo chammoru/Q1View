@@ -12,11 +12,16 @@ MatFrmSrc::~MatFrmSrc()
 	Release();
 }
 
-bool MatFrmSrc::Open(const CString& filePath)
+bool MatFrmSrc::Open(const CString& filePath, const struct qcsc_info* sortedCscInfo,
+	int srcW, int srcH, int dstW, int dstH)
 {
 	String str = CT2A(filePath.GetString());
 	mOcvMat = imread(str);
-	return mOcvMat.data != NULL;
+	bool success = mOcvMat.data != NULL;
+	if (success && (mOcvMat.cols != dstW || mOcvMat.rows != dstH)) {
+		resize(mOcvMat, mOcvMat, Size(dstW, dstH));
+	}
+	return success;
 }
 
 int MatFrmSrc::GetFrameNum()
@@ -44,8 +49,8 @@ bool MatFrmSrc::GetResolution(CString &pathName, int* w, int* h)
 	return true;
 }
 
-const struct qcsc_info* MatFrmSrc::GetColorSpace(CString &pathName,
-		struct qcsc_info* sortedCscInfo)
+const struct qcsc_info* MatFrmSrc::GetColorSpace(const CString &pathName,
+		const struct qcsc_info* sortedCscInfo, bool doReisze)
 {
 	String str = CT2A(pathName.GetString());
 	Mat ocvMat = imread(str);
