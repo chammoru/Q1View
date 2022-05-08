@@ -39,6 +39,8 @@
 
 // CMainFrame
 
+#define ID_OPTIONS_DIFF_RESOLUTION (ID_OPTIONS_START + 0)
+
 IMPLEMENT_DYNCREATE(CMainFrame, CFrameWnd)
 
 BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
@@ -46,6 +48,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_COMMAND_RANGE(ID_METRIC_START, ID_METRIC_END, CMainFrame::OnMetricChange)
 	ON_COMMAND_RANGE(ID_FPS_START, ID_FPS_END, &CMainFrame::OnFpsChange)
 	ON_COMMAND_RANGE(ID_VIEWS_START, ID_VIEWS_END, &CMainFrame::OnViewsChange)
+	ON_COMMAND_RANGE(ID_OPTIONS_START, ID_OPTIONS_END, &CMainFrame::OnOptionsChange)
 	ON_WM_SIZE()
 	ON_WM_TIMER()
 	ON_WM_DESTROY()
@@ -65,6 +68,7 @@ CMainFrame::CMainFrame()
 	mMetricMenu.CreatePopupMenu();
 	mFpsMenu.CreatePopupMenu();
 	mViewsMenu.CreatePopupMenu();
+	mOptionsMenu.CreatePopupMenu();
 }
 
 CMainFrame::~CMainFrame()
@@ -73,6 +77,7 @@ CMainFrame::~CMainFrame()
 	mFpsMenu.DestroyMenu();
 	mMetricMenu.DestroyMenu();
 	mResolutionMenu.DestroyMenu();
+	mOptionsMenu.DestroyMenu();
 }
 
 BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
@@ -283,6 +288,7 @@ void CMainFrame::OnDestroy()
 #define MENU_POS_METRIC           2
 #define MENU_POS_FPS              3
 #define MENU_POS_VIEWS            4
+#define MENU_POS_OPTIONS          5
 
 void CMainFrame::CheckResolutionRadio(int w, int h)
 {
@@ -437,6 +443,21 @@ void CMainFrame::OnViewsChange(UINT nID)
 	firstView->AdjustWindowSize(preViews, mSplitBarW * (mViews - preViews));
 }
 
+void CMainFrame::OnOptionsChange(UINT nID)
+{
+	CComparerDoc* pDoc = static_cast<CComparerDoc*>(GetActiveDocument());
+
+	switch (nID) {
+	case ID_OPTIONS_DIFF_RESOLUTION:
+		pDoc->mDiffRes = !pDoc->mDiffRes;
+		CheckOptionsRadio(nID, pDoc->mDiffRes);
+		break;
+	default:
+		LOGWRN("No matching nID for %x", nID);
+		break;
+	}
+}
+
 void CMainFrame::CheckMetricRadio()
 {
 	CMenu *subMenu = GetMenu()->GetSubMenu(MENU_POS_METRIC);
@@ -486,6 +507,17 @@ void CMainFrame::CheckViewsRadio(int views)
 		id, MF_CHECKED | MF_BYCOMMAND);
 }
 
+void CMainFrame::CheckOptionsRadio(UINT nOptionID, bool checked)
+{
+	if (GetMenu() == NULL)
+		return;
+
+	CMenu* subMenu = GetMenu()->GetSubMenu(MENU_POS_OPTIONS);
+
+	UINT checkFlag = checked ? MF_CHECKED : MF_UNCHECKED;
+	subMenu->CheckMenuItem(nOptionID, checkFlag | MF_BYCOMMAND);
+}
+
 void CMainFrame::UpdateMagnication(float n)
 {
 	CString str;
@@ -526,7 +558,6 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 		CA2W(q1::resolution_info_table[i]));
 
 	str.Format(_T("%d&x%d"), CANVAS_DEF_W, CANVAS_DEF_H);
-
 	GetMenu()->InsertMenu(MENU_POS_RESOLUTION, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mResolutionMenu.m_hMenu, str);
 
@@ -572,6 +603,14 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 		(UINT_PTR)mViewsMenu.m_hMenu, str);
 
 	CheckViewsRadio(mViews);
+
+	// option menu
+	str.Format(_T("Allow Different Resolution"));
+	mOptionsMenu.AppendMenu(MF_STRING, (UINT_PTR)ID_OPTIONS_DIFF_RESOLUTION, str);
+
+	str.Format(_T("OPTIONS"));
+	GetMenu()->InsertMenu(MENU_POS_OPTIONS, MF_BYPOSITION | MF_POPUP,
+		(UINT_PTR)mOptionsMenu.m_hMenu, str);
 
 	return 0;
 }

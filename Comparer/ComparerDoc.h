@@ -78,6 +78,7 @@ public:
 	CString mRgbFormat;
 	double mFps;
 	bool mInterpol;
+	bool mDiffRes;
 
 // Operations
 public:
