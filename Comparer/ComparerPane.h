@@ -83,13 +83,14 @@ struct SQPane
 			csc2yuv420 = NULL;
 	}
 
-	void OpenFrmSrc(const CString &pathName)
+	void OpenFrmSrc(const CString &pathName, struct qcsc_info* sortedCscInfo,
+		int srcW, int srcH, int dstW, int dstH)
 	{
 		closeFrmSrcs();
 
 		auto it = std::begin(frmSrcs);
 		for (; it != std::end(frmSrcs); it++) {
-			bool ok = (*it)->Open(pathName);
+			bool ok = (*it)->Open(pathName, sortedCscInfo, srcW, srcH, dstW, dstH);
 			if (ok) {
 				frmSrc = *it;
 				break;
@@ -118,9 +119,9 @@ struct SQPane
 	}
 
 	inline const struct qcsc_info* GetColorSpace(CString &pathName,
-			struct qcsc_info* sortedCscInfo) {
+			struct qcsc_info* sortedCscInfo, bool doResize) {
 		for (auto it = std::begin(frmSrcs); it != std::end(frmSrcs); it++) {
-			const qcsc_info* ci = (*it)->GetColorSpace(pathName, sortedCscInfo);
+			const qcsc_info* ci = (*it)->GetColorSpace(pathName, sortedCscInfo, doResize);
 			if (ci != NULL)
 				return ci;
 		}
@@ -147,6 +148,7 @@ struct ComparerPane : public SQPane
 	CString pathName;
 	int bufOffset2, bufOffset3;
 	CComparerView *pView;
+	int srcW, srcH;
 
 	long frames;
 
@@ -163,9 +165,9 @@ struct ComparerPane : public SQPane
 	{
 	}
 
-	void OpenFrmSrc()
+	void OpenFrmSrc(struct qcsc_info* sortedCscInfo, int dstW, int dstH)
 	{
-		SQPane::OpenFrmSrc(pathName);
+		SQPane::OpenFrmSrc(pathName, sortedCscInfo, srcW, srcH, dstW, dstH);
 		frames = QMAX(frmSrc->GetFrameNum(), 1);
 	}
 

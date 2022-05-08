@@ -6,9 +6,14 @@
 #include "QCommon.h"
 #include "ComparerUtil.h"
 
+using namespace cv;
+
 RawFrmSrc::RawFrmSrc(SQPane *pane)
 : FrmSrc(pane, false)
 , mFileSize(0L)
+, mOrigSceneSize(0L)
+, mResizeSceneSize(0L)
+, mResizeBuf(nullptr)
 {}
 
 RawFrmSrc::~RawFrmSrc()
@@ -16,7 +21,8 @@ RawFrmSrc::~RawFrmSrc()
 	Release();
 }
 
-bool RawFrmSrc::Open(const CString& filePath)
+bool RawFrmSrc::Open(const CString& filePath, const struct qcsc_info* sortedCscInfo,
+	int srcW, int srcH, int dstW, int dstH)
 {
 	CFileException e;
 	BOOL ok = mFile.Open(filePath,
@@ -27,6 +33,21 @@ bool RawFrmSrc::Open(const CString& filePath)
 	}
 
 	mFileSize = mFile.GetLength();
+	mSrcW = srcW;
+	mSrcH = srcH;
+	mDstW = dstW;
+	mDstH = dstH;
+
+	mSrcCscInfo = GetColorSpace(filePath, sortedCscInfo, false);
+	mOrigSceneSize = mSrcCscInfo->cs_load_info(mSrcW, mSrcH, nullptr, nullptr);
+
+	if ((mSrcW != mDstW || mSrcH != mDstH) && mOrigSceneSize > mResizeSceneSize) {
+		if (mResizeBuf != nullptr)
+			delete[] mResizeBuf;
+
+		mResizeSceneSize = mOrigSceneSize;
+		mResizeBuf = new BYTE[mResizeSceneSize];
+	}
 
 	return true;
 }
@@ -41,9 +62,13 @@ void RawFrmSrc::Release()
 	if (IsAvailable())
 		mFile.Close();
 	mFileSize = 0;
+	mOrigSceneSize = 0;
+	mResizeSceneSize = 0;
+	delete[] mResizeBuf;
+	mResizeBuf = nullptr;
 }
 
-static CString parseLowerFileName(CString& pathName)
+static CString parseLowerFileName(const CString& pathName)
 {
 	CString fileName = getBaseName(pathName);
 	fileName.MakeLower();
@@ -66,14 +91,18 @@ bool RawFrmSrc::GetResolution(CString &pathName, int* w, int* h)
 	return true;
 }
 
-const struct qcsc_info* RawFrmSrc::GetColorSpace(CString &pathName,
-		struct qcsc_info* sortedCscInfo)
+const struct qcsc_info* RawFrmSrc::GetColorSpace(const CString &pathName,
+		const struct qcsc_info* sortedCscInfo, bool doReisze)
 {
 	char szFileName[MAX_PATH + 1];
 	CString fileName = parseLowerFileName(pathName);
 	strncpy_s(szFileName, CT2A(fileName), MAX_PATH);
 
-	return q1::image_find_cs(sortedCscInfo, szFileName);
+	if (doReisze) {
+		return q1::image_find_cs(sortedCscInfo, "bgr888");
+	} else {
+		return q1::image_find_cs(sortedCscInfo, szFileName);
+	}
 }
 
 bool RawFrmSrc::IsAvailable()
@@ -81,14 +110,38 @@ bool RawFrmSrc::IsAvailable()
 	return mFile != CFile::hFileNull && mFileSize > 0;
 }
 
-bool RawFrmSrc::FillSceneBuf(BYTE* origBuf)
-{
-	UINT nRead = mFile.Read(origBuf, UINT(mPane->origSceneSize));
-	if (nRead < mPane->origSceneSize) {
+static void readFromFile(CFile &file, BYTE *Buf, size_t size) {
+	UINT nRead = file.Read(Buf, UINT(size));
+	if (nRead < size) {
 		LOGWRN("The remaining data is too short to be one frame");
 
 		// initialize the remaining buffer
-		memset(origBuf + nRead, 0, mPane->origSceneSize - nRead);
+		memset(Buf + nRead, 0, size - nRead);
+	}
+}
+
+bool RawFrmSrc::FillSceneBuf(BYTE* origBuf)
+{
+	if (mSrcW != mDstW || mSrcH != mDstH) {
+		LOGWRN("resize");
+		readFromFile(mFile, mResizeBuf, mResizeSceneSize);
+
+		Mat matSrcTemp(mSrcH, mSrcW, CV_8UC3);
+		int bufOffset2 = 0, bufOffset3 = 0;
+		mSrcCscInfo->cs_load_info(mSrcW, mSrcH, &bufOffset2, &bufOffset3);
+		mSrcCscInfo->csc2rgb888(matSrcTemp.ptr(),
+			mResizeBuf,
+			mResizeBuf + bufOffset2,
+			mResizeBuf + bufOffset3, ROUNDUP_DWORD(mSrcW), mSrcW, mSrcH);
+
+		Mat matDstTemp(mDstH, mDstW, CV_8UC3, origBuf, mDstW * (size_t)QIMG_DST_RGB_BYTES);
+		resize(matSrcTemp, matDstTemp, Size(mDstW, mDstH));
+		matSrcTemp.release();
+		memcpy(origBuf, matDstTemp.ptr(), matDstTemp.total() * matDstTemp.elemSize());
+		matDstTemp.release();
+	} else {
+		LOGWRN("normal");
+		readFromFile(mFile, origBuf, mOrigSceneSize);
 	}
 
 	return true;
@@ -96,13 +149,13 @@ bool RawFrmSrc::FillSceneBuf(BYTE* origBuf)
 
 long RawFrmSrc::GetNextFrameID()
 {
-	return long(mFile.GetPosition() / mPane->origSceneSize);
+	return long(mFile.GetPosition() / mOrigSceneSize);
 }
 
 bool RawFrmSrc::SetNextFrameID(long frameID)
 {
 	try {
-		ULONGLONG pos = ULONGLONG(frameID) * mPane->origSceneSize;
+		ULONGLONG pos = ULONGLONG(frameID) * mOrigSceneSize;
 		mFile.Seek(pos, CFile::begin);
 	} catch (CFileException *e) {
 		LOGWRN("Failed to Seek to frameID %ld", frameID);

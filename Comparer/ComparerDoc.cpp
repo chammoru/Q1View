@@ -214,7 +214,7 @@ void CComparerDoc::LoadSourceImage(ComparerPane *pane)
 		}
 	}
 
-	pane->OpenFrmSrc();
+	pane->OpenFrmSrc(mSortedCscInfo, mW, mH);
 
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	double fps = pane->GetFps();
@@ -314,29 +314,32 @@ void CComparerDoc::RefleshPaneImages(ComparerPane *pane, bool settingChanged)
 
 void CComparerDoc::ProcessDocument(ComparerPane *pane)
 {
-	int w = 0, h = 0;
-	bool success = pane->GetResolution(pane->pathName , &w, &h);
+	int srcW = 0, srcH = 0;
+	bool success = pane->GetResolution(pane->pathName , &srcW, &srcH);
 	if (!success) {
 		LOGWRN("FrmSrc failed to get resolution info");
 		return;
 	}
+	pane->srcW = srcW;
+	pane->srcH = srcH;
 
 	bool settingChanged = false;
-	if (mW != w || mH != h) {
-		LOGINF("new width (%d) and height (%d)", w, h);
+	if (!mDiffRes && (mW != srcW || mH != srcH)) {
+		LOGINF("new width (%d) and height (%d)", srcW, srcH);
 		for (auto other : GetOtherPanes(pane)) {
 			if (!other->pathName.IsEmpty())
 				other->Release();
 		}
 
-		mW = w;
-		mH = h;
+		mW = srcW;
+		mH = srcH;
 
 		settingChanged = true;
 	}
 
+	bool doReisze = srcW != mW || srcH != mH;
 	CComparerView* pView = pane->pView;
-	const struct qcsc_info* ci = pane->GetColorSpace(pane->pathName, mSortedCscInfo);
+	const struct qcsc_info* ci = pane->GetColorSpace(pane->pathName, mSortedCscInfo, doReisze);
 	if (ci == NULL) {
 		LOGWRN("color space is not found");
 	} else {
