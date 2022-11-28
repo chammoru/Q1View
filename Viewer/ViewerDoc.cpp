@@ -431,6 +431,27 @@ static BOOL WriteBgr888(const string &pathName, const cv::Mat &roi)
 	return TRUE;
 }
 
+static BOOL WriteRgba8888(const string& pathName, const cv::Mat& roi)
+{
+	CFile wFile;
+	BOOL ok = OpenCfileForWriting(pathName, wFile);
+	if (!ok) {
+		LOGERR("failed to open %s", pathName.c_str());
+		return FALSE;
+	}
+
+	cv::Mat rgba(roi.size(), CV_8UC4);
+	cv::cvtColor(roi, rgba, cv::COLOR_BGR2RGBA);
+
+	const uchar* buf = rgba.ptr<uchar>(0);
+	for (int i = 0; i < roi.rows; i++) {
+		wFile.Write(buf, UINT(roi.cols * rgba.channels()));
+		buf += ROUNDUP_DWORD(roi.cols) * rgba.channels();
+	}
+
+	return TRUE;
+}
+
 static BOOL WriteNv21(const string &pathName, const cv::Mat &roi)
 {
 	int ySize = roi.cols * roi.rows;
@@ -496,12 +517,13 @@ BOOL CViewerDoc::OnSaveDocument(LPCTSTR lpszPathName)
 	const string pathName = CT2A(CString(lpszPathName));
 	const string ext = pathName.substr(pathName.find_last_of(".") + 1); // extension
 	const ImageWriter imageWriters[] = {
-		{"jpg",    OcvWrite},
-		{"png",    OcvWrite},
-		{"bmp",    OcvWrite},
-		{"bgr888", WriteBgr888},
-		{"yuv420", WriteYuv420},
-		{"nv21",   WriteNv21},
+		{"jpg",      OcvWrite},
+		{"png",      OcvWrite},
+		{"bmp",      OcvWrite},
+		{"bgr888",   WriteBgr888},
+		{"rgba8888", WriteRgba8888},
+		{"yuv420",   WriteYuv420},
+		{"nv21",     WriteNv21},
 	};
 	int idx = -1;
 	for (int i = 0; i < ARRAY_SIZE(imageWriters); i++) {

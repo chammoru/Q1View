@@ -244,7 +244,7 @@ END
 
 STRINGTABLE
 BEGIN
-    IDR_MAINFRAME           "Viewer\n\nViewer\nImage Files (*.png;*.bmp;*.jpg;*.bgr888;*.yuv420;*.nv21)\n.png;.bmp;.jpg;.bgr888;.yuv420;.nv21\nViewer.Document\nimage files"
+    IDR_MAINFRAME           "Viewer\n\nViewer\nImage Files (*.png;*.bmp;*.jpg;*.bgr888;*.rgba8888;*.yuv420;*.nv21)\n.png;.bmp;.jpg;.bgr888;.rgba8888;.yuv420;.n.Document\nimage files"
 END
 
 STRINGTABLE
