@@ -55,6 +55,7 @@ CViewerDoc::CViewerDoc()
 , mColorSpace(qcsc_info_table[QIMG_DEF_CS_IDX].cs)
 , mCsc2Rgb888(qcsc_info_table[QIMG_DEF_CS_IDX].csc2rgb888)
 , mCsLoadInfo(qcsc_info_table[QIMG_DEF_CS_IDX].cs_load_info)
+, mCsSetPixelStr(qcsc_info_table[QIMG_DEF_CS_IDX].cs_set_pixel_str)
 , mFrmSrc(NULL)
 , mBgr888Processor(NULL)
 , mFileChangeNotiThread(new FileChangeNotiThread)
@@ -124,6 +125,7 @@ void CViewerDoc::Rotate90()
 	pMainFrm->RefreshView();
 	pMainFrm->UpdateResolutionLabel(mW, mH);
 	pMainFrm->CheckResolutionRadio(mW, mH);
+	pMainFrm->DrawMenuBar();
 }
 
 bool CViewerDoc::QueueSource2View()
@@ -136,7 +138,7 @@ bool CViewerDoc::QueueSource2View()
 	if (RGB == NULL)
 		return false;
 
-	// mOrigBuf contains RGB images, not being supposed to be DWORD-aligned
+	// mOrigBuf may not be DWORD-aligned
 	bool ok = mFrmSrc->LoadOrigBuf(this, mOrigBuf);
 	if (!ok)
 		return false;
@@ -613,4 +615,28 @@ void CViewerDoc::SetPathName(LPCTSTR lpszPathName, BOOL bAddToMRU)
 		AfxGetApp()->AddToRecentFileList(m_strPathName);
 
 	ASSERT_VALID(this);
+}
+
+void CViewerDoc::SetPixelString(int viewX, int viewY, int base, char* strBuf)
+{
+	int imgX = viewX, imgY = viewY;
+	int imgW = mW, imgH = mH;
+	switch (mRot) {
+	case QROT_090:
+		imgX = viewY;
+		imgY = mW - viewX - 1;
+		swap(imgW, imgH);
+		break;
+	case QROT_180:
+		imgX = mW - viewX - 1;
+		imgY = mH - viewY - 1;
+		break;
+	case QROT_270:
+		imgX = mH - viewY - 1;
+		imgY = viewX;
+		swap(imgW, imgH);
+		break;
+	}
+
+	mCsSetPixelStr(mOrigBuf, imgW, imgH, imgX, imgY, base, strBuf);
 }

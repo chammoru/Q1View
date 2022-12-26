@@ -158,10 +158,14 @@ CViewerView::CViewerView()
 	}
 
 	mDeltaRect.SetRectEmpty();
+
+	mStrBuf = new char[QIMG_MAX_COLOR_STR];
 }
 
 CViewerView::~CViewerView()
 {
+	delete[] mStrBuf;
+
 	mSelRegions.clear();
 	delete mNewRgbBufferInfoQ;
 
@@ -540,6 +544,7 @@ static void Convert2YYY(BYTE *srcBgr, BYTE *dstYyy, int stride, int w, int h)
 
 void CViewerView::DrawRgbText(CDC *pDC, q1::GridInfo &gi)
 {
+	CViewerDoc* pDoc = GetDocument();
 	CString label;
 	CRect refRect;
 	LOGFONT lf;
@@ -551,14 +556,24 @@ void CViewerView::DrawRgbText(CDC *pDC, q1::GridInfo &gi)
 	pDC->SetTextColor(COLOR_PIXEL_TEXT);
 	pDC->DrawText(_T("000\n000\n000"), -1, refRect, DT_CENTER | DT_VCENTER | DT_CALCRECT);
 	int y = gi.y;
+	int base = mHexMode ? 16 : 10;
 	for (int i = 0; i < (int)gi.Hs.size(); i++) {
 		int x = gi.x;
 		for (int j = 0; j < (int)gi.Ws.size(); j++) {
-			cv::Vec3b px = gi.pixelMap.at<cv::Vec3b>(i, j);
-			label.Format(mRgbFormat, px[2], px[1], px[0]);
 			CRect rect(x, y + (gi.Hs[i] - refRect.Height()) / 2,
 				x + gi.Ws[j] - 1, y + gi.Hs[i] - 1);
-			pDC->SetBkColor(RGB((0x80+px[2])/2, (0x80+px[1])/2, (0x80+px[0])/2));
+			cv::Vec3b px = gi.pixelMap.at<cv::Vec3b>(i, j);
+			pDC->SetBkColor(RGB((0x80 + px[2]) / 2, (0x80 + px[1]) / 2, (0x80 + px[0]) / 2));
+
+			if (pDoc->mCsSetPixelStr != nullptr) {
+				int viewY = gi.pixelCoordMap.at<cv::Vec2w>(i, j)[0] / QIMG_DST_RGB_BYTES;
+				int viewX = gi.pixelCoordMap.at<cv::Vec2w>(i, j)[1] / QIMG_DST_RGB_BYTES;
+				pDoc->SetPixelString(viewX, viewY, base, mStrBuf);
+				label = mStrBuf;
+			} else {
+				label.Format(mRgbFormat, px[2], px[1], px[0]);
+			}
+
 			pDC->DrawText(label, &rect, DT_CENTER | DT_VCENTER);
 			x += gi.Ws[j];
 		}
@@ -760,7 +775,7 @@ void CViewerView::OnDraw(CDC *pDC)
 		0, 0, 0, mHClient,
 		mRgbBuf, &mBmi, DIB_RGB_COLORS);
 #endif
-	if (mN > ZOOM_TEXT_START)
+	if (!mIsPlaying && mN > ZOOM_TEXT_START)
 		DrawRgbText(&memDC, gi);
 
 	DrawSelectRect(&memDC);
@@ -1392,6 +1407,7 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			SetPlayTimer(pDoc);
 		} else {
 			KillPlayTimerSafe();
+			pDoc->QueueSource2View();
 		}
 		break;
 	case 'H': // hex RGB value

@@ -23,6 +23,7 @@ struct GridInfo
 	std::vector<int> Hs;
 	std::vector<int> Ws;
 	cv::Mat pixelMap;
+	cv::Mat pixelCoordMap;
 };
 
 int DeterminDestPos(int lenCanvas, int lenDst, float &offset, float ratio);

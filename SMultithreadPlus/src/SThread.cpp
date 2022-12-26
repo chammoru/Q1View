@@ -175,7 +175,7 @@ static bool doCreateThread(thread_func_t fn, void* arg, thread_id_t *id)
 	QASSERT_R(hThread != 0, false);
 
 	if (id != NULL) {
-		*id = (thread_id_t)thrdaddr;
+		*id = (thread_id_t)(uint64_t)thrdaddr;
 	}
 
 	return true;
@@ -193,7 +193,7 @@ bool createRawThreadEtc(thread_func_t fn,
 
 thread_id_t getThreadId()
 {
-	return (thread_id_t)GetCurrentThreadId();
+	return (thread_id_t)(uint64_t)GetCurrentThreadId();
 }
 
 #else

@@ -62,6 +62,7 @@ public:
 			pDoc->mColorSpace = ci->cs;
 			pDoc->mCsc2Rgb888 = ci->csc2rgb888;
 			pDoc->mCsLoadInfo = ci->cs_load_info;
+			pDoc->mCsSetPixelStr = ci->cs_set_pixel_str;
 		}
 
 		q1::image_parse_arg(szFileName, &pDoc->mFps, "fps");

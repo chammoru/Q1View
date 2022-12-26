@@ -39,6 +39,9 @@ typedef void (*QIMAGE_CSC_FN) (qu8 *, qu8 *, qu8 *,
  */
 typedef int (*QIMAGE_CS_INFO_FN) (int w, int h, int *bufoff2, int *bufoff3);
 
+typedef void (*QIMAGE_SET_PIXEL_STR_FN) (qu8 *, int w, int h,
+                                         int x, int y, int base, char* str);
+
 struct qcsc_info
 {
 	const QIMAGE_CS cs;
@@ -46,6 +49,7 @@ struct qcsc_info
 	const QIMAGE_CS_INFO_FN cs_load_info;
 	const QIMAGE_CSC_FN csc2rgb888;
 	const QIMAGE_CSC_FN csc2yuv420;
+	const QIMAGE_SET_PIXEL_STR_FN cs_set_pixel_str;
 };
 
 int qimage_yuv420_load_info(int w, int h, int *bufoff2, int *bufoff3);
@@ -103,6 +107,9 @@ void qimage_bgr888_to_nv21(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 void qimage_bgr888_to_yuv420(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 							 int s_bgr, int w, int h);
 
+void qimage_yuv420_set_pixel_str(qu8 *src, int w, int h,
+                                 int x, int y, int base, char *str);
+
 static const struct qcsc_info qcsc_info_table[] =
 {
 	{
@@ -111,6 +118,7 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_yuv420_load_info,
 		qimage_yuv420_to_bgr888,
 		NULL,
+		qimage_yuv420_set_pixel_str,
 	},
 	{
 		QIMAGE_CS_NV12,
@@ -118,12 +126,14 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_nv12_load_info,
 		qimage_nv12_to_bgr888,
 		qimage_nv12_to_420,
+		NULL,
 	},
 	{
 		QIMAGE_CS_NV12_T256X16,
 		"nv12_t256x16",
 		qimage_t256x16_load_info,
 		qimage_t256x16_to_bgr888,
+		NULL,
 		NULL,
 	},
 	{
@@ -132,6 +142,7 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_nv21_load_info,
 		qimage_nv21_to_bgr888,
 		qimage_nv21_to_420,
+		NULL,
 	},
 	{
 		QIMAGE_CS_YUV420P10,
@@ -139,12 +150,14 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_yuv420p10_load_info,
 		qimage_yuv420p10_to_bgr888,
 		NULL,
+		NULL,
 	},
 	{
 		QIMAGE_CS_P010,
 		"p010",
 		qimage_p010_load_info,
 		qimage_p010_to_bgr888,
+		NULL,
 		NULL,
 	},
 	/* ... add more yuv colors */
@@ -155,12 +168,14 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_grayscale_load_info,
 		qimage_grayscale_to_bgr888,
 		NULL,
+		NULL,
 	},
 	{
 		QIMAGE_CS_RGB888,
 		"rgb888",
 		qimage_rgb888_load_info,
 		qimage_rgb888_to_bgr888,
+		NULL,
 		NULL,
 	},
 	{
@@ -169,12 +184,14 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_rgba8888_load_info,
 		qimage_rgba8888_to_bgr888,
 		NULL,
+		NULL,
 	},
 	{
 		QIMAGE_CS_BGR888,
 		"bgr888",
 		qimage_bgr888_load_info,
 		qimage_bgr888_to_bgr888,
+		NULL,
 		NULL,
 	},
 	{
@@ -183,12 +200,14 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_bgr565_load_info,
 		qimage_bgr565_to_bgr888,
 		NULL,
+		NULL,
 	},
 	{
 		QIMAGE_CS_RGBA1010102,
 		"rgba1010102",
 		qimage_rgba1010102_load_info,
 		qimage_rgba1010102_to_bgr888,
+		NULL,
 		NULL,
 	},
 	{
@@ -197,12 +216,14 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_abgr2101010_load_info,
 		qimage_abgr2101010_to_bgr888,
 		NULL,
+		NULL,
 	},
 	{
 		QIMAGE_CS_RGB16U,
 		"rgb16u",
 		qimage_rgb16u_load_info,
 		qimage_rgb16u_to_bgr888,
+		NULL,
 		NULL,
 	},
 	/* ... add more rgb colors */
@@ -211,6 +232,7 @@ static const struct qcsc_info qcsc_info_table[] =
 #define QIMG_DEF_CS_IDX       0
 #define QIMG_DST_RGB_BYTES    3
 #define QPLANES               3 /* color plane, 3 for rgb and yuv */
+#define QIMG_MAX_COLOR_STR    64
 
 #ifdef __cplusplus
 }
