@@ -109,6 +109,8 @@ void qimage_bgr888_to_yuv420(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 
 void qimage_yuv420_set_pixel_str(qu8 *src, int w, int h,
                                  int x, int y, int base, char *str);
+void qimage_abgr2101010_set_pixel_str(qu8* src, int w, int h,
+                                      int x, int y, int base, char* str);
 
 static const struct qcsc_info qcsc_info_table[] =
 {
@@ -216,7 +218,7 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_abgr2101010_load_info,
 		qimage_abgr2101010_to_bgr888,
 		NULL,
-		NULL,
+		qimage_abgr2101010_set_pixel_str,
 	},
 	{
 		QIMAGE_CS_RGB16U,
