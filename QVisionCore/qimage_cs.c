@@ -895,3 +895,18 @@ void qimage_yuv420_set_pixel_str(qu8* src, int w, int h,
 		sprintf(str, "%03d\n%03d\n%03d", y_val, u_val, v_val);
 	}
 }
+
+void qimage_abgr2101010_set_pixel_str(qu8* src, int w, int h,
+                                      int x, int y, int base, char* str)
+{
+	qu32 abgr2101010 = ((qu32*)src)[w * y + x];
+	qu32 B10 = (abgr2101010 >> 20) & 0x3ff;
+	qu32 G10 = (abgr2101010 >> 10) & 0x3ff;
+	qu32 R10 = abgr2101010 & 0x3ff;
+
+	if (base == 16) {
+		sprintf(str, "%02X\n%02X\n%02X", R10, G10, B10);
+	} else {
+		sprintf(str, "%04d\n%04d\n%04d", R10, G10, B10);
+	}
+}
