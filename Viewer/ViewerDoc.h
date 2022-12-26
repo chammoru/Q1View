@@ -86,6 +86,7 @@ public:
 	QIMAGE_CS mColorSpace;
 	QIMAGE_CSC_FN mCsc2Rgb888;
 	QIMAGE_CS_INFO_FN mCsLoadInfo;
+	QIMAGE_SET_PIXEL_STR_FN mCsSetPixelStr;
 	struct qcsc_info *mSortedCscInfo;
 
 	CString mPendingFile;
@@ -132,4 +133,5 @@ public:
 	virtual BOOL OnSaveDocument(LPCTSTR lpszPathName);
 	virtual BOOL DoSave(LPCTSTR lpszPathName, BOOL bReplace = TRUE);
 	virtual void SetPathName(LPCTSTR lpszPathName, BOOL bAddToMRU = TRUE);
+	void SetPixelString(int viewX, int viewY, int base, char* strBuf);
 };

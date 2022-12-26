@@ -871,3 +871,27 @@ void qimage_bgr888_to_yuv420(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 		bgr += gap;
 	}
 }
+
+void qimage_yuv420_set_pixel_str(qu8* src, int w, int h,
+                                 int x, int y, int base, char* str)
+{
+	int luma_size = w * h;
+	int chroma_size = ((w + 1) >> 1) * ((h + 1) >> 1);
+	int w_chroma = w >> 1;
+	int x_chroma = x >> 1;
+	int y_chroma = y >> 1;
+
+	qu8* y_plane = src;
+	qu8* u_plane = src + luma_size;
+	qu8* v_plane = src + luma_size + chroma_size;
+
+	qu8 y_val = y_plane[w * y + x];
+	qu8 u_val = u_plane[w_chroma * y_chroma + x_chroma];
+	qu8 v_val = v_plane[w_chroma * y_chroma + x_chroma];
+
+	if (base == 16) {
+		sprintf(str, "%02X\n%02X\n%02X", y_val, u_val, v_val);
+	} else {
+		sprintf(str, "%03d\n%03d\n%03d", y_val, u_val, v_val);
+	}
+}

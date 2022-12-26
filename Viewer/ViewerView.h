@@ -90,6 +90,9 @@ protected: // create from serialization only
 	CViewerView();
 	DECLARE_DYNCREATE(CViewerView)
 
+private:
+	char *mStrBuf;
+
 // Attributes
 public:
 	CViewerDoc* GetDocument() const;

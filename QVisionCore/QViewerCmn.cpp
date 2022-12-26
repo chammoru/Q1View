@@ -210,12 +210,19 @@ namespace q1 {
 			InvestigatePixelBorder(nOffsetBuf, xStart, xEnd, xBase, wDst,
 				&gi.x, &gi.Ws, nOffsetXBorderFlag);
 
-			gi.pixelMap.create(int(gi.Hs.size()), int(gi.Ws.size()), CV_8UC3);
-			for (int i = 0, y = yStart; i < gi.pixelMap.rows; y += gi.Hs[i], i++) {
-				qu8* src_y = src + nOffsetBuf[y] * ROUNDUP_DWORD(w);
-				for (int j = 0, x = xStart; j < gi.pixelMap.cols; x += gi.Ws[j], j++) {
-					qu8* src_x = src_y + nOffsetBuf[x];
-					gi.pixelMap.at<cv::Vec3b>(i, j) = cv::Vec3b(src_x);
+			if (n > ZOOM_TEXT_START) {
+				int mapH = int(gi.Hs.size());
+				int mapW = int(gi.Ws.size());
+				gi.pixelMap.create(mapH, mapW, CV_8UC3);
+				gi.pixelCoordMap.create(mapH, mapW, CV_16UC2);
+
+				for (int i = 0, y = yStart; i < gi.pixelMap.rows; y += gi.Hs[i], i++) {
+					qu8* src_y = src + nOffsetBuf[y] * ROUNDUP_DWORD(w);
+					for (int j = 0, x = xStart; j < gi.pixelMap.cols; x += gi.Ws[j], j++) {
+						qu8* src_x = src_y + nOffsetBuf[x];
+						gi.pixelMap.at<cv::Vec3b>(i, j) = cv::Vec3b(src_x);
+						gi.pixelCoordMap.at<cv::Vec2w>(i, j) = cv::Vec2w(nOffsetBuf[y], nOffsetBuf[x]);
+					}
 				}
 			}
 			ScaleUsingOffset(src, yStart, yEnd, xStart, xEnd, ROUNDUP_DWORD(w), gap,
