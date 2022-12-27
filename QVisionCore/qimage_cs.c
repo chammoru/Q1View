@@ -881,9 +881,9 @@ void qimage_yuv420_set_pixel_str(qu8* src, int w, int h,
 	int x_chroma = x >> 1;
 	int y_chroma = y >> 1;
 
-	qu8* y_plane = src;
-	qu8* u_plane = src + luma_size;
-	qu8* v_plane = src + luma_size + chroma_size;
+	qu8 *y_plane = src;
+	qu8 *u_plane = src + luma_size;
+	qu8 *v_plane = src + luma_size + chroma_size;
 
 	qu8 y_val = y_plane[w * y + x];
 	qu8 u_val = u_plane[w_chroma * y_chroma + x_chroma];
@@ -893,6 +893,28 @@ void qimage_yuv420_set_pixel_str(qu8* src, int w, int h,
 		sprintf(str, "%02X\n%02X\n%02X", y_val, u_val, v_val);
 	} else {
 		sprintf(str, "%03d\n%03d\n%03d", y_val, u_val, v_val);
+	}
+}
+
+void qimage_p010_set_pixel_str(qu8* src, int w, int h,
+                               int x, int y, int base, char* str)
+{
+	int luma_size = w * h;
+	int x_chroma = ROUNDDOWN_EVEN(x);
+	int y_chroma = y >> 1;
+
+	qu16 *luma_plane = (qu16 *)src;
+	qu16 y_val = luma_plane[w * y + x];
+
+	qu16* chroma_plane = luma_plane + luma_size;
+	qu16* chroma_point = chroma_plane + ROUNDUP_EVEN(w) * y_chroma + x_chroma;
+	qu16 u_val = *chroma_point++;
+	qu16 v_val = *chroma_point;
+
+	if (base == 16) {
+		sprintf(str, "%04X\n%04X\n%04X", y_val, u_val, v_val);
+	} else {
+		sprintf(str, "%05d\n%05d\n%05d", y_val, u_val, v_val);
 	}
 }
 
