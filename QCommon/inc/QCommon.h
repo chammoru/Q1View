@@ -5,6 +5,7 @@
 #define ROUNDUP_8(n)      (((n) + 7) & ~7)
 #define ROUNDUP_DWORD(n)  (((n) + 3) & ~3) // 3 <= sizeof(DWORD) - 1
 #define ROUNDUP_EVEN(n)   (((n) + 1) & ~1) // 1 <= 2 /*even*/ - 1
+#define ROUNDDOWN_EVEN(n) ((n) & ~1)
 
 #define QSQR(a)           ((a) * (a))
 #define QCUBE(a)          (QSQR(a) * (a))
