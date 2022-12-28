@@ -911,10 +911,16 @@ void qimage_p010_set_pixel_str(qu8* src, int w, int h,
 	qu16 u_val = *chroma_point++;
 	qu16 v_val = *chroma_point;
 
+	// https://learn.microsoft.com/en-us/windows/win32/medfound/10-bit-and-16-bit-yuv-video-formats
+	// The lowest 6 bits are zero
+	y_val >>= 6;
+	u_val >>= 6;
+	v_val >>= 6;
+
 	if (base == 16) {
-		sprintf(str, "%04X\n%04X\n%04X", y_val, u_val, v_val);
+		sprintf(str, "%03X\n%03X\n%03X", y_val, u_val, v_val);
 	} else {
-		sprintf(str, "%05d\n%05d\n%05d", y_val, u_val, v_val);
+		sprintf(str, "%04d\n%04d\n%04d", y_val, u_val, v_val);
 	}
 }
 
