@@ -27,6 +27,10 @@ public:
 // Implementation
 	afx_msg void OnAppAbout();
 	DECLARE_MESSAGE_MAP()
+	afx_msg void OnFileOpen();
 };
 
 extern CComparerApp theApp;
+
+#define REG_OPEN_SETTING        _T("OpenSetting")
+#define REG_OPEN_SETTING_OTHERS _T("OtherNewNames")

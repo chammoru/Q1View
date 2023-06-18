@@ -20,7 +20,7 @@ BEGIN_MESSAGE_MAP(CComparerApp, CWinApp)
 	ON_COMMAND(ID_APP_ABOUT, &CComparerApp::OnAppAbout)
 	// Standard file based document commands
 	ON_COMMAND(ID_FILE_NEW, &CWinApp::OnFileNew)
-	ON_COMMAND(ID_FILE_OPEN, &CWinApp::OnFileOpen)
+	ON_COMMAND(ID_FILE_OPEN, &CComparerApp::OnFileOpen)
 END_MESSAGE_MAP()
 
 
@@ -127,5 +127,32 @@ void CComparerApp::OnAppAbout()
 
 // CComparerApp message handlers
 
+void CComparerApp::OnFileOpen()
+{
+	std::vector<CString> newNames;
+	// prompt the user (with all document templates)
+	CFileDialog dlg(TRUE, _T("*.*"), NULL, OFN_ALLOWMULTISELECT | OFN_HIDEREADONLY | OFN_FILEMUSTEXIST, _T("All Files (*.*)|*.*||"));
+	if (dlg.DoModal() == IDOK) {
+		// Get the list of selected file names.
+		POSITION pos = dlg.GetStartPosition();
+		while (pos != NULL) {
+			newNames.push_back(dlg.GetNextPathName(pos));
+		}
+	}
 
+	if (newNames.size() == 0) {
+		return;
+	}
 
+	CString otherNewNames;
+	int limit = std::min((int)CComparerDoc::IMG_VIEW_MAX, (int)newNames.size());
+	for (int i = 1; i < limit; i++) {
+		if (!otherNewNames.IsEmpty()) {
+			otherNewNames += _T(",");
+		}
+		otherNewNames += newNames[i];
+	}
+
+	AfxGetApp()->WriteProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_OTHERS, otherNewNames);
+	AfxGetApp()->OpenDocumentFile(newNames[0]);
+}
