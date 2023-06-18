@@ -406,6 +406,23 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 
 	CComparerView *pView = pane1->pView;
 	ProcessDocument(pView->mPane);
+
+	CString files =	AfxGetApp()->GetProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_OTHERS, _T(""));
+	std::vector<CString> otherNewNames;
+	if (files != _T("")) {
+		int nTokenPos = 0;
+		CString strToken = files.Tokenize(_T(","), nTokenPos);
+
+		while (!strToken.IsEmpty()) {
+			otherNewNames.push_back(strToken);
+			strToken = files.Tokenize(_T(","), nTokenPos);
+		}
+
+		AfxGetApp()->WriteProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_OTHERS, _T(""));
+	}
+
+	// TODO: show the file in otherNewNames to the ith view
+
 	pView->AdjustWindowSize(pMainFrm->mViews);
 	UpdateAllViews(NULL);
 
