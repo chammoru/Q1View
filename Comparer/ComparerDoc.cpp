@@ -384,9 +384,6 @@ void CComparerDoc::ViewOnMouseWheel(short zDelta, int wCanvas, int hCanvas)
 
 BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
-	if (!CDocument::OnOpenDocument(lpszPathName))
-		return FALSE;
-
 	// TODO:  Add your specialized creation code here
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	if (pMainFrm == NULL) {
@@ -396,34 +393,34 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 		return TRUE;
 	}
 
-	// Currently update only the first pane
-	ComparerPane *pane1 = mPane + IMG_VIEW_1;
+	CString filenamesCsv = lpszPathName;
+	std::vector<CString> filenames;
+	int pos = 0;
+	CString token = filenamesCsv.Tokenize(_T(","), pos);
 
-	if (pane1->pathName == lpszPathName)
-		return TRUE;
-
-	pane1->pathName = lpszPathName;
-
-	CComparerView *pView = pane1->pView;
-	ProcessDocument(pView->mPane);
-
-	CString files =	AfxGetApp()->GetProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_OTHERS, _T(""));
-	std::vector<CString> otherNewNames;
-	if (files != _T("")) {
-		int nTokenPos = 0;
-		CString strToken = files.Tokenize(_T(","), nTokenPos);
-
-		while (!strToken.IsEmpty()) {
-			otherNewNames.push_back(strToken);
-			strToken = files.Tokenize(_T(","), nTokenPos);
+	while (!token.IsEmpty()) {
+		filenames.push_back(token);
+		if (!CDocument::OnOpenDocument(token)) {
+			LOGWRN("Wrong file path : %s", CT2A(token).m_psz);
+			return FALSE;
 		}
-
-		AfxGetApp()->WriteProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_OTHERS, _T(""));
+		AfxGetApp()->AddToRecentFileList(token);
+		token = filenamesCsv.Tokenize(_T(","), pos);
 	}
 
-	// TODO: show the file in otherNewNames to the ith view
+	// TODO: What if there are more than two files? Shouldn't we increase the # of views?
 
-	pView->AdjustWindowSize(pMainFrm->mViews);
+	// Show the file in filenames to the i-th view
+	for (int i = 0; i < filenames.size(); i++) {
+		ComparerPane* pane = mPane + IMG_VIEW_1 + i;
+		CComparerView* pView = pane->pView;
+		pane->pathName = filenames[i];
+		ProcessDocument(pView->mPane); // TODO: Can we extract common parts that exist in ProcessDocument ?
+	}
+	mPane[0].pView->AdjustWindowSize(pMainFrm->mViews);
+
+	// TODO: Among the views, the unloaded view should be cleared so that only empty space is visible.
+
 	UpdateAllViews(NULL);
 
 	return TRUE;
