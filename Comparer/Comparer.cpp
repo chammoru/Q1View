@@ -129,30 +129,28 @@ void CComparerApp::OnAppAbout()
 
 void CComparerApp::OnFileOpen()
 {
-	std::vector<CString> newNames;
-	// prompt the user (with all document templates)
-	CFileDialog dlg(TRUE, _T("*.*"), NULL, OFN_ALLOWMULTISELECT | OFN_HIDEREADONLY | OFN_FILEMUSTEXIST, _T("All Files (*.*)|*.*||"));
-	if (dlg.DoModal() == IDOK) {
+	std::vector<CString> filenames;
+
+	// Prompt the user (with all document templates)
+	CFileDialog dialog(TRUE, _T("*.*"), NULL,
+		OFN_ALLOWMULTISELECT | OFN_HIDEREADONLY | OFN_FILEMUSTEXIST, _T("All Files (*.*)|*.*||"));
+	if (dialog.DoModal() == IDOK) {
 		// Get the list of selected file names.
-		POSITION pos = dlg.GetStartPosition();
+		POSITION pos = dialog.GetStartPosition();
 		while (pos != NULL) {
-			newNames.push_back(dlg.GetNextPathName(pos));
+			filenames.push_back(dialog.GetNextPathName(pos));
 		}
 	}
 
-	if (newNames.size() == 0) {
+	if (filenames.size() == 0) {
 		return;
 	}
 
-	CString otherNewNames;
-	int limit = std::min((int)CComparerDoc::IMG_VIEW_MAX, (int)newNames.size());
+	CString filenamesCsv = filenames[0];
+	int limit = std::min((int)CComparerDoc::IMG_VIEW_MAX, (int)filenames.size());
 	for (int i = 1; i < limit; i++) {
-		if (!otherNewNames.IsEmpty()) {
-			otherNewNames += _T(",");
-		}
-		otherNewNames += newNames[i];
+		filenamesCsv += _T(",") + filenames[i];
 	}
 
-	AfxGetApp()->WriteProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_OTHERS, otherNewNames);
-	AfxGetApp()->OpenDocumentFile(newNames[0]);
+	AfxGetApp()->OpenDocumentFile(filenamesCsv, FALSE);
 }
