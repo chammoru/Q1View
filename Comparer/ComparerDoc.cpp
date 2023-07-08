@@ -307,9 +307,6 @@ void CComparerDoc::RefleshPaneImages(ComparerPane *pane, bool settingChanged)
 		mMaxFrames = max(pane->frames, opposite->frames);
 		mMinFrames = 0;
 	}
-
-	// This routine should be located after mMaxFrames set
-	mPosInfoView->ConfigureScrollSizes(this);
 }
 
 void CComparerDoc::ProcessDocument(ComparerPane *pane)
@@ -356,10 +353,6 @@ void CComparerDoc::ProcessDocument(ComparerPane *pane)
 	pView->UpdateFileName(fileName);
 
 	RefleshPaneImages(pane, settingChanged);
-
-	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
-	pMainFrm->UpdateResolutionLabel(mW, mH); // also, disable the resolution change if necessary
-	pMainFrm->CheckResolutionRadio(mW, mH);
 }
 
 void CComparerDoc::ViewOnMouseWheel(short zDelta, int wCanvas, int hCanvas)
@@ -421,10 +414,14 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	// Show the file in filenames to the i-th view
 	for (int i = 0; i < filenames.size(); i++) {
 		ComparerPane* pane = mPane + IMG_VIEW_1 + i;
-		CComparerView* pView = pane->pView;
 		pane->pathName = filenames[i];
-		ProcessDocument(pView->mPane); // TODO: Can we extract common parts that exist in ProcessDocument ?
+		ProcessDocument(pane);
 	}
+
+	mPosInfoView->ConfigureScrollSizes(this);
+
+	pMainFrm->UpdateResolutionLabel(mW, mH); // also, disable the resolution change if necessary
+	pMainFrm->CheckResolutionRadio(mW, mH);
 
 	mPane[0].pView->AdjustWindowSize(pMainFrm->mViews);
 

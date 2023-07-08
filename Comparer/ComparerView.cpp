@@ -7,6 +7,7 @@
 #include "ComparerView.h"
 #include "ComparerViews.h"
 #include "MainFrm.h"
+#include "PosInfoView.h"
 
 #include "QCommon.h"
 #include "QDebug.h"
@@ -318,7 +319,14 @@ void CComparerView::OnDropFiles(HDROP hDropInfo)
 
 	pane->pathName = szPathName;
 	pDoc->ProcessDocument(mPane);
+
+	CPosInfoView* posInfoView = pDoc->mPosInfoView;
+	posInfoView->ConfigureScrollSizes(pDoc);
+
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
+	pMainFrm->UpdateResolutionLabel(pDoc->mW, pDoc->mH); // also, disable the resolution change if necessary
+	pMainFrm->CheckResolutionRadio(pDoc->mW, pDoc->mH);
+
 	AdjustWindowSize(pMainFrm->mViews);
 	pDoc->UpdateAllViews(NULL);
 
@@ -592,6 +600,9 @@ void CComparerView::OnCsChange(UINT nID)
 
 	if (pane->isAvail()) {
 		pDoc->RefleshPaneImages(pane, true);
+		// This routine should be located after mMaxFrames set
+		CPosInfoView* posInfoView = pDoc->mPosInfoView;
+		posInfoView->ConfigureScrollSizes(pDoc);
 		pDoc->UpdateAllViews(NULL);
 	}
 }
