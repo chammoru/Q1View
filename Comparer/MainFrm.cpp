@@ -636,13 +636,17 @@ void CMainFrame::RefreshAllViews()
 			refreshed = true;
 			break;
 		}
-
 	}
-	const CComparerView *firstView = pDoc->mPane[0].pView;
-	firstView->AdjustWindowSize(mViews); // Adjust the whole window size using the first ComparerView
 
-	if (refreshed)
+	if (refreshed) {
+		CPosInfoView* posInfoView = pDoc->mPosInfoView;
+		posInfoView->ConfigureScrollSizes(pDoc);
+
+		const CComparerView* firstView = pDoc->mPane[0].pView;
+		firstView->AdjustWindowSize(mViews); // Adjust the whole window size using the first ComparerView
+
 		pDoc->UpdateAllViews(NULL);
+	}
 }
 
 void CMainFrame::ActivateFrame(int nCmdShow)
