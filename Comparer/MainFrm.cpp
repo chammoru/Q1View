@@ -439,7 +439,7 @@ void CMainFrame::OnViewsChange(UINT nID)
 
 	DrawMenuBar();
 
-	const CComparerView* firstView = pDoc->mPane[0].pView;
+	const CComparerView* firstView = pDoc->mPane->pView;
 	firstView->AdjustWindowSize(preViews, mSplitBarW * (mViews - preViews));
 }
 
@@ -642,7 +642,7 @@ void CMainFrame::RefreshAllViews()
 		CPosInfoView* posInfoView = pDoc->mPosInfoView;
 		posInfoView->ConfigureScrollSizes(pDoc);
 
-		const CComparerView* firstView = pDoc->mPane[0].pView;
+		const CComparerView* firstView = pDoc->mPane->pView;
 		firstView->AdjustWindowSize(mViews); // Adjust the whole window size using the first ComparerView
 
 		pDoc->UpdateAllViews(NULL);
