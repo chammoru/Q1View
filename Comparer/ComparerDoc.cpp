@@ -409,7 +409,15 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	}
 
 	// TODO: What if there are more than two files? Shouldn't we increase the # of views?
+	// TODO: if the image sizes are different, we need to turn on "Allow Different Resolution" mode
 
+	// Clear the views that show previous images
+	for (int i = (int)filenames.size(); i < pMainFrm->mViews; i++) {
+		ComparerPane* pane = mPane + IMG_VIEW_1 + i;
+		if (!pane->pathName.IsEmpty()) {
+			pane->Release();
+		}
+	}
 	// Show the file in filenames to the i-th view
 	for (int i = 0; i < filenames.size(); i++) {
 		ComparerPane* pane = mPane + IMG_VIEW_1 + i;
@@ -417,9 +425,8 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 		pane->pathName = filenames[i];
 		ProcessDocument(pView->mPane); // TODO: Can we extract common parts that exist in ProcessDocument ?
 	}
-	mPane[0].pView->AdjustWindowSize(pMainFrm->mViews);
 
-	// TODO: Among the views, the unloaded view should be cleared so that only empty space is visible.
+	mPane[0].pView->AdjustWindowSize(pMainFrm->mViews);
 
 	UpdateAllViews(NULL);
 
