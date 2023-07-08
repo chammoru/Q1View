@@ -324,8 +324,14 @@ void CComparerDoc::ProcessDocument(ComparerPane *pane)
 	if (!mDiffRes && (mW != srcW || mH != srcH)) {
 		LOGINF("new width (%d) and height (%d)", srcW, srcH);
 		for (auto other : GetOtherPanes(pane)) {
-			if (!other->pathName.IsEmpty())
+			if (!other->pathName.IsEmpty()) {
+				CComparerView* otherView = other->pView;
+				if (otherView != nullptr) {
+					otherView->UpdateFileName(_T(""));
+				}
+
 				other->Release();
+			}
 		}
 
 		mW = srcW;
@@ -377,7 +383,6 @@ void CComparerDoc::ViewOnMouseWheel(short zDelta, int wCanvas, int hCanvas)
 
 BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
-	// TODO:  Add your specialized creation code here
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	if (pMainFrm == NULL) {
 		// take care of the open operation in CMainFrame::ActivateFrame()
@@ -403,12 +408,18 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 
 	// TODO: What if there are more than two files? Shouldn't we increase the # of views?
 	// TODO: if the image sizes are different, we need to turn on "Allow Different Resolution" mode
+	//       (What about videos?)
 
 	// Clear the views that show previous images
 	for (int i = (int)filenames.size(); i < pMainFrm->mViews; i++) {
-		ComparerPane* pane = mPane + IMG_VIEW_1 + i;
-		if (!pane->pathName.IsEmpty()) {
-			pane->Release();
+		ComparerPane* other = mPane + IMG_VIEW_1 + i;
+		if (!other->pathName.IsEmpty()) {
+			CComparerView* otherView = other->pView;
+			if (otherView != nullptr) {
+				otherView->UpdateFileName(_T(""));
+			}
+
+			other->Release();
 		}
 	}
 	// Show the file in filenames to the i-th view
@@ -423,7 +434,8 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	pMainFrm->UpdateResolutionLabel(mW, mH); // also, disable the resolution change if necessary
 	pMainFrm->CheckResolutionRadio(mW, mH);
 
-	mPane[0].pView->AdjustWindowSize(pMainFrm->mViews);
+	const CComparerView* firstView = mPane->pView;
+	firstView->AdjustWindowSize(pMainFrm->mViews);
 
 	UpdateAllViews(NULL);
 
