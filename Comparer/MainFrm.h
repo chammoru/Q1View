@@ -47,7 +47,7 @@ private:
 
 public:
 	int mMetricIdx;
-	int mViews;
+	int mNumOfViews;
 	int mPreViews;
 	int mSplitBarW;
 
@@ -59,12 +59,13 @@ public:
 	void CheckMetricRadio();
 	void UpdateMetricLabel();
 	void CheckFpsRadio(double fps);
-	void CheckViewsRadio(int views);
+	void CheckViewsRadio(int numOfViews);
 	void CheckOptionsRadio(UINT nOptionID, bool checked);
-	void UpdateViewsLabel(int views);
+	void UpdateViewsLabel(int numOfViews);
 	void UpdateMagnication(float n);
 	void RefreshFrmsInfoView();
 	void RefreshAllViews();
+	int ChangeNumOfViews(int newNumOfViews);
 
 // Overrides
 public:

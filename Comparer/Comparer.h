@@ -9,6 +9,7 @@
 
 #include "resource.h"       // main symbols
 
+#define CSV_SEPARATOR _T("|")
 
 // CComparerApp:
 // See Comparer.cpp for the implementation of this class
