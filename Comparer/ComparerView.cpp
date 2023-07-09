@@ -327,7 +327,7 @@ void CComparerView::OnDropFiles(HDROP hDropInfo)
 	pMainFrm->UpdateResolutionLabel(pDoc->mW, pDoc->mH); // also, disable the resolution change if necessary
 	pMainFrm->CheckResolutionRadio(pDoc->mW, pDoc->mH);
 
-	AdjustWindowSize(pMainFrm->mViews);
+	AdjustWindowSize(pMainFrm->mNumOfViews);
 	pDoc->UpdateAllViews(NULL);
 
 OnDropFilesDefault:
@@ -369,7 +369,7 @@ void CComparerView::AdjustWindowSize(int numPrevViews, int splitBarChange) const
 	int wViewClient = MAX(CANVAS_DEF_W, pDoc->mW);
 	int hViewClient = MAX(CANVAS_DEF_H, pDoc->mH) + mRcControls.bottom;
 
-	int wMainWindow = wViewClient * pMainFrm->mViews + wGap + splitBarChange;
+	int wMainWindow = wViewClient * pMainFrm->mNumOfViews + wGap + splitBarChange;
 	int hMainWindow = hViewClient + hGap;
 
 	if (wMainWindow >= fullScnSz.cx || hMainWindow >= fullScnSz.cy) {
@@ -660,7 +660,7 @@ std::vector<CComparerView *> CComparerView::GetOhterViews(CComparerDoc* pDoc)
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	std::vector<CComparerView *> otherViews;
 
-	for (int i = 0; i < pMainFrm->mViews; i++) {
+	for (int i = 0; i < pMainFrm->mNumOfViews; i++) {
 		CComparerView* pView = pDoc->mPane[i].pView;
 		if (pView == this)
 			continue;

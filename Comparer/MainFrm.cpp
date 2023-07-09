@@ -61,7 +61,7 @@ CMainFrame::CMainFrame()
 : mSplitMargin(0)
 , mSplitBarW(0)
 , mMetricIdx(METRIC_PSNR_IDX)
-, mViews(COMPARER_DEF_VIEWS)
+, mNumOfViews(COMPARER_DEF_VIEWS)
 {
 	// TODO: add member initialization code here
 	mResolutionMenu.CreatePopupMenu();
@@ -140,7 +140,7 @@ BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext)
 			WS_CHILD | WS_VISIBLE, mFrmInfoSplitter.IdFromRowCol(0, 0)))
 		return FALSE;
 
-	sz.SetSize((rcClient.Width() - POS_INFO_W) / mViews,
+	sz.SetSize((rcClient.Width() - POS_INFO_W) / mNumOfViews,
 		rcClient.Height() - FRAMES_INFO_H - FRAME_INFO_H);
 	if (!mCompSplitter.CreateView(0, 0, RUNTIME_CLASS(CComparerView1), sz, pContext) ||
 		!mCompSplitter.CreateView(0, 1, RUNTIME_CLASS(CComparerView2), sz, pContext) ||
@@ -213,9 +213,9 @@ void CMainFrame::OnSize(UINT nType, int cx, int cy)
 		mFrmInfoSplitter.RecalcLayout();
 	}
 
-	wInside = (wOutside - mSplitBarW * (mViews - 1)) / mViews;
+	wInside = (wOutside - mSplitBarW * (mNumOfViews - 1)) / mNumOfViews;
 	int i = 0;
-	for (; i < mViews; i++) {
+	for (; i < mNumOfViews; i++) {
 		mCompSplitter.SetColumnInfo(i, wInside, MIN_SIDE);
 	}
 	for (; i < CComparerDoc::IMG_VIEW_MAX; i++) {
@@ -259,7 +259,7 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 		pDoc->MarkImgViewProcessing();
 
 		// pDoc->UpdateAllViews(NULL) is slow than the below code 
-		for (int i = 0; i < mViews; i++) {
+		for (int i = 0; i < mNumOfViews; i++) {
 			CComparerView *pView = pDoc->mPane[i].pView;
 			pView->Invalidate(FALSE);
 		}
@@ -414,33 +414,46 @@ void CMainFrame::OnFpsChange(UINT nID)
 
 void CMainFrame::OnViewsChange(UINT nID)
 {
-	CComparerDoc* pDoc = static_cast<CComparerDoc*>(GetActiveDocument());
-
 	CString str;
 	CMenu* subMenu = GetMenu()->GetSubMenu(MENU_POS_VIEWS);
 	subMenu->GetMenuString(nID, str, MF_BYCOMMAND);
 
 	int views = _wtoi(str);
 
-	if (mViews == views)
+	if (mNumOfViews == views)
 		return;
 
-	UpdateViewsLabel(views);
-	CheckViewsRadio(views);
+	int oldNumOfViews = ChangeNumOfViews(views);
 
-	int preViews = mViews;
-	mViews = views;
+	DrawMenuBar();
 
-	for (int i = views; i < CComparerDoc::IMG_VIEW_MAX; i++)
-		pDoc->mPane[i].Release();
+	CComparerDoc* pDoc = static_cast<CComparerDoc*>(GetActiveDocument());
+	const CComparerView* firstView = pDoc->mPane->pView;
+	firstView->AdjustWindowSize(oldNumOfViews, mSplitBarW * (mNumOfViews - oldNumOfViews));
+}
+
+int CMainFrame::ChangeNumOfViews(int newNumOfViews) {
+	CComparerDoc* pDoc = static_cast<CComparerDoc*>(GetActiveDocument());
+
+	UpdateViewsLabel(newNumOfViews);
+	CheckViewsRadio(newNumOfViews);
+
+	int oldNumOfViews = mNumOfViews;
+	mNumOfViews = newNumOfViews;
+
+	for (int i = newNumOfViews; i < CComparerDoc::IMG_VIEW_MAX; i++) {
+		ComparerPane *pPane = pDoc->mPane + i;
+		CComparerView* pView = pPane->pView;
+		if (pView != nullptr) {
+			pView->UpdateFileName(_T(""));
+		}
+		pPane->Release();
+	}
 
 	if (IsZoomed())
 		SendMessage(WM_SYSCOMMAND, SC_RESTORE, (LPARAM)GetSafeHwnd());
 
-	DrawMenuBar();
-
-	const CComparerView* firstView = pDoc->mPane->pView;
-	firstView->AdjustWindowSize(preViews, mSplitBarW * (mViews - preViews));
+	return oldNumOfViews;
 }
 
 void CMainFrame::OnOptionsChange(UINT nID)
@@ -494,12 +507,12 @@ void CMainFrame::CheckFpsRadio(double fps)
 		id, MF_CHECKED | MF_BYCOMMAND);
 }
 
-void CMainFrame::CheckViewsRadio(int views)
+void CMainFrame::CheckViewsRadio(int numOfViews)
 {
 	if (GetMenu() == NULL)
 		return;
 
-	UINT id = ID_VIEWS_START + views - COMPARER_DEF_VIEWS;
+	UINT id = ID_VIEWS_START + numOfViews - COMPARER_DEF_VIEWS;
 
 	CMenu* subMenu = GetMenu()->GetSubMenu(MENU_POS_VIEWS);
 
@@ -598,11 +611,11 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 		str.Format(_T("%d VIEWS"), i + COMPARER_DEF_VIEWS);
 		mViewsMenu.AppendMenu(MF_STRING, (UINT_PTR)ID_VIEWS_START + i, str);
 	}
-	str.Format(_T("%d VIEWS"), mViews);
+	str.Format(_T("%d VIEWS"), mNumOfViews);
 	GetMenu()->InsertMenu(MENU_POS_VIEWS, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mViewsMenu.m_hMenu, str);
 
-	CheckViewsRadio(mViews);
+	CheckViewsRadio(mNumOfViews);
 
 	// option menu
 	str.Format(_T("Allow Different Resolution"));
@@ -627,7 +640,7 @@ void CMainFrame::RefreshAllViews()
 	CComparerDoc *pDoc = static_cast<CComparerDoc *>(GetActiveDocument());
 
 	bool refreshed = false;
-	for (int i = 0; i < mViews; i++) {
+	for (int i = 0; i < mNumOfViews; i++) {
 		ComparerPane* pane = &pDoc->mPane[i];
 		if (pane->isAvail()) {
 			pane->srcW = pDoc->mW;
@@ -643,7 +656,7 @@ void CMainFrame::RefreshAllViews()
 		posInfoView->ConfigureScrollSizes(pDoc);
 
 		const CComparerView* firstView = pDoc->mPane->pView;
-		firstView->AdjustWindowSize(mViews); // Adjust the whole window size using the first ComparerView
+		firstView->AdjustWindowSize(mNumOfViews); // Adjust the whole window size using the first ComparerView
 
 		pDoc->UpdateAllViews(NULL);
 	}

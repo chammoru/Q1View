@@ -227,7 +227,7 @@ void CComparerDoc::LoadSourceImage(ComparerPane *pane)
 
 	setDstSize();
 
-	for (int i = 0; i < pMainFrm->mViews; i++) {
+	for (int i = 0; i < pMainFrm->mNumOfViews; i++) {
 		CComparerView *pView = mPane[i].pView;
 		pView->Initialize(this);
 	}
@@ -394,7 +394,7 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	CString filenamesCsv = lpszPathName;
 	std::vector<CString> filenames;
 	int pos = 0;
-	CString token = filenamesCsv.Tokenize(_T(","), pos);
+	CString token = filenamesCsv.Tokenize(CSV_SEPARATOR, pos);
 
 	while (!token.IsEmpty()) {
 		filenames.push_back(token);
@@ -403,15 +403,19 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 			return FALSE;
 		}
 		AfxGetApp()->AddToRecentFileList(token);
-		token = filenamesCsv.Tokenize(_T(","), pos);
+		token = filenamesCsv.Tokenize(CSV_SEPARATOR, pos);
 	}
 
-	// TODO: What if there are more than two files? Shouldn't we increase the # of views?
+	int numOfFiles = (int) filenames.size();
+	if (numOfFiles > pMainFrm->mNumOfViews) {
+		pMainFrm->ChangeNumOfViews(numOfFiles);
+	}
+
 	// TODO: if the image sizes are different, we need to turn on "Allow Different Resolution" mode
 	//       (What about videos?)
 
 	// Clear the views that show previous images
-	for (int i = (int)filenames.size(); i < pMainFrm->mViews; i++) {
+	for (int i = numOfFiles; i < pMainFrm->mNumOfViews; i++) {
 		ComparerPane* other = mPane + IMG_VIEW_1 + i;
 		if (!other->pathName.IsEmpty()) {
 			CComparerView* otherView = other->pView;
@@ -423,7 +427,7 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 		}
 	}
 	// Show the file in filenames to the i-th view
-	for (int i = 0; i < filenames.size(); i++) {
+	for (int i = 0; i < numOfFiles; i++) {
 		ComparerPane* pane = mPane + IMG_VIEW_1 + i;
 		pane->pathName = filenames[i];
 		ProcessDocument(pane);
@@ -435,7 +439,9 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	pMainFrm->CheckResolutionRadio(mW, mH);
 
 	const CComparerView* firstView = mPane->pView;
-	firstView->AdjustWindowSize(pMainFrm->mViews);
+	if (firstView != nullptr) {
+		firstView->AdjustWindowSize(pMainFrm->mNumOfViews);
+	}
 
 	UpdateAllViews(NULL);
 
@@ -461,7 +467,7 @@ bool CComparerDoc::OffsetScenes(long offset)
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	bool updated = false;
 
-	for (int i = 0; i < pMainFrm->mViews; i++) {
+	for (int i = 0; i < pMainFrm->mNumOfViews; i++) {
 		ComparerPane *pane = &mPane[i];
 		if (!pane->isAvail())
 			continue;
@@ -492,7 +498,7 @@ bool CComparerDoc::NextScenes()
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	bool updated = false;
 
-	for (int i = 0; i < pMainFrm->mViews; i++) {
+	for (int i = 0; i < pMainFrm->mNumOfViews; i++) {
 		ComparerPane* pane = &mPane[i];
 
 		if (!pane->isAvail())
@@ -513,7 +519,7 @@ inline std::vector<ComparerPane*> CComparerDoc::GetOtherPanes(ComparerPane* pane
 {
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	std::vector<ComparerPane*> otherPanes;
-	for (int i = 0; i < pMainFrm->mViews; i++) {
+	for (int i = 0; i < pMainFrm->mNumOfViews; i++) {
 		if (mPane + i != pane)
 			otherPanes.push_back(mPane + i);
 	}
@@ -532,7 +538,7 @@ void CComparerDoc::KillPlayTimer()
 void CComparerDoc::MarkImgViewProcessing()
 {
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
-	for (int i = 0; i < pMainFrm->mViews; i++) {
+	for (int i = 0; i < pMainFrm->mNumOfViews; i++) {
 		ComparerPane *pane = &mPane[i];
 
 		if (!pane->isAvail())
@@ -547,7 +553,7 @@ bool CComparerDoc::CheckImgViewProcessing()
 {
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	bool isProcessing = false;
-	for (int i = 0; i < pMainFrm->mViews; i++) {
+	for (int i = 0; i < pMainFrm->mNumOfViews; i++) {
 		ComparerPane *pane = &mPane[i];
 		CComparerView *view = pane->pView;
 		if (view->mProcessing)

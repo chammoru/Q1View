@@ -149,7 +149,7 @@ void CComparerApp::OnFileOpen()
 	CString filenamesCsv = filenames[0];
 	int limit = std::min((int)CComparerDoc::IMG_VIEW_MAX, (int)filenames.size());
 	for (int i = 1; i < limit; i++) {
-		filenamesCsv += _T(",") + filenames[i];
+		filenamesCsv += CSV_SEPARATOR + filenames[i];
 	}
 
 	AfxGetApp()->OpenDocumentFile(filenamesCsv, FALSE);
