@@ -381,6 +381,20 @@ void CComparerDoc::ViewOnMouseWheel(short zDelta, int wCanvas, int hCanvas)
 	pMainFrm->UpdateMagnication(mN);
 }
 
+struct ImageProperty
+{
+	int width, height, index;
+	ImageProperty(int w, int h, int i) :
+		width(h), height(h), index(i) {}
+};
+
+struct ImagePropertyCompare
+{
+	bool operator()(const ImageProperty &l, const ImageProperty &r) {
+		return l.width * l.height > r.width * r.height;
+	}
+};
+
 BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
@@ -411,9 +425,6 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 		pMainFrm->ChangeNumOfViews(numOfFiles);
 	}
 
-	// TODO: if the image sizes are different, we need to turn on "Allow Different Resolution" mode
-	//       (What about videos?)
-
 	// Clear the views that show previous images
 	for (int i = numOfFiles; i < pMainFrm->mNumOfViews; i++) {
 		ComparerPane* other = mPane + IMG_VIEW_1 + i;
@@ -426,10 +437,43 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 			other->Release();
 		}
 	}
-	// Show the file in filenames to the i-th view
+
+	// Check all resolutions
+	vector<ImageProperty> imageProperties;
+	int prevSrcW = 0, prevSrcH = 0;
+	bool isDiffRes = false;
 	for (int i = 0; i < numOfFiles; i++) {
 		ComparerPane* pane = mPane + IMG_VIEW_1 + i;
 		pane->pathName = filenames[i];
+		int srcW = 0, srcH = 0;
+		bool success = pane->GetResolution(pane->pathName, &srcW, &srcH);
+		if (!success) {
+			LOGWRN("FrmSrc failed to get resolution info for file idx %d", i);
+			return FALSE;
+		}
+		imageProperties.emplace_back(srcW, srcH, i);
+		if (prevSrcW == 0 && prevSrcH == 0) {
+			prevSrcW = srcW;
+			prevSrcH = srcH;
+		} else if (prevSrcW != srcW || prevSrcH != srcH) {
+			isDiffRes = true;
+		}
+	}
+	stable_sort(imageProperties.begin(), imageProperties.end(), ImagePropertyCompare());
+
+	// Turn on "Allow Different Resolution" mode if resolutions are different
+	if (isDiffRes) {
+		mDiffRes = true;
+		mW = imageProperties[0].width;
+		mH = imageProperties[0].height;
+		pMainFrm->CheckOptionsRadio(ID_OPTIONS_DIFF_RESOLUTION, mDiffRes);
+	}
+
+	// Show the file in filenames to the i-th view
+	for (const auto &imageProperty : imageProperties) {
+		int index = imageProperty.index;
+		ComparerPane* pane = mPane + IMG_VIEW_1 + index;
+		pane->pathName = filenames[index];
 		ProcessDocument(pane);
 	}
 

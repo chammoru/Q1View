@@ -39,8 +39,6 @@
 
 // CMainFrame
 
-#define ID_OPTIONS_DIFF_RESOLUTION (ID_OPTIONS_START + 0)
-
 IMPLEMENT_DYNCREATE(CMainFrame, CFrameWnd)
 
 BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)

@@ -21,6 +21,8 @@
                               (FRAMES_INFO_H + QSPLITTER_W))
 #define VIT_INVALIDATE_DUR    200
 
+#define ID_OPTIONS_DIFF_RESOLUTION (ID_OPTIONS_START + 0)
+
 enum ComparerTimerID
 {
 	CTI_ID_POS_INVALIDATE = 1,
