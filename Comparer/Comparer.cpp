@@ -152,5 +152,7 @@ void CComparerApp::OnFileOpen()
 		filenamesCsv += CSV_SEPARATOR + filenames[i];
 	}
 
-	AfxGetApp()->OpenDocumentFile(filenamesCsv, FALSE);
+	AfxGetApp()->OpenDocumentFile(filenames[0], FALSE);
+
+	AfxGetApp()->WriteProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_FILENAMES_CSV, filenamesCsv);
 }

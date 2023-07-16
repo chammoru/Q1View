@@ -398,14 +398,15 @@ struct ImagePropertyCompare
 BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	const CString filenamesCsv = AfxGetApp()->GetProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_FILENAMES_CSV, _T(""));
+
 	if (pMainFrm == NULL) {
 		// take care of the open operation in CMainFrame::ActivateFrame()
-		mPendingFile = lpszPathName;
+		mPendingFile = filenamesCsv;
 		::CoInitialize(NULL); // TODO: Is this really right solution?
 		return TRUE;
 	}
 
-	CString filenamesCsv = lpszPathName;
 	std::vector<CString> filenames;
 	int pos = 0;
 	CString token = filenamesCsv.Tokenize(CSV_SEPARATOR, pos);
