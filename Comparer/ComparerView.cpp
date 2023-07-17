@@ -302,35 +302,41 @@ int CComparerView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 void CComparerView::OnDropFiles(HDROP hDropInfo)
 {
-	// TODO: Add your message handler code here and/or call default
-	TCHAR szPathName[MAX_PATH];
-
 	UINT uDragCount = DragQueryFile(hDropInfo, 0xFFFFFFFF, NULL, 0);
-	if (uDragCount <= 0)
-		goto OnDropFilesDefault;
+	if (uDragCount <= 0) {
+		CScrollView::OnDropFiles(hDropInfo);
+		return;
+	}
 
-	DragQueryFile(hDropInfo, 0, szPathName, MAX_PATH);
+	std::vector<CString> filenames(uDragCount);
+
+	for (UINT i = 0; i < uDragCount; i++) {
+		TCHAR szPathName[MAX_PATH];
+		DragQueryFile(hDropInfo, i, szPathName, MAX_PATH);
+		filenames[i] = szPathName;
+	}
 
 	CComparerDoc *pDoc = GetDocument();
-	ComparerPane *pane = GetPane(pDoc);
 
-	if (pane->pathName == szPathName)
-		goto OnDropFilesDefault;
+	if (uDragCount == 1) {
+		ComparerPane* pane = GetPane(pDoc);
 
-	pane->pathName = szPathName;
-	pDoc->ProcessDocument(mPane);
+		pane->pathName = filenames[0];
+		pDoc->ProcessDocument(mPane);
 
-	CPosInfoView* posInfoView = pDoc->mPosInfoView;
-	posInfoView->ConfigureScrollSizes(pDoc);
+		CPosInfoView* posInfoView = pDoc->mPosInfoView;
+		posInfoView->ConfigureScrollSizes(pDoc);
 
-	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
-	pMainFrm->UpdateResolutionLabel(pDoc->mW, pDoc->mH); // also, disable the resolution change if necessary
-	pMainFrm->CheckResolutionRadio(pDoc->mW, pDoc->mH);
+		CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
+		pMainFrm->UpdateResolutionLabel(pDoc->mW, pDoc->mH); // also, disable the resolution change if necessary
+		pMainFrm->CheckResolutionRadio(pDoc->mW, pDoc->mH);
 
-	AdjustWindowSize(pMainFrm->mNumOfViews);
-	pDoc->UpdateAllViews(NULL);
+		AdjustWindowSize(pMainFrm->mNumOfViews);
+		pDoc->UpdateAllViews(NULL);
+	} else {
+		pDoc->OpenMultiFiles(filenames);
+	}
 
-OnDropFilesDefault:
 	CScrollView::OnDropFiles(hDropInfo);
 }
 

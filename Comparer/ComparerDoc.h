@@ -88,7 +88,13 @@ public:
 	bool IsRGBCompare(const SQPane *paneA, const SQPane *paneB) const;
 	void RefleshPaneImages(ComparerPane *pane, bool settingChanged);
 	inline ComparerPane* GetOppositePane(ComparerPane* pane) {
-		return pane == mPane + IMG_VIEW_1 ? mPane + IMG_VIEW_2 : mPane + IMG_VIEW_1;
+		if (pane == mPane + IMG_VIEW_1) {
+			return mPane + IMG_VIEW_2;
+		} else if (pane == mPane + IMG_VIEW_2) {
+			return mPane + IMG_VIEW_1;
+		} else {
+			return nullptr;
+		}
 	}
 	std::vector<ComparerPane*> GetOtherPanes(ComparerPane* pane);
 	void KillPlayTimer();
@@ -100,6 +106,7 @@ public:
 	bool NextScenes();
 	void setDstSize();
 	bool isFixedResolution();
+	BOOL OpenMultiFiles(const std::vector<CString>& filenames);
 
 // Overrides
 public:
