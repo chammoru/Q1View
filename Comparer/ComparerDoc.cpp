@@ -275,6 +275,11 @@ void CComparerDoc::RefleshPaneImages(ComparerPane *pane, bool settingChanged)
 	LoadSourceImage(pane);
 
 	ComparerPane *opposite = GetOppositePane(pane);
+	if (opposite == nullptr) {
+		// This `pane` is neither the first nor the second
+		return;
+	}
+
 	if (opposite->isAvail()) {
 		if (settingChanged)
 			LoadSourceImage(opposite);
@@ -395,39 +400,16 @@ struct ImagePropertyCompare
 	}
 };
 
-BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
-{
-	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
-	const CString filenamesCsv = AfxGetApp()->GetProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_FILENAMES_CSV, _T(""));
+BOOL CComparerDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
+	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 
-	if (pMainFrm == NULL) {
-		// take care of the open operation in CMainFrame::ActivateFrame()
-		mPendingFile = filenamesCsv;
-		::CoInitialize(NULL); // TODO: Is this really right solution?
-		return TRUE;
-	}
-
-	std::vector<CString> filenames;
-	int pos = 0;
-	CString token = filenamesCsv.Tokenize(CSV_SEPARATOR, pos);
-
-	while (!token.IsEmpty()) {
-		filenames.push_back(token);
-		if (!CDocument::OnOpenDocument(token)) {
-			LOGWRN("Wrong file path : %s", CT2A(token).m_psz);
-			return FALSE;
-		}
-		AfxGetApp()->AddToRecentFileList(token);
-		token = filenamesCsv.Tokenize(CSV_SEPARATOR, pos);
-	}
-
-	int numOfFiles = (int) filenames.size();
+	int numOfFiles = (int)filenames.size();
 	if (numOfFiles > pMainFrm->mNumOfViews) {
 		pMainFrm->ChangeNumOfViews(numOfFiles);
 	}
 
 	// Clear the views that show previous images
-	for (int i = numOfFiles; i < pMainFrm->mNumOfViews; i++) {
+	for (int i = 0; i < pMainFrm->mNumOfViews; i++) {
 		ComparerPane* other = mPane + IMG_VIEW_1 + i;
 		if (!other->pathName.IsEmpty()) {
 			CComparerView* otherView = other->pView;
@@ -446,6 +428,7 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	for (int i = 0; i < numOfFiles; i++) {
 		ComparerPane* pane = mPane + IMG_VIEW_1 + i;
 		pane->pathName = filenames[i];
+		AfxGetApp()->AddToRecentFileList(filenames[i]);
 		int srcW = 0, srcH = 0;
 		bool success = pane->GetResolution(pane->pathName, &srcW, &srcH);
 		if (!success) {
@@ -471,7 +454,7 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	}
 
 	// Show the file in filenames to the i-th view
-	for (const auto &imageProperty : imageProperties) {
+	for (const auto& imageProperty : imageProperties) {
 		int index = imageProperty.index;
 		ComparerPane* pane = mPane + IMG_VIEW_1 + index;
 		pane->pathName = filenames[index];
@@ -491,6 +474,34 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	UpdateAllViews(NULL);
 
 	return TRUE;
+}
+
+BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
+{
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	const CString filenamesCsv = AfxGetApp()->GetProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_FILENAMES_CSV, _T(""));
+
+	if (pMainFrm == NULL) {
+		// take care of the open operation in CMainFrame::ActivateFrame()
+		mPendingFile = filenamesCsv;
+		::CoInitialize(NULL); // TODO: Is this really right solution?
+		return TRUE;
+	}
+
+	std::vector<CString> filenames;
+	int pos = 0;
+	CString token = filenamesCsv.Tokenize(CSV_SEPARATOR, pos);
+
+	while (!token.IsEmpty()) {
+		filenames.push_back(token);
+		if (!CDocument::OnOpenDocument(token)) {
+			LOGWRN("Wrong file path : %s", CT2A(token).m_psz);
+			return FALSE;
+		}
+		token = filenamesCsv.Tokenize(CSV_SEPARATOR, pos);
+	}
+
+	return OpenMultiFiles(filenames);
 }
 
 void CComparerDoc::SetScene(long frameID, ComparerPane* pane, bool& updated)
