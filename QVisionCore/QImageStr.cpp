@@ -195,6 +195,21 @@ const struct qcsc_info * const image_find_cs(const struct qcsc_info *ci,
 	return NULL;
 }
 
+const struct qcsc_info* const image_next_cs(const struct qcsc_info* const ci, int cs)
+{
+	const int limit = ARRAY_SIZE(qcsc_info_table);
+	for (int i = 0; i < limit; i++)
+	{
+		if (ci[i].cs == cs)
+		{
+			int idx = (i + 1) % limit;
+			return ci + idx;
+		}
+	}
+
+	return nullptr;
+}
+
 const char *image_find_cs_name(struct qcsc_info *ci, int cs)
 {
 	unsigned int i;

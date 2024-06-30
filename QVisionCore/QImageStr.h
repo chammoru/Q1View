@@ -12,6 +12,7 @@ int image_parse_arg(char* str, double* num, const char* key);
 
 const struct qcsc_info* const image_find_cs(const struct qcsc_info* ci,
 	const char* name);
+const struct qcsc_info* const image_next_cs(const struct qcsc_info* const ci, int cs);
 void image_sort_cs(struct qcsc_info* ci);
 const char* image_find_cs_name(struct qcsc_info* ci, int cs);
 
