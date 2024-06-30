@@ -407,15 +407,7 @@ void CMainFrame::OnCsChange(UINT nID)
 	if (ci->cs == pDoc->mColorSpace)
 		return;
 
-	UpdateCsLabel(str.MakeUpper());
-	CheckCsRadio(ci->cs);
-
-	pDoc->mColorSpace = ci->cs;
-	pDoc->mCsc2Rgb888 = ci->csc2rgb888;
-	pDoc->mCsLoadInfo = ci->cs_load_info;
-	pDoc->mCsSetPixelStr = ci->cs_set_pixel_str;
-
-	RefreshView();
+	UpdateCs(ci);
 }
 
 void CMainFrame::OnFpsChange(UINT nID)
@@ -591,4 +583,19 @@ void CMainFrame::OnEditPaste()
 	UpdateMagnication(pView->mN, pView->mWDst, pView->mHDst);
 
 	Invalidate(FALSE);
+}
+
+void CMainFrame::UpdateCs(const struct qcsc_info* const ci)
+{
+	CViewerDoc* pDoc = static_cast<CViewerDoc*>(GetActiveDocument());
+
+	UpdateCsLabel(CString(ci->name).MakeUpper());
+	CheckCsRadio(ci->cs);
+
+	pDoc->mColorSpace = ci->cs;
+	pDoc->mCsc2Rgb888 = ci->csc2rgb888;
+	pDoc->mCsLoadInfo = ci->cs_load_info;
+	pDoc->mCsSetPixelStr = ci->cs_set_pixel_str;
+
+	RefreshView();
 }

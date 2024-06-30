@@ -62,4 +62,5 @@ public:
 	virtual void ActivateFrame(int nCmdShow = -1);
 	afx_msg void OnEditCopy();
 	afx_msg void OnEditPaste();
+	void UpdateCs(const struct qcsc_info* const ci);
 };

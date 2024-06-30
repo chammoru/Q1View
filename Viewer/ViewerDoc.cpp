@@ -640,3 +640,9 @@ void CViewerDoc::SetPixelString(int viewX, int viewY, int base, char* strBuf)
 
 	mCsSetPixelStr(mOrigBuf, imgW, imgH, imgX, imgY, base, strBuf);
 }
+
+void CViewerDoc::NextCs()
+{
+	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
+	pMainFrm->UpdateCs(q1::image_next_cs(qcsc_info_table, mColorSpace));
+}

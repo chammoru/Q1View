@@ -602,11 +602,10 @@ void CViewerView::DrawHelpMenu(CDC *pDC)
 	pDC->SelectObject(&manualFont);
 	pDC->SetTextColor(RGB(0x00, 0x00, 0x00));
 	CString manual(
-		"Viewer, Version 1.0, Copyright (C) 2018 by Kyuwon Kim\n"
-		"Show or save compressed and raw images\n"
+		"Viewer, Copyright (C) 2018 by Kyuwon Kim\n"
 		"\n"
 		"?            : This help menu\n"
-		"Drag && Drop  : Show an image\n"
+		"Drag && Drop : Show an image\n"
 		"Mouse Wheel  : Zoom in/out (x40 shows RGB values)\n"
 		"Return       : Full screen\n"
 		"H            : RGB value in hexadecimal\n"
@@ -626,6 +625,7 @@ void CViewerView::DrawHelpMenu(CDC *pDC)
 		"C            : Show cursor coordinates\n"
 		"B            : Show size of selected boxes\n"
 		"I            : Interpolate pixel values\n"
+		"N            : Switche to the next color space\n"
 		);
 	pDC->DrawText(manual, &manualRect, DT_LEFT | DT_TOP);
 }
@@ -1343,12 +1343,12 @@ void CViewerView::ToggleHelp()
 
 void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
-	// to regardless of doc state
+	// regardless of document state, handle certain keys
 	switch (nChar) {
-	case VK_RETURN: // handle full-screen order
+	case VK_RETURN:
 		ToggleFullScreen();
 		goto OnKeyDefault;
-	case VK_OEM_2: // '/?' for US
+	case VK_OEM_2: // '?/' key (US keyboard)
 		ToggleHelp();
 		goto OnKeyDefault;
 	case 'S':
@@ -1429,6 +1429,9 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	case 'B':
 		mShowBoxInfo = !mShowBoxInfo;
 		break;
+	case 'N':
+		pDoc->NextCs();
+		break;
 	case VK_PRIOR:
 	case VK_NEXT:
 		if (mIsPlaying)
@@ -1437,8 +1440,8 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		break;
 	}
 
-	// Once a key is pressed, update all views any way.
-	// This scheme makes code prettier.
+	// Once a key is pressed, update all views regardless of the specific key
+	// This scheme makes the code prettier
 	mKeyProcessing = true;
 	Invalidate(FALSE);
 

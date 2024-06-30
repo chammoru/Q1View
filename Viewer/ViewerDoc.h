@@ -134,4 +134,5 @@ public:
 	virtual BOOL DoSave(LPCTSTR lpszPathName, BOOL bReplace = TRUE);
 	virtual void SetPathName(LPCTSTR lpszPathName, BOOL bAddToMRU = TRUE);
 	void SetPixelString(int viewX, int viewY, int base, char* strBuf);
+	void NextCs();
 };
