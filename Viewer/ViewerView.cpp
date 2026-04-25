@@ -602,7 +602,8 @@ void CViewerView::DrawHelpMenu(CDC *pDC)
 	pDC->SelectObject(&manualFont);
 	pDC->SetTextColor(RGB(0x00, 0x00, 0x00));
 	CString manual(
-		"Viewer, Copyright (C) 2018 by Kyuwon Kim\n"
+		"Viewer, Copyright (C) 2018 by Kyuwon Kim.\n"
+		"        Modified in 2026 by KyungIl Lee.\n"
 		"\n"
 		"?            : This help menu\n"
 		"Drag && Drop : Show an image\n"

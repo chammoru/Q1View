@@ -16,8 +16,10 @@ typedef enum _QIMAGE_CS
 	QIMAGE_CS_NV12,
 	QIMAGE_CS_NV12_T256X16,
 	QIMAGE_CS_NV21,
-	QIMAGE_CS_YUV420P10,
+	QIMAGE_CS_YUV420P10LE,
+	QIMAGE_CS_YUV422P10LE,
 	QIMAGE_CS_P010,
+	QIMAGE_CS_P210,
 
 	QIMAGE_CS_RGB = 0x20000000,
 	QIMAGE_CS_GRAYSCALE,
@@ -64,8 +66,10 @@ int qimage_abgr2101010_load_info(int w, int h, int* bufoff2, int* bufoff3);
 int qimage_rgb16u_load_info(int w, int h, int* bufoff2, int* bufoff3);
 int qimage_t256x16_load_info(int w, int h, int *bufoff2, int *bufoff3);
 int qimage_grayscale_load_info(int w, int h, int *bufoff2, int *bufoff3);
-int qimage_yuv420p10_load_info(int w, int h, int *buffoff2, int *bufoff3);
+int qimage_yuv420p10le_load_info(int w, int h, int *buffoff2, int *bufoff3);
+int qimage_yuv422p10le_load_info(int w, int h, int* buffoff2, int* bufoff3);
 int qimage_p010_load_info(int w, int h, int *buffoff2, int *bufoff3);
+int qimage_p210_load_info(int w, int h, int* buffoff2, int* bufoff3);
 
 void qimage_yuv420_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 							 int s_bgr, int w, int h);
@@ -91,10 +95,14 @@ void qimage_t256x16_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 							  int s_bgr, int w, int h);
 void qimage_grayscale_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 							 int s_bgr, int w, int h);
-void qimage_yuv420p10_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
+void qimage_yuv420p10le_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 						   int s_bgr, int w, int h);
+void qimage_yuv422p10le_to_bgr888(qu8* bgr, qu8* y, qu8* u, qu8* v,
+	int s_bgr, int w, int h);
 void qimage_p010_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 						   int s_bgr, int w, int h);
+void qimage_p210_to_bgr888(qu8* bgr, qu8* y, qu8* u, qu8* v,
+	int s_bgr, int w, int h);
 
 void qimage_nv12_to_420(qu8 *yuv, qu8 *y, qu8 *u, qu8 *v,
 						int n1, int w, int h);
@@ -111,6 +119,8 @@ void qimage_yuv420_set_pixel_str(qu8 *src, int w, int h,
                                  int x, int y, int base, char *str);
 void qimage_p010_set_pixel_str(qu8* src, int w, int h,
                                int x, int y, int base, char* str);
+void qimage_p210_set_pixel_str(qu8* src, int w, int h,
+							   int x, int y, int base, char* str);
 void qimage_abgr2101010_set_pixel_str(qu8* src, int w, int h,
                                       int x, int y, int base, char* str);
 
@@ -149,10 +159,10 @@ static const struct qcsc_info qcsc_info_table[] =
 		NULL,
 	},
 	{
-		QIMAGE_CS_YUV420P10,
-		"yuv420p10",
-		qimage_yuv420p10_load_info,
-		qimage_yuv420p10_to_bgr888,
+		QIMAGE_CS_YUV420P10LE,
+		"yuv420p10le",
+		qimage_yuv420p10le_load_info,
+		qimage_yuv420p10le_to_bgr888,
 		NULL,
 		NULL,
 	},
@@ -165,7 +175,22 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_p010_set_pixel_str,
 	},
 	/* ... add more yuv colors */
-
+	{
+		QIMAGE_CS_P210,
+		"p210",
+		qimage_p210_load_info,
+		qimage_p210_to_bgr888,
+		NULL,
+		qimage_p210_set_pixel_str,
+	},
+	{
+		QIMAGE_CS_YUV422P10LE,
+		"yuv422p10le",
+		qimage_yuv422p10le_load_info,
+		qimage_yuv422p10le_to_bgr888,
+		NULL,
+		NULL,
+	},
 	{
 		QIMAGE_CS_GRAYSCALE,
 		"grayscale",
