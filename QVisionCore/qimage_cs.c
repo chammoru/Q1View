@@ -666,7 +666,7 @@ void qimage_grayscale_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 	}
 }
 
-int qimage_yuv420p10_load_info(int w, int h, int *bufoff2, int *bufoff3)
+int qimage_yuv420p10le_load_info(int w, int h, int *bufoff2, int *bufoff3)
 {
 	int chroma_size = (((w + 1) >> 1) * ((h + 1) >> 1)) << 1;
 	int luma_size = (w * h) << 1;
@@ -681,7 +681,22 @@ int qimage_yuv420p10_load_info(int w, int h, int *bufoff2, int *bufoff3)
 	return scene_size;
 }
 
-void qimage_yuv420p10_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
+int qimage_yuv422p10le_load_info(int w, int h, int* bufoff2, int* bufoff3)
+{
+	int chroma_size = (((w + 1) >> 1) * h) << 1;
+	int luma_size = (w * h) << 1;
+	int scene_size = luma_size + (chroma_size << 1);
+
+	if (bufoff2)
+		*bufoff2 = luma_size;
+
+	if (bufoff3)
+		*bufoff3 = chroma_size + luma_size;
+
+	return scene_size;
+}
+
+void qimage_yuv420p10le_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 								int s_bgr, int w, int h)
 {
 	int i, j;
@@ -739,9 +754,82 @@ void qimage_yuv420p10_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 	}
 }
 
+void qimage_yuv422p10le_to_bgr888(qu8* bgr, qu8* y, qu8* u, qu8* v,
+	int s_bgr, int w, int h)
+{
+	int i, j;
+	int c, d, e;
+	int r, g, b;
+	qu16* y2, * u2, * v2;
+	qu16* cy, * cu, * cv;
+	qu8 y3, u3, v3;
+	int gap;
+
+	y2 = (qu16*)y;
+	u2 = (qu16*)u;
+	v2 = (qu16*)v;
+
+	gap = (s_bgr - ROUNDUP_EVEN(w)) * 3;
+
+	for (i = 0; i < h; i++)
+	{
+		cy = y2 + i * w;
+		cu = u2 + i * (w >> 1);
+		cv = v2 + i * (w >> 1);
+
+		for (j = 0; j < w; j += 2)
+		{
+			y3 = *cy++ >> 2;
+			u3 = *cu++ >> 2;
+			v3 = *cv++ >> 2;
+
+			c = (y3 - 16) * 298;
+			d = u3 - 128;
+			e = v3 - 128;
+
+			r = c + 409 * e + 128;
+			g = c - 100 * d - 208 * e + 128;
+			b = c + 516 * d + 128;
+
+			*bgr++ = SAT_S32_TO_U8(b >> 8);
+			*bgr++ = SAT_S32_TO_U8(g >> 8);
+			*bgr++ = SAT_S32_TO_U8(r >> 8);
+
+			y3 = *cy++ >> 2;
+
+			c = (y3 - 16) * 298 - c;
+
+			r += c;
+			g += c;
+			b += c;
+
+			*bgr++ = SAT_S32_TO_U8(b >> 8);
+			*bgr++ = SAT_S32_TO_U8(g >> 8);
+			*bgr++ = SAT_S32_TO_U8(r >> 8);
+		}
+
+		bgr += gap;
+	}
+}
+
 int qimage_p010_load_info(int w, int h, int *bufoff2, int *bufoff3)
 {
 	int chroma_size = (((w + 1) >> 1) * ((h + 1) >> 1)) << 1;
+	int luma_size = (w * h) << 1;
+	int scene_size = luma_size + (chroma_size << 1);
+
+	if (bufoff2)
+		*bufoff2 = luma_size;
+
+	if (bufoff3)
+		*bufoff3 = 0;
+
+	return scene_size;
+}
+
+int qimage_p210_load_info(int w, int h, int* bufoff2, int* bufoff3)
+{
+	int chroma_size = (((w + 1) >> 1) * h) << 1;
 	int luma_size = (w * h) << 1;
 	int scene_size = luma_size + (chroma_size << 1);
 
@@ -792,6 +880,66 @@ void qimage_p010_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 			b = c + 516 * d           + 128;
 			g = c - 100 * d - 208 * e + 128;
 			r = c           + 409 * e + 128;
+
+			*bgr++ = SAT_S32_TO_U8(b >> 8);
+			*bgr++ = SAT_S32_TO_U8(g >> 8);
+			*bgr++ = SAT_S32_TO_U8(r >> 8);
+
+			y3 = *cy++ >> 8;
+
+			c = (y3 - 16) * 298 - c;
+
+			b += c;
+			g += c;
+			r += c;
+
+			*bgr++ = SAT_S32_TO_U8(b >> 8);
+			*bgr++ = SAT_S32_TO_U8(g >> 8);
+			*bgr++ = SAT_S32_TO_U8(r >> 8);
+		}
+
+		bgr += gap;
+	}
+}
+
+void qimage_p210_to_bgr888(qu8* bgr, qu8* y, qu8* u, qu8* v,
+	int s_bgr, int w, int h)
+{
+	int i, j;
+	int c, d, e;
+	int r, g, b;
+	qu16* y2, * u2;
+	qu16* cy, * cu, * cv;
+	qu8 y3, u3, v3;
+	int gap;
+
+	y2 = (qu16*)y;
+	u2 = (qu16*)u;
+
+	gap = (s_bgr - ROUNDUP_EVEN(w)) * 3;
+
+	for (i = 0; i < h; i++)
+	{
+		cy = y2 + i * w;
+		cu = u2 + i * w;
+		cv = cu + 1;
+
+		for (j = 0; j < w; j += 2) // assume even width
+		{
+			y3 = *cy++ >> 8;
+			u3 = *cu >> 8;
+			v3 = *cv >> 8;
+
+			c = (y3 - 16) * 298;
+			d = u3 - 128;
+			e = v3 - 128;
+
+			cu += 2;
+			cv += 2;
+
+			b = c + 516 * d + 128;
+			g = c - 100 * d - 208 * e + 128;
+			r = c + 409 * e + 128;
 
 			*bgr++ = SAT_S32_TO_U8(b >> 8);
 			*bgr++ = SAT_S32_TO_U8(g >> 8);
@@ -920,6 +1068,35 @@ void qimage_p010_set_pixel_str(qu8* src, int w, int h,
 	if (base == 16) {
 		sprintf(str, "%03X\n%03X\n%03X", y_val, u_val, v_val);
 	} else {
+		sprintf(str, "%04d\n%04d\n%04d", y_val, u_val, v_val);
+	}
+}
+
+void qimage_p210_set_pixel_str(qu8* src, int w, int h,
+	int x, int y, int base, char* str)
+{
+	int luma_size = w * h;
+	int x_chroma = ROUNDDOWN_EVEN(x);
+	int y_chroma = y;
+
+	qu16* luma_plane = (qu16*)src;
+	qu16 y_val = luma_plane[w * y + x];
+
+	qu16* chroma_plane = luma_plane + luma_size;
+	qu16* chroma_point = chroma_plane + ROUNDUP_EVEN(w) * y_chroma + x_chroma;
+	qu16 u_val = *chroma_point++;
+	qu16 v_val = *chroma_point;
+
+	// https://learn.microsoft.com/en-us/windows/win32/medfound/10-bit-and-16-bit-yuv-video-formats
+	// The lowest 6 bits are zero
+	y_val >>= 6;
+	u_val >>= 6;
+	v_val >>= 6;
+
+	if (base == 16) {
+		sprintf(str, "%03X\n%03X\n%03X", y_val, u_val, v_val);
+	}
+	else {
 		sprintf(str, "%04d\n%04d\n%04d", y_val, u_val, v_val);
 	}
 }
