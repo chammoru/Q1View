@@ -45,6 +45,7 @@ public:
 		pDoc->mColorSpace = QIMAGE_CS_BGR888;
 		pDoc->mCsc2Rgb888 = qimage_bgr888_to_bgr888;
 		pDoc->mCsLoadInfo = qimage_rgb888_load_info;
+		pDoc->mCsSetPixelStr = nullptr;
 
 		pDoc->mFps = mVidCap.get(cv::CAP_PROP_FPS);
 	}
