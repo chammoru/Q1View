@@ -48,3 +48,4 @@
 ## Known issues
 - Only even width are supported for YUV formats
 - ASCII file names are only allowed
+- FileChangeNotiThread shares mFrame and mPathName between the UI thread and its worker thread without synchronization
