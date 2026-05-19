@@ -21,6 +21,17 @@ RawFrmSrc::~RawFrmSrc()
 	Release();
 }
 
+static const struct qcsc_info* findColorSpaceById(
+	const struct qcsc_info* sortedCscInfo, QIMAGE_CS colorSpace)
+{
+	for (int i = 0; i < ARRAY_SIZE(qcsc_info_table); i++) {
+		if (sortedCscInfo[i].cs == colorSpace)
+			return sortedCscInfo + i;
+	}
+
+	return nullptr;
+}
+
 bool RawFrmSrc::Open(const CString& filePath, const struct qcsc_info* sortedCscInfo,
 	int srcW, int srcH, int dstW, int dstH)
 {
@@ -39,6 +50,16 @@ bool RawFrmSrc::Open(const CString& filePath, const struct qcsc_info* sortedCscI
 	mDstH = dstH;
 
 	mSrcCscInfo = GetColorSpace(filePath, sortedCscInfo, false);
+	if (mSrcCscInfo == nullptr) {
+		LOGWRN("color space is not found; use current color space");
+		mSrcCscInfo = findColorSpaceById(sortedCscInfo, mPane->colorSpace);
+	}
+	if (mSrcCscInfo == nullptr) {
+		LOGERR("current color space is invalid");
+		Release();
+		return false;
+	}
+
 	mOrigSceneSize = mSrcCscInfo->cs_load_info(mSrcW, mSrcH, nullptr, nullptr);
 
 	if ((mSrcW != mDstW || mSrcH != mDstH) && mOrigSceneSize > mResizeSceneSize) {
