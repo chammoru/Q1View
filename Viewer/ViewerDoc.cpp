@@ -73,6 +73,7 @@ CViewerDoc::CViewerDoc()
 	// ADD MORE FRAME SOURCES, IF NEEDED
 	mFrmSrcs.push_back(new MatFrmSrc(this));
 	mFrmSrcs.push_back(new VidCapFrmSrc(this));
+	// Keep RawFrmSrc last: it is the fallback for any readable byte stream.
 	mFrmSrcs.push_back(new RawFrmSrc(this));
 }
 
@@ -391,6 +392,7 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 			break;
 		}
 	}
+	// If this fires, even the raw fallback could not open the file.
 	ASSERT(it != std::end(mFrmSrcs));
 
 	mFileChangeNotiThread->fire(pMainFrm, mPathName);
