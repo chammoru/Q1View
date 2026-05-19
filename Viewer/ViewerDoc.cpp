@@ -140,8 +140,10 @@ bool CViewerDoc::QueueSource2View()
 
 	// mOrigBuf may not be DWORD-aligned
 	bool ok = mFrmSrc->LoadOrigBuf(this, mOrigBuf);
-	if (!ok)
+	if (!ok) {
+		mBufferPool->turn_back(RGB);
 		return false;
+	}
 
 	BufferInfo bi = PostProcess(mColorSpace, mBgr888Processor, w, h,
 		mOrigBuf, RGB, mBufOffset2, mBufOffset3, mRot, mCsc2Rgb888, mCurFrameID);
