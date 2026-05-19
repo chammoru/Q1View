@@ -404,6 +404,14 @@ BOOL CComparerDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 
 	int numOfFiles = (int)filenames.size();
+	if (numOfFiles > IMG_VIEW_MAX) {
+		pMainFrm->MessageBox(
+			_T("Comparer supports up to 4 files.\nPlease select 4 files or fewer."),
+			_T("Too many files"),
+			MB_ICONWARNING | MB_OK);
+		return FALSE;
+	}
+
 	if (numOfFiles > pMainFrm->mNumOfViews) {
 		pMainFrm->ChangeNumOfViews(numOfFiles);
 	}
