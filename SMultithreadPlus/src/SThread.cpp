@@ -172,11 +172,16 @@ static bool doCreateThread(thread_func_t fn, void* arg, thread_id_t *id)
 	unsigned int thrdaddr;
 	hThread = (HANDLE)_beginthreadex(NULL, 0, threadIntermediary, pDetails, 0,
 		&thrdaddr);
-	QASSERT_R(hThread != 0, false);
+	if (hThread == 0) {
+		delete pDetails;
+		return false;
+	}
 
 	if (id != NULL) {
 		*id = (thread_id_t)(uint64_t)thrdaddr;
 	}
+
+	CloseHandle(hThread);
 
 	return true;
 }
