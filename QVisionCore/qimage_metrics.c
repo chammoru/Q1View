@@ -121,6 +121,9 @@ double qSSIM(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w)
 	int nW = w - SIZE_N + 1;
 	int nH = h - SIZE_N + 1;
 
+	if (nW <= 0 || nH <= 0)
+		return 0.0;
+
 	// SIZE_N x SIZE_N linear sliding window
 	// My implementation of SSIM is certainly inefficient,
 	// but it gives values and is easy to understand.
