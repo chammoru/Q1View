@@ -227,6 +227,7 @@ public:
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnRButtonUp(UINT nFlags, CPoint point);
+	afx_msg LRESULT OnPlayTimer(WPARAM wParam, LPARAM lParam);
 };
 
 #ifndef _DEBUG  // debug version in ViewerView.cpp

@@ -31,6 +31,8 @@
 
 const bool printPlaySpeed = false;
 
+#define WM_VIEWER_PLAY_TIMER (WM_APP + 1)
+
 enum QMouseMenuID
 {
 	QMouseMenuStart = 0x10000000,
@@ -65,6 +67,7 @@ BEGIN_MESSAGE_MAP(CViewerView, CView)
 	ON_WM_SIZE()
 	ON_WM_SETCURSOR()
 	ON_WM_RBUTTONUP()
+	ON_MESSAGE(WM_VIEWER_PLAY_TIMER, CViewerView::OnPlayTimer)
 END_MESSAGE_MAP()
 
 // CViewerView construction/destruction
@@ -344,24 +347,28 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 	}
 }
 
-// this function works in a different thread, be careful of mutual exclusion
+// Multimedia timer callbacks run outside the UI thread.
 static void CALLBACK PlayTimerThread(UINT uID, UINT uMsg, DWORD_PTR dwUser,
 		DWORD_PTR dw1, DWORD_PTR dw2)
 {
 	CViewerView *pView = reinterpret_cast<CViewerView *>(dwUser);
-
-	if (!pView->mIsPlaying)
-		return;
-
 	BufferInfo bi = {0, };
-	SSafeCQ<BufferInfo> *pBufferQueue = pView->mBufferQueue;
 
-	bool ok = pBufferQueue->try_pop(bi);
+	bool ok = pView->mBufferQueue->try_pop(bi);
 	if (ok) {
-		SSafeCQ<BufferInfo> *newBuffer1Q = pView->mNewRgbBufferInfoQ;
-		newBuffer1Q->push(bi);
-		pView->Invalidate(FALSE);
+		ok = pView->mNewRgbBufferInfoQ->push(bi);
+		if (ok) {
+			::PostMessage(pView->m_hWnd, WM_VIEWER_PLAY_TIMER, 0, 0);
+		} else if (bi.addr) {
+			pView->mBufferPool->turn_back(bi.addr);
+		}
 	}
+}
+
+LRESULT CViewerView::OnPlayTimer(WPARAM wParam, LPARAM lParam)
+{
+	Invalidate(FALSE);
+	return 0;
 }
 
 void CViewerView::SetPlayTimer(CViewerDoc* pDoc)
@@ -381,7 +388,7 @@ void CViewerView::SetPlayTimer(CViewerDoc* pDoc)
 		(DWORD_PTR)this, TIME_PERIODIC);
 }
 
-// can be also called by the timer thread
+// Timer callbacks post to the UI thread before this can be called.
 void CViewerView::KillPlayTimer()
 {
 	if (!mIsPlaying)
