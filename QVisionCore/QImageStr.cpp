@@ -103,10 +103,9 @@ int image_parse_arg(char *str, int *num, const char *key)
 
     ptr = str;
 
-    do
+    while ((tmp = strstr(ptr, key)) != NULL)
     {
-        tmp = strstr(ptr, key);
-        if (tmp == NULL || tmp == str || !isdigit((int)tmp[-1]))
+        if (tmp == str || !isdigit((int)tmp[-1]))
             goto find_next;
 
         tmp--;
@@ -119,8 +118,8 @@ int image_parse_arg(char *str, int *num, const char *key)
         return 0; /* found */
 
 find_next:
-        ptr = tmp + 2;
-    } while (tmp);
+        ptr = tmp + 1;
+    }
 
     return 1; /* couldn't find */
 }
@@ -131,11 +130,11 @@ int image_parse_arg(char* str, double* num, const char* key)
 
 	ptr = str;
 
-	do
+	while ((tmp = strstr(ptr, key)) != NULL)
 	{
 		std::string str;
-		const char *ref = tmp = strstr(ptr, key);
-		if (tmp == NULL || tmp == str || !isdouble((int)tmp[-1]))
+		const char *ref = tmp;
+		if (tmp == str || !isdouble((int)tmp[-1]))
 			goto find_next;
 
 		tmp--;
@@ -151,8 +150,8 @@ int image_parse_arg(char* str, double* num, const char* key)
 		return 0; /* found */
 
 find_next:
-		ptr = tmp + 2;
-	} while (tmp);
+		ptr = tmp + 1;
+	}
 
 	return 1; /* couldn't find */
 }
