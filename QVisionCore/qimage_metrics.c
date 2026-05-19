@@ -3,7 +3,7 @@
 double qPSNR(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w)
 {
 	int i, j;
-	qu32 sum_dxd = 0;
+	qu64 sum_dxd = 0;
 	double MSE, PMSE;
 	const int MAXi = 255; 
 	int margin = (stride - w) * px_w;
@@ -15,14 +15,14 @@ double qPSNR(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w)
 			src += px_w;
 			dst += px_w;
 
-			sum_dxd += d * d;
+			sum_dxd += (qu64)(d * d);
 		}
 
 		src += margin;
 		dst += margin;
 	}
 
-	MSE = (double)sum_dxd / (w * h);
+	MSE = (double)sum_dxd / ((double)w * h);
 	PMSE = MSE / (MAXi * MAXi);
 
 	return -10 * log10(PMSE);

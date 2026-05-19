@@ -16,6 +16,7 @@
 typedef unsigned char  qu8;
 typedef unsigned short qu16;
 typedef unsigned int   qu32;
+typedef unsigned long long qu64;
 
 #include <string.h>
 #define QSWAP(x, y)        do {                                    \
