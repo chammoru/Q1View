@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "FileFinderThread.h"
+#include "QCvUtil.h"
 
 FileFinderThread::FileFinderThread(SBufferPool * pBufferPool,
 								 SSafeCQ<BufferInfo> *pBufferQueue,
@@ -68,10 +69,9 @@ bool FileFinderThread::loadOrigBuf(long frameID, BYTE *buf)
 	if (candidate == _T(""))
 		return false;
 
-	std::string str = CT2A(candidate);
 	// We cannot know the cols and rows unless imreading.
 	// I want to remove the 'copyTo' by just parsing the file
-	mOcvMat = cv::imread(str);
+	mOcvMat = q1::imreadW(candidate.GetString());
 	if (mOcvMat.data == NULL || mOcvMat.cols != mW || mOcvMat.rows != mH)
 		return false;
 

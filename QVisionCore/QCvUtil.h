@@ -2,11 +2,18 @@
 #define __CVUTIL_H__
 
 #include <opencv2/core/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+
+#include <string>
+#include <vector>
 
 namespace q1 {
 
 bool matWrite(const std::string &filename, const cv::Mat &M);
 bool matRead(const std::string &filename, cv::Mat &M);
+cv::Mat imreadW(const std::wstring &filename, int flags = cv::IMREAD_COLOR);
+bool imwriteW(const std::wstring &filename, const cv::Mat &img,
+			  const std::vector<int> &params = std::vector<int>());
 
 double calIoU(const cv::Vec4i &bb, const cv::Vec4i &bbgt);
 void putTxtW(cv::Mat &img, const std::string &msg, const cv::Point &loc,

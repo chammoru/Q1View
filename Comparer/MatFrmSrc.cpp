@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "MatFrmSrc.h"
 #include "QImageStr.h"
+#include "QCvUtil.h"
 #include "ComparerPane.h"
 
 using namespace cv;
@@ -15,8 +16,7 @@ MatFrmSrc::~MatFrmSrc()
 bool MatFrmSrc::Open(const CString& filePath, const struct qcsc_info* sortedCscInfo,
 	int srcW, int srcH, int dstW, int dstH)
 {
-	String str = CT2A(filePath.GetString());
-	mOcvMat = imread(str);
+	mOcvMat = q1::imreadW(filePath.GetString());
 	bool success = mOcvMat.data != NULL;
 	if (success && (mOcvMat.cols != dstW || mOcvMat.rows != dstH)) {
 		resize(mOcvMat, mOcvMat, Size(dstW, dstH));
@@ -37,8 +37,7 @@ void MatFrmSrc::Release()
 
 bool MatFrmSrc::GetResolution(CString &pathName, int* w, int* h)
 {
-	String str = CT2A(pathName.GetString());
-	Mat ocvMat = imread(str);
+	Mat ocvMat = q1::imreadW(pathName.GetString());
 	if (ocvMat.data == NULL)
 		return false;
 
@@ -52,8 +51,7 @@ bool MatFrmSrc::GetResolution(CString &pathName, int* w, int* h)
 const struct qcsc_info* MatFrmSrc::GetColorSpace(const CString &pathName,
 		const struct qcsc_info* sortedCscInfo, bool doReisze)
 {
-	String str = CT2A(pathName.GetString());
-	Mat ocvMat = imread(str);
+	Mat ocvMat = q1::imreadW(pathName.GetString());
 	if (ocvMat.data == NULL)
 		return NULL;
 

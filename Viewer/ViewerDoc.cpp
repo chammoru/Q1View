@@ -407,7 +407,7 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	return TRUE;
 }
 
-static BOOL OpenCfileForWriting(const string &pathName, CFile &wFile)
+static BOOL OpenCfileForWriting(const wstring &pathName, CFile &wFile)
 {
 	CFileException e;
 	BOOL ok = wFile.Open(CString(pathName.c_str()),
@@ -420,12 +420,21 @@ static BOOL OpenCfileForWriting(const string &pathName, CFile &wFile)
 	return TRUE;
 }
 
-static BOOL WriteBgr888(const string &pathName, const cv::Mat &roi)
+static string NarrowAscii(const wstring &text)
+{
+	string narrow;
+	narrow.reserve(text.size());
+	for (wchar_t ch : text)
+		narrow.push_back(static_cast<char>(ch));
+	return narrow;
+}
+
+static BOOL WriteBgr888(const wstring &pathName, const cv::Mat &roi)
 {
 	CFile wFile;
 	BOOL ok = OpenCfileForWriting(pathName, wFile);
 	if (!ok) {
-		LOGERR("failed to open %s", pathName.c_str());
+		LOGERR("failed to open output file");
 		return FALSE;
 	}
 	const uchar *buf = roi.ptr<uchar>(0);
@@ -437,12 +446,12 @@ static BOOL WriteBgr888(const string &pathName, const cv::Mat &roi)
 	return TRUE;
 }
 
-static BOOL WriteRgba8888(const string& pathName, const cv::Mat& roi)
+static BOOL WriteRgba8888(const wstring& pathName, const cv::Mat& roi)
 {
 	CFile wFile;
 	BOOL ok = OpenCfileForWriting(pathName, wFile);
 	if (!ok) {
-		LOGERR("failed to open %s", pathName.c_str());
+		LOGERR("failed to open output file");
 		return FALSE;
 	}
 
@@ -458,7 +467,7 @@ static BOOL WriteRgba8888(const string& pathName, const cv::Mat& roi)
 	return TRUE;
 }
 
-static BOOL WriteNv21(const string &pathName, const cv::Mat &roi)
+static BOOL WriteNv21(const wstring &pathName, const cv::Mat &roi)
 {
 	int ySize = roi.cols * roi.rows;
 	int vuSize = ROUNDUP_EVEN(roi.cols) * ((roi.rows + 1) >> 1);
@@ -469,14 +478,14 @@ static BOOL WriteNv21(const string &pathName, const cv::Mat &roi)
 	CFile wFile;
 	BOOL ok = OpenCfileForWriting(pathName, wFile);
 	if (!ok) {
-		LOGERR("failed to open %s", pathName.c_str());
+		LOGERR("failed to open output file");
 		return FALSE;
 	}
 	wFile.Write(&nv21[0], nv21Size);
 	return TRUE;
 }
 
-static BOOL WriteYuv420(const string &pathName, const cv::Mat &roi)
+static BOOL WriteYuv420(const wstring &pathName, const cv::Mat &roi)
 {
 	int ySize = roi.cols * roi.rows;
 	int chromaSize = ((roi.cols + 1) >> 1) * ((roi.rows + 1) >> 1);
@@ -487,7 +496,7 @@ static BOOL WriteYuv420(const string &pathName, const cv::Mat &roi)
 	CFile wFile;
 	BOOL ok = OpenCfileForWriting(pathName, wFile);
 	if (!ok) {
-		LOGERR("failed to open %s", pathName.c_str());
+		LOGERR("failed to open output file");
 		return FALSE;
 	}
 	wFile.Write(&yuv420[0], yuv420Size);
@@ -495,16 +504,16 @@ static BOOL WriteYuv420(const string &pathName, const cv::Mat &roi)
 }
 
 // save compressed file using OpenCV
-static BOOL OcvWrite(const string &pathName, const cv::Mat &roi)
+static BOOL OcvWrite(const wstring &pathName, const cv::Mat &roi)
 {
-	bool ok = cv::imwrite(pathName, roi);
+	bool ok = q1::imwriteW(pathName, roi);
 	if (!ok)
 		return FALSE;
 
 	return TRUE;
 }
 
-typedef int (*write_func_t)(const string &pathName, const cv::Mat &roi);
+typedef int (*write_func_t)(const wstring &pathName, const cv::Mat &roi);
 
 struct ImageWriter
 {
@@ -520,8 +529,13 @@ BOOL CViewerDoc::OnSaveDocument(LPCTSTR lpszPathName)
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	CViewerView *pView = static_cast<CViewerView *>(pMainFrm->GetActiveView());
 
-	const string pathName = CT2A(CString(lpszPathName));
-	const string ext = pathName.substr(pathName.find_last_of(".") + 1); // extension
+	const wstring pathName = lpszPathName;
+	const size_t extPos = pathName.find_last_of(L".");
+	if (extPos == wstring::npos)
+		return FALSE;
+
+	wstring wext = pathName.substr(extPos + 1); // extension
+	string ext = NarrowAscii(wext);
 	const ImageWriter imageWriters[] = {
 		{"jpg",      OcvWrite},
 		{"png",      OcvWrite},

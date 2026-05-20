@@ -5,6 +5,7 @@
 
 #include <opencv2/core/core.hpp>
 
+#include "QCvUtil.h"
 #include "FileFinderThread.h"
 
 class MatFrmSrc : public FrmSrc {
@@ -24,8 +25,7 @@ public:
 
 	virtual inline bool Open(CString &filePath)
 	{
-		cv::String str = CT2A(filePath.GetString());
-		mOcvMat = cv::imread(str);
+		mOcvMat = q1::imreadW(filePath.GetString());
 		return mOcvMat.data != NULL;
 	}
 

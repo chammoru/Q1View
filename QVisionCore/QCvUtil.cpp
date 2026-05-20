@@ -2,10 +2,85 @@
 #include <QCommon.h>
 #include "QCvUtil.h"
 
+#include <cstdio>
+
 using namespace std;
 using namespace cv;
 
 namespace q1 {
+
+static string narrowAscii(const wstring &text)
+{
+	string narrow;
+	narrow.reserve(text.size());
+	for (wchar_t ch : text)
+		narrow.push_back(static_cast<char>(ch));
+	return narrow;
+}
+
+static bool readFileW(const wstring &filename, vector<uchar> &data)
+{
+#ifdef _WIN32
+	FILE *file = _wfopen(filename.c_str(), L"rb");
+#else
+	string filenameA = narrowAscii(filename);
+	FILE *file = fopen(filenameA.c_str(), "rb");
+#endif
+	if (file == NULL)
+		return false;
+
+#ifdef _WIN32
+	if (_fseeki64(file, 0, SEEK_END) != 0) {
+		fclose(file);
+		return false;
+	}
+
+	__int64 fileSize = _ftelli64(file);
+#else
+	if (fseek(file, 0, SEEK_END) != 0) {
+		fclose(file);
+		return false;
+	}
+
+	long fileSize = ftell(file);
+#endif
+	if (fileSize <= 0) {
+		fclose(file);
+		return false;
+	}
+
+#ifdef _WIN32
+	if (_fseeki64(file, 0, SEEK_SET) != 0) {
+#else
+	if (fseek(file, 0, SEEK_SET) != 0) {
+#endif
+		fclose(file);
+		return false;
+	}
+
+	data.resize(static_cast<size_t>(fileSize));
+	size_t readSize = fread(&data[0], sizeof(uchar), data.size(), file);
+	fclose(file);
+
+	return readSize == data.size();
+}
+
+static bool writeFileW(const wstring &filename, const vector<uchar> &data)
+{
+#ifdef _WIN32
+	FILE *file = _wfopen(filename.c_str(), L"wb");
+#else
+	string filenameA = narrowAscii(filename);
+	FILE *file = fopen(filenameA.c_str(), "wb");
+#endif
+	if (file == NULL)
+		return false;
+
+	size_t writeSize = fwrite(&data[0], sizeof(uchar), data.size(), file);
+	fclose(file);
+
+	return writeSize == data.size();
+}
 
 bool matWrite(const string &filename, const Mat &M)
 {
@@ -48,6 +123,31 @@ bool matRead(const string &filename, Mat &M)
 	}
 	fclose(f);
 	return true;
+}
+
+Mat imreadW(const wstring &filename, int flags)
+{
+	vector<uchar> data;
+	if (!readFileW(filename, data))
+		return Mat();
+
+	return imdecode(data, flags);
+}
+
+bool imwriteW(const wstring &filename, const Mat &img, const vector<int> &params)
+{
+	size_t extPos = filename.find_last_of(L'.');
+	if (extPos == wstring::npos)
+		return false;
+
+	wstring wext = filename.substr(extPos);
+	string ext = narrowAscii(wext);
+
+	vector<uchar> data;
+	if (!imencode(ext, img, data, params))
+		return false;
+
+	return writeFileW(filename, data);
 }
 
 double calIoU(const Vec4i &bb, const Vec4i &bbgt)
