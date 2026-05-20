@@ -108,10 +108,12 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 	if (parseDone) {
 		CPen *prev = pDC->SelectObject(mDiffPen);
 		IFrmCmpStrategy *frmCmpStrategy = pDoc->mFrmCmpStrategy;
-		const FrmCmpInfo *frmCmpInfo = mFileScanThread->getFrmCmpInfo();
+		list<RLC> diffRLC[QPLANES];
 
-		frmCmpStrategy->FlagTotalDiffLine(frmCmpInfo[i].diffRLC, mDiffFlags, mPosLinesPerFrame);
-		DrawDiffPosLines(pDC, frameRect, mDiffFlags, mPosLinesPerFrame);
+		if (mFileScanThread->copyDiffRLC(i, diffRLC)) {
+			frmCmpStrategy->FlagTotalDiffLine(diffRLC, mDiffFlags, mPosLinesPerFrame);
+			DrawDiffPosLines(pDC, frameRect, mDiffFlags, mPosLinesPerFrame);
+		}
 		pDC->SelectObject(prev);
 	}
 
@@ -155,16 +157,10 @@ void CPosInfoView::DrawFrameRect(CDC* pDC, CRect *clipBox, int w)
 	int curBrush;
 	int preBrush = -1;
 
-	const FrmCmpInfo *frmCmpInfo = mFileScanThread->getFrmCmpInfo();
 	int minFrames = pDoc->mMinFrames;
 
 	for (int i = startFrameID; i <= endFrameID; i++) {
-		volatile bool parseDone;
-
-		if (i < minFrames && frmCmpInfo[i].mParseDone)
-			parseDone = true;
-		else
-			parseDone = false;
+		bool parseDone = i < minFrames && mFileScanThread->isFrameParsed(i);
 
 		DrawEachRect(pDC, paneL, &frameRectL, parseDone, curBrush, preBrush, i);
 		DrawEachRect(pDC, paneR, &frameRectR, parseDone, curBrush, preBrush, i);

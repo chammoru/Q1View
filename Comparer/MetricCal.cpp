@@ -1,7 +1,7 @@
 
 #include "stdafx.h"
 
-#include "FrmCmpInfo.h"
+#include "FileScanThread.h"
 #include "MetricCal.h"
 
 #include "QMath.h"
@@ -15,7 +15,7 @@ MetricCal::MetricCal()
 , mMaxValReal(mMaxVal)
 , mMinValUser(mMinValReal)
 , mMaxValUser(mMaxValReal)
-, mFrmCmpInfo(NULL)
+, mFileScanThread(NULL)
 , mStepCount(0)
 , mFrameIdx(0)
 , mAvgFont(new Font(&FontFamily(_T("Arial")), 9))
@@ -121,9 +121,9 @@ void MetricCal::Init()
 		mAccum[i] = 0.0f;
 }
 
-void MetricCal::Update(const FrmCmpInfo *frmCmpInfo, size_t stepCount)
+void MetricCal::Update(const FileScanThread *fileScanThread, size_t stepCount)
 {
-	mFrmCmpInfo = frmCmpInfo;
+	mFileScanThread = fileScanThread;
 	mStepCount = stepCount;
 
 	Init();
@@ -136,12 +136,11 @@ void MetricCal::CalMinMaxAccum()
 	double maxVal = mMaxValReal;
 
 	for (i = mFrameIdx; i < mStepCount; i++) {
-		const FrmCmpInfo *frmCmpInfo = mFrmCmpInfo + i;
+		double metrics[QPLANES];
 
-		if (!frmCmpInfo->mParseDone)
+		if (!mFileScanThread->copyMetrics(int(i), mMetricIdx, metrics))
 			break;
 
-		const double *metrics = frmCmpInfo->mMetrics[mMetricIdx];
 		double metric;
 		for (int j = 0; j < QPLANES; j++) {
 			metric = min(metrics[j], mMaxVal);
@@ -191,8 +190,10 @@ size_t MetricCal::CalculateCoords(CRect *graphRect, int metricIdx)
 		// record frame ID too
 		mShowID.push_back(frameID);
 
-		const FrmCmpInfo *frmCmpInfo = mFrmCmpInfo + frameID;
-		const double *metrics = frmCmpInfo->mMetrics[mMetricIdx];
+		double metrics[QPLANES];
+		if (!mFileScanThread->copyMetrics(int(frameID), mMetricIdx, metrics))
+			break;
+
 		double metric;
 		for (int j = 0; j < QPLANES; j++) {
 			metric = min(metrics[j], mMaxVal);

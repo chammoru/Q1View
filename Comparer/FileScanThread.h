@@ -1,14 +1,14 @@
 #pragma once
 
 #include "SThread.h"
+#include "SMutex.h"
 #include "qimage_cs.h"
 #include "QImageDiff.h"
 #include "ComparerPane.h"
 #include "ComparerDoc.h"
+#include "FrmCmpInfo.h"
 
 using namespace std;
-
-class FrmCmpInfo;
 
 class FileScanThread : public SThread
 {
@@ -16,6 +16,7 @@ class FileScanThread : public SThread
 	long mCurFrameID;
 	int mFrmCmpInfoSize;
 	FrmCmpInfo *mFrmCmpInfo;
+	mutable SMutex mFrmCmpInfoLock;
 	int mCurFrames;
 	SQPane mScanInfo[COMPARING_VIEWS_NUM];
 	IFrmCmpStrategy *mFrmCmpStrategy;
@@ -28,5 +29,8 @@ public:
 	virtual bool threadLoop();
 	void setup();
 	void deinit();
-	inline const FrmCmpInfo *getFrmCmpInfo() const { return mFrmCmpInfo; }
+	bool isFrameParsed(int frameID) const;
+	bool isScanComplete() const;
+	bool copyDiffRLC(int frameID, list<RLC> diffRLC[QPLANES]) const;
+	bool copyMetrics(int frameID, int metricIdx, double metrics[QPLANES]) const;
 };

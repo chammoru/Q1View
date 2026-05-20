@@ -10,7 +10,7 @@ using namespace Gdiplus;
 
 #include "FrmsInfoView.h"
 
-class FrmCmpInfo;
+class FileScanThread;
 
 class MetricCal
 {
@@ -23,7 +23,7 @@ class MetricCal
 	Pen *mLinePens[QPLANES];
 	SolidBrush *mDotBrushes[QPLANES];
 
-	const FrmCmpInfo *mFrmCmpInfo;
+	const FileScanThread *mFileScanThread;
 	size_t mStepCount;
 	size_t mFrameIdx;
 
@@ -52,7 +52,7 @@ public:
 	MetricCal();
 	~MetricCal();
 
-	void Update(const FrmCmpInfo *frmCmpInfo, size_t stepCount);
+	void Update(const FileScanThread *fileScanThread, size_t stepCount);
 	size_t CalculateCoords(CRect *graphRect, int metricIdx);
 
 	void DrawCmpResult(CDC* pDC, CFont *font) const;

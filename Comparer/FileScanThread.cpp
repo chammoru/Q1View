@@ -24,6 +24,8 @@ FileScanThread::~FileScanThread(void)
 void FileScanThread::setup()
 {
 	// NOTE: this delete should be here in the same thread of a caller
+	SMutex::Autolock lock(mFrmCmpInfoLock);
+
 	mCurFrames = mDoc->mMinFrames;
 	if (mCurFrames > mFrmCmpInfoSize) {
 		delete [] mFrmCmpInfo;
@@ -31,7 +33,10 @@ void FileScanThread::setup()
 		mFrmCmpInfoSize = mCurFrames;
 		mFrmCmpInfo = new FrmCmpInfo[mCurFrames];
 	} else {
-		deinit();
+		for (int i = 0; i < mCurFrames; i++) {
+			mFrmCmpInfo[i].mParseDone = false;
+			mFrmCmpInfo[i].deinit();
+		}
 	}
 }
 
@@ -82,10 +87,15 @@ bool FileScanThread::threadLoop()
 	SQPane *scanInfoL = &mScanInfo[CComparerDoc::IMG_VIEW_1];
 	SQPane *scanInfoR = &mScanInfo[CComparerDoc::IMG_VIEW_2];
 
-	double (*metrics)[QPLANES] = mFrmCmpInfo[mCurFrameID].mMetrics;
-	mFrmCmpStrategy->DiffNMetrics(scanInfoL, scanInfoR, metrics, mFrmCmpInfo[mCurFrameID].diffRLC);
+	FrmCmpInfo frmCmpInfo;
+	double (*metrics)[QPLANES] = frmCmpInfo.mMetrics;
+	mFrmCmpStrategy->DiffNMetrics(scanInfoL, scanInfoR, metrics, frmCmpInfo.diffRLC);
+	frmCmpInfo.mParseDone = true;
 
-	mFrmCmpInfo[mCurFrameID].mParseDone = true;
+	{
+		SMutex::Autolock lock(mFrmCmpInfoLock);
+		mFrmCmpInfo[mCurFrameID] = frmCmpInfo;
+	}
 	++mCurFrameID;
 	if (mCurFrameID >= mDoc->mMinFrames)
 		return false;
@@ -95,8 +105,56 @@ bool FileScanThread::threadLoop()
 
 void FileScanThread::deinit()
 {
+	SMutex::Autolock lock(mFrmCmpInfoLock);
+
 	for (int i = 0; i < mCurFrames; i++) {
 		mFrmCmpInfo[i].mParseDone = false;
 		mFrmCmpInfo[i].deinit();
 	}
+}
+
+bool FileScanThread::isFrameParsed(int frameID) const
+{
+	SMutex::Autolock lock(mFrmCmpInfoLock);
+
+	if (frameID < 0 || frameID >= mCurFrames)
+		return false;
+
+	return mFrmCmpInfo[frameID].mParseDone;
+}
+
+bool FileScanThread::isScanComplete() const
+{
+	SMutex::Autolock lock(mFrmCmpInfoLock);
+
+	if (mCurFrames <= 0)
+		return true;
+
+	return mFrmCmpInfo[mCurFrames - 1].mParseDone;
+}
+
+bool FileScanThread::copyDiffRLC(int frameID, list<RLC> diffRLC[QPLANES]) const
+{
+	SMutex::Autolock lock(mFrmCmpInfoLock);
+
+	if (frameID < 0 || frameID >= mCurFrames || !mFrmCmpInfo[frameID].mParseDone)
+		return false;
+
+	for (int i = 0; i < QPLANES; i++)
+		diffRLC[i] = mFrmCmpInfo[frameID].diffRLC[i];
+
+	return true;
+}
+
+bool FileScanThread::copyMetrics(int frameID, int metricIdx, double metrics[QPLANES]) const
+{
+	SMutex::Autolock lock(mFrmCmpInfoLock);
+
+	if (frameID < 0 || frameID >= mCurFrames || !mFrmCmpInfo[frameID].mParseDone)
+		return false;
+
+	for (int i = 0; i < QPLANES; i++)
+		metrics[i] = mFrmCmpInfo[frameID].mMetrics[metricIdx][i];
+
+	return true;
 }

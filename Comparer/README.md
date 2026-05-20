@@ -15,9 +15,9 @@
 - [ ] 이미지보는 배율을 바꾼 상태에서 새로운 이미지를 Drag&Drop으로 Open했을때 배율이 리셋되지 않아서 확대된 새 이미지가 보여지는 문제 (minor)
 
 ## Known issues
-- FileScanThread writes FrmCmpInfo while UI views read mParseDone, metrics, and diffRLC without synchronization
 
 # DONE
+- [x] Synchronize FileScanThread FrmCmpInfo access while UI views read parse state, metrics, and diff positions
 - [x] zoom in-out할때 exp() ratio 사용
 - [x] 축소하는 코드도 확대하는 코드와 같이 쓰도록
 - [x] 확대시 회색의 픽셀 boundary (grid) 보여주기

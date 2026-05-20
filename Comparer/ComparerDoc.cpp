@@ -302,8 +302,7 @@ void CComparerDoc::RefleshPaneImages(ComparerPane *pane, bool settingChanged)
 		mFileScanThread->setup(); // uses mMinFrames and frmCmpInfo is updated
 
 		MetricCal *psnrCal = mFrmsInfoView->mPsnrCal;
-		const FrmCmpInfo *frmCmpInfo = mFileScanThread->getFrmCmpInfo();
-		psnrCal->Update(frmCmpInfo, mMinFrames); // uses mMinFrames and frmCmpInfo
+		psnrCal->Update(mFileScanThread, mMinFrames); // uses mMinFrames and FileScanThread
 
 		mFileScanThread->run();
 

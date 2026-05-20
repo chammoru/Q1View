@@ -229,9 +229,7 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 
 	CPosInfoView *pPosInfoView;
 	CFrmsInfoView *pFrmsInfoView;
-	const FrmCmpInfo *frmCmpInfo;
 	FileScanThread *fileScanThread;
-	int lastIdx;
 
 	switch (nIDEvent) {
 	case CTI_ID_POS_INVALIDATE:
@@ -242,9 +240,7 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 		pFrmsInfoView->Invalidate(FALSE);
 
 		fileScanThread = pDoc->mFileScanThread;
-		frmCmpInfo = fileScanThread->getFrmCmpInfo();
-		lastIdx = pDoc->mMinFrames - 1;
-		if (lastIdx < 0 || frmCmpInfo[lastIdx].mParseDone)
+		if (fileScanThread->isScanComplete())
 			KillTimer(CTI_ID_POS_INVALIDATE);
 
 		break;
