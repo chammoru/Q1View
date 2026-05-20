@@ -471,7 +471,7 @@ void CMainFrame::OnExecComparer()
 	CString cmperPath;
 	BOOL cmperExists;
 	STARTUPINFO startUpInfo = {0, };
-	PROCESS_INFORMATION processInfo;
+	PROCESS_INFORMATION processInfo = {0, };
 	startUpInfo.cb = sizeof(STARTUPINFO);
 
 	cmperPath = curDir;
@@ -495,27 +495,24 @@ void CMainFrame::OnExecComparer()
 
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
 
-	TCHAR cmdLine[MAX_PATH] = {0, };
-	if (pDoc->mPathName) {
-		CString str;
-		TCHAR buf[MAX_PATH];
-
-		StrNCpy(buf, cmperPath, MAX_PATH);
-		PathQuoteSpaces(buf);
-		str = buf;
-
-		str += _T(" ");
-
-		StrCpyN(buf, pDoc->mPathName, MAX_PATH);
-		PathQuoteSpaces(buf);
-		str += buf;
-
-		StrCpyN(cmdLine, str, MAX_PATH);
-	}
+	CString cmdLine;
+	cmdLine.Format(_T("\"%s\""), cmperPath.GetString());
+	if (!pDoc->mPathName.IsEmpty())
+		cmdLine.AppendFormat(_T(" \"%s\""), pDoc->mPathName.GetString());
 
 	BOOL ret = ::CreateProcess(cmperPath,
-		cmdLine, NULL, NULL, FALSE, 0, NULL, NULL,
+		cmdLine.GetBuffer(), NULL, NULL, FALSE, 0, NULL, NULL,
 		&startUpInfo, &processInfo);
+	cmdLine.ReleaseBuffer();
+	if (!ret) {
+		CString msg;
+		msg.Format(_T("Failed to execute Comparer.exe. (error %lu)"), ::GetLastError());
+		MessageBox(msg, _T("Warning"), MB_ICONWARNING);
+		return;
+	}
+
+	::CloseHandle(processInfo.hThread);
+	::CloseHandle(processInfo.hProcess);
 }
 
 void CMainFrame::ActivateFrame(int nCmdShow)
