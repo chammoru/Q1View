@@ -93,7 +93,7 @@ CComparerDoc::~CComparerDoc()
 	delete mFileScanThread;
 	delete mRgbCompare;
 	delete mYuvCompare;
-	delete mSortedCscInfo;
+	free(mSortedCscInfo);
 
 	if (mNnOffsetBuf)
 		_mm_free(mNnOffsetBuf);
