@@ -1,0 +1,71 @@
+# Keep this repository's own Windows/MFC project files consistent in local checkouts.
+.gitattributes text eol=crlf
+
+/Comparer/*.c text eol=crlf
+/Comparer/*.cc text eol=crlf
+/Comparer/*.cpp text eol=crlf
+/Comparer/*.cxx text eol=crlf
+/Comparer/*.h text eol=crlf
+/Comparer/*.hh text eol=crlf
+/Comparer/*.hpp text eol=crlf
+/Comparer/*.inl text eol=crlf
+/Comparer/*.rc text eol=crlf
+/Comparer/**/*.c text eol=crlf
+/Comparer/**/*.cc text eol=crlf
+/Comparer/**/*.cpp text eol=crlf
+/Comparer/**/*.cxx text eol=crlf
+/Comparer/**/*.h text eol=crlf
+/Comparer/**/*.hh text eol=crlf
+/Comparer/**/*.hpp text eol=crlf
+/Comparer/**/*.inl text eol=crlf
+/Comparer/**/*.rc text eol=crlf
+
+/QVisionCore/*.c text eol=crlf
+/QVisionCore/*.cc text eol=crlf
+/QVisionCore/*.cpp text eol=crlf
+/QVisionCore/*.cxx text eol=crlf
+/QVisionCore/*.h text eol=crlf
+/QVisionCore/*.hh text eol=crlf
+/QVisionCore/*.hpp text eol=crlf
+/QVisionCore/*.inl text eol=crlf
+
+/SMultithreadPlus/**/*.c text eol=crlf
+/SMultithreadPlus/**/*.cc text eol=crlf
+/SMultithreadPlus/**/*.cpp text eol=crlf
+/SMultithreadPlus/**/*.cxx text eol=crlf
+/SMultithreadPlus/**/*.h text eol=crlf
+/SMultithreadPlus/**/*.hh text eol=crlf
+/SMultithreadPlus/**/*.hpp text eol=crlf
+/SMultithreadPlus/**/*.inl text eol=crlf
+
+/Viewer/*.c text eol=crlf
+/Viewer/*.cc text eol=crlf
+/Viewer/*.cpp text eol=crlf
+/Viewer/*.cxx text eol=crlf
+/Viewer/*.h text eol=crlf
+/Viewer/*.hh text eol=crlf
+/Viewer/*.hpp text eol=crlf
+/Viewer/*.inl text eol=crlf
+/Viewer/*.rc text eol=crlf
+/Viewer/**/*.c text eol=crlf
+/Viewer/**/*.cc text eol=crlf
+/Viewer/**/*.cpp text eol=crlf
+/Viewer/**/*.cxx text eol=crlf
+/Viewer/**/*.h text eol=crlf
+/Viewer/**/*.hh text eol=crlf
+/Viewer/**/*.hpp text eol=crlf
+/Viewer/**/*.inl text eol=crlf
+/Viewer/**/*.rc text eol=crlf
+
+# Leave the vendored OpenCV tree untouched.
+/opencv-4.3.0/** -text
+
+# Keep binary assets out of end-of-line conversion.
+*.bmp binary
+*.gif binary
+*.ico binary
+*.jpeg binary
+*.jpg binary
+*.png binary
+*.tif binary
+*.tiff binary
