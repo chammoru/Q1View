@@ -173,7 +173,7 @@ public:
 	void PrintPlaySpeed(double fps);
 	void ScaleRgbBuf(BYTE *rgbBuffer, BYTE **rgbDst, q1::GridInfo &gi);
 	void SetCursorCoordinates(const CPoint &pt);
-	void Initialize(int nFrame, size_t rgbStride, int w, int h);
+	void Initialize(int nFrame, size_t rgbStride, int w, int h, bool preserveViewState = false);
 	void OnMouseMenu(UINT nID);
 	void DrawSelectRect(CDC *pDC);
 	cv::Mat GetRoiMat();

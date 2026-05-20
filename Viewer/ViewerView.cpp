@@ -243,8 +243,13 @@ void CViewerView::AdjustWindowSize()
 	}
 }
 
-void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h)
+void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool preserveViewState)
 {
+	float prevD = mD;
+	float prevN = mN;
+	float prevXOff = mXOff;
+	float prevYOff = mYOff;
+
 	mW = w;
 	mH = h;
 	mD = 0.f;
@@ -258,6 +263,14 @@ void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h)
 		mHProgress = 0;
 
 	SetDstSize();
+
+	if (preserveViewState) {
+		mD = prevD;
+		mN = prevN;
+		mXOff = prevXOff;
+		mYOff = prevYOff;
+		SetDstSize();
+	}
 
 	// mWClient, mHClient, mWCanvas, mHCanvas were set in OnSize function
 

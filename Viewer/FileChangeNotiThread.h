@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SThread.h>
+#include <SMutex.h>
 #include "MainFrm.h"
 
 class FileChangeNotiThread : public SThread
@@ -25,6 +26,8 @@ private:
 	void cleanUp();
 
 	HANDLE mChangeHandle;
-	CMainFrame *mFrame;
-	CString mPathName;
+	HWND mNotifyHwnd;
+	CString mDirName;
+	CString mFileName;
+	SMutex mStateLock;
 };

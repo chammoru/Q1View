@@ -96,6 +96,7 @@ public:
 
 	q1::ImageProcessor *mBgr888Processor;
 	FileChangeNotiThread *mFileChangeNotiThread;
+	bool mAdjustWindowOnLoad;
 
 // Operations
 public:
@@ -105,7 +106,8 @@ public:
 	int PrevScene();
 	int FirstScene();
 	int LastScene();
-	void LoadSourceImage();
+	void LoadSourceImage(bool adjustWindow = true);
+	BOOL ReloadDocument();
 	void UpdateMenu();
 	void Rotate90();
 

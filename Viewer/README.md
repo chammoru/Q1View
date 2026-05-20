@@ -47,4 +47,3 @@
 ## Known issues
 - Only even width are supported for YUV formats
 - Video files with non-ASCII paths may not open because VideoCapture still uses OpenCV backend path handling
-- FileChangeNotiThread shares mFrame and mPathName between the UI thread and its worker thread without synchronization

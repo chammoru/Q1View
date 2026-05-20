@@ -59,6 +59,7 @@ CViewerDoc::CViewerDoc()
 , mFrmSrc(NULL)
 , mBgr888Processor(NULL)
 , mFileChangeNotiThread(new FileChangeNotiThread)
+, mAdjustWindowOnLoad(true)
 {
 	// TODO: add one-time construction code here
 	mSortedCscInfo =
@@ -181,7 +182,7 @@ static inline void GetBezelSize(CMainFrame *pMainFrm, int &wBezel, int &hBezel)
 	hBezel = wndRect.Height() - cntRect.Height();
 }
 
-void CViewerDoc::LoadSourceImage()
+void CViewerDoc::LoadSourceImage(bool adjustWindow)
 {
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	CViewerView *pView = static_cast<CViewerView *>(pMainFrm->GetActiveView());
@@ -216,32 +217,34 @@ void CViewerDoc::LoadSourceImage()
 	mBufferPool->setup(rgbBufSize);
 
 	mBufferQueue->init();
-	pView->Initialize(mFrames, ROUNDUP_DWORD(mW), mW, mH);
+	pView->Initialize(mFrames, ROUNDUP_DWORD(mW), mW, mH, !adjustWindow);
 
 	QueueSource2View();
 
-	int wScreen = 0;
-	int hScreen = 0;
-	GetScreenSize(pMainFrm, wScreen, hScreen);
+	if (adjustWindow) {
+		int wScreen = 0;
+		int hScreen = 0;
+		GetScreenSize(pMainFrm, wScreen, hScreen);
 
-	int wBezel = 0;
-	int hBezel = 0;
-	GetBezelSize(pMainFrm, wBezel, hBezel);
+		int wBezel = 0;
+		int hBezel = 0;
+		GetBezelSize(pMainFrm, wBezel, hBezel);
 
-	if (mW + wBezel > wScreen || mH + hBezel + pView->mHProgress > hScreen) {
-		if (!pMainFrm->IsZoomed()) {
-			pMainFrm->SendMessage(WM_SYSCOMMAND, SC_MAXIMIZE,
-				(LPARAM)pMainFrm->GetSafeHwnd());
+		if (mW + wBezel > wScreen || mH + hBezel + pView->mHProgress > hScreen) {
+			if (!pMainFrm->IsZoomed()) {
+				pMainFrm->SendMessage(WM_SYSCOMMAND, SC_MAXIMIZE,
+					(LPARAM)pMainFrm->GetSafeHwnd());
+			}
+
+			CPoint pt;
+			GetCursorPos(&pt);
+			pView->ChangeZoom(-WHEEL_DELTA, pt);
+		} else {
+			// SetWindowPos, which is located in AdjustWindowSize(), should be invoked
+			// after QueueSource2View and before OnDraw because QueueSource2View might
+			// take some time and OnDraw funtion uses the current client size
+			pView->AdjustWindowSize();
 		}
-
-		CPoint pt;
-		GetCursorPos(&pt);
-		pView->ChangeZoom(-WHEEL_DELTA, pt);
-	} else {
-		// SetWindowPos, which is located in AdjustWindowSize(), should be invoked
-		// after QueueSource2View and before OnDraw because QueueSource2View might
-		// take some time and OnDraw funtion uses the current client size
-		pView->AdjustWindowSize();
 	}
 
 	mDocState = DOC_NEWIMAGE;
@@ -400,11 +403,20 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	mOrigW = mOrigH = -1;
 	mFrmSrc->ConfigureDoc(this);
 
-	LoadSourceImage();
+	LoadSourceImage(mAdjustWindowOnLoad);
 
 	UpdateMenu();
 
 	return TRUE;
+}
+
+BOOL CViewerDoc::ReloadDocument()
+{
+	mAdjustWindowOnLoad = false;
+	BOOL ok = OnOpenDocument(mPathName);
+	mAdjustWindowOnLoad = true;
+
+	return ok;
 }
 
 static BOOL OpenCfileForWriting(const wstring &pathName, CFile &wFile)

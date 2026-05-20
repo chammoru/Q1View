@@ -77,8 +77,10 @@ CMainFrame::~CMainFrame()
 LRESULT CMainFrame::Reload(WPARAM wParam, LPARAM lParam)
 {
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
-	pDoc->OnOpenDocument(pDoc->mPathName);
-	Invalidate(FALSE);
+	if (!pDoc->ReloadDocument())
+		return E_FAIL;
+
+	GetActiveView()->Invalidate(FALSE);
 	return S_OK;
 }
 
