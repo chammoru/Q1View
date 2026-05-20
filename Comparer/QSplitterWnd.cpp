@@ -29,20 +29,16 @@ END_MESSAGE_MAP()
 
 
 
-// CQSplitterWnd message handlers
-
 void CQSplitterWnd::OnDrawSplitter(CDC* pDC, ESplitType nType, const CRect& rect)
 {
-	// TODO: Add your specialized code here and/or call the base class
 	if (pDC != NULL && nType == splitBorder) {
 		COLORREF clr = Q1UI_COLOR_BORDER_SOFT;
 
 		int cxBorder = GetSystemMetrics(SM_CXBORDER);
 		int cyBorder = GetSystemMetrics(SM_CYBORDER);
 
-		// Implement here by refering to OnDrawSplitter in
-		// VC\atlmfc\src\mfc\winsplit.cpp
-		// FillSolidRect doesn't work here
+		// Match CSplitterWnd's two-border drawing while using the app's
+		// softer divider color.
 		pDC->Draw3dRect(rect, clr, clr);
 		CRect rcTmp = rect;
 		rcTmp.InflateRect(-cxBorder, -cyBorder);

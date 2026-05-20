@@ -79,14 +79,11 @@ enum {
 	STATIC_BLANK_EVENT_ID,
 };
 
-// CComparerView drawing
-
 void CComparerView::OnInitialUpdate()
 {
 	CScrollView::OnInitialUpdate();
 
 	CSize sizeTotal;
-	// TODO: calculate the total size of this view
 	sizeTotal.cx = sizeTotal.cy = MIN_SIDE;
 	SetScrollSizes(MM_TEXT, sizeTotal);
 }
@@ -96,10 +93,10 @@ void CComparerView::ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *ds
 {
 	long gap, yStart, yEnd, xStart, xEnd;
 
-	if (mYDst > 0 || mXDst > 0) // client window is bigger -> center
+	if (mYDst > 0 || mXDst > 0) // The image is smaller than the canvas.
 		memset(dst, 0xf7, sDst * mHClient * QIMG_DST_RGB_BYTES);
 
-	// [yStart, yEnd] is the scaled y-range to consider on the screen
+	// Visible range of the scaled image on the canvas.
 	if (mYDst > 0) {
 		dst += sDst * mYDst * QIMG_DST_RGB_BYTES;
 		yStart = 0;
@@ -148,7 +145,6 @@ void CComparerView::ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridInf
 			if (pDoc->mNnOffsetBuf)
 				_mm_free(pDoc->mNnOffsetBuf);
 
-			// TODO: buf here
 			if (pDoc->mNnOffsetYBorderFlag)
 				_mm_free(pDoc->mNnOffsetYBorderFlag);
 
@@ -182,8 +178,6 @@ void CComparerView::ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridInf
 void CComparerView::OnDraw(CDC *pDC)
 {
 	CComparerDoc *pDoc = GetDocument();
-	// TODO: add draw code here
-	// Let's try to avoid using IsKindOf(RUNTIME_CLASS(CComparerView1)
 
 	ComparerPane *pane = GetPane(pDoc);
 	if (!pane->isAvail()) {
@@ -203,7 +197,7 @@ void CComparerView::OnDraw(CDC *pDC)
 		memDC.FillSolidRect(CRect(0, 0, mWCanvas, mHCanvas), Q1UI_COLOR_CANVAS_BG);
 
 	q1::GridInfo gi;
-	ScaleRgbBuf(pDoc, pane->rgbBuf, gi); // update mRgbBuf
+	ScaleRgbBuf(pDoc, pane->rgbBuf, gi);
 #ifdef USE_STRETCH_DIB
 	StretchDIBits(memDC.m_hDC,
 		mXDst, mYDst, pDoc->mWDst, pDoc->mHDst,
@@ -287,8 +281,6 @@ void CComparerView::DrawEmptyPane(CDC *pDC, CComparerDoc *pDoc)
 }
 
 
-// CComparerView diagnostics
-
 #ifdef _DEBUG
 void CComparerView::AssertValid() const
 {
@@ -310,14 +302,11 @@ CComparerDoc* CComparerView::GetDocument() const // non-debug version is inline
 #endif //_DEBUG
 
 
-// CComparerView message handlers
-
 int CComparerView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
 	if (CScrollView::OnCreate(lpCreateStruct) == -1)
 		return -1;
 
-	// TODO:  Add your specialized creation code here
 	DragAcceptFiles(TRUE);
 
 	CString str = CA2W(qcsc_info_table[QIMG_DEF_CS_IDX].name);
@@ -367,7 +356,7 @@ void CComparerView::OnDropFiles(HDROP hDropInfo)
 		posInfoView->ConfigureScrollSizes(pDoc);
 
 		CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
-		pMainFrm->UpdateResolutionLabel(pDoc->mW, pDoc->mH); // also, disable the resolution change if necessary
+		pMainFrm->UpdateResolutionLabel(pDoc->mW, pDoc->mH);
 		pMainFrm->CheckResolutionRadio(pDoc->mW, pDoc->mH);
 
 		AdjustWindowSize(pMainFrm->mNumOfViews);
@@ -381,7 +370,6 @@ void CComparerView::OnDropFiles(HDROP hDropInfo)
 
 BOOL CComparerView::OnEraseBkgnd(CDC* pDC)
 {
-	// TODO: Add your message handler code here and/or call default
 	return TRUE;
 }
 
@@ -406,11 +394,10 @@ void CComparerView::AdjustWindowSize(int numPrevViews, int splitBarChange) const
 	pMainFrm->GetClientRect(&mainRcClient);
 	GetClientRect(&viewRcClient);
 
-	// calculate the default gap between current window and client
+	// Preserve the current frame overhead while resizing for the active panes.
 	int wGap = mainRcClient.Width() - viewRcClient.Width() * numPrevViews;
 	int hGap = mainRcClient.Height() - viewRcClient.Height();
 
-	// get the parent window rect
 	int wViewClient = MAX(CANVAS_DEF_W, pDoc->mW);
 	int hViewClient = MAX(CANVAS_DEF_H, pDoc->mH) + mRcControls.bottom;
 
@@ -425,8 +412,7 @@ void CComparerView::AdjustWindowSize(int numPrevViews, int splitBarChange) const
 
 		return;
 	} else if (pMainFrm->IsZoomed()) {
-		// Whenever a file opens, restore from maximized state
-		// to handle the issue (small img -> maximize -> open large img -> move)
+		// Restore first so resizing is based on normal frame geometry.
 		pMainFrm->SendMessage(WM_SYSCOMMAND, SC_RESTORE,
 			(LPARAM)pMainFrm->GetSafeHwnd());
 	}
@@ -446,14 +432,13 @@ void CComparerView::DeterminDestOriginCoord(CComparerDoc *pDoc)
 
 void CComparerView::Initialize(CComparerDoc *pDoc)
 {
-	// mWClient, mHClient, mWCanvas, mHCanvas were set in OnSize function
+	// OnSize has already updated the client and canvas dimensions.
 
 	DeterminDestOriginCoord(pDoc);
 }
 
 BOOL CComparerView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 {
-	// TODO: Add your message handler code here and/or call default
 	CPoint clientPoint;
 	CComparerDoc* pDoc = GetDocument();
 	ASSERT_VALID(pDoc);
@@ -490,7 +475,6 @@ void CComparerView::OnSize(UINT nType, int cx, int cy)
 {
 	CScrollView::OnSize(nType, cx, cy);
 
-	// TODO: Add your message handler code here
 	CComparerDoc* pDoc = GetDocument();
 	ASSERT_VALID(pDoc);
 	if (!pDoc)
@@ -513,7 +497,6 @@ void CComparerView::OnSize(UINT nType, int cx, int cy)
 
 void CComparerView::OnMouseMove(UINT nFlags, CPoint point)
 {
-	// TODO: Add your message handler code here and/or call default
 	CComparerDoc* pDoc = GetDocument();
 	ASSERT_VALID(pDoc);
 	if (!pDoc)
@@ -538,7 +521,6 @@ OnMouseMoveDefault:
 
 void CComparerView::OnLButtonDown(UINT nFlags, CPoint point)
 {
-	// TODO: Add your message handler code here and/or call default
 	SetCapture();
 
 	CComparerDoc* pDoc = GetDocument();
@@ -560,7 +542,6 @@ void CComparerView::OnLButtonDown(UINT nFlags, CPoint point)
 
 void CComparerView::OnLButtonUp(UINT nFlags, CPoint point)
 {
-	// TODO: Add your message handler code here and/or call default
 	mIsClicked = false;
 
 	::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_ARROW));
@@ -572,7 +553,6 @@ void CComparerView::OnLButtonUp(UINT nFlags, CPoint point)
 
 BOOL CComparerView::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 {
-	// TODO: Add your message handler code here and/or call default
 	if (mIsClicked) {
 		::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_HAND));
 
@@ -620,7 +600,6 @@ void CComparerView::UpdateFileName(const TCHAR* filename)
 
 void CComparerView::OnCsChange(UINT nID)
 {
-	// TODO: Add your command handler code here
 	CComparerDoc* pDoc = GetDocument();
 
 	CString str;
@@ -645,7 +624,7 @@ void CComparerView::OnCsChange(UINT nID)
 
 	if (pane->isAvail()) {
 		pDoc->RefleshPaneImages(pane, true);
-		// This routine should be located after mMaxFrames set
+		// Recompute timeline geometry after frame counts are refreshed.
 		CPosInfoView* posInfoView = pDoc->mPosInfoView;
 		posInfoView->ConfigureScrollSizes(pDoc);
 		pDoc->UpdateAllViews(NULL);
@@ -654,7 +633,6 @@ void CComparerView::OnCsChange(UINT nID)
 
 void CComparerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
-	// TODO: Add your message handler code here and/or call default
 	CComparerDoc* pDoc = GetDocument();
 
 	bool isProcessing = pDoc->CheckImgViewProcessing();
@@ -681,7 +659,7 @@ void CComparerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			pDoc->KillPlayTimer();
 		}
 		break;
-	case 'H': // hex RGB value
+	case 'H': // Toggle hexadecimal pixel values.
 		pDoc->mHexMode = !pDoc->mHexMode;
 		pDoc->mRgbFormat = pDoc->mHexMode ? pDoc->mRgbHex : pDoc->mRgbDec;
 		Invalidate(FALSE);
@@ -692,8 +670,7 @@ void CComparerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		break;
 	}
 
-	// Once a key is pressed, update all views any way.
-	// This scheme makes code prettier.
+	// Most shortcuts affect shared document/view state, so refresh once at the end.
 	pDoc->MarkImgViewProcessing();
 	pDoc->UpdateAllViews(NULL);
 

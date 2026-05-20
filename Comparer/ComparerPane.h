@@ -48,7 +48,8 @@ struct SQPane
 	, curFrameID(-1L)
 	, frmSrc(NULL)
 	{
-		// ADD MORE FRAME SOURCES, IF NEEDED
+		// Try structured sources first. Keep RawFrmSrc last as the fallback
+		// for readable byte streams.
 		frmSrcs.push_back(new MatFrmSrc(this));
 		frmSrcs.push_back(new VidCapFrmSrc(this));
 		frmSrcs.push_back(new RawFrmSrc(this));

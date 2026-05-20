@@ -70,8 +70,6 @@ BEGIN_MESSAGE_MAP(CViewerView, CView)
 	ON_MESSAGE(WM_VIEWER_PLAY_TIMER, CViewerView::OnPlayTimer)
 END_MESSAGE_MAP()
 
-// CViewerView construction/destruction
-
 CViewerView::CViewerView()
 : mW(VIEWER_DEF_W)
 , mH(VIEWER_DEF_H)
@@ -135,7 +133,7 @@ CViewerView::CViewerView()
 	::lstrcpy(lf.lfFaceName, Q1UI_FONT_MONO);
 	mConsolasFont.CreateFontIndirect(&lf);
 
-	// setup basic bitmap info
+	// Bitmap header reused when copying RGB buffers to the view.
 	BITMAPINFOHEADER &bmiHeader = mBmi.bmiHeader;
 	bmiHeader.biSize = (DWORD)sizeof(BITMAPINFOHEADER);
 	bmiHeader.biPlanes = 1;
@@ -145,7 +143,7 @@ CViewerView::CViewerView()
 	bmiHeader.biXPelsPerMeter = 0L;
 	bmiHeader.biYPelsPerMeter = 0L;
 
-	// http://www.codeproject.com/Articles/1236/Timers-Tutorial
+	// Use the system timer resolution requested by the multimedia timer.
 	timeGetDevCaps(&mTc, sizeof (TIMECAPS));
 	timeBeginPeriod(mTc.wPeriodMin);
 
@@ -195,9 +193,6 @@ CViewerView::~CViewerView()
 
 BOOL CViewerView::PreCreateWindow(CREATESTRUCT& cs)
 {
-	// TODO: Modify the Window class or styles here by modifying
-	//  the CREATESTRUCT cs
-
 	return CView::PreCreateWindow(cs);
 }
 
@@ -208,11 +203,11 @@ void CViewerView::AdjustWindowSize()
 	if (!pDoc)
 		return;
 
-	// The View's parent window of is the CMainFrame in SDI
+	// In this SDI app the view's parent is CMainFrame.
 	CWnd *pMainFrm = GetParent();
 
-	// Whenever a file opens, restore from maximized state
-	// to reproduce the issue (small img -> maximize -> open large img -> move)
+	// Restore before resizing so the client area is recalculated from a
+	// normal frame, not from a previously maximized image.
 	if (!mFullMode && pMainFrm->IsZoomed()) {
 		pMainFrm->SendMessage(WM_SYSCOMMAND, SC_RESTORE,
 			(LPARAM)pMainFrm->GetSafeHwnd());
@@ -223,14 +218,13 @@ void CViewerView::AdjustWindowSize()
 
 	CRect curRcWin, curRcClient;
 
-	GetWindowRect(&curRcWin); // get the current window rect
+	GetWindowRect(&curRcWin);
 	GetClientRect(&curRcClient);
 
-	// calculate the default gap between current window and client
+	// Preserve the non-client area while sizing the frame around the image.
 	int wGap = curRcWin.Width() - curRcClient.Width();
 	int hGap = curRcWin.Height() - curRcClient.Height();
 
-	// get the parent window rect
 	int wClient = max(VIEWER_DEF_W, pDoc->mW);
 	int hClient = max(VIEWER_DEF_H, pDoc->mH);
 
@@ -272,7 +266,7 @@ void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool pr
 		SetDstSize();
 	}
 
-	// mWClient, mHClient, mWCanvas, mHCanvas were set in OnSize function
+	// OnSize has already updated the client and canvas dimensions.
 
 	mXDst = q1::DeterminDestPos(mWCanvas, mWDst, mXOff, mN);
 	mYDst = q1::DeterminDestPos(mHCanvas, mHDst, mYOff, mN);
@@ -332,10 +326,10 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 {
 	long gap, yStart, yEnd, xStart, xEnd;
 
-	if (mYDst > 0 || mXDst > 0) // client window is bigger -> center
+	if (mYDst > 0 || mXDst > 0) // The image is smaller than the canvas.
 		memset(dst, 0xf7, sDst * mHClient * QIMG_DST_RGB_BYTES);
 
-	// [yStart, yEnd] is the scaled y-range to consider on the screen
+	// Visible range of the scaled image on the canvas.
 	if (mYDst > 0) {
 		dst += sDst * mYDst * QIMG_DST_RGB_BYTES;
 		yStart = 0;
@@ -345,7 +339,7 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 		yEnd = QMIN(mHDst, mHCanvas - mYDst);
 	}
 
-	if (mXDst >= 0 && sDst >= mWDst) { // for the case of "mW + 1 == mWClient"
+	if (mXDst >= 0 && sDst >= mWDst) {
 		gap = (sDst - mWDst) * QIMG_DST_RGB_BYTES;
 		dst += mXDst * QIMG_DST_RGB_BYTES;
 		xStart = 0;
@@ -488,12 +482,11 @@ CRect CViewerView::CvtCoord2Show(const CRect &rt)
 {
 	CRect ret;
 
-	// top-left vertice of the box
+	// Top-left vertex of the box.
 	ret.left = CEIL2I(rt.left * mN) + mXDst;
 	ret.top = CEIL2I(rt.top *  mN) + mYDst;
 
-	// Note also that CDC::Rectangle() requires 1px bigger input.
-	// bottom-right vertice of the box:
+	// CDC::Rectangle() excludes the bottom-right edge, so expand by 1px.
 	ret.right = CEIL2I((rt.right + 1) *  mN) + mXDst;
 	ret.bottom = CEIL2I((rt.bottom + 1) * mN) + mYDst;
 
@@ -804,7 +797,7 @@ void CViewerView::OnDraw(CDC *pDC)
 			mBufferPool->turn_back(mStableRgbBufferInfo.addr);
 			mStableRgbBufferInfo = bi;
 
-			// For framerate
+			// Optional playback timing trace.
 			if (mIsPlaying & printPlaySpeed)
 				PrintPlaySpeed(pDoc->mFps);
 		}
@@ -875,8 +868,6 @@ void CViewerView::OnDraw(CDC *pDC)
 }
 
 
-// CViewerView diagnostics
-
 #ifdef _DEBUG
 void CViewerView::AssertValid() const
 {
@@ -904,7 +895,7 @@ BOOL CViewerView::OnEraseBkgnd(CDC* pDC)
 
 	BOOL ret;
 	if (pDoc->mDocState != DOC_JUSTLOAD) {
-		// prevent flickering
+		// The view is fully repainted from an off-screen buffer.
 		ret = TRUE;
 	} else {
 		ret = CView::OnEraseBkgnd(pDC);
@@ -1374,10 +1365,9 @@ void CViewerView::FindFile(CViewerDoc* pDoc, UINT nChar)
 	}
 }
 
-// from: http://pyrisind.tistory.com/29
 void CViewerView::ToggleFullScreen()
 {
-	// The View's parent window of is the CMainFrame in SDI
+	// In this SDI app the view's parent is CMainFrame.
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	mFullMode = !mFullMode;
 
@@ -1415,12 +1405,12 @@ void CViewerView::ToggleHelp()
 
 void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
-	// regardless of document state, handle certain keys
+	// These keys work even before a document is loaded.
 	switch (nChar) {
 	case VK_RETURN:
 		ToggleFullScreen();
 		goto OnKeyDefault;
-	case VK_OEM_2: // '?/' key (US keyboard)
+	case VK_OEM_2: // '?'/'/' key on a US keyboard.
 		ToggleHelp();
 		goto OnKeyDefault;
 	case 'S':
@@ -1468,7 +1458,7 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			FindFile(pDoc, nChar);
 		break;
 	case VK_SPACE:
-		// no need to lock here, since the timer can't change the state
+		// No lock is needed here; playback callbacks are marshalled to the UI thread.
 		if (!mIsPlaying) {
 			if (pDoc->mCurFrameID == pDoc->mFrames - 1) {
 				int ret = pDoc->FirstScene();
@@ -1482,11 +1472,11 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			pDoc->QueueSource2View();
 		}
 		break;
-	case 'H': // hex RGB value
+	case 'H': // Toggle hexadecimal pixel values.
 		mHexMode = !mHexMode;
 		mRgbFormat = mHexMode ? mRgbHex : mRgbDec;
 		break;
-	case 'Y': // show only Y among YCbCr
+	case 'Y': // Show only the luma channel.
 		mYMode = !mYMode;
 		break;
 	case 'I':
@@ -1512,8 +1502,7 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		break;
 	}
 
-	// Once a key is pressed, update all views regardless of the specific key
-	// This scheme makes the code prettier
+	// Most shortcuts affect shared document/view state, so refresh once at the end.
 	mKeyProcessing = true;
 	Invalidate(FALSE);
 
@@ -1538,7 +1527,7 @@ int CViewerView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	ModifyStyleEx(WS_EX_CLIENTEDGE, 0, SWP_FRAMECHANGED);
 
-	// Here is the earliest function I can access the pDoc
+	// First lifecycle point where the view can safely reach its document.
 	CViewerDoc* pDoc = GetDocument();
 	ASSERT_VALID(pDoc);
 	if (!pDoc)

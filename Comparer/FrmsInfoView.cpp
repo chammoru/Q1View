@@ -38,7 +38,7 @@ CFrmsInfoView::CFrmsInfoView()
 	lf.lfHeight = RESULT_FONT_H;
 	mResultFont.CreateFontIndirect(&lf);
 
-	// mPsnrCal should be 'new'ed after 'GdiplusStartup()'
+	// MetricCal owns GDI+ objects, so create it after GdiplusStartup().
 	mPsnrCal = new MetricCal();
 }
 
@@ -55,8 +55,6 @@ BEGIN_MESSAGE_MAP(CFrmsInfoView, CView)
 	ON_WM_ERASEBKGND()
 END_MESSAGE_MAP()
 
-
-// CFrmsInfoView drawing
 
 static void DrawCenteredMessage(CDC *pDC, CRect rect, CFont *titleFont, CFont *bodyFont,
 								const CString &title, const CString &body)
@@ -79,7 +77,6 @@ static void DrawCenteredMessage(CDC *pDC, CRect rect, CFont *titleFont, CFont *b
 void CFrmsInfoView::OnDraw(CDC* pDC)
 {
 	CComparerDoc* pDoc = GetDocument();
-	// TODO: add draw code here
 
 	CDC memDC;
 	memDC.CreateCompatibleDC(pDC);
@@ -119,7 +116,7 @@ void CFrmsInfoView::OnDraw(CDC* pDC)
 	mPsnrCal->DrawYLabel(&memDC, &mYLabelRect, &mLabelFont);
 	mPsnrCal->DrawXLabel(&memDC, mHClient, &mLabelFont);
 
-	// Use Gdiplus for the sophisticated graph
+	// GDI+ gives the metric graph anti-aliased lines and labels.
 	Graphics graphics(memDC.m_hDC);
 	graphics.SetSmoothingMode(SmoothingModeAntiAlias);
 	graphics.SetTextRenderingHint(TextRenderingHintAntiAlias);
@@ -133,8 +130,6 @@ void CFrmsInfoView::OnDraw(CDC* pDC)
 	pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
 }
 
-
-// CFrmsInfoView diagnostics
 
 #ifdef _DEBUG
 void CFrmsInfoView::AssertValid() const
@@ -151,13 +146,10 @@ void CFrmsInfoView::Dump(CDumpContext& dc) const
 #endif //_DEBUG
 
 
-// CFrmsInfoView message handlers
-
 void CFrmsInfoView::OnSize(UINT nType, int cx, int cy)
 {
 	CView::OnSize(nType, cx, cy);
 
-	// TODO: Add your message handler code here
 	GetClientRect(&mGraphRect);
 	mGraphRect.DeflateRect(GRAPH_OUT_MARGIN_L,
 		GRAPH_OUT_MARGIN_T,
@@ -181,7 +173,6 @@ int CFrmsInfoView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	if (CView::OnCreate(lpCreateStruct) == -1)
 		return -1;
 
-	// TODO:  Add your specialized creation code here
 	CComparerDoc* pDoc = GetDocument();
 
 	pDoc->mFrmsInfoView = this;
@@ -192,7 +183,5 @@ int CFrmsInfoView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 BOOL CFrmsInfoView::OnEraseBkgnd(CDC* pDC)
 {
-	// TODO: Add your message handler code here and/or call default
-
 	return TRUE;
 }

@@ -32,8 +32,6 @@ IMPLEMENT_DYNCREATE(CViewerDoc, CDocument)
 BEGIN_MESSAGE_MAP(CViewerDoc, CDocument)
 END_MESSAGE_MAP()
 
-// CViewerDoc construction/destruction
-
 CViewerDoc::CViewerDoc()
 : mDocState(DOC_JUSTLOAD)
 , mPathName("")
@@ -61,20 +59,19 @@ CViewerDoc::CViewerDoc()
 , mFileChangeNotiThread(new FileChangeNotiThread)
 , mAdjustWindowOnLoad(true)
 {
-	// TODO: add one-time construction code here
 	mSortedCscInfo =
 		static_cast<struct qcsc_info *>(malloc(sizeof(qcsc_info_table)));
 	ASSERT(mSortedCscInfo != NULL);
 
 	q1::image_sort_cs(mSortedCscInfo);
 
-	// ADD QIMAGEPROCESSOR HERE, IF NEEDED
+	// Optional post-processing hook for BGR input.
 	// mBgr888Processor = new SomeDetector;
 
-	// ADD MORE FRAME SOURCES, IF NEEDED
+	// Try structured sources first. Keep RawFrmSrc last: it is the fallback
+	// for any readable byte stream.
 	mFrmSrcs.push_back(new MatFrmSrc(this));
 	mFrmSrcs.push_back(new VidCapFrmSrc(this));
-	// Keep RawFrmSrc last: it is the fallback for any readable byte stream.
 	mFrmSrcs.push_back(new RawFrmSrc(this));
 }
 
@@ -102,8 +99,6 @@ BOOL CViewerDoc::OnNewDocument()
 	if (!CDocument::OnNewDocument())
 		return FALSE;
 
-	// TODO: add reinitialization code here
-	// (SDI documents will reuse this document)
 	mPathName.Empty();
 
 	return TRUE;
@@ -240,9 +235,8 @@ void CViewerDoc::LoadSourceImage(bool adjustWindow)
 			GetCursorPos(&pt);
 			pView->ChangeZoom(-WHEEL_DELTA, pt);
 		} else {
-			// SetWindowPos, which is located in AdjustWindowSize(), should be invoked
-			// after QueueSource2View and before OnDraw because QueueSource2View might
-			// take some time and OnDraw funtion uses the current client size
+			// QueueSource2View can take long enough for the client size to change.
+			// Resize after queuing and before OnDraw reads the current client size.
 			pView->AdjustWindowSize();
 		}
 	}
@@ -256,11 +250,9 @@ void CViewerDoc::Serialize(CArchive& ar)
 {
 	if (ar.IsStoring())
 	{
-		// TODO: add storing code here
 	}
 	else
 	{
-		// TODO: add loading code here
 	}
 }
 
@@ -329,8 +321,6 @@ int CViewerDoc::LastScene()
 	return mCurFrameID;
 }
 
-// CViewerDoc diagnostics
-
 #ifdef _DEBUG
 void CViewerDoc::AssertValid() const
 {
@@ -376,7 +366,7 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 		// Command-line open can reach here before the SDI frame/view exists.
 		// Defer the real open until CMainFrame::ActivateFrame().
 		mPendingFile = lpszPathName;
-		::CoInitialize(NULL); // TODO: Is this really right solution?
+		::CoInitialize(NULL);
 		return TRUE;
 	}
 

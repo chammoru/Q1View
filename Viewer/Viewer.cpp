@@ -24,16 +24,10 @@ BEGIN_MESSAGE_MAP(CViewerApp, CWinApp)
 END_MESSAGE_MAP()
 
 
-// CViewerApp construction
-
 CViewerApp::CViewerApp()
 {
-	// TODO: add construction code here,
-	// Place all significant initialization in InitInstance
 }
 
-
-// The one and only CViewerApp object
 
 CViewerApp theApp;
 
@@ -54,11 +48,6 @@ BOOL CViewerApp::InitInstance()
 
 	CWinApp::InitInstance();
 
-	// Standard initialization
-	// If you are not using these features and wish to reduce the size
-	// of your final executable, you should remove from the following
-	// the specific initialization routines you do not need
-	// Change the registry key under which our settings are stored
 	SetRegistryKey(_T("Chammoru"));
 	LoadStdProfileSettings(10);  // Load standard INI file options (including MRU)
 	// Register the application's document templates.  Document templates

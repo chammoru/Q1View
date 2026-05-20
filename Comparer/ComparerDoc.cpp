@@ -35,8 +35,6 @@ BEGIN_MESSAGE_MAP(CComparerDoc, CDocument)
 END_MESSAGE_MAP()
 
 
-// CComparerDoc construction/destruction
-
 CComparerDoc::CComparerDoc()
 : mPane(new ComparerPane[IMG_VIEW_MAX])
 , mW(CANVAS_DEF_W), mH(CANVAS_DEF_H)
@@ -65,7 +63,6 @@ CComparerDoc::CComparerDoc()
 , mInterpol(false)
 , mDiffRes(false)
 {
-	// TODO: add one-time construction code here
 	BITMAPINFOHEADER &bmiHeader = mBmi.bmiHeader;
 	bmiHeader.biSize = (DWORD)sizeof(BITMAPINFOHEADER);
 	bmiHeader.biPlanes = 1;
@@ -110,9 +107,6 @@ BOOL CComparerDoc::OnNewDocument()
 	if (!CDocument::OnNewDocument())
 		return FALSE;
 
-	// TODO: add reinitialization code here
-	// (SDI documents will reuse this document)
-
 	return TRUE;
 }
 
@@ -125,16 +119,12 @@ void CComparerDoc::Serialize(CArchive& ar)
 {
 	if (ar.IsStoring())
 	{
-		// TODO: add storing code here
 	}
 	else
 	{
-		// TODO: add loading code here
 	}
 }
 
-
-// CComparerDoc diagnostics
 
 #ifdef _DEBUG
 void CComparerDoc::AssertValid() const
@@ -276,7 +266,7 @@ void CComparerDoc::RefleshPaneImages(ComparerPane *pane, bool settingChanged)
 
 	ComparerPane *opposite = GetOppositePane(pane);
 	if (opposite == nullptr) {
-		// This `pane` is neither the first nor the second
+		// Only the first two panes participate in frame-diff scanning.
 		return;
 	}
 
@@ -284,8 +274,7 @@ void CComparerDoc::RefleshPaneImages(ComparerPane *pane, bool settingChanged)
 		if (settingChanged)
 			LoadSourceImage(opposite);
 
-		// This routine should be located after checking settingChanged
-		// And should be before mFileScanThread->setup()
+		// Frame counts must be refreshed before FileScanThread::setup().
 		mMaxFrames = max(pane->frames, opposite->frames);
 		mMinFrames = min(pane->frames, opposite->frames);
 
@@ -492,7 +481,7 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 		// Command-line open can reach here before the SDI frame exists.
 		// Defer the real open until CMainFrame::ActivateFrame().
 		mPendingFile = filenamesCsv;
-		::CoInitialize(NULL); // TODO: Is this really right solution?
+		::CoInitialize(NULL);
 		return TRUE;
 	}
 

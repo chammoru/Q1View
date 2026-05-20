@@ -71,18 +71,18 @@ public:
 	QROTATION mRot;
 	int mOrigW, mOrigH;
 
-	// For original buffer
+	// Original frame data before color conversion and rotation.
 	BYTE *mOrigBuf;
 	size_t mOrigBufSize;
 	size_t mOrigSceneSize;
 	int mBufOffset2, mBufOffset3;
 
-	// For Multithreading Play
+	// Playback worker queue and buffer pool.
 	SBufferPool *mBufferPool;
 	SSafeCQ<BufferInfo> *mBufferQueue;
 	double mFps;
 
-	// Various Color Formats
+	// Active color-space conversion settings.
 	QIMAGE_CS mColorSpace;
 	QIMAGE_CSC_FN mCsc2Rgb888;
 	QIMAGE_CS_INFO_FN mCsLoadInfo;

@@ -64,7 +64,8 @@ void NearestNeighbor(qu8* src, int h, int w, int hDst, int wDst, int xDst, int y
 void Interpolate(qu8* src, int h, int w, int wCanvas, long xStart, long xEnd,
 	long yStart, long yEnd, qu16* nOffsetBuf, qu8* dst);
 
-// JUST ADD HERE, IF YOU WANT MORE RESOLUTION, THIS'S IT!
+// Add new preset resolutions here. Menus in Viewer and Comparer are generated
+// directly from this table.
 static const char *resolution_info_table[] = {
 	"176x144 (QCIF)",
 	"320x240 (QVGA)",

@@ -10,7 +10,7 @@
 
 IMPLEMENT_DYNAMIC(CQMenuItem, CWnd)
 
-#define CQMENUITEM_CLASSNAME    _T("CQMenuItem")  // Window class name
+#define CQMENUITEM_CLASSNAME    _T("CQMenuItem")
 
 CQMenuItem::CQMenuItem()
 : mMouseIn(false)
@@ -20,7 +20,6 @@ CQMenuItem::CQMenuItem()
 	HINSTANCE hInst = AfxGetInstanceHandle();
 
 	if (!::GetClassInfo(hInst, CQMENUITEM_CLASSNAME, &wndcls)) {
-		// otherwise we need to register a new class
 		wndcls.style         = CS_DBLCLKS | CS_HREDRAW | CS_VREDRAW;
 		wndcls.lpfnWndProc   = ::DefWindowProc;
 		wndcls.cbClsExtra    = wndcls.cbWndExtra = 0;
@@ -68,17 +67,12 @@ END_MESSAGE_MAP()
 
 
 
-// CQMenuItem message handlers
-
-
-
 BOOL CQMenuItem::Create(LPCTSTR lpszWindowName, CRect &rect, CWnd* pParentWnd, CMenu *pMenu,
 	DWORD textHorizAlign)
 {
 	mMenu = pMenu;
 	mTextHorizAlign = textHorizAlign;
 
-	// TODO: Add your specialized code here and/or call the base class
 	return CWnd::Create(_T("CQMenuItem"), mTextBlank + lpszWindowName + mTextBlank,
 		WS_VISIBLE | WS_CHILD, rect, pParentWnd, 0xffff);
 }
@@ -105,9 +99,7 @@ void CQMenuItem::CalcRect(CRect *rect)
 
 void CQMenuItem::OnPaint()
 {
-	CPaintDC dc(this); // device context for painting
-	// TODO: Add your message handler code here
-	// Do not call CWnd::OnPaint() for painting messages
+	CPaintDC dc(this);
 	CString str;
 	int w = mRcClient.Width();
 	int h = mRcClient.Height();
@@ -132,7 +124,6 @@ void CQMenuItem::OnPaint()
 
 void CQMenuItem::OnLButtonDown(UINT nFlags, CPoint point)
 {
-	// TODO: Add your message handler code here and/or call default
 	if (mMenu) {
 		mMouseIn = false;
 
@@ -151,24 +142,19 @@ void CQMenuItem::OnLButtonDown(UINT nFlags, CPoint point)
 
 BOOL CQMenuItem::OnEraseBkgnd(CDC* pDC)
 {
-	// TODO: Add your message handler code here and/or call default
-
 	return FALSE;
-	// return CWnd::OnEraseBkgnd(pDC);
 }
 
 void CQMenuItem::OnSize(UINT nType, int cx, int cy)
 {
 	CWnd::OnSize(nType, cx, cy);
 
-	// TODO: Add your message handler code here
 	mRcClient.right = cx;
 	mRcClient.bottom = cy;
 }
 
 void CQMenuItem::OnMouseMove(UINT nFlags, CPoint point)
 {
-	// TODO: Add your message handler code here and/or call default
 	if (mMenu) {
 		SetCapture();
 

@@ -48,11 +48,8 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 END_MESSAGE_MAP()
 
 
-// CMainFrame construction/destruction
-
 CMainFrame::CMainFrame()
 {
-	// TODO: add member initialization code here
 	mResolutionMenu.CreatePopupMenu();
 	mCsMenu.CreatePopupMenu();
 	mFpsMenu.CreatePopupMenu();
@@ -88,8 +85,6 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 {
 	if (!CFrameWnd::PreCreateWindow(cs))
 		return FALSE;
-	// TODO: Modify the Window class or styles here by modifying
-	//  the CREATESTRUCT cs
 
 	cs.style = WS_OVERLAPPED | WS_CAPTION | FWS_ADDTOTITLE
 		 | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU | WS_THICKFRAME;
@@ -115,8 +110,6 @@ void CMainFrame::OnUpdateFrameTitle(BOOL bAddToTitle)
 		SetWindowText((LPCTSTR)pDocument->GetTitle());
 }
 
-// CMainFrame diagnostics
-
 #ifdef _DEBUG
 void CMainFrame::AssertValid() const
 {
@@ -130,21 +123,6 @@ void CMainFrame::Dump(CDumpContext& dc) const
 
 #endif //_DEBUG
 
-
-// CMainFrame message handlers
-
-
-//void CMainFrame::OnDropFiles(HDROP hDropInfo)
-//{
-//	// TODO: Add your message handler code here and/or call default
-//	TCHAR path[MAX_PATH];
-//
-//	DragQueryFile(hDropInfo, 0, path, MAX_PATH);
-//
-//	LOGINF("%s", path);
-//
-//	CFrameWnd::OnDropFiles(hDropInfo);
-//}
 
 void CMainFrame::OnHelp()
 {
@@ -162,7 +140,6 @@ void CMainFrame::OnHelp()
 
 void CMainFrame::OnFileOpen()
 {
-	// TODO: Add your command handler code here
 	TCHAR name_filter[] =
 		_T("All Files (*.*)|*.*|")
 		_T("BMP Files (*.bmp)|*.bmp|")
@@ -172,13 +149,12 @@ void CMainFrame::OnFileOpen()
 	CFileDialog ins_dlg(TRUE, _T("All Files (*.*)"), _T("*.*"),
 		OFN_HIDEREADONLY, name_filter, NULL);
 
-	// pre-choose the second item in the combo box for file type
+	// Default to common bitmap formats, while still allowing raw/video sources.
 	ins_dlg.m_ofn.nFilterIndex = 2;
 
 	if (ins_dlg.DoModal() == IDOK) {
 		CString path = ins_dlg.GetPathName();
 
-		// to show the file path in the upper bar
 		AfxGetApp()->OpenDocumentFile(path);
 	}
 }
@@ -525,8 +501,6 @@ void CMainFrame::OnExecComparer()
 
 void CMainFrame::ActivateFrame(int nCmdShow)
 {
-	// TODO: Add your specialized code here and/or call the base class
-
 	CFrameWnd::ActivateFrame(nCmdShow);
 
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
@@ -538,7 +512,6 @@ void CMainFrame::ActivateFrame(int nCmdShow)
 
 void CMainFrame::OnEditCopy()
 {
-	// TODO: Add your command handler code here
 	CViewerView *pView = static_cast<CViewerView *>(GetActiveView());
 	if (!pView->mStableRgbBufferInfo.addr)
 		return;
@@ -569,7 +542,6 @@ void CMainFrame::OnEditCopy()
 
 void CMainFrame::OnEditPaste()
 {
-	// TODO: Add your command handler code here
 	CViewerView *pView = static_cast<CViewerView *>(GetActiveView());
 	pView->OpenClipboard();
 	HBITMAP handle = (HBITMAP)::GetClipboardData(CF_BITMAP);

@@ -39,12 +39,9 @@ BEGIN_MESSAGE_MAP(CCustomSizeDlg, CDialog)
 END_MESSAGE_MAP()
 
 
-// CCustomSizeDlg message handlers
-
 void CCustomSizeDlg::OnShowWindow(BOOL bShow, UINT nStatus)
 {
 	CDialog::OnShowWindow(bShow, nStatus);
 
-	// TODO: Add your message handler code here
 	GetDlgItem(IDC_EDIT_CUSTOM_WIDTH)->SetFocus();
 }

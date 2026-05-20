@@ -35,13 +35,9 @@ BEGIN_MESSAGE_MAP(CCustomFpsDlg, CDialog)
 END_MESSAGE_MAP()
 
 
-// CCustomFpsDlg message handlers
-
-
 void CCustomFpsDlg::OnShowWindow(BOOL bShow, UINT nStatus)
 {
 	CDialog::OnShowWindow(bShow, nStatus);
 
-	// TODO: Add your message handler code here
 	GetDlgItem(IDC_EDIT_CUSTOM_FPS)->SetFocus();
 }

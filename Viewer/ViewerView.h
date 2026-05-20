@@ -119,7 +119,7 @@ public:
 	CFont mProgressFont, mDefPixelTextFont, mConsolasFont;
 	COLORREF mBarColor;
 
-	// For DIB RGB Bitmap
+	// RGB buffers used by SetDIBitsToDevice.
 	BITMAPINFO  mBmi;
 	BYTE *mRgbBuf, *mCaptRgbBuf, *mYBuf;
 	int mRgbBufSize, mCaptRgbBufSize, mYBufSize;
@@ -136,7 +136,7 @@ public:
 	TIMECAPS mTc;
 	UINT mTimerID;
 
-	// For Multithreading Play
+	// Frame queues shared with the playback worker.
 	SSafeCQ<BufferInfo> *mBufferQueue;
 	SSafeCQ<BufferInfo> *mNewRgbBufferInfoQ;
 	BufferInfo 	mStableRgbBufferInfo;

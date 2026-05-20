@@ -54,14 +54,9 @@ BEGIN_MESSAGE_MAP(CPosInfoView, CScrollView)
 END_MESSAGE_MAP()
 
 
-// CPosInfoView drawing
-
 void CPosInfoView::OnInitialUpdate()
 {
 	CScrollView::OnInitialUpdate();
-
-	// TODO: calculate the total size of this view
-	// This OnInitialUpdate() is also invoked on every openning of a file.
 }
 
 static void DrawDiffPosLines(CDC *pDC, CRect *frameRect, bool *flags, int n)
@@ -168,7 +163,6 @@ void CPosInfoView::DrawFrameRect(CDC* pDC, CRect *clipBox, int w)
 void CPosInfoView::OnDraw(CDC* pDC)
 {
 	CComparerDoc* pDoc = GetDocument();
-	// TODO: add draw code here
 
 	CRect clipBox;
 	pDC->GetClipBox(&clipBox);
@@ -213,8 +207,6 @@ OnDrawExit:
 }
 
 
-// CPosInfoView diagnostics
-
 #ifdef _DEBUG
 void CPosInfoView::AssertValid() const
 {
@@ -230,11 +222,8 @@ void CPosInfoView::Dump(CDumpContext& dc) const
 #endif //_DEBUG
 
 
-// CPosInfoView message handlers
-
 BOOL CPosInfoView::OnEraseBkgnd(CDC* pDC)
 {
-	// TODO: Add your message handler code here and/or call default
 	return TRUE;
 }
 
@@ -243,7 +232,6 @@ int CPosInfoView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	if (CScrollView::OnCreate(lpCreateStruct) == -1)
 		return -1;
 
-	// TODO:  Add your specialized creation code here
 	CComparerDoc *pDoc = GetDocument();
 	pDoc->mPosInfoView = this;
 	mFileScanThread = pDoc->mFileScanThread;
@@ -263,7 +251,7 @@ void CPosInfoView::ConfigureScrollSizes(CComparerDoc *pDoc)
 	mWClient = rcClient.Width();
 	mHClient = rcClient.Height();
 
-	int maxFrames = max(pDoc->mMaxFrames, 1); // prevent dividing by zero
+	int maxFrames = max(pDoc->mMaxFrames, 1);
 
 	mPosLinesPerFrame = max(mHClient / maxFrames, POS_LINE_MIN);
 	if (mPosLinesPerFrame > mDiffFlagSize) {
@@ -273,8 +261,8 @@ void CPosInfoView::ConfigureScrollSizes(CComparerDoc *pDoc)
 		mDiffFlags = new bool[mDiffFlagSize];
 	}
 
-	mPosLines = mPosLinesPerFrame * maxFrames // actual rectangle
-	          + maxFrames + 1;                // rectangular boundary
+	mPosLines = mPosLinesPerFrame * maxFrames
+	          + maxFrames + 1;
 	CSize sizeTotal(MIN_SIDE, mPosLines);
 
 	SetScrollSizes(MM_TEXT, sizeTotal);
@@ -284,7 +272,6 @@ void CPosInfoView::OnSize(UINT nType, int cx, int cy)
 {
 	CScrollView::OnSize(nType, cx, cy);
 
-	// TODO: Add your message handler code here
 	CComparerDoc *pDoc = GetDocument();
 
 	ConfigureScrollSizes(pDoc);
@@ -292,7 +279,6 @@ void CPosInfoView::OnSize(UINT nType, int cx, int cy)
 
 void CPosInfoView::OnLButtonDown(UINT nFlags, CPoint point)
 {
-	// TODO: Add your message handler code here and/or call default
 	CComparerDoc* pDoc = GetDocument();
 
 	ComparerPane *paneL = &pDoc->mPane[CComparerDoc::IMG_VIEW_1];
@@ -331,7 +317,6 @@ void CPosInfoView::OnLButtonDown(UINT nFlags, CPoint point)
 
 BOOL CPosInfoView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 {
-	// TODO: Add your message handler code here and/or call default
 	int nPos = GetScrollPos(SB_VERT);
 	SetScrollPos(SB_VERT, nPos - zDelta);
 	Invalidate(FALSE);
@@ -341,7 +326,6 @@ BOOL CPosInfoView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 
 void CPosInfoView::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 {
-	// TODO: Add your message handler code here and/or call default
 	SCROLLINFO si;
 	ZeroMemory(&si, sizeof(SCROLLINFO));
 

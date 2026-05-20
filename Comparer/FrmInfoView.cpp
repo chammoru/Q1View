@@ -35,12 +35,9 @@ BEGIN_MESSAGE_MAP(CFrmInfoView, CView)
 END_MESSAGE_MAP()
 
 
-// CFrmInfoView drawing
-
 void CFrmInfoView::OnDraw(CDC* pDC)
 {
 	CComparerDoc *pDoc = GetDocument();
-	// TODO: add draw code here
 
 	CString frameState = pDoc->mFrmState;
 	bool hasState = frameState.GetLength() > 0;
@@ -68,8 +65,6 @@ void CFrmInfoView::OnDraw(CDC* pDC)
 }
 
 
-// CFrmInfoView diagnostics
-
 #ifdef _DEBUG
 void CFrmInfoView::AssertValid() const
 {
@@ -85,11 +80,8 @@ void CFrmInfoView::Dump(CDumpContext& dc) const
 #endif //_DEBUG
 
 
-// CFrmInfoView message handlers
-
 BOOL CFrmInfoView::OnEraseBkgnd(CDC* pDC)
 {
-	// TODO: Add your message handler code here and/or call default
 	CComparerDoc* pDoc = GetDocument();
 	ASSERT_VALID(pDoc);
 	if (!pDoc)
@@ -99,7 +91,7 @@ BOOL CFrmInfoView::OnEraseBkgnd(CDC* pDC)
 
 	CString &frameState = pDoc->mFrmState;
 	if (frameState.GetLength()) {
-		// prevent flickering
+		// The state text is painted from an off-screen buffer.
 		ret = TRUE;
 	} else {
 		ret = CView::OnEraseBkgnd(pDC);
@@ -112,7 +104,6 @@ void CFrmInfoView::OnSize(UINT nType, int cx, int cy)
 {
 	CView::OnSize(nType, cx, cy);
 
-	// TODO: Add your message handler code here
 	GetClientRect(&mRcClient);
 
 	mWClient = cx;

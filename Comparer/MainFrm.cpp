@@ -53,15 +53,12 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_WM_CREATE()
 END_MESSAGE_MAP()
 
-// CMainFrame construction/destruction
-
 CMainFrame::CMainFrame()
 : mSplitMargin(0)
 , mSplitBarW(0)
 , mMetricIdx(METRIC_PSNR_IDX)
 , mNumOfViews(COMPARER_DEF_VIEWS)
 {
-	// TODO: add member initialization code here
 	mResolutionMenu.CreatePopupMenu();
 	mMetricMenu.CreatePopupMenu();
 	mFpsMenu.CreatePopupMenu();
@@ -82,8 +79,7 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 {
 	if( !CFrameWnd::PreCreateWindow(cs) )
 		return FALSE;
-	// TODO: Modify the Window class or styles here by modifying
-	//  the CREATESTRUCT cs
+
 	cs.style &= ~FWS_ADDTOTITLE;
 
 	CRect rcClient(0, 0, COMPARER_DEF_W, COMPARER_DEF_H);
@@ -94,8 +90,6 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 
 	return TRUE;
 }
-
-// CMainFrame diagnostics
 
 #ifdef _DEBUG
 void CMainFrame::AssertValid() const
@@ -110,11 +104,8 @@ void CMainFrame::Dump(CDumpContext& dc) const
 #endif //_DEBUG
 
 
-// CMainFrame message handlers
-
 BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext)
 {
-	// TODO: Add your specialized code here and/or call the base class
 	CSize sz;
 	CRect rcClient;
 	GetClientRect(&rcClient);
@@ -155,16 +146,12 @@ BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext)
 		return FALSE;
 
 	return TRUE;
-
-	// commented out for the splitted window
-	// return CFrameWnd::OnCreateClient(lpcs, pContext);
 }
 
 void CMainFrame::OnSize(UINT nType, int cx, int cy)
 {
 	CFrameWnd::OnSize(nType, cx, cy);
 
-	// TODO: Add your message handler code here
 	if (cx <= 0)
 		return;
 
@@ -224,7 +211,6 @@ void CMainFrame::OnSize(UINT nType, int cx, int cy)
 
 void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 {
-	// TODO: Add your message handler code here and/or call default
 	CComparerDoc *pDoc = static_cast<CComparerDoc *>(GetActiveDocument());
 
 	CPosInfoView *pPosInfoView;
@@ -252,7 +238,7 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 		bool updated = pDoc->NextScenes();
 		pDoc->MarkImgViewProcessing();
 
-		// pDoc->UpdateAllViews(NULL) is slow than the below code 
+		// Updating only the image panes avoids the cost of redrawing every view.
 		for (int i = 0; i < mNumOfViews; i++) {
 			CComparerView *pView = pDoc->mPane[i].pView;
 			pView->Invalidate(FALSE);
@@ -273,7 +259,6 @@ void CMainFrame::OnDestroy()
 {
 	CFrameWnd::OnDestroy();
 
-	// TODO: Add your message handler code here
 	for (int i = 0; i < CTI_ID_MAX; i++)
 		KillTimer(i);
 }
@@ -554,7 +539,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	int i;
 	CString str;
 
-	// size menu
+	// Resolution menu.
 	for (i = 0; i < ARRAY_SIZE(q1::resolution_info_table) - 1; i++) {
 		mResolutionMenu.AppendMenu(MF_STRING, (UINT_PTR)ID_RESOLUTION_START + i,
 			CA2W(q1::resolution_info_table[i]));
@@ -570,7 +555,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	CheckResolutionRadio(CANVAS_DEF_W, CANVAS_DEF_H);
 
-	// metric menu
+	// Metric menu.
 	const qmetric_info* qmi;
 	for (i = 0; i < METRIC_COUNT; i++) {
 		qmi = qmetric_info_table + i;
@@ -578,14 +563,14 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 		mMetricMenu.AppendMenu(MF_STRING, (UINT_PTR)ID_METRIC_START + i, CA2W(qmi->name));
 	}
 
-	// PSNR is default and is dealt with differently from other metrics
+	// PSNR is the default metric.
 	str = qmetric_info_table[mMetricIdx].name;
 	GetMenu()->InsertMenu(MENU_POS_METRIC, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mMetricMenu.m_hMenu, str);
 
 	CheckMetricRadio();
 
-	// fps menu
+	// FPS menu.
 	for (i = 0; i < ARRAY_SIZE(qfps_info_table) - 1; i++) {
 		mFpsMenu.AppendMenu(MF_STRING, (UINT_PTR)ID_FPS_START + i,
 			CA2W(qfps_info_table[i]));
@@ -600,7 +585,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	CheckFpsRadio(COMPARER_DEF_FPS);
 
-	// views menu
+	// View-count menu.
 	for (i = 0; i < CComparerDoc::IMG_VIEW_MAX - 1; i++) {
 		str.Format(_T("%d VIEWS"), i + COMPARER_DEF_VIEWS);
 		mViewsMenu.AppendMenu(MF_STRING, (UINT_PTR)ID_VIEWS_START + i, str);
@@ -611,7 +596,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	CheckViewsRadio(mNumOfViews);
 
-	// option menu
+	// Options menu.
 	str.Format(_T("Allow Different Resolution"));
 	mOptionsMenu.AppendMenu(MF_STRING, (UINT_PTR)ID_OPTIONS_DIFF_RESOLUTION, str);
 
@@ -650,7 +635,7 @@ void CMainFrame::RefreshAllViews()
 		posInfoView->ConfigureScrollSizes(pDoc);
 
 		const CComparerView* firstView = pDoc->mPane->pView;
-		firstView->AdjustWindowSize(mNumOfViews); // Adjust the whole window size using the first ComparerView
+		firstView->AdjustWindowSize(mNumOfViews);
 
 		pDoc->UpdateAllViews(NULL);
 	}
@@ -658,8 +643,6 @@ void CMainFrame::RefreshAllViews()
 
 void CMainFrame::ActivateFrame(int nCmdShow)
 {
-	// TODO: Add your specialized code here and/or call the base class
-
 	CFrameWnd::ActivateFrame(nCmdShow);
 
 	CComparerDoc *pDoc = static_cast<CComparerDoc *>(GetActiveDocument());
