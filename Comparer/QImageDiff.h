@@ -11,7 +11,7 @@ struct RLC
 	bool mSame;
 	long mCount;
 
-	RLC(bool same, long count) : mSame(same), mCount(count) {};
+	RLC(bool same, long count) : mSame(same), mCount(count) {}
 };
 
 void QCalRLC(qu8 *src, qu8 *dst, int w, int h,

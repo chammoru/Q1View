@@ -62,8 +62,10 @@ bool VidCapFrmSrc::GetResolution(CString& pathName, int* w, int* h)
 }
 
 const struct qcsc_info* VidCapFrmSrc::GetColorSpace(const CString& pathName,
-	const struct qcsc_info* sortedCscInfo, bool doReisze)
+	const struct qcsc_info* sortedCscInfo, bool doResize)
 {
+	UNREFERENCED_PARAMETER(doResize);
+
 	String str = CT2A(pathName.GetString());
 	VideoCapture vidCap;
 	if (!vidCap.open(str) || !vidCap.isOpened())

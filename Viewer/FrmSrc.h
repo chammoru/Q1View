@@ -9,7 +9,7 @@ class FrmSrc
 public:
 	FrmSrc(bool fixedResolution)
 	: mFixedResolution(fixedResolution) {}
-	virtual ~FrmSrc() {};
+	virtual ~FrmSrc() {}
 
 	virtual bool Open(CString &filePath) = 0;
 	virtual void ConfigureDoc(CViewerDoc *pDoc) = 0;

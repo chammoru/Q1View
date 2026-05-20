@@ -108,7 +108,7 @@ bool matRead(const string &filename, Mat &M)
 	char buf[8];
 	size_t read = fread(buf, sizeof(char), 5, f);
 	CV_Assert(read == 5);
-	if (strncmp(buf, "Q1Mat", 5) != 0 && strncmp(buf, "CmMat", 5))	{
+	if (strncmp(buf, "Q1Mat", 5) != 0 && strncmp(buf, "CmMat", 5)) {
 		printf("Invalidate cv::Mat data file %s\n", filename.c_str());
 		return false;
 	}

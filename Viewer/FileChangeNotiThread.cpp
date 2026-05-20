@@ -115,7 +115,7 @@ bool FileChangeNotiThread::threadLoop()
 	PFILE_NOTIFY_INFORMATION pfni;
 	do {
 		pfni = PFILE_NOTIFY_INFORMATION(buffer + dwNextEntryOffset);
-		switch(pfni->Action) {
+		switch (pfni->Action) {
 		case FILE_ACTION_MODIFIED:
 		{
 			CString changedFileName(pfni->FileName,

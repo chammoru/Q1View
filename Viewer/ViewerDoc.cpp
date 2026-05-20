@@ -606,8 +606,7 @@ void CViewerDoc::SetPathName(LPCTSTR lpszPathName, BOOL bAddToMRU)
 	// store the path fully qualified
 	TCHAR szFullPath[_MAX_PATH];
 	ENSURE(lpszPathName);
-	if ( _tcslen(lpszPathName) >= _MAX_PATH )
-	{
+	if (_tcslen(lpszPathName) >= _MAX_PATH) {
 		ASSERT(FALSE);
 		// MFC requires paths with length < _MAX_PATH
 		// No other way to handle the error from a void function
@@ -615,8 +614,7 @@ void CViewerDoc::SetPathName(LPCTSTR lpszPathName, BOOL bAddToMRU)
 	}
 
 	DWORD retval = GetFullPathName(lpszPathName, _MAX_PATH, szFullPath, NULL);
-	if( retval == 0 )
-	{
+	if (retval == 0) {
 		ASSERT(FALSE);
 		// MFC requires paths with length < _MAX_PATH
 		// No other way to handle the error from a void function

@@ -42,14 +42,14 @@ void fastGradient32Sx2(const Mat &bgr3u, Mat &Gx, Mat &Gy)
 	int *dstRowB = Gy.ptr<int>(h - 1);
 	const uchar *srcRowT = bgr3u.ptr<uchar>(0);
 	const uchar *srcRowB = bgr3u.ptr<uchar>(h - 1);
-	for (int j = 0; j < stride; j++)	{
+	for (int j = 0; j < stride; j++) {
 		*dstRowT++ = (*(srcRowT + stride) - *srcRowT) * 2;
 		*dstRowB++ = (*srcRowB - *(srcRowB - stride)) * 2;
 		srcRowT++;
 		srcRowB++;
 	}
 	// Find the gradient for inner regions
-	for (int y = 1; y < h-1; y++) {
+	for (int y = 1; y < h - 1; y++) {
 		int *dstRow = Gy.ptr<int>(y);
 		const uchar *srcRowU = bgr3u.ptr<uchar>(y - 1);
 		const uchar *srcRowL = bgr3u.ptr<uchar>(y + 1);

@@ -49,8 +49,10 @@ bool MatFrmSrc::GetResolution(CString &pathName, int* w, int* h)
 }
 
 const struct qcsc_info* MatFrmSrc::GetColorSpace(const CString &pathName,
-		const struct qcsc_info* sortedCscInfo, bool doReisze)
+	const struct qcsc_info* sortedCscInfo, bool doResize)
 {
+	UNREFERENCED_PARAMETER(doResize);
+
 	Mat ocvMat = q1::imreadW(pathName.GetString());
 	if (ocvMat.data == NULL)
 		return NULL;

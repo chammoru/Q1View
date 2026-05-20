@@ -20,8 +20,8 @@ Mat rotate(const Mat &src, int degree)
 		flip(src, dst, -1);
 		break;
 	case QCV_ROT_270:
-        transpose(src, dst);
-        flip(dst, dst, 0);
+		transpose(src, dst);
+		flip(dst, dst, 0);
 		break;
 	default:
 		CV_Error(Error::StsNotImplemented, "never get here");

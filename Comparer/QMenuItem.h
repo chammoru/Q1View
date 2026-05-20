@@ -28,7 +28,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	BOOL Create(LPCTSTR lpszWindowName, CRect &rect, CWnd* pParentWnd, CMenu *pMenu,
-		DWORD textHorizAlign=DT_CENTER);
+		DWORD textHorizAlign = DT_CENTER);
 	afx_msg void OnPaint();
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);

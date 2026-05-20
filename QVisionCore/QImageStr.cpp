@@ -99,29 +99,28 @@ failed_parse:
 
 int image_parse_arg(char *str, int *num, const char *key)
 {
-    char *ptr, *tmp;
+	char *ptr, *tmp;
 
-    ptr = str;
+	ptr = str;
 
-    while ((tmp = strstr(ptr, key)) != NULL)
-    {
-        if (tmp == str || !isdigit((int)tmp[-1]))
-            goto find_next;
+	while ((tmp = strstr(ptr, key)) != NULL) {
+		if (tmp == str || !isdigit((int)tmp[-1]))
+			goto find_next;
 
-        tmp--;
+		tmp--;
 
-        while (tmp >= ptr && isdigit((int)*tmp))
-            tmp--;
+		while (tmp >= ptr && isdigit((int)*tmp))
+			tmp--;
 
-        image_parse_num(tmp + 1, num);
+		image_parse_num(tmp + 1, num);
 
-        return 0; /* found */
+		return 0; /* found */
 
 find_next:
-        ptr = tmp + 1;
-    }
+		ptr = tmp + 1;
+	}
 
-    return 1; /* couldn't find */
+	return 1; /* couldn't find */
 }
 
 int image_parse_arg(char* str, double* num, const char* key)

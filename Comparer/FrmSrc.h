@@ -13,7 +13,7 @@ public:
 	virtual void Release() = 0;
 	virtual bool GetResolution(CString &pathName, int* w, int* h) = 0;
 	virtual const struct qcsc_info* GetColorSpace(const CString &pathName,
-		const struct qcsc_info* sortedCscInfo, bool doReisze) = 0;
+		const struct qcsc_info* sortedCscInfo, bool doResize) = 0;
 	virtual bool IsAvailable() = 0;
 	virtual bool FillSceneBuf(BYTE *origBuf) = 0;
 	virtual long GetNextFrameID() = 0;

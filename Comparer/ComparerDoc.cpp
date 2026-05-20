@@ -333,9 +333,9 @@ void CComparerDoc::ProcessDocument(ComparerPane *pane)
 		settingChanged = true;
 	}
 
-	bool doReisze = srcW != mW || srcH != mH;
+	bool doResize = srcW != mW || srcH != mH;
 	CComparerView* pView = pane->pView;
-	const struct qcsc_info* ci = pane->GetColorSpace(pane->pathName, mSortedCscInfo, doReisze);
+	const struct qcsc_info* ci = pane->GetColorSpace(pane->pathName, mSortedCscInfo, doResize);
 	if (ci == NULL) {
 		LOGWRN("color space is not found");
 	} else {
@@ -610,7 +610,7 @@ bool CComparerDoc::CheckImgViewProcessing()
 		ComparerPane *pane = &mPane[i];
 		CComparerView *view = pane->pView;
 		if (view->mProcessing)
-			isProcessing= true;
+			isProcessing = true;
 	}
 
 	return isProcessing;

@@ -40,7 +40,7 @@ CQMenuItem::CQMenuItem()
 	LOGFONT lf;
 	::ZeroMemory(&lf, sizeof(lf));
 
-	SystemParametersInfo(SPI_GETICONTITLELOGFONT,sizeof(LOGFONT),&lf,0);
+	SystemParametersInfo(SPI_GETICONTITLELOGFONT, sizeof(LOGFONT), &lf, 0);
 	lf.lfHeight = 14;
 	lf.lfWeight = FW_SEMIBOLD;
 	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);

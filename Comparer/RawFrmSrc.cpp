@@ -113,13 +113,13 @@ bool RawFrmSrc::GetResolution(CString &pathName, int* w, int* h)
 }
 
 const struct qcsc_info* RawFrmSrc::GetColorSpace(const CString &pathName,
-		const struct qcsc_info* sortedCscInfo, bool doReisze)
+	const struct qcsc_info* sortedCscInfo, bool doResize)
 {
 	char szFileName[MAX_PATH + 1];
 	CString fileName = parseLowerFileName(pathName);
 	strncpy_s(szFileName, CT2A(fileName), MAX_PATH);
 
-	if (doReisze) {
+	if (doResize) {
 		return q1::image_find_cs(sortedCscInfo, "bgr888");
 	} else {
 		return q1::image_find_cs(sortedCscInfo, szFileName);

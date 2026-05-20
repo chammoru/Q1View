@@ -2,7 +2,7 @@
 
 #define DECLARE_COMPARER_VIEW(class_name)                    \
 	class class_name : public CComparerView                  \
-    {                                                        \
+	{                                                        \
 		DECLARE_DYNCREATE(class_name)                        \
 	                                                         \
 	public:                                                  \
