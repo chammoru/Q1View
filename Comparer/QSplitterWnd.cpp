@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include "Comparer.h"
 #include "QSplitterWnd.h"
+#include "QViewerCmn.h"
 
 
 // CQSplitterWnd
@@ -34,7 +35,7 @@ void CQSplitterWnd::OnDrawSplitter(CDC* pDC, ESplitType nType, const CRect& rect
 {
 	// TODO: Add your specialized code here and/or call the base class
 	if (pDC != NULL && nType == splitBorder) {
-		COLORREF clr = GetSysColor(COLOR_BTNFACE);
+		COLORREF clr = Q1UI_COLOR_BORDER_SOFT;
 
 		int cxBorder = GetSystemMetrics(SM_CXBORDER);
 		int cyBorder = GetSystemMetrics(SM_CYBORDER);

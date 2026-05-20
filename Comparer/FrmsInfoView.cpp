@@ -31,7 +31,7 @@ CFrmsInfoView::CFrmsInfoView()
 
 	::ZeroMemory(&lf, sizeof(lf));
 	lf.lfHeight = LABEL_FONT_H;
-	::lstrcpy(lf.lfFaceName, _T("Arial"));
+	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
 
 	mLabelFont.CreateFontIndirect(&lf);
 
@@ -58,6 +58,24 @@ END_MESSAGE_MAP()
 
 // CFrmsInfoView drawing
 
+static void DrawCenteredMessage(CDC *pDC, CRect rect, CFont *titleFont, CFont *bodyFont,
+								const CString &title, const CString &body)
+{
+	CRect titleRect = rect;
+	titleRect.bottom = rect.CenterPoint().y - 2;
+	CRect bodyRect = rect;
+	bodyRect.top = rect.CenterPoint().y + 5;
+
+	pDC->SetBkMode(TRANSPARENT);
+	CFont *prevFont = pDC->SelectObject(titleFont);
+	pDC->SetTextColor(Q1UI_COLOR_TEXT);
+	pDC->DrawText(title, &titleRect, DT_SINGLELINE | DT_CENTER | DT_BOTTOM | DT_END_ELLIPSIS);
+	pDC->SelectObject(bodyFont);
+	pDC->SetTextColor(Q1UI_COLOR_TEXT_MUTED);
+	pDC->DrawText(body, &bodyRect, DT_SINGLELINE | DT_CENTER | DT_TOP | DT_END_ELLIPSIS);
+	pDC->SelectObject(prevFont);
+}
+
 void CFrmsInfoView::OnDraw(CDC* pDC)
 {
 	CComparerDoc* pDoc = GetDocument();
@@ -72,10 +90,14 @@ void CFrmsInfoView::OnDraw(CDC* pDC)
 	memDC.SetStretchBltMode(COLORONCOLOR);
 	memDC.SelectObject(bitmap);
 
-	memDC.BitBlt(0, 0, mWClient, mHClient, NULL, 0, 0, WHITENESS);
+	memDC.FillSolidRect(CRect(0, 0, mWClient, mHClient), Q1UI_COLOR_SURFACE);
+	memDC.Draw3dRect(CRect(0, 0, mWClient, mHClient), Q1UI_COLOR_BORDER_SOFT, Q1UI_COLOR_BORDER_SOFT);
 
 	size_t stepCount = pDoc->mMinFrames;
 	if (stepCount <= 0) {
+		DrawCenteredMessage(&memDC, CRect(0, 0, mWClient, mHClient),
+			&mResultFont, &mLabelFont, _T("Metrics"),
+			_T("Open comparable sources to calculate PSNR, SSIM, or MSE"));
 		pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
 
 		return;
@@ -84,6 +106,9 @@ void CFrmsInfoView::OnDraw(CDC* pDC)
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	size_t itemCount = mPsnrCal->CalculateCoords(&mGraphRect, pMainFrm->mMetricIdx);
 	if (itemCount <= 0) {
+		DrawCenteredMessage(&memDC, CRect(0, 0, mWClient, mHClient),
+			&mResultFont, &mLabelFont, _T("Scanning"),
+			_T("Metric points will appear as frames are parsed"));
 		pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
 		return;
 	}

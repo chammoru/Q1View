@@ -29,7 +29,7 @@ CComparerView::CComparerView()
 	::ZeroMemory(&lf, sizeof(lf));
 
 	lf.lfWeight = FW_NORMAL;
-	::lstrcpy(lf.lfFaceName, _T("Courier New"));
+	::lstrcpy(lf.lfFaceName, Q1UI_FONT_MONO);
 	mDefPixelTextFont.CreateFontIndirect(&lf);
 
 	mCsMenu.CreatePopupMenu();
@@ -97,7 +97,7 @@ void CComparerView::ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *ds
 	long gap, yStart, yEnd, xStart, xEnd;
 
 	if (mYDst > 0 || mXDst > 0) // client window is bigger -> center
-		memset(dst, 0xff, sDst * mHClient * QIMG_DST_RGB_BYTES);
+		memset(dst, 0xf7, sDst * mHClient * QIMG_DST_RGB_BYTES);
 
 	// [yStart, yEnd] is the scaled y-range to consider on the screen
 	if (mYDst > 0) {
@@ -187,7 +187,7 @@ void CComparerView::OnDraw(CDC *pDC)
 
 	ComparerPane *pane = GetPane(pDoc);
 	if (!pane->isAvail()) {
-		pDC->BitBlt(0, mRcControls.bottom, mWCanvas, mHCanvas, NULL, 0, 0, WHITENESS);
+		DrawEmptyPane(pDC, pDoc);
 		return;
 	}
 
@@ -200,7 +200,7 @@ void CComparerView::OnDraw(CDC *pDC)
 	memDC.SelectObject(bitmap);
 	memDC.SetStretchBltMode(COLORONCOLOR);
 	if (pDoc->mWDst < mWCanvas || pDoc->mHDst < mHCanvas)
-		memDC.BitBlt(0, 0, mWCanvas, mHCanvas, NULL, 0, 0, WHITENESS);
+		memDC.FillSolidRect(CRect(0, 0, mWCanvas, mHCanvas), Q1UI_COLOR_CANVAS_BG);
 
 	q1::GridInfo gi;
 	ScaleRgbBuf(pDoc, pane->rgbBuf, gi); // update mRgbBuf
@@ -245,6 +245,45 @@ void CComparerView::OnDraw(CDC *pDC)
 	pDC->BitBlt(0, mRcControls.bottom, mWCanvas, mHCanvas, &memDC, 0, 0, SRCCOPY);
 
 	mProcessing = false;
+}
+
+void CComparerView::DrawEmptyPane(CDC *pDC, CComparerDoc *pDoc)
+{
+	CRect canvas(0, mRcControls.bottom, mWClient, mHClient);
+	pDC->FillSolidRect(canvas, Q1UI_COLOR_CANVAS_BG);
+
+	LOGFONT lf;
+	mDefPixelTextFont.GetLogFont(&lf);
+	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
+
+	CFont titleFont;
+	lf.lfHeight = 18;
+	lf.lfWeight = FW_SEMIBOLD;
+	titleFont.CreateFontIndirect(&lf);
+
+	CFont bodyFont;
+	lf.lfHeight = 13;
+	lf.lfWeight = FW_NORMAL;
+	bodyFont.CreateFontIndirect(&lf);
+
+	CString title(_T("Drop a frame source"));
+	CString body(_T("Use 2-4 panes to compare images, raw dumps, or video frames"));
+
+	CRect textRect = canvas;
+	textRect.DeflateRect(12, 12);
+	CRect titleRect = textRect;
+	titleRect.bottom = canvas.CenterPoint().y - 3;
+	CRect bodyRect = textRect;
+	bodyRect.top = canvas.CenterPoint().y + 6;
+
+	pDC->SetBkMode(TRANSPARENT);
+	CFont *prevFont = pDC->SelectObject(&titleFont);
+	pDC->SetTextColor(Q1UI_COLOR_TEXT);
+	pDC->DrawText(title, &titleRect, DT_SINGLELINE | DT_CENTER | DT_BOTTOM | DT_END_ELLIPSIS);
+	pDC->SelectObject(&bodyFont);
+	pDC->SetTextColor(Q1UI_COLOR_TEXT_MUTED);
+	pDC->DrawText(body, &bodyRect, DT_SINGLELINE | DT_CENTER | DT_TOP | DT_END_ELLIPSIS);
+	pDC->SelectObject(prevFont);
 }
 
 

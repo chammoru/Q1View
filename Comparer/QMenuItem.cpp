@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "QMenuItem.h"
+#include "QViewerCmn.h"
 
 
 // CQMenuItem
@@ -13,7 +14,7 @@ IMPLEMENT_DYNAMIC(CQMenuItem, CWnd)
 
 CQMenuItem::CQMenuItem()
 : mMouseIn(false)
-, mTextBlank(" ")
+, mTextBlank("  ")
 {
 	WNDCLASS wndcls;
 	HINSTANCE hInst = AfxGetInstanceHandle();
@@ -41,22 +42,13 @@ CQMenuItem::CQMenuItem()
 	::ZeroMemory(&lf, sizeof(lf));
 
 	SystemParametersInfo(SPI_GETICONTITLELOGFONT,sizeof(LOGFONT),&lf,0);
+	lf.lfHeight = 14;
+	lf.lfWeight = FW_SEMIBOLD;
+	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
 	mFont.CreateFontIndirect(&lf);
 
-	COLORREF clr;
-	
-	clr = ::GetSysColor(COLOR_MENU);
-	mNormBkBrush.CreateSolidBrush(clr);
-
-	BYTE r = GetRValue(clr);
-	r = max(0, r - 0x33);
-	BYTE g = GetGValue(clr);
-	g = max(0, g - 0x33);
-	BYTE b = GetBValue(clr);
-	b = max(0, b - 0x33);
-
-	clr = RGB(r, g, b);
-	mOverBkBrush.CreateSolidBrush(clr);
+	mNormBkBrush.CreateSolidBrush(Q1UI_COLOR_SURFACE_ALT);
+	mOverBkBrush.CreateSolidBrush(Q1UI_COLOR_ACCENT_SOFT);
 
 	mBkBrush = &mNormBkBrush;
 }
@@ -94,6 +86,7 @@ BOOL CQMenuItem::Create(LPCTSTR lpszWindowName, CRect &rect, CWnd* pParentWnd, C
 void CQMenuItem::DefaultSetting(CDC *pDC, CString &str)
 {
 	pDC->SetBkMode(TRANSPARENT);
+	pDC->SetTextColor(Q1UI_COLOR_TEXT);
 	pDC->SelectObject(mFont);
 	pDC->SelectObject(mBkBrush);
 	pDC->SelectStockObject(NULL_PEN);
@@ -130,9 +123,8 @@ void CQMenuItem::OnPaint()
 
 	DefaultSetting(&memDC, str);
 
-	CRect rect = mRcClient;
-	rect.InflateRect(0, 0, 1, 1);
-	memDC.Rectangle(&rect);
+	memDC.FillRect(&mRcClient, mBkBrush);
+	memDC.Draw3dRect(&mRcClient, Q1UI_COLOR_BORDER_SOFT, Q1UI_COLOR_BORDER_SOFT);
 	memDC.DrawText(str, &mRcClient, DT_SINGLELINE | mTextHorizAlign | DT_VCENTER);
 
 	dc.BitBlt(0, 0, w, h, &memDC, 0, 0, SRCCOPY);

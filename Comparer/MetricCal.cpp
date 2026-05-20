@@ -18,7 +18,7 @@ MetricCal::MetricCal()
 , mFileScanThread(NULL)
 , mStepCount(0)
 , mFrameIdx(0)
-, mAvgFont(new Font(&FontFamily(_T("Arial")), 9))
+, mAvgFont(new Font(&FontFamily(Q1UI_FONT_TEXT), 9))
 , mMetricIdx(METRIC_PSNR_IDX)
 {
 	for (int i = 0; i < QPLANES; i++) {
@@ -42,9 +42,9 @@ MetricCal::~MetricCal()
 
 const Color MetricCal::QMetricColors[QPLANES] =
 {
-	Color(0xff, 0xff, 0x66, 0x66),
-	Color(0xff, 0x80, 0x80, 0x80),
-	Color(0xff, 0x99, 0xcc, 0x66),
+	Color(0xff, 0x25, 0x66, 0xd9),
+	Color(0xff, 0xdc, 0x26, 0x26),
+	Color(0xff, 0x16, 0x9b, 0x62),
 };
 
 void MetricCal::DrawFrameID(CDC* pDC, size_t frameID, LONG xPt, int hClient) const
@@ -229,6 +229,7 @@ void MetricCal::DrawYLabel(CDC* pDC, CRect *yLabelRect, CFont *font) const
 	CString str;
 
 	pDC->SelectObject(font);
+	pDC->SetTextColor(Q1UI_COLOR_TEXT_MUTED);
 
 	str.Format(_T("%.2f"), getMinVal());
 	pDC->DrawText(str, yLabelRect, DT_SINGLELINE | DT_CENTER |  DT_BOTTOM);
@@ -241,6 +242,7 @@ void MetricCal::DrawYLabel(CDC* pDC, CRect *yLabelRect, CFont *font) const
 void MetricCal::DrawXLabel(CDC* pDC, int hClient, CFont *font) const
 {
 	pDC->SelectObject(font);
+	pDC->SetTextColor(Q1UI_COLOR_TEXT_MUTED);
 
 	list<size_t>::const_iterator it = mShowID.begin();
 	LONG x = GRAPH_IN_MARGIN_L + mGraphRect.left;

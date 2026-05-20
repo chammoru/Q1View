@@ -122,6 +122,7 @@ BEGIN
     VK_INSERT,      ID_EDIT_PASTE,          VIRTKEY, SHIFT
     VK_F6,          ID_NEXT_PANE,           VIRTKEY 
     VK_F6,          ID_PREV_PANE,           VIRTKEY, SHIFT
+    VK_OEM_2,       ID_VIEWER_HELP,         VIRTKEY
 END
 
 

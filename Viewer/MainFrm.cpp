@@ -149,7 +149,15 @@ void CMainFrame::Dump(CDumpContext& dc) const
 void CMainFrame::OnHelp()
 {
 	CViewerView *pView = static_cast<CViewerView *>(GetActiveView());
-	pView->ToggleHelp();
+	if (!pView) {
+		CWnd *pWnd = GetDescendantWindow(AFX_IDW_PANE_FIRST, TRUE);
+		if (pWnd && pWnd->IsKindOf(RUNTIME_CLASS(CViewerView)))
+			pView = static_cast<CViewerView *>(pWnd);
+	}
+	if (pView) {
+		pView->ToggleHelp();
+		pView->UpdateWindow();
+	}
 }
 
 void CMainFrame::OnFileOpen()

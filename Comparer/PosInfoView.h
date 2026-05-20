@@ -1,8 +1,10 @@
 #pragma once
 
+#include "QViewerCmn.h"
+
 #define POS_LINE_MIN            12
 #define POS_NUM_FONT_H          POS_LINE_MIN
-#define COLOR_POS_NUM_TEXT      RGB(0xff, 0xff, 0xff)
+#define COLOR_POS_NUM_TEXT      Q1UI_COLOR_TEXT_MUTED
 
 // CPosInfoView view
 

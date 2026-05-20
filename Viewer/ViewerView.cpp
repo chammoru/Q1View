@@ -122,17 +122,17 @@ CViewerView::CViewerView()
 
 	::ZeroMemory(&lf, sizeof(lf));
 	lf.lfHeight = PROGRESS_FONT_H;
-	lf.lfWeight = FW_BOLD;
+	lf.lfWeight = FW_SEMIBOLD;
 
-	::lstrcpy(lf.lfFaceName, _T("Arial"));
+	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
 	mProgressFont.CreateFontIndirect(&lf);
 
 	lf.lfWeight = FW_NORMAL;
-	::lstrcpy(lf.lfFaceName, _T("Courier New"));
+	::lstrcpy(lf.lfFaceName, Q1UI_FONT_MONO);
 	mDefPixelTextFont.CreateFontIndirect(&lf);
 
 	lf.lfWeight = FW_NORMAL;
-	::lstrcpy(lf.lfFaceName, _T("Consolas"));
+	::lstrcpy(lf.lfFaceName, Q1UI_FONT_MONO);
 	mConsolasFont.CreateFontIndirect(&lf);
 
 	// setup basic bitmap info
@@ -301,17 +301,21 @@ void CViewerView::ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID)
 	CString str;
 	str.Format(_T("%d / %d"), frameID, frameMax);
 
-	BitBlt(pDC->m_hDC, 0, mHCanvas, mWClient, mHProgress, 0, 0, 0, WHITENESS);
+	CRect progressBand(0, mHCanvas, mWClient, mHClient);
+	pDC->FillSolidRect(progressBand, Q1UI_COLOR_SURFACE_ALT);
 
 	CRect barTextRect, barRect;
+	CRect trackRect;
 
-	barRect.top = mHCanvas + barMargin;
-	barRect.left = barMargin;
-	barRect.bottom = mHClient - barMargin;
+	trackRect.top = mHCanvas + barMargin;
+	trackRect.left = barMargin;
+	trackRect.bottom = mHClient - barMargin;
+	trackRect.right = mWClient - barMargin;
+	pDC->FillSolidRect(trackRect, Q1UI_COLOR_BORDER_SOFT);
+
+	barRect = trackRect;
 	barRect.right = barRect.left + limit;
-
-	CBrush brush_back_ground(mBarColor);
-	pDC->FillRect(&barRect, &brush_back_ground);
+	pDC->FillSolidRect(&barRect, mBarColor);
 
 	barTextRect.top = mHCanvas;
 	barTextRect.left = 0;
@@ -329,7 +333,7 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 	long gap, yStart, yEnd, xStart, xEnd;
 
 	if (mYDst > 0 || mXDst > 0) // client window is bigger -> center
-		memset(dst, 0xff, sDst * mHClient * QIMG_DST_RGB_BYTES);
+		memset(dst, 0xf7, sDst * mHClient * QIMG_DST_RGB_BYTES);
 
 	// [yStart, yEnd] is the scaled y-range to consider on the screen
 	if (mYDst > 0) {
@@ -605,50 +609,90 @@ void CViewerView::DrawHelpMenu(CDC *pDC)
 {
 	const int W_HELP = VIEWER_DEF_W;
 	const int H_HELP = VIEWER_DEF_H;
-	const int W_MARGIN = 10;
-	const int H_MARGIN =  4;
+	const int W_MARGIN = 18;
+	const int H_MARGIN = 14;
 	const int X_HELP = (mWCanvas - W_HELP) / 2;
 	const int Y_HELP = (mHCanvas - H_HELP) / 2;
 	CRect bgRect(X_HELP, Y_HELP, X_HELP + W_HELP, Y_HELP + H_HELP);
-	pDC->FillSolidRect(bgRect, RGB(0xb6, 0xbc, 0xcc));
+	pDC->FillSolidRect(bgRect, Q1UI_COLOR_SURFACE);
+	CPen borderPen(PS_SOLID, 1, Q1UI_COLOR_BORDER);
+	CPen *prevPen = pDC->SelectObject(&borderPen);
+	pDC->SelectStockObject(NULL_BRUSH);
+	pDC->Rectangle(bgRect);
+	pDC->SelectObject(prevPen);
 
 	CRect manualRect(bgRect.left + W_MARGIN, bgRect.top + H_MARGIN,
 		bgRect.right - W_MARGIN, bgRect.bottom - H_MARGIN);
 	LOGFONT lf;
 	CFont manualFont;
 	mConsolasFont.GetLogFont(&lf);
-	lf.lfHeight = 16;
+	lf.lfHeight = 14;
+	lf.lfWeight = FW_NORMAL;
 	manualFont.CreateFontIndirect(&lf);
 	pDC->SelectObject(&manualFont);
-	pDC->SetTextColor(RGB(0x00, 0x00, 0x00));
+	pDC->SetTextColor(Q1UI_COLOR_TEXT);
 	CString manual(
-		"Viewer, Copyright (C) 2018 by Kyuwon Kim.\n"
-		"        Modified in 2026 by KyungIl Lee.\n"
+		"Viewer shortcuts\n"
 		"\n"
-		"?            : This help menu\n"
-		"Drag && Drop : Show an image\n"
-		"Mouse Wheel  : Zoom in/out (x40 shows RGB values)\n"
-		"Return       : Full screen\n"
-		"H            : RGB value in hexadecimal\n"
-		"Y            : Only Y in YCbCr\n"
-		"R            : 90-degree clockwise rotation\n"
-		"Page Up      : Previous file\n"
-		"Page Down    : Next file\n"
-		"S            : Selective capture mode\n"
-		"Ctrl + C     : Capture viewer screen\n"
-		"Ctrl + V     : Paste to viewer screen\n"
-		"Left  (<-)   : Previous frame in video\n"
-		"Right (->)   : Next frame in video\n"
-		"Home         : First frame (image) in video (directory)\n"
-		"End          : Last frame (image) in video (directory)\n"
-		"Space        : Play/stop video\n"
-		"Click bottom : Select a video frame\n"
-		"C            : Show cursor coordinates\n"
-		"B            : Show size of selected boxes\n"
-		"I            : Interpolate pixel values\n"
-		"N            : Switche to the next color space\n"
+		"?              Show or hide this panel\n"
+		"Drag && Drop    Open an image\n"
+		"Mouse Wheel    Zoom in or out; high zoom shows pixel values\n"
+		"Return         Full screen\n"
+		"H              Toggle hex pixel values\n"
+		"Y              Toggle Y-only view\n"
+		"R              Rotate 90 degrees clockwise\n"
+		"Page Up/Down   Previous or next file\n"
+		"S              Selection capture mode\n"
+		"Ctrl + C       Capture viewer screen or selected region\n"
+		"Ctrl + V       Paste image from clipboard\n"
+		"Left/Right     Previous or next video frame\n"
+		"Home/End       First or last frame/file\n"
+		"Space          Play or stop video\n"
+		"Click bottom   Seek to a video frame\n"
+		"C              Cursor coordinates\n"
+		"B              Selected box size\n"
+		"I              Interpolate pixels\n"
+		"N              Next color space\n"
 		);
 	pDC->DrawText(manual, &manualRect, DT_LEFT | DT_TOP);
+}
+
+void CViewerView::DrawEmptyState(CDC *pDC)
+{
+	pDC->FillSolidRect(CRect(0, 0, mWClient, mHClient), Q1UI_COLOR_CANVAS_BG);
+
+	LOGFONT lf;
+	mConsolasFont.GetLogFont(&lf);
+	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
+
+	CFont titleFont;
+	lf.lfHeight = 22;
+	lf.lfWeight = FW_SEMIBOLD;
+	titleFont.CreateFontIndirect(&lf);
+
+	CFont bodyFont;
+	lf.lfHeight = 14;
+	lf.lfWeight = FW_NORMAL;
+	bodyFont.CreateFontIndirect(&lf);
+
+	CString title(_T("Open or drop an image"));
+	CString body(_T("Ctrl+O to open, Ctrl+V to paste, mouse wheel to zoom"));
+
+	CRect rect(0, 0, mWClient, mHClient);
+	rect.DeflateRect(24, 24);
+	CRect titleRect = rect;
+	titleRect.bottom = rect.CenterPoint().y - 4;
+	CRect bodyRect = rect;
+	bodyRect.top = rect.CenterPoint().y + 6;
+
+	pDC->SetBkMode(TRANSPARENT);
+	CFont *prevFont = pDC->SelectObject(&titleFont);
+	pDC->SetTextColor(Q1UI_COLOR_TEXT);
+	pDC->DrawText(title, &titleRect, DT_SINGLELINE | DT_CENTER | DT_BOTTOM | DT_END_ELLIPSIS);
+	pDC->SelectObject(&bodyFont);
+	pDC->SetTextColor(Q1UI_COLOR_TEXT_MUTED);
+	pDC->DrawText(body, &bodyRect, DT_SINGLELINE | DT_CENTER | DT_TOP | DT_END_ELLIPSIS);
+	pDC->SelectObject(prevFont);
 }
 
 void CViewerView::DrawCursorCoordinates(CDC *pDC)
@@ -667,7 +711,7 @@ void CViewerView::DrawCursorCoordinates(CDC *pDC)
 	CRect bgRect(mWCanvas - refRect.Width(), mHCanvas - refRect.Height(), mWCanvas, mHCanvas);
 	bgRect.InflateRect(8, 2, 0, 0);
 	pDC->FillSolidRect(bgRect, COLOR_COORDINATE_RECT);
-	pDC->SetTextColor(RGB(0xea, 0xef, 0xee));
+	pDC->SetTextColor(Q1UI_COLOR_OVERLAY_TEXT);
 	pDC->DrawText(coord, &bgRect, DT_CENTER | DT_VCENTER);
 }
 
@@ -688,7 +732,7 @@ int CViewerView::DrawBoxInfoText(CDC *pDC, CRect &rect, COLORREF color, int hAcc
 	CRect bgRect(mWCanvas - refRect.Width(), hAccumGap - refRect.Height(), mWCanvas, hAccumGap);
 	bgRect.InflateRect(8, 1, 0, 0);
 	pDC->FillSolidRect(bgRect, COLOR_BOXINFO_RECT);
-	pDC->SetTextColor(color);
+	pDC->SetTextColor(Q1UI_COLOR_OVERLAY_TEXT);
 	pDC->DrawText(coord, &bgRect, DT_CENTER | DT_VCENTER);
 	return hAccumGap;
 }
@@ -749,7 +793,7 @@ void CViewerView::OnDraw(CDC *pDC)
 
 	memDC.SelectObject(bitmap);
 	memDC.SetStretchBltMode(COLORONCOLOR);
-	memDC.BitBlt(0, 0, mWClient, mHClient, NULL, 0, 0, WHITENESS);
+	memDC.FillSolidRect(CRect(0, 0, mWClient, mHClient), Q1UI_COLOR_CANVAS_BG);
 
 	BufferInfo bi;
 	bool ok = mNewRgbBufferInfoQ->try_pop(bi);
@@ -782,9 +826,16 @@ void CViewerView::OnDraw(CDC *pDC)
 		src = mYBuf;
 	}
 
+	if (!src) {
+		DrawEmptyState(&memDC);
+		if (mShowHelp)
+			DrawHelpMenu(&memDC);
+		pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
+		return;
+	}
+
 	q1::GridInfo gi;
-	if (src)
-		ScaleRgbBuf(src, &mRgbBuf, gi);
+	ScaleRgbBuf(src, &mRgbBuf, gi);
 #ifdef USE_STRETCH_DIB
 	StretchDIBits(memDC.m_hDC,
 		0, 0, mWClient, mHClient,

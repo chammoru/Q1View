@@ -5,6 +5,7 @@
 #include "Comparer.h"
 #include "ComparerDoc.h"
 #include "FrmInfoView.h"
+#include "QViewerCmn.h"
 
 // CFrmInfoView
 
@@ -18,7 +19,8 @@ CFrmInfoView::CFrmInfoView()
 
 	::ZeroMemory(&lf, sizeof(lf));
 	lf.lfHeight = FRM_STATE_FONT_H;
-	::lstrcpy(lf.lfFaceName, _T("Arial"));
+	lf.lfWeight = FW_SEMIBOLD;
+	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
 
 	mStateFont.CreateFontIndirect(&lf);
 }
@@ -40,9 +42,10 @@ void CFrmInfoView::OnDraw(CDC* pDC)
 	CComparerDoc *pDoc = GetDocument();
 	// TODO: add draw code here
 
-	CString &frameState = pDoc->mFrmState;
-	if (frameState.GetLength() <= 0)
-		return;
+	CString frameState = pDoc->mFrmState;
+	bool hasState = frameState.GetLength() > 0;
+	if (!hasState)
+		frameState = _T("Ready");
 
 	CDC memDC;
 	memDC.CreateCompatibleDC(pDC);
@@ -53,10 +56,12 @@ void CFrmInfoView::OnDraw(CDC* pDC)
 	memDC.SelectObject(bitmap);
 	memDC.SetStretchBltMode(COLORONCOLOR);
 
-	memDC.BitBlt(0, 0, mWClient, mHClient, NULL, 0, 0, WHITENESS);
+	memDC.FillSolidRect(CRect(0, 0, mWClient, mHClient), Q1UI_COLOR_SURFACE_ALT);
+	memDC.Draw3dRect(CRect(0, 0, mWClient, mHClient), Q1UI_COLOR_BORDER_SOFT, Q1UI_COLOR_BORDER_SOFT);
 
 	memDC.SelectObject(&mStateFont);
 	memDC.SetBkMode(TRANSPARENT);
+	memDC.SetTextColor(hasState ? Q1UI_COLOR_TEXT : Q1UI_COLOR_TEXT_MUTED);
 	memDC.DrawText(frameState, &mRcClient, DT_SINGLELINE | DT_CENTER |  DT_VCENTER);
 
 	pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);

@@ -9,13 +9,14 @@
 #include "FrmCmpStrategy.h"
 #include "FileScanThread.h"
 #include "MainFrm.h"
+#include "QViewerCmn.h"
 
 // CPosInfoView
 
 IMPLEMENT_DYNCREATE(CPosInfoView, CScrollView)
 
 CPosInfoView::CPosInfoView()
-: mDiffPen(new CPen(PS_SOLID, 1, RGB(0xcc, 0, 0)))
+: mDiffPen(new CPen(PS_SOLID, 1, Q1UI_COLOR_DANGER))
 , mWClient(0)
 , mHClient(0)
 , mPosLines(0)
@@ -28,8 +29,8 @@ CPosInfoView::CPosInfoView()
 
 	::ZeroMemory(&lf, sizeof(lf));
 	lf.lfHeight = POS_NUM_FONT_H;
-	lf.lfWeight = FW_BOLD;
-	::lstrcpy(lf.lfFaceName, _T("Arial"));
+	lf.lfWeight = FW_SEMIBOLD;
+	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
 
 	mPosNumFont.CreateFontIndirect(&lf);
 }
@@ -88,22 +89,19 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 {
 	CComparerDoc* pDoc = GetDocument();
 
+	COLORREF frameColor;
 	if (!pane->isAvail()) {
-		curBrush = WHITE_BRUSH;
+		frameColor = Q1UI_COLOR_SURFACE;
 	} else if (parseDone) {
-		curBrush = LTGRAY_BRUSH;
+		frameColor = Q1UI_COLOR_ACCENT_SOFT;
 	} else if (i < pane->frames) {
-		curBrush = GRAY_BRUSH;
+		frameColor = Q1UI_COLOR_BORDER_SOFT;
 	} else {
-		curBrush = BLACK_BRUSH;
+		frameColor = Q1UI_COLOR_APP_BG;
 	}
 
-	if (preBrush != curBrush) {
-		pDC->SelectStockObject(curBrush);
-		preBrush = curBrush;
-	}
-
-	pDC->Rectangle(frameRect);
+	pDC->FillSolidRect(frameRect, frameColor);
+	pDC->Draw3dRect(frameRect, Q1UI_COLOR_SURFACE, Q1UI_COLOR_SURFACE);
 
 	if (parseDone) {
 		CPen *prev = pDC->SelectObject(mDiffPen);
@@ -117,7 +115,7 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 		pDC->SelectObject(prev);
 	}
 
-	const COLORREF curIdColor = RGB(102, 0, 255);
+	const COLORREF curIdColor = Q1UI_COLOR_ACCENT;
 	COLORREF preColor;
 	bool isCurFrame = i == pane->curFrameID;
 
@@ -189,10 +187,24 @@ void CPosInfoView::OnDraw(CDC* pDC)
 	ComparerPane *paneL = &pDoc->mPane[CComparerDoc::IMG_VIEW_1];
 	ComparerPane *paneR = &pDoc->mPane[CComparerDoc::IMG_VIEW_2];
 
-	memDC.BitBlt(0, 0, mWClient, h, NULL, 0, 0, WHITENESS);
+	memDC.FillSolidRect(CRect(0, 0, mWClient, h), Q1UI_COLOR_APP_BG);
 
-	if (!paneL->isAvail() && !paneR->isAvail())
+	if (!paneL->isAvail() && !paneR->isAvail()) {
+		LOGFONT lf;
+		mPosNumFont.GetLogFont(&lf);
+		::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
+		lf.lfHeight = 14;
+		lf.lfWeight = FW_SEMIBOLD;
+		CFont labelFont;
+		labelFont.CreateFontIndirect(&lf);
+		CFont *prevFont = memDC.SelectObject(&labelFont);
+		memDC.SetBkMode(TRANSPARENT);
+		memDC.SetTextColor(Q1UI_COLOR_TEXT_MUTED);
+		CRect msgRect(0, 0, mWClient, h);
+		memDC.DrawText(_T("Timeline"), &msgRect, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+		memDC.SelectObject(prevFont);
 		goto OnDrawExit;
+	}
 
 	DrawFrameRect(&memDC, &clipBox, mWClient);
 

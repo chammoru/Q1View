@@ -9,9 +9,9 @@
 
 #include "qimage_metrics.h"
 
-#define FRAME_INFO_H          20
-#define FRAMES_INFO_H         60
-#define POS_INFO_W            66
+#define FRAME_INFO_H          28
+#define FRAMES_INFO_H         84
+#define POS_INFO_W            76
 
 #define COMPARER_DEF_W        (CANVAS_DEF_W + /* left */ \
                               (CANVAS_DEF_W + QSPLITTER_W) + /* right */ \

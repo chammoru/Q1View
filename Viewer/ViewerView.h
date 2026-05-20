@@ -13,16 +13,16 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-#define PROGRESS_BAR_H        12
-#define PROGRESS_FONT_H       14
+#define PROGRESS_BAR_H        16
+#define PROGRESS_FONT_H       13
 #define PROGRESS_PIXEL_TEXT_H 14
-#define MARGIN_PROGESS_BAR    2
-#define COLOR_PROGRESS_BAR    RGB(0xff, 0x66, 0xff)
-#define COLOR_PROGRESS_TEXT   RGB(0x00, 0x00, 0x00)
-#define COLOR_SELECTING_RECT  RGB(0xff, 0x33, 0x33)
-#define COLOR_SELECTED_RECT   RGB(0x00, 0xff, 0x00)
-#define COLOR_COORDINATE_RECT RGB(0xe6, 0x3f, 0x33)
-#define COLOR_BOXINFO_RECT    RGB(0x33, 0x00, 0xff)
+#define MARGIN_PROGESS_BAR    3
+#define COLOR_PROGRESS_BAR    Q1UI_COLOR_ACCENT
+#define COLOR_PROGRESS_TEXT   Q1UI_COLOR_TEXT
+#define COLOR_SELECTING_RECT  Q1UI_COLOR_WARNING
+#define COLOR_SELECTED_RECT   Q1UI_COLOR_SUCCESS
+#define COLOR_COORDINATE_RECT Q1UI_COLOR_OVERLAY
+#define COLOR_BOXINFO_RECT    Q1UI_COLOR_OVERLAY
 
 #define LENGTH_MIN_SELECT     8
 #define INVAL                 INT_MIN
@@ -185,6 +185,7 @@ public:
 	void DrawHelpMenu(CDC *pDC);
 	void DrawCursorCoordinates(CDC *pDC);
 	void DrawBoxInfo(CDC *pDC);
+	void DrawEmptyState(CDC *pDC);
 	void ToggleSelMode();
 
 // Helper

@@ -4,7 +4,7 @@
 #include "QMenuItem.h"
 #include "QViewerCmn.h"
 
-#define QMENUITEM_IN_MARGIN_H     6
+#define QMENUITEM_IN_MARGIN_H     8
 
 class CComparerView : public CScrollView
 {
@@ -56,6 +56,7 @@ public:
 	void ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridInfo &gi);
 	void ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *dst, int sDst,
 		q1::GridInfo &gi);
+	void DrawEmptyPane(CDC *pDC, CComparerDoc *pDoc);
 
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg void OnDropFiles(HDROP hDropInfo);

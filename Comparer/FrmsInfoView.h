@@ -1,5 +1,7 @@
 #pragma once
 
+#include "QViewerCmn.h"
+
 #define GRAPH_OUT_MARGIN_L  50
 #define GRAPH_OUT_MARGIN_T  5
 #define GRAPH_OUT_MARGIN_R  60
@@ -14,7 +16,7 @@
 #define MIN_X_AXIS_STEP_W   5
 #define LABEL_FONT_H        14
 #define RESULT_FONT_H       32
-#define COLOR_RESULT_TEXT   RGB(0x33, 0x99, 0xff)
+#define COLOR_RESULT_TEXT   Q1UI_COLOR_ACCENT
 
 #define X_LABEL_INTERVAL    (GRAPH_OUT_MARGIN_L + GRAPH_IN_MARGIN_L)
 #define X_LABEL_INTERVAL_HF (X_LABEL_INTERVAL / 2)
