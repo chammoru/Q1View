@@ -489,7 +489,8 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	const CString filenamesCsv = AfxGetApp()->GetProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_FILENAMES_CSV, _T(""));
 
 	if (pMainFrm == NULL) {
-		// take care of the open operation in CMainFrame::ActivateFrame()
+		// Command-line open can reach here before the SDI frame exists.
+		// Defer the real open until CMainFrame::ActivateFrame().
 		mPendingFile = filenamesCsv;
 		::CoInitialize(NULL); // TODO: Is this really right solution?
 		return TRUE;

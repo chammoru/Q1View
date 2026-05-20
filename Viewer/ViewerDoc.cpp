@@ -373,7 +373,8 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	if (pMainFrm == NULL) {
-		// take care of the open operation in CMainFrame::ActivateFrame()
+		// Command-line open can reach here before the SDI frame/view exists.
+		// Defer the real open until CMainFrame::ActivateFrame().
 		mPendingFile = lpszPathName;
 		::CoInitialize(NULL); // TODO: Is this really right solution?
 		return TRUE;
