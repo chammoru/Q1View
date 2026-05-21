@@ -100,7 +100,12 @@ jobs:
               }
             }
 
-            Copy-Item -LiteralPath (Join-Path $qtPluginDir "platforms/libqxcb.so") -Destination "$package/plugins/platforms" -Force
+            $xcbPlugin = Get-ChildItem $qtPluginDir -Recurse -File -Filter "libqxcb.so" | Select-Object -First 1
+            if (-not $xcbPlugin) {
+              throw "Missing libqxcb.so under '$qtPluginDir'"
+            }
+
+            Copy-Item -LiteralPath $xcbPlugin.FullName -Destination "$package/plugins/platforms" -Force
 
             @"
           #!/usr/bin/env bash
