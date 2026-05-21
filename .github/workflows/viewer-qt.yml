@@ -70,7 +70,7 @@ jobs:
 
             Copy-Item $exe.FullName $package
             New-Item -ItemType Directory -Force "$package/lib" | Out-Null
-            New-Item -ItemType Directory -Force "$package/plugins/platforms" | Out-Null
+            New-Item -ItemType Directory -Force "$package/plugins" | Out-Null
 
             $qtLibDir = ""
             $qtPluginDir = ""
@@ -114,13 +114,6 @@ jobs:
               }
             }
 
-            $platformPluginDir = Join-Path $qtPluginDir "platforms"
-            if (Test-Path $platformPluginDir) {
-              Get-ChildItem $platformPluginDir -File | Copy-Item -Destination "$package/plugins/platforms" -Force
-            } else {
-              Write-Host "Qt platform plugin directory was not found under '$qtPluginDir'"
-            }
-
             @"
           #!/usr/bin/env bash
           set -e
@@ -138,8 +131,7 @@ jobs:
           Run ./q1view-viewer-qt.sh to start the experimental Qt viewer.
 
           This package includes the primary Qt 6 runtime libraries copied from the CI Qt installation.
-          When Qt platform plugins are available in CI, they are copied into plugins/platforms.
-          Some Linux distributions may still require system Qt platform plugin, xcb, or OpenGL libraries to be installed.
+          Install the system Qt xcb platform plugin and xcb/OpenGL libraries if the viewer does not start.
 
           Next packaging step: replace this with an AppImage/AppDir bundle.
           "@ | Out-File "$package/README-linux-runtime.txt" -Encoding utf8
