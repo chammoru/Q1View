@@ -72,13 +72,27 @@ jobs:
             New-Item -ItemType Directory -Force "$package/lib" | Out-Null
             New-Item -ItemType Directory -Force "$package/plugins/platforms" | Out-Null
 
-            $qmake = Get-Command qmake6 -ErrorAction SilentlyContinue
-            if (-not $qmake) {
-              $qmake = Get-Command qmake -ErrorAction Stop
+            $qtLibDir = ""
+            $qtPluginDir = ""
+            if ($env:Qt6_DIR) {
+              $qtRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $env:Qt6_DIR))
+              $candidateLibDir = Join-Path $qtRoot "lib"
+              $candidatePluginDir = Join-Path $qtRoot "plugins"
+              if ((Test-Path $candidateLibDir) -and (Test-Path $candidatePluginDir)) {
+                $qtLibDir = $candidateLibDir
+                $qtPluginDir = $candidatePluginDir
+              }
             }
 
-            $qtLibDir = (& $qmake.Source -query QT_INSTALL_LIBS).Trim()
-            $qtPluginDir = (& $qmake.Source -query QT_INSTALL_PLUGINS).Trim()
+            if (-not $qtLibDir -or -not $qtPluginDir) {
+              $qmake = Get-Command qmake6 -ErrorAction SilentlyContinue
+              if (-not $qmake) {
+                $qmake = Get-Command qmake -ErrorAction Stop
+              }
+
+              $qtLibDir = (& $qmake.Source -query QT_INSTALL_LIBS).Trim()
+              $qtPluginDir = (& $qmake.Source -query QT_INSTALL_PLUGINS).Trim()
+            }
 
             if (-not (Test-Path $qtLibDir) -or -not (Test-Path $qtPluginDir)) {
               throw "Could not resolve Qt runtime paths. lib='$qtLibDir' plugins='$qtPluginDir'"
