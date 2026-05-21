@@ -46,6 +46,7 @@ The core smoke test builds and passes on:
 Successful run:
 
 - https://github.com/chammoru/Q1View/actions/runs/26216905333
+- Latest verified run: https://github.com/chammoru/Q1View/actions/runs/26230651185
 
 Relevant files:
 
@@ -93,12 +94,18 @@ Successful Qt viewer CI runs:
 - https://github.com/chammoru/Q1View/actions/runs/26217369518
 - https://github.com/chammoru/Q1View/actions/runs/26224574718
 - https://github.com/chammoru/Q1View/actions/runs/26224816758
+- Latest verified run: https://github.com/chammoru/Q1View/actions/runs/26230650595
 
 Artifacts were produced for:
 
 - `q1view-viewer-qt-windows-2022`
 - `q1view-viewer-qt-ubuntu-latest`
 - `q1view-viewer-qt-macos-latest`
+
+Latest artifact notes:
+
+- Windows and macOS artifacts include Qt deployment output from `windeployqt`/`macdeployqt`.
+- Linux currently uploads the viewer executable, a small launch script, and runtime notes. It still expects Qt 6 runtime libraries and the xcb platform plugin to exist on the target Linux system.
 
 Relevant files:
 
@@ -135,7 +142,7 @@ Local machine note: this Windows machine did not have `cmake`, `cl`, `gcc`, or `
 2. Improve packaging for `q1view_viewer_qt`:
    - Windows packaging uses `windeployqt`.
    - macOS packaging uses `macdeployqt`.
-   - Linux currently uploads an executable, wrapper script, and runtime notes; replace with AppDir/AppImage.
+   - Linux currently uploads an executable, wrapper script, and runtime notes; replace with AppDir/AppImage or another self-contained bundle.
 3. Improve raw image workflows:
    - Add validation/test fixtures for representative raw formats.
 4. Add a minimal automated Qt smoke check if practical:
