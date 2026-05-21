@@ -63,7 +63,9 @@ jobs:
             macdeployqt $app.FullName -verbose=1
             Copy-Item $app.FullName $package -Recurse
           } else {
-            $exe = Get-ChildItem build -Recurse -File -Filter q1view_viewer_qt | Select-Object -First 1
+            $exe = Get-ChildItem build -Recurse | Where-Object {
+              -not $_.PSIsContainer -and $_.Name -eq "q1view_viewer_qt"
+            } | Select-Object -First 1
             if (-not $exe) {
               throw "q1view_viewer_qt was not found"
             }
