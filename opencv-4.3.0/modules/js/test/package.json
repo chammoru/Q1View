@@ -4,7 +4,7 @@
   "version": "1.0.1",
   "dependencies": {
     "ansi-colors": "^4.1.1",
-    "minimist": "^1.2.0",
+    "minimist": "^1.2.8",
     "node-qunit": "latest"
   },
   "devDependencies": {
