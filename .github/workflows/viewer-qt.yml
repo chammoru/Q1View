@@ -63,8 +63,11 @@ jobs:
             macdeployqt $app.FullName -verbose=1
             Copy-Item $app.FullName $package -Recurse
           } else {
-            $exePath = (bash -lc "find build -type f -name q1view_viewer_qt | head -n 1").Trim()
+            $exePathMatches = @(& /usr/bin/find build -type f -name q1view_viewer_qt)
+            $exePath = if ($exePathMatches.Count -gt 0) { $exePathMatches[0] } else { "" }
             if (-not $exePath) {
+              Write-Host "Files under build:"
+              Get-ChildItem build -Recurse | Select-Object FullName,Length,Mode
               throw "q1view_viewer_qt was not found"
             }
 
