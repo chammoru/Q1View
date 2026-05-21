@@ -9,7 +9,9 @@
 # include <pthread.h>
 # include <sched.h>
 # include <sys/resource.h>
-# include <sys/prctl.h>
+# if defined(__linux__)
+#  include <sys/prctl.h>
+# endif
 #elif defined(_WIN32)
 # include <Windows.h>
 # include <process.h>
@@ -68,7 +70,11 @@ struct thread_data_t {
 			} else {
 				s = name + len - 15;
 			}
+#if defined(__linux__)
 			prctl(PR_SET_NAME, (unsigned long) s, 0, 0, 0);
+#elif defined(__APPLE__)
+			pthread_setname_np(s);
+#endif
 			free(name);
 		}
 

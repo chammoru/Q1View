@@ -20,6 +20,17 @@ Manual release:
 2. Run **Build and Release**.
 3. Set `create_release` to `true` and enter a tag name such as `v1.0.0`.
 
+## Cross-platform core build
+A CMake build is available for the portable core subset. This is the first step toward native macOS/Linux support and currently builds the raw image conversion/metric code plus the threading helper library, not the MFC Viewer/Comparer GUI.
+
+```sh
+cmake -S . -B build -DQ1VIEW_BUILD_SMOKE_TEST=ON
+cmake --build build --config Release --parallel
+ctest --test-dir build --build-config Release --output-on-failure
+```
+
+The smoke-test executable is `q1view_core_smoke`.
+
 ## Explain how to build
 Open the next solution file for each Viewer and Comparer project.
 
