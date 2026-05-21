@@ -72,13 +72,17 @@ jobs:
             New-Item -ItemType Directory -Force "$package/lib" | Out-Null
             New-Item -ItemType Directory -Force "$package/plugins/platforms" | Out-Null
 
-            $qtLibDir = Join-Path $env:Qt6_DIR "../../lib"
-            $qtPluginDir = Join-Path $env:Qt6_DIR "../../plugins"
+            $qtLibDir = qmake -query QT_INSTALL_LIBS
+            $qtPluginDir = qmake -query QT_INSTALL_PLUGINS
 
-            Copy-Item "$qtLibDir/libQt6Core.so*" "$package/lib"
-            Copy-Item "$qtLibDir/libQt6Gui.so*" "$package/lib"
-            Copy-Item "$qtLibDir/libQt6Widgets.so*" "$package/lib"
-            Copy-Item "$qtPluginDir/platforms/libqxcb.so" "$package/plugins/platforms"
+            if (-not (Test-Path $qtLibDir) -or -not (Test-Path $qtPluginDir)) {
+              throw "Could not resolve Qt runtime paths. lib='$qtLibDir' plugins='$qtPluginDir'"
+            }
+
+            Get-ChildItem $qtLibDir -Filter "libQt6Core.so*" | Copy-Item -Destination "$package/lib"
+            Get-ChildItem $qtLibDir -Filter "libQt6Gui.so*" | Copy-Item -Destination "$package/lib"
+            Get-ChildItem $qtLibDir -Filter "libQt6Widgets.so*" | Copy-Item -Destination "$package/lib"
+            Copy-Item (Join-Path $qtPluginDir "platforms/libqxcb.so") "$package/plugins/platforms"
 
             @"
           #!/usr/bin/env bash
