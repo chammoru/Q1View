@@ -13,6 +13,7 @@ public:
 	explicit MainWindow(QWidget *parent = nullptr);
 
 	bool openFile(const QString &fileName);
+	bool openRawFile(const QString &fileName, int width, int height, const QString &colorSpaceName);
 
 private:
 	void createActions();
