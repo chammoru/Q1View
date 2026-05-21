@@ -33,7 +33,34 @@ jobs:
         run: cmake -S . -B build -DQ1VIEW_BUILD_SMOKE_TEST=ON
 
       - name: Build
-        run: cmake --build build --config Release --parallel
+        id: build
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          cmake --build build --config Release --parallel *> build.log
+          $exitCode = $LASTEXITCODE
+          Get-Content build.log
+          exit $exitCode
+
+      - name: Annotate build failure
+        if: steps.build.outcome == 'failure'
+        shell: pwsh
+        run: |
+          $lines = Get-Content build.log | Select-Object -Last 80
+          $message = ($lines -join "%0A").Replace("%", "%25").Replace("`r", "%0D").Replace("`n", "%0A")
+          Write-Output "::error title=cmake build failed::$message"
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.os }}
+          path: build.log
+
+      - name: Stop after build failure
+        if: steps.build.outcome == 'failure'
+        shell: pwsh
+        run: exit 1
 
       - name: Test
         run: ctest --test-dir build --build-config Release --output-on-failure
