@@ -63,4 +63,31 @@ jobs:
         run: exit 1
 
       - name: Test
-        run: ctest --test-dir build --build-config Release --output-on-failure
+        id: test
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          ctest --test-dir build --build-config Release --output-on-failure *> test.log
+          $exitCode = $LASTEXITCODE
+          Get-Content test.log
+          exit $exitCode
+
+      - name: Annotate test failure
+        if: steps.test.outcome == 'failure'
+        shell: pwsh
+        run: |
+          $lines = Get-Content test.log | Select-Object -Last 80
+          $message = ($lines -join "%0A").Replace("%", "%25").Replace("`r", "%0D").Replace("`n", "%0A")
+          Write-Output "::error title=ctest failed::$message"
+
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log-${{ matrix.os }}
+          path: test.log
+
+      - name: Stop after test failure
+        if: steps.test.outcome == 'failure'
+        shell: pwsh
+        run: exit 1
