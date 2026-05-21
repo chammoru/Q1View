@@ -107,6 +107,7 @@ Latest artifact notes:
 - Windows and macOS artifacts include Qt deployment output from `windeployqt`/`macdeployqt`.
 - Linux now uploads an AppImage/AppDir package built with `linuxdeploy` and `linuxdeploy-plugin-qt`.
 - The experimental Qt Viewer can be published as a GitHub prerelease with tags named `qt-viewer-v*`.
+- First Qt Viewer prerelease: https://github.com/chammoru/Q1View/releases/tag/qt-viewer-v0.1.0
 
 Relevant files:
 
@@ -150,6 +151,7 @@ Local machine note: this Windows machine did not have `cmake`, `cl`, `gcc`, or `
 3. Publish experimental Qt Viewer prereleases:
    - Push a tag like `qt-viewer-v0.1.0`.
    - Download files from https://github.com/chammoru/Q1View/releases after the release workflow finishes.
+   - Current direct release page: https://github.com/chammoru/Q1View/releases/tag/qt-viewer-v0.1.0
 4. Improve raw image workflows:
    - Add validation/test fixtures for representative raw formats.
 5. Add a minimal automated Qt smoke check if practical:
