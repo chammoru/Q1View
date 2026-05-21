@@ -73,6 +73,8 @@ Current capabilities:
 - Accepts an image path as the first command-line argument.
 - Has `File > Open Raw...`.
 - Loads raw frames by asking for file, width, height, and color space.
+- Supports command-line raw metadata:
+  - `q1view_viewer_qt --raw --width 1920 --height 1080 --format yuv420 frame.yuv`
 - Converts raw formats through `q1view_image_core`/`qimage_cs`.
 - Remembers the last raw width, height, color space, and file path with `QSettings`.
 - Supports drag/drop:
@@ -135,7 +137,6 @@ Local machine note: this Windows machine did not have `cmake`, `cl`, `gcc`, or `
    - macOS packaging uses `macdeployqt`.
    - Linux currently uploads the executable plus runtime notes; replace with AppDir/AppImage.
 3. Improve raw image workflows:
-   - Add drag/drop or command-line raw metadata support.
    - Add validation/test fixtures for representative raw formats.
 4. Add a minimal automated Qt smoke check if practical:
    - For now CI only compiles and uploads artifacts.
