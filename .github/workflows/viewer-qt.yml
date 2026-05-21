@@ -95,10 +95,12 @@ jobs:
                 throw "Missing Qt runtime library '$pattern' in '$qtLibDir'"
               }
 
-              $matches | Copy-Item -Destination "$package/lib"
+              foreach ($match in $matches) {
+                Copy-Item -LiteralPath $match.FullName -Destination "$package/lib" -Force
+              }
             }
 
-            Copy-Item (Join-Path $qtPluginDir "platforms/libqxcb.so") "$package/plugins/platforms"
+            Copy-Item -LiteralPath (Join-Path $qtPluginDir "platforms/libqxcb.so") -Destination "$package/plugins/platforms" -Force
 
             @"
           #!/usr/bin/env bash
