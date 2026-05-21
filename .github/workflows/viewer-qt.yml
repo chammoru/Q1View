@@ -72,16 +72,32 @@ jobs:
             New-Item -ItemType Directory -Force "$package/lib" | Out-Null
             New-Item -ItemType Directory -Force "$package/plugins/platforms" | Out-Null
 
-            $qtLibDir = qmake -query QT_INSTALL_LIBS
-            $qtPluginDir = qmake -query QT_INSTALL_PLUGINS
+            $qmake = Get-Command qmake6 -ErrorAction SilentlyContinue
+            if (-not $qmake) {
+              $qmake = Get-Command qmake -ErrorAction Stop
+            }
+
+            $qtLibDir = (& $qmake.Source -query QT_INSTALL_LIBS).Trim()
+            $qtPluginDir = (& $qmake.Source -query QT_INSTALL_PLUGINS).Trim()
 
             if (-not (Test-Path $qtLibDir) -or -not (Test-Path $qtPluginDir)) {
               throw "Could not resolve Qt runtime paths. lib='$qtLibDir' plugins='$qtPluginDir'"
             }
 
-            Get-ChildItem $qtLibDir -Filter "libQt6Core.so*" | Copy-Item -Destination "$package/lib"
-            Get-ChildItem $qtLibDir -Filter "libQt6Gui.so*" | Copy-Item -Destination "$package/lib"
-            Get-ChildItem $qtLibDir -Filter "libQt6Widgets.so*" | Copy-Item -Destination "$package/lib"
+            $qtLibs = @(
+              "libQt6Core.so*",
+              "libQt6Gui.so*",
+              "libQt6Widgets.so*"
+            )
+            foreach ($pattern in $qtLibs) {
+              $matches = @(Get-ChildItem $qtLibDir -Filter $pattern -ErrorAction Stop)
+              if ($matches.Count -eq 0) {
+                throw "Missing Qt runtime library '$pattern' in '$qtLibDir'"
+              }
+
+              $matches | Copy-Item -Destination "$package/lib"
+            }
+
             Copy-Item (Join-Path $qtPluginDir "platforms/libqxcb.so") "$package/plugins/platforms"
 
             @"
