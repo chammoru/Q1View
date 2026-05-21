@@ -135,7 +135,7 @@ Local machine note: this Windows machine did not have `cmake`, `cl`, `gcc`, or `
 2. Improve packaging for `q1view_viewer_qt`:
    - Windows packaging uses `windeployqt`.
    - macOS packaging uses `macdeployqt`.
-   - Linux currently uploads an executable, wrapper script, primary Qt runtime libraries, xcb platform plugin, and runtime notes; replace with AppDir/AppImage.
+   - Linux currently uploads an executable, wrapper script, and runtime notes; replace with AppDir/AppImage.
 3. Improve raw image workflows:
    - Add validation/test fixtures for representative raw formats.
 4. Add a minimal automated Qt smoke check if practical:
