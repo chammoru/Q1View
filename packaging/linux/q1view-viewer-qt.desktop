@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Q1View Qt Viewer
+Comment=View image files and raw frames
+Exec=q1view_viewer_qt %F
+Icon=q1view-viewer-qt
+Categories=Graphics;Viewer;
+Terminal=false
