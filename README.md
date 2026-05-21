@@ -7,6 +7,19 @@ A developer-friendly media viewer
 - Visual Sutdio 16 2019, Win64
 - OpenCV 4.3.0
 
+## CI/CD release build
+GitHub Actions builds the Windows x64 release on GitHub-hosted runners, so a local build environment is not required for release packaging.
+
+- Normal pushes and pull requests build `Viewer\Viewer.sln` and `Comparer\Comparer.sln` as `Release|x64`.
+- Pushing a tag such as `v1.0.0` creates a GitHub release.
+- A release contains `Viewer.exe`, `Comparer.exe`, `opencv_videoio_ffmpeg430_64.dll`, and `Q1View-windows-x64.zip`.
+- The release body and zip package include `CHANGELOG.md`, generated from git history since the previous tag.
+
+Manual release:
+1. Open the repository's **Actions** tab.
+2. Run **Build and Release**.
+3. Set `create_release` to `true` and enter a tag name such as `v1.0.0`.
+
 ## Explain how to build
 Open the next solution file for each Viewer and Comparer project.
 
