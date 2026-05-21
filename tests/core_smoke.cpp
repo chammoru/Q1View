@@ -39,7 +39,7 @@ int main()
 		bgrCopy.data(),
 		w,
 		h,
-		ROUNDUP_DWORD(w) * QIMG_DST_RGB_BYTES,
+		ROUNDUP_DWORD(w),
 		QIMG_DST_RGB_BYTES);
 
 	if (!std::isinf(psnr) && (!std::isfinite(psnr) || psnr < 100.0)) {
