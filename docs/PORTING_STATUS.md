@@ -119,6 +119,7 @@ Latest artifact notes:
 - Linux now uploads an AppImage/AppDir package built with `linuxdeploy` and `linuxdeploy-plugin-qt`.
 - The experimental Qt Viewer can be published as a GitHub prerelease with tags named `qt-viewer-v*`.
 - First Qt Viewer prerelease: https://github.com/chammoru/Q1View/releases/tag/qt-viewer-v0.1.0
+- Latest Qt Viewer prerelease: https://github.com/chammoru/Q1View/releases/tag/qt-viewer-v0.2.0
 
 Relevant files:
 
