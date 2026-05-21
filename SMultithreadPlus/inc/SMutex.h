@@ -1,6 +1,8 @@
 #ifndef __SMUTEX_H__
 #define __SMUTEX_H__
 
+#include <stddef.h>
+
 #if defined(ANDROID) || defined(__GNUC__)
 # include <pthread.h>
 #endif

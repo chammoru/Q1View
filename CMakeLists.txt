@@ -22,6 +22,10 @@ target_include_directories(q1view_image_core
         ${CMAKE_CURRENT_SOURCE_DIR}/QVisionCore
 )
 
+if(UNIX AND NOT APPLE)
+    target_link_libraries(q1view_image_core PUBLIC m)
+endif()
+
 add_library(smultithreadplus STATIC
     SMultithreadPlus/src/SBufferPool.cpp
     SMultithreadPlus/src/SCondition.cpp
