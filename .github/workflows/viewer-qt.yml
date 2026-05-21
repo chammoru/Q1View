@@ -73,24 +73,24 @@ jobs:
 
             Copy-Item -LiteralPath $exePath -Destination $package
 
-            @"
-          #!/usr/bin/env bash
-          set -e
-          APP_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
-          exec "\$APP_DIR/q1view_viewer_qt" "\$@"
-          "@ | Out-File "$package/q1view-viewer-qt.sh" -Encoding utf8
+            @(
+              '#!/usr/bin/env bash',
+              'set -e',
+              'APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+              'exec "$APP_DIR/q1view_viewer_qt" "$@"'
+            ) | Set-Content "$package/q1view-viewer-qt.sh" -Encoding utf8
             chmod +x "$package/q1view-viewer-qt.sh"
             chmod +x "$package/q1view_viewer_qt"
 
-            @"
-          q1view_viewer_qt Linux artifact
-
-          Run ./q1view-viewer-qt.sh to start the experimental Qt viewer.
-
-          Install Qt 6 runtime libraries and the Qt xcb platform plugin on the target system if the viewer does not start.
-
-          Next packaging step: replace this with an AppImage/AppDir bundle.
-          "@ | Out-File "$package/README-linux-runtime.txt" -Encoding utf8
+            @(
+              'q1view_viewer_qt Linux artifact',
+              '',
+              'Run ./q1view-viewer-qt.sh to start the experimental Qt viewer.',
+              '',
+              'Install Qt 6 runtime libraries and the Qt xcb platform plugin on the target system if the viewer does not start.',
+              '',
+              'Next packaging step: replace this with an AppImage/AppDir bundle.'
+            ) | Set-Content "$package/README-linux-runtime.txt" -Encoding utf8
           }
 
       - name: Upload package
