@@ -81,20 +81,31 @@ Current capabilities:
 - Supports drag/drop:
   - Known image files open directly.
   - Unknown local files open the raw dialog with the file path prefilled.
+- Implements the first Viewer parity pass:
+  - mouse wheel / trackpad zoom
+  - left-drag panning
+  - actual size and fit-to-window actions
+  - full-screen toggle
+  - rotate clockwise
+  - Y-only display toggle
+  - cursor coordinate and RGB status display
+  - copy, paste, close, and save-as actions
+  - previous/next file navigation
+  - raw multi-frame navigation and timer playback
 
 It does not yet implement:
 
-- Existing MFC Viewer feature parity.
 - Video playback.
+- Selection-region capture.
+- High-zoom per-pixel text overlay.
 - Comparer features.
-- Release integration for the experimental Qt viewer artifacts.
 
 Successful Qt viewer CI runs:
 
 - https://github.com/chammoru/Q1View/actions/runs/26217369518
 - https://github.com/chammoru/Q1View/actions/runs/26224574718
 - https://github.com/chammoru/Q1View/actions/runs/26224816758
-- Latest verified run: https://github.com/chammoru/Q1View/actions/runs/26231241422
+- Latest verified run: https://github.com/chammoru/Q1View/actions/runs/26233937957
 
 Artifacts were produced for:
 
