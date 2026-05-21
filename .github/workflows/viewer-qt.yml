@@ -69,11 +69,35 @@ jobs:
             }
 
             Copy-Item $exe.FullName $package
+            New-Item -ItemType Directory -Force "$package/lib" | Out-Null
+            New-Item -ItemType Directory -Force "$package/plugins/platforms" | Out-Null
+
+            $qtLibDir = Join-Path $env:Qt6_DIR "../../lib"
+            $qtPluginDir = Join-Path $env:Qt6_DIR "../../plugins"
+
+            Copy-Item "$qtLibDir/libQt6Core.so*" "$package/lib"
+            Copy-Item "$qtLibDir/libQt6Gui.so*" "$package/lib"
+            Copy-Item "$qtLibDir/libQt6Widgets.so*" "$package/lib"
+            Copy-Item "$qtPluginDir/platforms/libqxcb.so" "$package/plugins/platforms"
+
+            @"
+          #!/usr/bin/env bash
+          set -e
+          APP_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+          export LD_LIBRARY_PATH="\$APP_DIR/lib:\${LD_LIBRARY_PATH:-}"
+          export QT_PLUGIN_PATH="\$APP_DIR/plugins"
+          exec "\$APP_DIR/q1view_viewer_qt" "\$@"
+          "@ | Out-File "$package/q1view-viewer-qt.sh" -Encoding utf8
+            chmod +x "$package/q1view-viewer-qt.sh"
+            chmod +x "$package/q1view_viewer_qt"
+
             @"
           q1view_viewer_qt Linux artifact
 
-          This package contains the experimental Qt viewer executable only.
-          Install Qt 6 runtime libraries on the target system, or run it from an environment where Qt 6.5.3 libraries are available.
+          Run ./q1view-viewer-qt.sh to start the experimental Qt viewer.
+
+          This package includes the primary Qt 6 runtime libraries and the xcb platform plugin copied from the CI Qt installation.
+          Some Linux distributions may still require system xcb/OpenGL libraries to be installed.
 
           Next packaging step: replace this with an AppImage/AppDir bundle.
           "@ | Out-File "$package/README-linux-runtime.txt" -Encoding utf8
