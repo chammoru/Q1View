@@ -114,12 +114,12 @@ jobs:
               }
             }
 
-            $xcbPlugin = Get-ChildItem $qtPluginDir -Recurse -File -Filter "libqxcb.so" | Select-Object -First 1
-            if (-not $xcbPlugin) {
-              throw "Missing libqxcb.so under '$qtPluginDir'"
+            $platformPluginDir = Join-Path $qtPluginDir "platforms"
+            if (Test-Path $platformPluginDir) {
+              Get-ChildItem $platformPluginDir -File | Copy-Item -Destination "$package/plugins/platforms" -Force
+            } else {
+              Write-Warning "Qt platform plugin directory was not found under '$qtPluginDir'"
             }
-
-            Copy-Item -LiteralPath $xcbPlugin.FullName -Destination "$package/plugins/platforms" -Force
 
             @"
           #!/usr/bin/env bash
@@ -137,8 +137,9 @@ jobs:
 
           Run ./q1view-viewer-qt.sh to start the experimental Qt viewer.
 
-          This package includes the primary Qt 6 runtime libraries and the xcb platform plugin copied from the CI Qt installation.
-          Some Linux distributions may still require system xcb/OpenGL libraries to be installed.
+          This package includes the primary Qt 6 runtime libraries copied from the CI Qt installation.
+          When Qt platform plugins are available in CI, they are copied into plugins/platforms.
+          Some Linux distributions may still require system Qt platform plugin, xcb, or OpenGL libraries to be installed.
 
           Next packaging step: replace this with an AppImage/AppDir bundle.
           "@ | Out-File "$package/README-linux-runtime.txt" -Encoding utf8
