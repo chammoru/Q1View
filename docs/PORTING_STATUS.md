@@ -7,7 +7,7 @@ This file captures the current cross-platform porting state so future Codex sess
 - `master` must stay on the Windows release workflow baseline unless explicitly asked otherwise.
 - `master` currently points to `f6b9b8c9a91c3cee6b2f77214ad831893a1a5626` (`Use VS2022 toolset in CI`).
 - Native macOS/Linux porting work is on `cross-platform-core`.
-- `cross-platform-core` currently points to `f928d1e318b59da866c775e87f0b16956efbdfc6` before this note.
+- `cross-platform-core` had reached `550e9b97f4df89caf4ea0dbc8e53a72bb57b02da` when this note was first added.
 
 Do not push experimental porting commits directly to `master`.
 
@@ -78,7 +78,7 @@ It does not yet implement:
 - Raw frame loading.
 - Video playback.
 - Comparer features.
-- Packaging with Qt runtime dependencies.
+- Full Linux AppImage/AppDir packaging.
 
 Successful Qt viewer CI run:
 
@@ -120,10 +120,10 @@ Local machine note: this Windows machine did not have `cmake`, `cl`, `gcc`, or `
 ## Next Suggested Steps
 
 1. Keep working on `cross-platform-core`.
-2. Add packaging for `q1view_viewer_qt`:
-   - Windows: `windeployqt`
-   - macOS: `macdeployqt`
-   - Linux: probably AppDir/AppImage or at least artifact with runtime notes
+2. Improve packaging for `q1view_viewer_qt`:
+   - Windows packaging uses `windeployqt`.
+   - macOS packaging uses `macdeployqt`.
+   - Linux currently uploads the executable plus runtime notes; replace with AppDir/AppImage.
 3. Add raw image loading to `ViewerQt` using `q1view_image_core`:
    - Start with explicit width/height/color-space controls.
    - Reuse `qimage_*_load_info` and `qimage_*_to_bgr888`.

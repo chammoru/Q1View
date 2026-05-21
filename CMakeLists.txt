@@ -81,9 +81,19 @@ if(Q1VIEW_BUILD_QT_VIEWER)
         ViewerQt/MainWindow.h
     )
 
+    set_target_properties(q1view_viewer_qt PROPERTIES
+        MACOSX_BUNDLE TRUE
+        WIN32_EXECUTABLE TRUE
+    )
+
     target_link_libraries(q1view_viewer_qt
         PRIVATE
             ${Q1VIEW_QT_LIB}
             q1view_image_core
+    )
+
+    install(TARGETS q1view_viewer_qt
+        BUNDLE DESTINATION .
+        RUNTIME DESTINATION bin
     )
 endif()

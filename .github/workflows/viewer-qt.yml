@@ -40,10 +40,47 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --target q1view_viewer_qt --parallel
 
-      - name: Upload executable
+      - name: Package viewer
+        shell: pwsh
+        run: |
+          $package = "package/q1view-viewer-qt-${{ runner.os }}"
+          New-Item -ItemType Directory -Force $package | Out-Null
+
+          if ($env:RUNNER_OS -eq "Windows") {
+            $exe = Get-ChildItem build -Recurse -Filter q1view_viewer_qt.exe | Select-Object -First 1
+            if (-not $exe) {
+              throw "q1view_viewer_qt.exe was not found"
+            }
+
+            Copy-Item $exe.FullName $package
+            windeployqt --release --no-translations "$package/q1view_viewer_qt.exe"
+          } elseif ($env:RUNNER_OS -eq "macOS") {
+            $app = Get-ChildItem build -Recurse -Directory -Filter q1view_viewer_qt.app | Select-Object -First 1
+            if (-not $app) {
+              throw "q1view_viewer_qt.app was not found"
+            }
+
+            macdeployqt $app.FullName -verbose=1
+            Copy-Item $app.FullName $package -Recurse
+          } else {
+            $exe = Get-ChildItem build -Recurse -File -Filter q1view_viewer_qt | Select-Object -First 1
+            if (-not $exe) {
+              throw "q1view_viewer_qt was not found"
+            }
+
+            Copy-Item $exe.FullName $package
+            @"
+          q1view_viewer_qt Linux artifact
+
+          This package contains the experimental Qt viewer executable only.
+          Install Qt 6 runtime libraries on the target system, or run it from an environment where Qt 6.5.3 libraries are available.
+
+          Next packaging step: replace this with an AppImage/AppDir bundle.
+          "@ | Out-File "$package/README-linux-runtime.txt" -Encoding utf8
+          }
+
+      - name: Upload package
         uses: actions/upload-artifact@v4
         with:
           name: q1view-viewer-qt-${{ matrix.os }}
-          path: |
-            build/**/q1view_viewer_qt*
-            build/**/q1view_viewer_qt.exe
+          path: package/**
