@@ -118,7 +118,7 @@ jobs:
             if (Test-Path $platformPluginDir) {
               Get-ChildItem $platformPluginDir -File | Copy-Item -Destination "$package/plugins/platforms" -Force
             } else {
-              Write-Warning "Qt platform plugin directory was not found under '$qtPluginDir'"
+              Write-Host "Qt platform plugin directory was not found under '$qtPluginDir'"
             }
 
             @"
