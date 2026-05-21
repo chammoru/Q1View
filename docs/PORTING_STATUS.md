@@ -106,6 +106,7 @@ Latest artifact notes:
 
 - Windows and macOS artifacts include Qt deployment output from `windeployqt`/`macdeployqt`.
 - Linux now uploads an AppImage/AppDir package built with `linuxdeploy` and `linuxdeploy-plugin-qt`.
+- The experimental Qt Viewer can be published as a GitHub prerelease with tags named `qt-viewer-v*`.
 
 Relevant files:
 
@@ -115,6 +116,7 @@ Relevant files:
 - `ViewerQt/RawOpenDialog.h`
 - `ViewerQt/RawOpenDialog.cpp`
 - `.github/workflows/viewer-qt.yml`
+- `.github/workflows/release-qt-viewer.yml`
 - `packaging/linux/q1view-viewer-qt.desktop`
 - `packaging/linux/q1view-viewer-qt.svg`
 - `CMakeLists.txt`
@@ -145,11 +147,14 @@ Local machine note: this Windows machine did not have `cmake`, `cl`, `gcc`, or `
    - Windows packaging uses `windeployqt`.
    - macOS packaging uses `macdeployqt`.
    - Linux packaging now builds an AppImage; next verify it manually on a clean Linux desktop.
-3. Improve raw image workflows:
+3. Publish experimental Qt Viewer prereleases:
+   - Push a tag like `qt-viewer-v0.1.0`.
+   - Download files from https://github.com/chammoru/Q1View/releases after the release workflow finishes.
+4. Improve raw image workflows:
    - Add validation/test fixtures for representative raw formats.
-4. Add a minimal automated Qt smoke check if practical:
+5. Add a minimal automated Qt smoke check if practical:
    - For now CI only compiles and uploads artifacts.
-5. Only after the branch is stable, open a PR from `cross-platform-core` to `master`.
+6. Only after the branch is stable, open a PR from `cross-platform-core` to `master`.
 
 ## Important Cautions
 
