@@ -7,7 +7,7 @@ This file captures the current cross-platform porting state so future Codex sess
 - `master` must stay on the Windows release workflow baseline unless explicitly asked otherwise.
 - `master` currently points to `f6b9b8c9a91c3cee6b2f77214ad831893a1a5626` (`Use VS2022 toolset in CI`).
 - Native macOS/Linux porting work is on `cross-platform-core`.
-- `cross-platform-core` had reached `550e9b97f4df89caf4ea0dbc8e53a72bb57b02da` when this note was first added.
+- `cross-platform-core` has continued past the initial note with Qt packaging and raw image loading work.
 
 Do not push experimental porting commits directly to `master`.
 
@@ -71,18 +71,22 @@ Current capabilities:
 - Has `File > Open...`.
 - Loads common image formats supported by `QImageReader`, such as PNG/JPG/BMP.
 - Accepts an image path as the first command-line argument.
+- Has `File > Open Raw...`.
+- Loads raw frames by asking for file, width, height, and color space.
+- Converts raw formats through `q1view_image_core`/`qimage_cs`.
 
 It does not yet implement:
 
 - Existing MFC Viewer feature parity.
-- Raw frame loading.
 - Video playback.
 - Comparer features.
 - Full Linux AppImage/AppDir packaging.
 
-Successful Qt viewer CI run:
+Successful Qt viewer CI runs:
 
 - https://github.com/chammoru/Q1View/actions/runs/26217369518
+- https://github.com/chammoru/Q1View/actions/runs/26224574718
+- https://github.com/chammoru/Q1View/actions/runs/26224816758
 
 Artifacts were produced for:
 
@@ -95,6 +99,8 @@ Relevant files:
 - `ViewerQt/main.cpp`
 - `ViewerQt/MainWindow.h`
 - `ViewerQt/MainWindow.cpp`
+- `ViewerQt/RawOpenDialog.h`
+- `ViewerQt/RawOpenDialog.cpp`
 - `.github/workflows/viewer-qt.yml`
 - `CMakeLists.txt`
 
@@ -124,9 +130,10 @@ Local machine note: this Windows machine did not have `cmake`, `cl`, `gcc`, or `
    - Windows packaging uses `windeployqt`.
    - macOS packaging uses `macdeployqt`.
    - Linux currently uploads the executable plus runtime notes; replace with AppDir/AppImage.
-3. Add raw image loading to `ViewerQt` using `q1view_image_core`:
-   - Start with explicit width/height/color-space controls.
-   - Reuse `qimage_*_load_info` and `qimage_*_to_bgr888`.
+3. Improve raw image workflows:
+   - Remember recent width/height/color-space settings.
+   - Add drag/drop or command-line raw metadata support.
+   - Add validation/test fixtures for representative raw formats.
 4. Add a minimal automated Qt smoke check if practical:
    - For now CI only compiles and uploads artifacts.
 5. Only after the branch is stable, open a PR from `cross-platform-core` to `master`.
