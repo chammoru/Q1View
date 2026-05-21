@@ -42,7 +42,7 @@ int main()
 		ROUNDUP_DWORD(w) * QIMG_DST_RGB_BYTES,
 		QIMG_DST_RGB_BYTES);
 
-	if (!std::isfinite(psnr) || psnr < 100.0) {
+	if (!std::isinf(psnr) && (!std::isfinite(psnr) || psnr < 100.0)) {
 		std::cerr << "unexpected PSNR: " << psnr << "\n";
 		return 1;
 	}
