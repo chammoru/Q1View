@@ -74,6 +74,10 @@ Current capabilities:
 - Has `File > Open Raw...`.
 - Loads raw frames by asking for file, width, height, and color space.
 - Converts raw formats through `q1view_image_core`/`qimage_cs`.
+- Remembers the last raw width, height, color space, and file path with `QSettings`.
+- Supports drag/drop:
+  - Known image files open directly.
+  - Unknown local files open the raw dialog with the file path prefilled.
 
 It does not yet implement:
 
@@ -131,7 +135,6 @@ Local machine note: this Windows machine did not have `cmake`, `cl`, `gcc`, or `
    - macOS packaging uses `macdeployqt`.
    - Linux currently uploads the executable plus runtime notes; replace with AppDir/AppImage.
 3. Improve raw image workflows:
-   - Remember recent width/height/color-space settings.
    - Add drag/drop or command-line raw metadata support.
    - Add validation/test fixtures for representative raw formats.
 4. Add a minimal automated Qt smoke check if practical:

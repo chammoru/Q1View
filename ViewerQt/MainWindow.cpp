@@ -4,6 +4,7 @@
 
 #include <QAction>
 #include <QByteArray>
+#include <QDragEnterEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -13,9 +14,12 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QPixmap>
 #include <QScrollArea>
+#include <QSettings>
 #include <QStatusBar>
+#include <QUrl>
 
 #include "qimage_cs.h"
 
@@ -28,12 +32,16 @@ MainWindow::MainWindow(QWidget *parent)
 	mImageLabel->setBackgroundRole(QPalette::Base);
 	mImageLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 	mImageLabel->setScaledContents(false);
+	mImageLabel->setAcceptDrops(false);
 
 	mScrollArea->setBackgroundRole(QPalette::Dark);
 	mScrollArea->setWidget(mImageLabel);
 	mScrollArea->setWidgetResizable(true);
+	mScrollArea->setAcceptDrops(false);
 	setCentralWidget(mScrollArea);
+	setAcceptDrops(true);
 
+	loadSettings();
 	createActions();
 	statusBar()->showMessage(tr("Ready"));
 	setWindowTitle(tr("Q1View Qt"));
@@ -78,12 +86,15 @@ void MainWindow::createActions()
 
 	QAction *openRawAction = fileMenu->addAction(tr("Open &Raw..."));
 	connect(openRawAction, &QAction::triggered, this, [this]() {
-		RawOpenOptions options;
+		RawOpenOptions options = mRawOptions;
 		if (!RawOpenDialog::getOptions(this, &options)) {
 			return;
 		}
 
-		openRawFile(options.fileName, options.width, options.height, options.colorSpaceName);
+		if (openRawFile(options.fileName, options.width, options.height, options.colorSpaceName)) {
+			mRawOptions = options;
+			saveRawSettings();
+		}
 	});
 
 	fileMenu->addSeparator();
@@ -91,6 +102,44 @@ void MainWindow::createActions()
 	QAction *exitAction = fileMenu->addAction(tr("E&xit"));
 	exitAction->setShortcut(QKeySequence::Quit);
 	connect(exitAction, &QAction::triggered, this, &QWidget::close);
+}
+
+void MainWindow::loadSettings()
+{
+	QSettings settings;
+	mRawOptions.width = settings.value(QStringLiteral("raw/width"), mRawOptions.width).toInt();
+	mRawOptions.height = settings.value(QStringLiteral("raw/height"), mRawOptions.height).toInt();
+	mRawOptions.colorSpaceName = settings.value(QStringLiteral("raw/colorSpace"), mRawOptions.colorSpaceName).toString();
+	mRawOptions.fileName = settings.value(QStringLiteral("raw/fileName")).toString();
+}
+
+void MainWindow::saveRawSettings() const
+{
+	QSettings settings;
+	settings.setValue(QStringLiteral("raw/width"), mRawOptions.width);
+	settings.setValue(QStringLiteral("raw/height"), mRawOptions.height);
+	settings.setValue(QStringLiteral("raw/colorSpace"), mRawOptions.colorSpaceName);
+	settings.setValue(QStringLiteral("raw/fileName"), mRawOptions.fileName);
+}
+
+void MainWindow::openDroppedFile(const QString &fileName)
+{
+	QImageReader reader(fileName);
+	if (reader.canRead()) {
+		openFile(fileName);
+		return;
+	}
+
+	RawOpenOptions options = mRawOptions;
+	options.fileName = fileName;
+	if (!RawOpenDialog::getOptions(this, &options)) {
+		return;
+	}
+
+	if (openRawFile(options.fileName, options.width, options.height, options.colorSpaceName)) {
+		mRawOptions = options;
+		saveRawSettings();
+	}
 }
 
 void MainWindow::updateImage()
@@ -164,4 +213,36 @@ bool MainWindow::openRawFile(const QString &fileName, int width, int height, con
 	updateImage();
 	statusBar()->showMessage(tr("%1 %2x%3").arg(colorSpaceName).arg(width).arg(height));
 	return true;
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+	if (event->mimeData()->hasUrls()) {
+		for (const QUrl &url : event->mimeData()->urls()) {
+			if (url.isLocalFile()) {
+				event->acceptProposedAction();
+				return;
+			}
+		}
+	}
+
+	event->ignore();
+}
+
+void MainWindow::dropEvent(QDropEvent *event)
+{
+	if (!event->mimeData()->hasUrls()) {
+		event->ignore();
+		return;
+	}
+
+	for (const QUrl &url : event->mimeData()->urls()) {
+		if (url.isLocalFile()) {
+			openDroppedFile(url.toLocalFile());
+			event->acceptProposedAction();
+			return;
+		}
+	}
+
+	event->ignore();
 }
