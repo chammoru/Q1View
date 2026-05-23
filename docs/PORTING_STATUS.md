@@ -106,6 +106,7 @@ Successful Qt viewer CI runs:
 - https://github.com/chammoru/Q1View/actions/runs/26224574718
 - https://github.com/chammoru/Q1View/actions/runs/26224816758
 - Latest verified run: https://github.com/chammoru/Q1View/actions/runs/26233937957
+- Latest mac interaction hardening run: https://github.com/chammoru/Q1View/actions/runs/26339947245
 
 Artifacts were produced for:
 
@@ -120,6 +121,7 @@ Latest artifact notes:
 - The experimental Qt Viewer can be published as a GitHub prerelease with tags named `qt-viewer-v*`.
 - First Qt Viewer prerelease: https://github.com/chammoru/Q1View/releases/tag/qt-viewer-v0.1.0
 - Latest Qt Viewer prerelease: https://github.com/chammoru/Q1View/releases/tag/qt-viewer-v0.2.0
+- Next Qt Viewer prerelease should be `qt-viewer-v0.2.1` for mac interaction fixes.
 
 Relevant files:
 
