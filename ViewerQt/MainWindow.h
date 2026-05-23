@@ -46,6 +46,7 @@ private:
 	void saveRawSettings() const;
 	void saveImageAs();
 	void showHelp();
+	QPoint sourcePointFromDisplayPoint(const QPoint &point) const;
 	void openDroppedFile(const QString &fileName);
 	void copyImageToClipboard();
 	void firstFrameOrFile();
@@ -100,6 +101,7 @@ private:
 	bool mIsPanning;
 	bool mShowCoordinates;
 	bool mYOnly;
+	int mRotationQuarterTurns;
 	QPoint mLastPanPoint;
 	QPoint mCursorImagePoint;
 };

@@ -12,6 +12,8 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QGesture>
+#include <QGestureEvent>
 #include <QImageReader>
 #include <QIODevice>
 #include <QKeyEvent>
@@ -21,6 +23,8 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QPinchGesture>
+#include <QPointF>
 #include <QPixmap>
 #include <QResizeEvent>
 #include <QScrollBar>
@@ -34,6 +38,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
 
 #include "qimage_cs.h"
 
@@ -63,28 +68,36 @@ MainWindow::MainWindow(QWidget *parent)
 	  mCurrentFileIsRaw(false),
 	  mIsPanning(false),
 	  mShowCoordinates(false),
-	  mYOnly(false)
+	  mYOnly(false),
+	  mRotationQuarterTurns(0),
+	  mCursorImagePoint(-1, -1)
 {
 	mImageLabel->setAlignment(Qt::AlignCenter);
 	mImageLabel->setBackgroundRole(QPalette::Base);
 	mImageLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 	mImageLabel->setScaledContents(false);
 	mImageLabel->setAcceptDrops(false);
+	mImageLabel->setMouseTracking(true);
 
 	mScrollArea->setBackgroundRole(QPalette::Dark);
 	mScrollArea->setWidget(mImageLabel);
 	mScrollArea->setWidgetResizable(false);
 	mScrollArea->setAlignment(Qt::AlignCenter);
 	mScrollArea->setAcceptDrops(false);
+	mScrollArea->viewport()->setMouseTracking(true);
+	mScrollArea->viewport()->setFocusPolicy(Qt::StrongFocus);
+	mScrollArea->viewport()->grabGesture(Qt::PinchGesture);
 	mScrollArea->viewport()->installEventFilter(this);
 	setCentralWidget(mScrollArea);
 	setAcceptDrops(true);
+	setFocusPolicy(Qt::StrongFocus);
 
 	mPlayTimer->setInterval(33);
 	connect(mPlayTimer, &QTimer::timeout, this, &MainWindow::nextFrameOrFile);
 
 	loadSettings();
 	createActions();
+	updateZoomStatus();
 	statusBar()->showMessage(tr("Ready"));
 	setWindowTitle(tr("Q1View Qt"));
 	resize(960, 640);
@@ -109,6 +122,8 @@ bool MainWindow::openFile(const QString &fileName)
 	mRawFrameSize = 0;
 	mRawFrameCount = 1;
 	mCurrentFrame = 0;
+	mRotationQuarterTurns = 0;
+	mCursorImagePoint = QPoint(-1, -1);
 	mFitToWindow = true;
 	updateImage();
 	return true;
@@ -277,12 +292,16 @@ void MainWindow::applyZoom(double factor, const QPoint *anchor)
 		mFitToWindowAction->setChecked(false);
 	}
 
-	const QPoint imagePoint = anchor ? (*anchor + QPoint(mScrollArea->horizontalScrollBar()->value(), mScrollArea->verticalScrollBar()->value())) : QPoint();
+	QPointF imagePoint;
+	if (anchor) {
+		const QPoint labelPoint = mImageLabel->mapFrom(mScrollArea->viewport(), *anchor);
+		imagePoint = QPointF(labelPoint.x() / oldScaleFactor, labelPoint.y() / oldScaleFactor);
+	}
 	updateView();
 
 	if (anchor) {
-		mScrollArea->horizontalScrollBar()->setValue(static_cast<int>(imagePoint.x() * actualFactor - anchor->x()));
-		mScrollArea->verticalScrollBar()->setValue(static_cast<int>(imagePoint.y() * actualFactor - anchor->y()));
+		mScrollArea->horizontalScrollBar()->setValue(static_cast<int>(imagePoint.x() * newScaleFactor - anchor->x()));
+		mScrollArea->verticalScrollBar()->setValue(static_cast<int>(imagePoint.y() * newScaleFactor - anchor->y()));
 	} else {
 		adjustScrollBar(mScrollArea->horizontalScrollBar(), actualFactor);
 		adjustScrollBar(mScrollArea->verticalScrollBar(), actualFactor);
@@ -298,18 +317,28 @@ void MainWindow::closeCurrentFile()
 	mRawFrameSize = 0;
 	mRawFrameCount = 0;
 	mCurrentFrame = 0;
-	mCursorImagePoint = QPoint();
+	mRotationQuarterTurns = 0;
+	mCursorImagePoint = QPoint(-1, -1);
 	setWindowTitle(tr("Q1View Qt"));
 	updateView();
 }
 
 QImage MainWindow::displayImage() const
 {
-	if (!mYOnly || mImage.isNull()) {
-		return mImage;
+	if (mImage.isNull()) {
+		return QImage();
 	}
 
-	return mImage.convertToFormat(QImage::Format_Grayscale8).convertToFormat(QImage::Format_RGB888);
+	QImage image = mYOnly
+		? mImage.convertToFormat(QImage::Format_Grayscale8).convertToFormat(QImage::Format_RGB888)
+		: mImage;
+	const int turns = ((mRotationQuarterTurns % 4) + 4) % 4;
+	if (turns != 0) {
+		QTransform transform;
+		transform.rotate(90 * turns);
+		image = image.transformed(transform);
+	}
+	return image;
 }
 
 QStringList MainWindow::imageNameFilters() const
@@ -399,6 +428,9 @@ void MainWindow::openAdjacentFile(int direction, bool boundaryOnly)
 	}
 
 	const QFileInfo currentInfo(mCurrentFile);
+	if (!currentInfo.exists() || !currentInfo.isFile()) {
+		return;
+	}
 	QDir dir = currentInfo.dir();
 	const QFileInfoList files = dir.entryInfoList(imageNameFilters(), QDir::Files, QDir::Name | QDir::IgnoreCase);
 	if (files.isEmpty()) {
@@ -449,6 +481,8 @@ void MainWindow::openClipboardImage()
 	mCurrentFileIsRaw = false;
 	mRawFrameCount = 1;
 	mCurrentFrame = 0;
+	mRotationQuarterTurns = 0;
+	mCursorImagePoint = QPoint(-1, -1);
 	mFitToWindow = true;
 	updateImage();
 }
@@ -521,7 +555,7 @@ void MainWindow::saveImageAs()
 		return;
 	}
 
-	if (!mImage.save(fileName)) {
+	if (!displayImage().save(fileName)) {
 		QMessageBox::warning(this, tr("Save image as"), tr("Could not save %1.").arg(QFileInfo(fileName).fileName()));
 	}
 }
@@ -543,6 +577,25 @@ void MainWindow::showHelp()
 		   "Home/End: first or last frame/file\n"
 		   "Space: play or stop raw sequence\n"
 		   "Return: full screen"));
+}
+
+QPoint MainWindow::sourcePointFromDisplayPoint(const QPoint &point) const
+{
+	if (mImage.isNull()) {
+		return QPoint(-1, -1);
+	}
+
+	const int turns = ((mRotationQuarterTurns % 4) + 4) % 4;
+	switch (turns) {
+	case 1:
+		return QPoint(point.y(), mImage.height() - point.x() - 1);
+	case 2:
+		return QPoint(mImage.width() - point.x() - 1, mImage.height() - point.y() - 1);
+	case 3:
+		return QPoint(mImage.width() - point.y() - 1, point.x());
+	default:
+		return point;
+	}
 }
 
 void MainWindow::openDroppedFile(const QString &fileName)
@@ -568,7 +621,7 @@ void MainWindow::openDroppedFile(const QString &fileName)
 void MainWindow::copyImageToClipboard()
 {
 	if (!mImage.isNull()) {
-		QApplication::clipboard()->setImage(mImage);
+		QApplication::clipboard()->setImage(displayImage());
 		statusBar()->showMessage(tr("Copied image to clipboard"), 2000);
 	}
 }
@@ -619,9 +672,8 @@ void MainWindow::rotateClockwise()
 		return;
 	}
 
-	QTransform transform;
-	transform.rotate(90);
-	mImage = mImage.transformed(transform);
+	mRotationQuarterTurns = (mRotationQuarterTurns + 1) % 4;
+	mCursorImagePoint = QPoint(-1, -1);
 	mFitToWindow = true;
 	updateImage();
 }
@@ -700,7 +752,9 @@ void MainWindow::updateView()
 		mScaleFactor = std::max(0.02, std::min(widthScale, heightScale));
 	}
 
-	const QSize scaledSize = shownImage.size() * mScaleFactor;
+	const QSize scaledSize(
+		std::max(1, static_cast<int>(shownImage.width() * mScaleFactor + 0.5)),
+		std::max(1, static_cast<int>(shownImage.height() * mScaleFactor + 0.5)));
 	const QPixmap pixmap = QPixmap::fromImage(shownImage).scaled(
 		scaledSize,
 		Qt::KeepAspectRatio,
@@ -837,6 +891,8 @@ bool MainWindow::openRawFile(const QString &fileName, int width, int height, con
 	mRawHeight = height;
 	mRawFrameCount = static_cast<int>(fileSize / frameSize);
 	mCurrentFrame = 0;
+	mRotationQuarterTurns = 0;
+	mCursorImagePoint = QPoint(-1, -1);
 	mFitToWindow = true;
 	return loadRawFrame(0);
 }
@@ -863,16 +919,31 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 
 	if (event->type() == QEvent::Wheel && !mImage.isNull()) {
 		QWheelEvent *wheelEvent = static_cast<QWheelEvent *>(event);
-		int delta = wheelEvent->angleDelta().y();
-		if (delta == 0) {
-			delta = wheelEvent->pixelDelta().y();
+		double factor = 1.0;
+		if (!wheelEvent->pixelDelta().isNull()) {
+			factor = std::pow(1.01, wheelEvent->pixelDelta().y());
+		} else if (!wheelEvent->angleDelta().isNull()) {
+			factor = std::pow(1.25, wheelEvent->angleDelta().y() / 120.0);
 		}
-		if (delta != 0) {
-			const double factor = delta > 0 ? 1.25 : 0.8;
+		if (factor != 1.0) {
 			const QPoint anchor = wheelEvent->position().toPoint();
 			applyZoom(factor, &anchor);
 			wheelEvent->accept();
 			return true;
+		}
+	}
+
+	if (event->type() == QEvent::Gesture && !mImage.isNull()) {
+		QGestureEvent *gestureEvent = static_cast<QGestureEvent *>(event);
+		QGesture *gesture = gestureEvent->gesture(Qt::PinchGesture);
+		if (gesture) {
+			QPinchGesture *pinch = static_cast<QPinchGesture *>(gesture);
+			if (pinch->lastScaleFactor() > 0.0) {
+				const QPoint anchor = pinch->centerPoint().toPoint();
+				applyZoom(pinch->scaleFactor() / pinch->lastScaleFactor(), &anchor);
+				gestureEvent->accept(pinch);
+				return true;
+			}
 		}
 	}
 
@@ -890,9 +961,18 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 	if (event->type() == QEvent::MouseMove && !mImage.isNull()) {
 		QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
 		const QPoint labelPoint = mImageLabel->mapFrom(mScrollArea->viewport(), mouseEvent->pos());
-		mCursorImagePoint = QPoint(
+		const QPoint displayPoint(
 			static_cast<int>(labelPoint.x() / mScaleFactor),
 			static_cast<int>(labelPoint.y() / mScaleFactor));
+		const QImage shownImage = displayImage();
+		if (displayPoint.x() >= 0
+			&& displayPoint.y() >= 0
+			&& displayPoint.x() < shownImage.width()
+			&& displayPoint.y() < shownImage.height()) {
+			mCursorImagePoint = sourcePointFromDisplayPoint(displayPoint);
+		} else {
+			mCursorImagePoint = QPoint(-1, -1);
+		}
 
 		if (mIsPanning) {
 			const QPoint delta = mouseEvent->pos() - mLastPanPoint;
@@ -903,6 +983,11 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 			return true;
 		}
 
+		updateZoomStatus();
+	}
+
+	if (event->type() == QEvent::Leave) {
+		mCursorImagePoint = QPoint(-1, -1);
 		updateZoomStatus();
 	}
 
