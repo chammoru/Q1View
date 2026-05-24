@@ -32,6 +32,3 @@ public:
 };
 
 extern CComparerApp theApp;
-
-#define REG_OPEN_SETTING               _T("OpenSetting")
-#define REG_OPEN_SETTING_FILENAMES_CSV _T("FileNamesCsv")

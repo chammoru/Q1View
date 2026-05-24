@@ -136,13 +136,13 @@ void CComparerApp::OnFileOpen()
 		return;
 	}
 
-	CString filenamesCsv = filenames[0];
-	int limit = std::min((int)CComparerDoc::IMG_VIEW_MAX, (int)filenames.size());
-	for (int i = 1; i < limit; i++) {
-		filenamesCsv += CSV_SEPARATOR + filenames[i];
-	}
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	if (pMainFrm == NULL)
+		return;
 
-	AfxGetApp()->OpenDocumentFile(filenames[0], FALSE);
+	CComparerDoc *pDoc = static_cast<CComparerDoc *>(pMainFrm->GetActiveDocument());
+	if (pDoc == NULL)
+		return;
 
-	AfxGetApp()->WriteProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_FILENAMES_CSV, filenamesCsv);
+	pDoc->OpenMultiFiles(filenames);
 }

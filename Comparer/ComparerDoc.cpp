@@ -388,6 +388,27 @@ struct ImagePropertyCompare
 	}
 };
 
+static bool fileExists(const CString& path)
+{
+	DWORD attributes = ::GetFileAttributes(path);
+	return attributes != INVALID_FILE_ATTRIBUTES &&
+		(attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+}
+
+static std::vector<CString> parseFileList(const CString& fileList)
+{
+	std::vector<CString> filenames;
+
+	int pos = 0;
+	CString token = fileList.Tokenize(CSV_SEPARATOR, pos);
+	while (!token.IsEmpty()) {
+		filenames.push_back(token);
+		token = fileList.Tokenize(CSV_SEPARATOR, pos);
+	}
+
+	return filenames;
+}
+
 BOOL CComparerDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 
@@ -475,28 +496,32 @@ BOOL CComparerDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
-	const CString filenamesCsv = AfxGetApp()->GetProfileString(REG_OPEN_SETTING, REG_OPEN_SETTING_FILENAMES_CSV, _T(""));
+	CString fileList = lpszPathName == NULL ? _T("") : lpszPathName;
 
 	if (pMainFrm == NULL) {
 		// Command-line open can reach here before the SDI frame exists.
 		// Defer the real open until CMainFrame::ActivateFrame().
-		mPendingFile = filenamesCsv;
+		mPendingFile = fileList;
 		::CoInitialize(NULL);
 		return TRUE;
 	}
 
-	std::vector<CString> filenames;
-	int pos = 0;
-	CString token = filenamesCsv.Tokenize(CSV_SEPARATOR, pos);
+	std::vector<CString> filenames = parseFileList(fileList);
+	if (filenames.empty())
+		return FALSE;
 
-	while (!token.IsEmpty()) {
-		filenames.push_back(token);
-		if (!CDocument::OnOpenDocument(token)) {
-			LOGWRN("Wrong file path : %s", CT2A(token).m_psz);
+	for (const auto& filename : filenames) {
+		if (!fileExists(filename)) {
+			CString msg;
+			msg.Format(_T("%s does not exist or is not accessible."), filename.GetString());
+			AfxMessageBox(msg, MB_ICONWARNING | MB_OK);
+			LOGWRN("Wrong file path : %s", CT2A(filename).m_psz);
 			return FALSE;
 		}
-		token = filenamesCsv.Tokenize(CSV_SEPARATOR, pos);
 	}
+
+	if (!filenames.empty())
+		SetPathName(filenames[0], FALSE);
 
 	return OpenMultiFiles(filenames);
 }
