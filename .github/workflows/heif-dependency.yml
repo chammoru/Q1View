@@ -17,14 +17,19 @@ on:
         default: "aa40adda5352e87655b8583cfb2451d5e9e276fd"
         type: string
       vcpkg_package:
-        description: "vcpkg package expression to install"
+        description: "vcpkg package to install"
         required: true
-        default: "libheif[aom]"
+        default: "libheif"
+        type: string
+      vcpkg_features:
+        description: "comma-separated vcpkg features to install without default features"
+        required: true
+        default: "aom"
         type: string
       codec_flavor:
         description: "dependency artifact flavor suffix"
         required: true
-        default: "av1"
+        default: "decode-av1"
         type: string
 
 permissions:
@@ -38,8 +43,9 @@ jobs:
     env:
       HEIF_TRIPLET: ${{ inputs.triplet || 'x64-windows' }}
       VCPKG_REF: ${{ inputs.vcpkg_ref || 'aa40adda5352e87655b8583cfb2451d5e9e276fd' }}
-      VCPKG_PACKAGE: ${{ inputs.vcpkg_package || 'libheif[aom]' }}
-      HEIF_CODEC_FLAVOR: ${{ inputs.codec_flavor || 'av1' }}
+      VCPKG_PACKAGE: ${{ inputs.vcpkg_package || 'libheif' }}
+      VCPKG_FEATURES: ${{ inputs.vcpkg_features || 'aom' }}
+      HEIF_CODEC_FLAVOR: ${{ inputs.codec_flavor || 'decode-av1' }}
 
     steps:
       - name: Checkout
@@ -51,7 +57,8 @@ jobs:
           .\build\Build-HeifDependency.ps1 `
             -Triplet $env:HEIF_TRIPLET `
             -VcpkgRef $env:VCPKG_REF `
-            -VcpkgPackage $env:VCPKG_PACKAGE
+            -VcpkgPackage $env:VCPKG_PACKAGE `
+            -VcpkgFeatures $env:VCPKG_FEATURES
 
       - name: Package dependency
         id: package
@@ -79,6 +86,8 @@ jobs:
             "",
             "- vcpkg ref: $env:VCPKG_REF",
             "- vcpkg package: $env:VCPKG_PACKAGE",
+            "- vcpkg features: $env:VCPKG_FEATURES",
+            "- vcpkg default features: disabled",
             "- Triplet: $env:HEIF_TRIPLET",
             "- Codec flavor: $env:HEIF_CODEC_FLAVOR",
             "- Package: $packageName",

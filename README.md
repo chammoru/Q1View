@@ -98,7 +98,7 @@ msbuild Comparer\Comparer.sln /m /restore /p:Configuration=Release /p:Platform=x
 Normal builds restore dependencies into `.deps`:
 
 - OpenCV 4.3.0 from `deps-opencv-4.3.0-msvc-x64-static-mt`
-- libheif from `deps-libheif-av1-x64-windows`
+- libheif from `deps-libheif-decode-av1-x64-windows`
 
 The OpenCV archive is intentionally trimmed for Q1View's current needs. It keeps
 the `core`, `imgproc`, `imgcodecs`, `videoio`, and `highgui` modules and the
@@ -107,9 +107,11 @@ object detection, QR decoding, OpenCV apps, and protobuf are left out. This keep
 the dependency artifact smaller and avoids rebuilding old OpenCV code on every
 CI run.
 
-The HEIF archive is produced with vcpkg as `libheif[aom]` and contains libheif
-plus the runtime DLLs Q1View needs for HEVC-backed HEIF/HEIC/HIF and AV1-backed
-AVIF still-image loading.
+The HEIF archive is produced with vcpkg using libheif's default features
+disabled and the `aom` feature enabled. It contains libheif plus the runtime
+DLLs Q1View needs for HEVC-backed HEIF/HEIC/HIF decoding through libde265 and
+AV1-backed AVIF decoding through aom. It intentionally excludes x265 because
+Q1View does not encode HEIF images.
 
 Override variables:
 
