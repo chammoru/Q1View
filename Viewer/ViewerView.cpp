@@ -478,7 +478,7 @@ void CViewerView::SetPlayTimer(CViewerDoc* pDoc)
 
 	timeBeginPeriod(mTc.wPeriodMin);
 	mTimerID = timeSetEvent(pollPeriod, mTc.wPeriodMin, PlayTimerThread,
-		(DWORD_PTR)this, TIME_PERIODIC);
+		(DWORD_PTR)this, TIME_PERIODIC | TIME_KILL_SYNCHRONOUS);
 	if (mTimerID == 0) {
 		mIsPlaying = false;
 		timeEndPeriod(mTc.wPeriodMin);
