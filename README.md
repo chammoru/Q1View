@@ -4,6 +4,7 @@
 [![C++](https://img.shields.io/badge/language-C%2B%2B-00599C)](#project-layout)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.3.0-5C3EE8)](#dependencies)
 [![HEIF](https://img.shields.io/badge/HEIF%2FHEIC-supported-2EA44F)](#features)
+[![AVIF](https://img.shields.io/badge/AVIF%2FAV1-supported-2EA44F)](#features)
 
 Q1View is a Windows image, raw-frame, and video-frame viewer built for people
 who debug pixels rather than only browse photos.
@@ -93,6 +94,30 @@ msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64
 msbuild Comparer\Comparer.sln /m /restore /p:Configuration=Release /p:Platform=x64
 ```
 
+## Distribution
+
+Current GitHub releases provide a portable Windows x64 package:
+
+- `Q1View-windows-x64.zip`
+- `Viewer.exe`
+- `Comparer.exe`
+- Required runtime DLLs
+
+The `v1.0.9` package includes AVIF/AV1 decoding through `aom.dll` and
+HEIF/HEIC/HIF decoding through `libde265.dll`. It does not ship `x265.dll`
+because Q1View decodes images but does not encode HEIF.
+
+Planned installer flow:
+
+1. Add a package script that gathers `Viewer.exe`, `Comparer.exe`, and DLLs into
+   one staging folder.
+2. Build a Windows installer with Inno Setup.
+3. Register separate Start Menu shortcuts for **Q1View Viewer** and
+   **Q1View Comparer**.
+4. Add Authenticode code signing for the installer and executables.
+5. Revisit MSIX and Microsoft Store packaging after the installer path is
+   stable.
+
 ## Dependencies
 
 Normal builds restore dependencies into `.deps`:
@@ -146,9 +171,9 @@ Recent hosted CI timing on `windows-2022`:
 
 | Workflow | What it does | Time |
 | --- | --- | --- |
-| Build and Release | Restore dependency zips, build Viewer and Comparer, upload package | about 5-6 min |
+| Build and Release | Restore dependency zips, build Viewer and Comparer, upload package | about 6-7 min |
 | Build OpenCV Dependency | Build/package the trimmed OpenCV 4.3.0 archive | about 6 min 45 sec |
-| Build HEIF Dependency | Build/package libheif plus the AV1 codec through vcpkg | about 11 min |
+| Build HEIF Dependency | Build/package decode-only libheif plus the AV1 codec through vcpkg | about 6-7 min |
 
 Keeping OpenCV and HEIF as dependency release assets avoids adding roughly
 7-9 minutes to every normal CI run compared with the previous on-demand
@@ -190,6 +215,7 @@ Q1View is actively maintained, but still has rough edges. The most useful next
 improvements would be:
 
 - Add screenshots or short GIFs to make the workflow clear at a glance.
+- Add the planned Inno Setup installer and signing pipeline.
 - Improve contributor documentation for adding raw formats and metrics.
 - Add stricter SHA256 pinning for the published dependency archives.
 - Continue modernizing the build while keeping the pixel-debugging workflow fast.
