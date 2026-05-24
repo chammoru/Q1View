@@ -5,8 +5,6 @@
 #include "QOcv.h"
 #include "QDerivative.h"
 
-#include <opencv2/objdetect/objdetect.hpp>
-
 namespace q1 {
 
 bool SomeDetector::process(cv::Mat &src, cv::Mat &dst)

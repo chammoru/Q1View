@@ -8,18 +8,33 @@ build is configured with `Q1VIEW_HEIF_ROOT`.
 
 ## Windows build
 
-Set `Q1VIEW_HEIF_ROOT` to a libheif installation root that contains `include`,
-`lib`, and `bin` directories. The GitHub Actions release build installs
-`libheif:x64-windows` through vcpkg and sets this variable automatically.
+For x64 builds, Q1View enables HEIF support automatically. If `Q1VIEW_HEIF_ROOT`
+is not set, MSBuild restores a prebuilt HEIF dependency archive into
+`.deps\libheif-x64-windows`.
+
+`Q1VIEW_HEIF_ROOT` can still be set manually to a libheif installation root that
+contains `include`, `lib`, and `bin` directories.
+
+Default archive:
+- GitHub release tag: `deps-libheif-x64-windows`
+- Asset: `Q1View-libheif-x64-windows.zip`
+
+Overrides:
+- `Q1VIEW_HEIF_ROOT`: use an already extracted libheif install root.
+- `Q1VIEW_HEIF_ARCHIVE`: use a local dependency zip.
+- `Q1VIEW_HEIF_URL`: use a custom dependency zip URL.
+- `Q1VIEW_HEIF_SHA256`: verify the zip with a pinned SHA256.
+
+To create or refresh the dependency archive, run the **Build HEIF Dependency**
+workflow manually. It installs `libheif:x64-windows` through vcpkg, uploads the
+zip to a GitHub release, and writes the SHA256 in the release notes.
 
 Example local setup:
 
 ```powershell
-vcpkg install libheif:x64-windows
-$env:Q1VIEW_HEIF_ROOT = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows"
 msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64
 msbuild Comparer\Comparer.sln /m /restore /p:Configuration=Release /p:Platform=x64
 ```
 
-Release packages must include the libheif runtime DLLs from
-`$env:Q1VIEW_HEIF_ROOT\bin` next to `Viewer.exe` and `Comparer.exe`.
+The build copies the libheif runtime DLLs from `Q1VIEW_HEIF_ROOT\bin` next to
+`Viewer.exe` and `Comparer.exe`.

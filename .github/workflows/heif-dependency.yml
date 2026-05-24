@@ -1,0 +1,86 @@
+name: Build HEIF Dependency
+
+on:
+  push:
+    tags:
+      - "deps-libheif-*"
+  workflow_dispatch:
+    inputs:
+      triplet:
+        description: "vcpkg triplet to package"
+        required: true
+        default: "x64-windows"
+        type: string
+      vcpkg_ref:
+        description: "vcpkg commit, tag, or branch"
+        required: true
+        default: "aa40adda5352e87655b8583cfb2451d5e9e276fd"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and publish HEIF dependency
+    runs-on: windows-2022
+
+    env:
+      HEIF_TRIPLET: ${{ inputs.triplet || 'x64-windows' }}
+      VCPKG_REF: ${{ inputs.vcpkg_ref || 'aa40adda5352e87655b8583cfb2451d5e9e276fd' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build HEIF
+        shell: pwsh
+        run: |
+          .\build\Build-HeifDependency.ps1 `
+            -Triplet $env:HEIF_TRIPLET `
+            -VcpkgRef $env:VCPKG_REF
+
+      - name: Package dependency
+        id: package
+        shell: pwsh
+        run: |
+          $packageName = "Q1View-libheif-$($env:HEIF_TRIPLET).zip"
+          $hashFile = "$packageName.sha256.txt"
+          $tagName = "deps-libheif-$($env:HEIF_TRIPLET)"
+          $installRoot = ".deps\vcpkg\installed\$($env:HEIF_TRIPLET)"
+
+          if (-not (Test-Path "$installRoot\include\libheif\heif.h")) {
+            throw "HEIF install root was not found at $installRoot"
+          }
+
+          Compress-Archive -Path "$installRoot\*" -DestinationPath $packageName -Force
+          $hash = (Get-FileHash -LiteralPath $packageName -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          "$hash  $packageName" | Out-File -LiteralPath $hashFile -Encoding ascii
+          @(
+            "# HEIF dependency for Q1View",
+            "",
+            "- vcpkg ref: $env:VCPKG_REF",
+            "- Triplet: $env:HEIF_TRIPLET",
+            "- Package: $packageName",
+            "- SHA256: $hash",
+            "",
+            "Set Q1VIEW_HEIF_SHA256 or Q1ViewHeifSha256 to this hash when strict verification is required."
+          ) | Out-File -LiteralPath RELEASE_NOTES.md -Encoding utf8
+
+          "package_name=$packageName" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "hash_file=$hashFile" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "tag_name=$tagName" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Upload dependency release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.package.outputs.tag_name }}
+          target_commitish: ${{ github.sha }}
+          name: HEIF dependency ${{ env.HEIF_TRIPLET }}
+          body_path: RELEASE_NOTES.md
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: |
+            ${{ steps.package.outputs.package_name }}
+            ${{ steps.package.outputs.hash_file }}

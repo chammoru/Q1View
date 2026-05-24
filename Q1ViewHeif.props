@@ -1,10 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <Q1ViewHeifEnabled Condition="'$(Q1VIEW_HEIF_ROOT)' != ''">true</Q1ViewHeifEnabled>
+    <Q1ViewHeifTriplet Condition="'$(Q1ViewHeifTriplet)' == ''">x64-windows</Q1ViewHeifTriplet>
+    <Q1ViewHeifAssetName Condition="'$(Q1ViewHeifAssetName)' == ''">Q1View-libheif-$(Q1ViewHeifTriplet).zip</Q1ViewHeifAssetName>
+    <Q1ViewHeifReleaseTag Condition="'$(Q1ViewHeifReleaseTag)' == ''">deps-libheif-$(Q1ViewHeifTriplet)</Q1ViewHeifReleaseTag>
+    <Q1ViewHeifArchiveUrl Condition="'$(Q1VIEW_HEIF_URL)' != ''">$(Q1VIEW_HEIF_URL)</Q1ViewHeifArchiveUrl>
+    <Q1ViewHeifArchiveUrl Condition="'$(Q1ViewHeifArchiveUrl)' == ''">https://github.com/chammoru/Q1View/releases/download/$(Q1ViewHeifReleaseTag)/$(Q1ViewHeifAssetName)</Q1ViewHeifArchiveUrl>
+    <Q1ViewHeifArchivePath Condition="'$(Q1VIEW_HEIF_ARCHIVE)' != ''">$(Q1VIEW_HEIF_ARCHIVE)</Q1ViewHeifArchivePath>
+    <Q1ViewHeifSha256 Condition="'$(Q1VIEW_HEIF_SHA256)' != ''">$(Q1VIEW_HEIF_SHA256)</Q1ViewHeifSha256>
+    <Q1VIEW_HEIF_ROOT Condition="'$(Q1VIEW_HEIF_ROOT)' == '' and '$(Platform)' == 'x64'">$(MSBuildThisFileDirectory).deps\libheif-$(Q1ViewHeifTriplet)</Q1VIEW_HEIF_ROOT>
+    <Q1ViewHeifEnabled Condition="'$(Q1ViewHeifEnabled)' == '' and '$(Q1VIEW_HEIF_ROOT)' != ''">true</Q1ViewHeifEnabled>
     <Q1ViewHeifBinDir Condition="'$(Q1VIEW_HEIF_BIN_DIR)' != ''">$(Q1VIEW_HEIF_BIN_DIR)</Q1ViewHeifBinDir>
     <Q1ViewHeifBinDir Condition="'$(Q1ViewHeifBinDir)' == '' and '$(Q1VIEW_HEIF_ROOT)' != ''">$(Q1VIEW_HEIF_ROOT)\bin</Q1ViewHeifBinDir>
   </PropertyGroup>
+  <Target Name="Q1ViewEnsureHeifDependency"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(Q1ViewHeifEnabled)' == 'true' and (!Exists('$(Q1VIEW_HEIF_ROOT)\include\libheif\heif.h') or !Exists('$(Q1VIEW_HEIF_ROOT)\lib\heif.lib'))">
+    <Message Text="Preparing HEIF dependency at $(Q1VIEW_HEIF_ROOT)" Importance="High" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)build\Ensure-HeifDependency.ps1&quot; -InstallRoot &quot;$(Q1VIEW_HEIF_ROOT)&quot; -ArchiveUrl &quot;$(Q1ViewHeifArchiveUrl)&quot; -ArchivePath &quot;$(Q1ViewHeifArchivePath)&quot; -Sha256 &quot;$(Q1ViewHeifSha256)&quot; -Triplet &quot;$(Q1ViewHeifTriplet)&quot;" />
+  </Target>
+  <Target Name="Q1ViewCopyHeifRuntime"
+          AfterTargets="Build"
+          Condition="'$(Q1ViewHeifEnabled)' == 'true' and Exists('$(Q1ViewHeifBinDir)')">
+    <ItemGroup>
+      <Q1ViewHeifRuntimeDll Include="$(Q1ViewHeifBinDir)\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(Q1ViewHeifRuntimeDll)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true"
+          Condition="'@(Q1ViewHeifRuntimeDll)' != ''" />
+  </Target>
   <ItemDefinitionGroup Condition="'$(Q1ViewHeifEnabled)' == 'true'">
     <ClCompile>
       <PreprocessorDefinitions>Q1VIEW_ENABLE_LIBHEIF;%(PreprocessorDefinitions)</PreprocessorDefinitions>
