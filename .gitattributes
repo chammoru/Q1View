@@ -57,9 +57,6 @@
 /Viewer/**/*.inl text eol=crlf
 /Viewer/**/*.rc text eol=crlf
 
-# Leave the vendored OpenCV tree untouched.
-/opencv-4.3.0/** -text
-
 # Keep binary assets out of end-of-line conversion.
 *.bmp binary
 *.gif binary

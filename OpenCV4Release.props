@@ -2,14 +2,42 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup />
+  <PropertyGroup>
+    <Q1ViewOpenCvVersion Condition="'$(Q1ViewOpenCvVersion)' == ''">4.3.0</Q1ViewOpenCvVersion>
+    <Q1ViewOpenCvAssetName Condition="'$(Q1ViewOpenCvAssetName)' == ''">Q1View-opencv-$(Q1ViewOpenCvVersion)-msvc-x64-static-mt.zip</Q1ViewOpenCvAssetName>
+    <Q1ViewOpenCvReleaseTag Condition="'$(Q1ViewOpenCvReleaseTag)' == ''">deps-opencv-$(Q1ViewOpenCvVersion)-msvc-x64-static-mt</Q1ViewOpenCvReleaseTag>
+    <Q1ViewOpenCvArchiveUrl Condition="'$(Q1VIEW_OPENCV_URL)' != ''">$(Q1VIEW_OPENCV_URL)</Q1ViewOpenCvArchiveUrl>
+    <Q1ViewOpenCvArchiveUrl Condition="'$(Q1ViewOpenCvArchiveUrl)' == ''">https://github.com/chammoru/Q1View/releases/download/$(Q1ViewOpenCvReleaseTag)/$(Q1ViewOpenCvAssetName)</Q1ViewOpenCvArchiveUrl>
+    <Q1ViewOpenCvArchivePath Condition="'$(Q1VIEW_OPENCV_ARCHIVE)' != ''">$(Q1VIEW_OPENCV_ARCHIVE)</Q1ViewOpenCvArchivePath>
+    <Q1ViewOpenCvSha256 Condition="'$(Q1VIEW_OPENCV_SHA256)' != ''">$(Q1VIEW_OPENCV_SHA256)</Q1ViewOpenCvSha256>
+    <Q1ViewOpenCvInstallRoot Condition="'$(Q1VIEW_OPENCV_ROOT)' != ''">$(Q1VIEW_OPENCV_ROOT)</Q1ViewOpenCvInstallRoot>
+    <Q1ViewOpenCvInstallRoot Condition="'$(Q1ViewOpenCvInstallRoot)' == ''">$(MSBuildThisFileDirectory).deps\opencv-$(Q1ViewOpenCvVersion)-msvc-x64-static-mt</Q1ViewOpenCvInstallRoot>
+    <Q1ViewOpenCvBinaryPrefix Condition="'$(Q1ViewOpenCvBinaryPrefix)' == ''">x64\vc16</Q1ViewOpenCvBinaryPrefix>
+    <Q1ViewOpenCvLibDir>$(Q1ViewOpenCvInstallRoot)\$(Q1ViewOpenCvBinaryPrefix)\staticlib</Q1ViewOpenCvLibDir>
+    <Q1ViewOpenCvBinDir>$(Q1ViewOpenCvInstallRoot)\$(Q1ViewOpenCvBinaryPrefix)\bin</Q1ViewOpenCvBinDir>
+    <Q1ViewOpenCvCoreLib>$(Q1ViewOpenCvLibDir)\opencv_core430.lib</Q1ViewOpenCvCoreLib>
+    <Q1ViewOpenCvStamp>$(Q1ViewOpenCvInstallRoot)\q1view-opencv-$(Configuration).stamp</Q1ViewOpenCvStamp>
+  </PropertyGroup>
+  <Target Name="Q1ViewEnsureOpenCvDependency"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(Platform)' == 'x64' and (!Exists('$(Q1ViewOpenCvInstallRoot)\include\opencv2\core.hpp') or !Exists('$(Q1ViewOpenCvCoreLib)') or !Exists('$(Q1ViewOpenCvStamp)'))">
+    <Message Text="Preparing OpenCV $(Q1ViewOpenCvVersion) dependency at $(Q1ViewOpenCvInstallRoot)" Importance="High" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)build\Ensure-OpenCvDependency.ps1&quot; -Version &quot;$(Q1ViewOpenCvVersion)&quot; -InstallRoot &quot;$(Q1ViewOpenCvInstallRoot)&quot; -ArchiveUrl &quot;$(Q1ViewOpenCvArchiveUrl)&quot; -ArchivePath &quot;$(Q1ViewOpenCvArchivePath)&quot; -Sha256 &quot;$(Q1ViewOpenCvSha256)&quot; -Configuration &quot;$(Configuration)&quot; -Platform &quot;$(Platform)&quot; -BinaryPrefix &quot;$(Q1ViewOpenCvBinaryPrefix)&quot;" />
+  </Target>
+  <Target Name="Q1ViewCopyOpenCvRuntime"
+          AfterTargets="Build"
+          Condition="'$(Platform)' == 'x64' and Exists('$(Q1ViewOpenCvBinDir)\opencv_videoio_ffmpeg430_64.dll')">
+    <Copy SourceFiles="$(Q1ViewOpenCvBinDir)\opencv_videoio_ffmpeg430_64.dll"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\opencv-4.3.0-build\install\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(Q1ViewOpenCvInstallRoot)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>..\opencv-4.3.0-build\install\x64\vc16\staticlib\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>opencv_calib3d430.lib;opencv_imgproc430.lib;opencv_core430.lib;opencv_ml430.lib;opencv_features2d430.lib;opencv_objdetect430.lib; opencv_video430.lib;opencv_flann430.lib;opencv_photo430.lib;opencv_videoio430.lib;opencv_highgui430.lib;opencv_imgcodecs430.lib;opencv_stitching430.lib;zlib.lib;libtiff.lib;libpng.lib;libjasper.lib;libwebp.lib;IlmImf.lib;ComCtl32.lib;Vfw32.lib;ippicvmt.lib;ippiw.lib;ittnotify.lib;libjpeg-turbo.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(Q1ViewOpenCvLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opencv_imgproc430.lib;opencv_core430.lib;opencv_videoio430.lib;opencv_highgui430.lib;opencv_imgcodecs430.lib;zlib.lib;libtiff.lib;libpng.lib;libjasper.lib;libwebp.lib;IlmImf.lib;ComCtl32.lib;Vfw32.lib;ippicvmt.lib;ippiw.lib;ittnotify.lib;libjpeg-turbo.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup />

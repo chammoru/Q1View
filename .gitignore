@@ -33,6 +33,9 @@ bld/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
+.deps/
+opencv-4.3.0/
+opencv-4.3.0-build/
 
 # Visual Studio Code workspace settings
 .vscode/

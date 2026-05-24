@@ -1,0 +1,83 @@
+name: Build OpenCV Dependency
+
+on:
+  push:
+    tags:
+      - "deps-opencv-*"
+  workflow_dispatch:
+    inputs:
+      opencv_version:
+        description: "OpenCV version to package"
+        required: true
+        default: "4.3.0"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and publish OpenCV dependency
+    runs-on: windows-2022
+
+    env:
+      OPENCV_VERSION: ${{ inputs.opencv_version || '4.3.0' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build OpenCV
+        shell: pwsh
+        run: |
+          .\build\Build-OpenCvDependency.ps1 `
+            -Version $env:OPENCV_VERSION `
+            -Configurations Release,Debug `
+            -Platform x64
+
+      - name: Package dependency
+        id: package
+        shell: pwsh
+        run: |
+          $packageName = "Q1View-opencv-$($env:OPENCV_VERSION)-msvc-x64-static-mt.zip"
+          $hashFile = "$packageName.sha256.txt"
+          $tagName = "deps-opencv-$($env:OPENCV_VERSION)-msvc-x64-static-mt"
+          $installRoot = ".deps\opencv-$($env:OPENCV_VERSION)-build\install"
+
+          if (-not (Test-Path "$installRoot\include\opencv2\core.hpp")) {
+            throw "OpenCV install root was not found at $installRoot"
+          }
+
+          Compress-Archive -Path "$installRoot\*" -DestinationPath $packageName -Force
+          $hash = (Get-FileHash -LiteralPath $packageName -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          "$hash  $packageName" | Out-File -LiteralPath $hashFile -Encoding ascii
+          @(
+            "# OpenCV dependency for Q1View",
+            "",
+            "- OpenCV: $env:OPENCV_VERSION",
+            "- Package: $packageName",
+            "- SHA256: $hash",
+            "",
+            "Set Q1VIEW_OPENCV_SHA256 or Q1ViewOpenCvSha256 to this hash when strict verification is required."
+          ) | Out-File -LiteralPath RELEASE_NOTES.md -Encoding utf8
+
+          "package_name=$packageName" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "hash_file=$hashFile" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "tag_name=$tagName" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Upload dependency release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.package.outputs.tag_name }}
+          target_commitish: ${{ github.sha }}
+          name: OpenCV ${{ env.OPENCV_VERSION }} dependency
+          body_path: RELEASE_NOTES.md
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: |
+            ${{ steps.package.outputs.package_name }}
+            ${{ steps.package.outputs.hash_file }}

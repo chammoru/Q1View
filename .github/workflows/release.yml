@@ -28,7 +28,6 @@ env:
   BUILD_CONFIGURATION: Release
   BUILD_PLATFORM: x64
   DIST_DIR: dist/Q1View-windows-x64
-  FFMPEG_DLL: opencv-4.3.0-build/install/x64/vc16/bin/opencv_videoio_ffmpeg430_64.dll
 
 jobs:
   build:
@@ -44,28 +43,6 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Verify OpenCV FFmpeg DLL
-        shell: pwsh
-        run: |
-          if (-not (Test-Path $env:FFMPEG_DLL)) {
-            throw "Missing required DLL: $env:FFMPEG_DLL"
-          }
-
-      - name: Install HEIF dependencies
-        shell: pwsh
-        run: |
-          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
-          if (-not $vcpkgRoot -and (Test-Path "C:\vcpkg")) {
-            $vcpkgRoot = "C:\vcpkg"
-          }
-          if (-not $vcpkgRoot) {
-            throw "VCPKG_INSTALLATION_ROOT is not set and C:\vcpkg was not found"
-          }
-
-          & "$vcpkgRoot\vcpkg.exe" install libheif:x64-windows
-          $heifRoot = Join-Path $vcpkgRoot "installed\x64-windows"
-          "Q1VIEW_HEIF_ROOT=$heifRoot" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-
       - name: Build Viewer
         run: msbuild Viewer\Viewer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
 
@@ -77,7 +54,7 @@ jobs:
         run: |
           $viewer = "Viewer\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\Viewer.exe"
           $comparer = "Comparer\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\Comparer.exe"
-          $requiredFiles = @($viewer, $comparer, $env:FFMPEG_DLL)
+          $requiredFiles = @($viewer, $comparer)
 
           foreach ($file in $requiredFiles) {
             if (-not (Test-Path $file)) {
@@ -88,12 +65,9 @@ jobs:
           New-Item -ItemType Directory -Force $env:DIST_DIR | Out-Null
           Copy-Item $viewer $env:DIST_DIR
           Copy-Item $comparer $env:DIST_DIR
-          Copy-Item $env:FFMPEG_DLL $env:DIST_DIR
 
-          $heifBin = Join-Path $env:Q1VIEW_HEIF_ROOT "bin"
-          if (Test-Path $heifBin) {
-            Copy-Item "$heifBin\*.dll" $env:DIST_DIR -Force
-          }
+          Copy-Item "Viewer\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\*.dll" $env:DIST_DIR -Force
+          Copy-Item "Comparer\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\*.dll" $env:DIST_DIR -Force
 
       - name: Resolve release metadata
         id: release_info
