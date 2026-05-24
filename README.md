@@ -35,7 +35,8 @@ Strengths that make it different:
 - **Comparison metrics**: comparer calculates PSNR and SSIM and visualizes
   per-frame trends for RGB/YUV sources.
 - **Modern image coverage where it matters**: common OpenCV formats plus
-  HEIF/HEIC/HIF still images through libheif in both Viewer and Comparer.
+  HEIF/HEIC/HIF and AVIF still images through libheif in both Viewer and
+  Comparer.
 - **Reproducible dependency flow**: OpenCV and libheif are restored from pinned
   prebuilt dependency archives instead of being rebuilt on every local or CI
   run.
@@ -58,7 +59,7 @@ pixel data on Windows, Q1View is built for that job.
 
 ## Features
 
-- Open BMP, JPEG, PNG, TIFF, WebP, HEIF/HEIC/HIF, videos, raw dumps, and
+- Open BMP, JPEG, PNG, TIFF, WebP, HEIF/HEIC/HIF, AVIF, videos, raw dumps, and
   clipboard images.
 - Treat consecutive image files in a directory as a playable frame sequence.
 - Drag and drop files into Viewer or Comparer.
@@ -97,7 +98,7 @@ msbuild Comparer\Comparer.sln /m /restore /p:Configuration=Release /p:Platform=x
 Normal builds restore dependencies into `.deps`:
 
 - OpenCV 4.3.0 from `deps-opencv-4.3.0-msvc-x64-static-mt`
-- libheif from `deps-libheif-x64-windows`
+- libheif from `deps-libheif-av1-x64-windows`
 
 The OpenCV archive is intentionally trimmed for Q1View's current needs. It keeps
 the `core`, `imgproc`, `imgcodecs`, `videoio`, and `highgui` modules and the
@@ -106,10 +107,9 @@ object detection, QR decoding, OpenCV apps, and protobuf are left out. This keep
 the dependency artifact smaller and avoids rebuilding old OpenCV code on every
 CI run.
 
-The HEIF archive is produced with vcpkg and contains libheif plus the runtime
-DLLs Q1View needs for HEVC-backed HEIF/HEIC/HIF still-image loading. Q1View
-recognizes AVIF extensions, but actual AVIF decoding depends on adding an AV1
-codec to the libheif dependency package.
+The HEIF archive is produced with vcpkg as `libheif[aom]` and contains libheif
+plus the runtime DLLs Q1View needs for HEVC-backed HEIF/HEIC/HIF and AV1-backed
+AVIF still-image loading.
 
 Override variables:
 
@@ -146,7 +146,7 @@ Recent hosted CI timing on `windows-2022`:
 | --- | --- | --- |
 | Build and Release | Restore dependency zips, build Viewer and Comparer, upload package | about 5-6 min |
 | Build OpenCV Dependency | Build/package the trimmed OpenCV 4.3.0 archive | about 6 min 45 sec |
-| Build HEIF Dependency | Build/package libheif through vcpkg | about 8 min |
+| Build HEIF Dependency | Build/package libheif plus the AV1 codec through vcpkg | about 11 min |
 
 Keeping OpenCV and HEIF as dependency release assets avoids adding roughly
 7-9 minutes to every normal CI run compared with the previous on-demand

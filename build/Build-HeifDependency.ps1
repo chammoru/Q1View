@@ -3,7 +3,9 @@ param(
 
     [string]$Triplet = "x64-windows",
 
-    [string]$VcpkgRef = "aa40adda5352e87655b8583cfb2451d5e9e276fd"
+    [string]$VcpkgRef = "aa40adda5352e87655b8583cfb2451d5e9e276fd",
+
+    [string]$VcpkgPackage = "libheif[aom]"
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,8 +61,8 @@ if (-not (Test-Path $vcpkgExe)) {
     Invoke-Checked -FilePath $bootstrap -Arguments @("-disableMetrics")
 }
 
-Write-Host "Installing libheif:$Triplet"
-Invoke-Checked -FilePath $vcpkgExe -Arguments @("install", "libheif:$Triplet")
+Write-Host "Installing ${VcpkgPackage}:$Triplet"
+Invoke-Checked -FilePath $vcpkgExe -Arguments @("install", "${VcpkgPackage}:$Triplet")
 
 if (-not ((Test-Path $heifHeader) -and (Test-Path $heifLib))) {
     throw "libheif install completed, but required files were not found under $heifRoot"

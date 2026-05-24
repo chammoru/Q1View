@@ -16,6 +16,16 @@ on:
         required: true
         default: "aa40adda5352e87655b8583cfb2451d5e9e276fd"
         type: string
+      vcpkg_package:
+        description: "vcpkg package expression to install"
+        required: true
+        default: "libheif[aom]"
+        type: string
+      codec_flavor:
+        description: "dependency artifact flavor suffix"
+        required: true
+        default: "av1"
+        type: string
 
 permissions:
   contents: write
@@ -28,6 +38,8 @@ jobs:
     env:
       HEIF_TRIPLET: ${{ inputs.triplet || 'x64-windows' }}
       VCPKG_REF: ${{ inputs.vcpkg_ref || 'aa40adda5352e87655b8583cfb2451d5e9e276fd' }}
+      VCPKG_PACKAGE: ${{ inputs.vcpkg_package || 'libheif[aom]' }}
+      HEIF_CODEC_FLAVOR: ${{ inputs.codec_flavor || 'av1' }}
 
     steps:
       - name: Checkout
@@ -38,15 +50,20 @@ jobs:
         run: |
           .\build\Build-HeifDependency.ps1 `
             -Triplet $env:HEIF_TRIPLET `
-            -VcpkgRef $env:VCPKG_REF
+            -VcpkgRef $env:VCPKG_REF `
+            -VcpkgPackage $env:VCPKG_PACKAGE
 
       - name: Package dependency
         id: package
         shell: pwsh
         run: |
-          $packageName = "Q1View-libheif-$($env:HEIF_TRIPLET).zip"
+          $packageSuffix = "$($env:HEIF_CODEC_FLAVOR)-$($env:HEIF_TRIPLET)"
+          $packageName = "Q1View-libheif-$packageSuffix.zip"
           $hashFile = "$packageName.sha256.txt"
-          $tagName = "deps-libheif-$($env:HEIF_TRIPLET)"
+          $tagName = "deps-libheif-$packageSuffix"
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            $tagName = $env:GITHUB_REF_NAME
+          }
           $installRoot = ".deps\vcpkg\installed\$($env:HEIF_TRIPLET)"
 
           if (-not (Test-Path "$installRoot\include\libheif\heif.h")) {
@@ -61,7 +78,9 @@ jobs:
             "# HEIF dependency for Q1View",
             "",
             "- vcpkg ref: $env:VCPKG_REF",
+            "- vcpkg package: $env:VCPKG_PACKAGE",
             "- Triplet: $env:HEIF_TRIPLET",
+            "- Codec flavor: $env:HEIF_CODEC_FLAVOR",
             "- Package: $packageName",
             "- SHA256: $hash",
             "",
