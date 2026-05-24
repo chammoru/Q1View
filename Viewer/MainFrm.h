@@ -6,6 +6,7 @@
 
 #define WM_RELOAD (WM_USER + 100)
 #define WM_APPLY_SYNC_INPUT (WM_APP + 100)
+#define WM_APPLY_SYNC_VIEW_STATE (WM_APP + 101)
 
 enum ViewerSyncInputCommand
 {
@@ -53,6 +54,8 @@ private:
 	CMenu mResolutionMenu, mCsMenu, mFpsMenu;
 	BITMAPINFO mCopyBmi;
 	bool mSyncInput;
+	bool mSyncViewStatePending;
+	ViewerSyncInputState mPendingSyncViewState;
 
 // Operations
 public:
@@ -99,6 +102,7 @@ private:
 	afx_msg LRESULT Reload(WPARAM wParam, LPARAM lParam);
 	afx_msg BOOL OnCopyData(CWnd *pWnd, COPYDATASTRUCT *pCopyDataStruct);
 	afx_msg LRESULT OnApplySyncInput(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnApplySyncViewState(WPARAM wParam, LPARAM lParam);
 
 public:
 	virtual void ActivateFrame(int nCmdShow = -1);

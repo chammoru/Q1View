@@ -80,6 +80,7 @@ CViewerView::CViewerView()
 , mIsClicked(false)
 , mXOff(.0f)
 , mYOff(.0f)
+, mLastSyncViewStateTick(0)
 , mWDst(VIEWER_DEF_W)
 , mHDst(VIEWER_DEF_H)
 , mHProgress(0)
@@ -990,6 +991,10 @@ void CViewerView::ChangeZoom(short zDelta, CPoint &pt)
 
 void CViewerView::ApplyViewState(float zoom, float xOff, float yOff)
 {
+	float previousZoom = mN;
+	int previousWidth = mWDst;
+	int previousHeight = mHDst;
+
 	mN = zoom;
 	mD = ZOOM_DELTA(mN);
 	mXOff = xOff;
@@ -1000,13 +1005,21 @@ void CViewerView::ApplyViewState(float zoom, float xOff, float yOff)
 	mYDst = q1::DeterminDestPos(mHCanvas, mHDst, mYOff, mN);
 
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
-	pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
+	if (previousZoom != mN || previousWidth != mWDst ||
+			previousHeight != mHDst) {
+		pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
+	}
 	Invalidate(FALSE);
 }
 
-void CViewerView::BroadcastViewState()
+void CViewerView::BroadcastViewState(bool force)
 {
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	ULONGLONG now = ::GetTickCount64();
+	if (!force && now - mLastSyncViewStateTick < 16)
+		return;
+
+	mLastSyncViewStateTick = now;
 	ViewerSyncInputState input = {};
 	input.command = VIEWER_SYNC_VIEW_STATE;
 	input.scalar = mN;
@@ -1024,7 +1037,7 @@ BOOL CViewerView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 
 	ChangeZoom(zDelta, pt);
 	Invalidate(FALSE);
-	BroadcastViewState();
+	BroadcastViewState(true);
 
 OnMouseWheelDefault:
 	return CView::OnMouseWheel(nFlags, zDelta, pt);
@@ -1149,6 +1162,9 @@ DefaultOnLButtonUp:
 
 		Invalidate(FALSE);
 	}
+
+	if (mIsClicked && (!mSelMode || (nFlags & MK_CONTROL)))
+		BroadcastViewState(true);
 
 	mIsClicked = false;
 

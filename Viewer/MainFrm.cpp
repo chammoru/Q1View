@@ -31,6 +31,8 @@
 
 const ULONG_PTR VIEWER_SYNC_INPUT_TOKEN =
 	static_cast<ULONG_PTR>(::RegisterWindowMessage(_T("Q1View.Viewer.SyncInput.v1")));
+const LPCTSTR VIEWER_SYNC_INPUT_PROPERTY =
+	_T("Q1View.Viewer.SyncInput.Enabled.v1");
 
 struct ViewerSyncBroadcast
 {
@@ -42,7 +44,8 @@ static BOOL CALLBACK SendViewerSyncInput(HWND hwnd, LPARAM lParam)
 {
 	const ViewerSyncBroadcast *broadcast =
 		reinterpret_cast<const ViewerSyncBroadcast *>(lParam);
-	if (hwnd != broadcast->source) {
+	if (hwnd != broadcast->source &&
+			::GetProp(hwnd, VIEWER_SYNC_INPUT_PROPERTY) != NULL) {
 		DWORD_PTR result = 0;
 		::SendMessageTimeout(hwnd, WM_COPYDATA,
 			reinterpret_cast<WPARAM>(broadcast->source),
@@ -69,6 +72,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_MESSAGE(WM_RELOAD, &CMainFrame::Reload)
 	ON_WM_COPYDATA()
 	ON_MESSAGE(WM_APPLY_SYNC_INPUT, &CMainFrame::OnApplySyncInput)
+	ON_MESSAGE(WM_APPLY_SYNC_VIEW_STATE, &CMainFrame::OnApplySyncViewState)
 	ON_COMMAND(ID_EDIT_COPY, &CMainFrame::OnEditCopy)
 	ON_COMMAND(ID_EDIT_PASTE, &CMainFrame::OnEditPaste)
 END_MESSAGE_MAP()
@@ -76,6 +80,7 @@ END_MESSAGE_MAP()
 
 CMainFrame::CMainFrame()
 : mSyncInput(false)
+, mSyncViewStatePending(false)
 {
 	mResolutionMenu.CreatePopupMenu();
 	mCsMenu.CreatePopupMenu();
@@ -494,6 +499,13 @@ void CMainFrame::UpdateMagnication(float n, int wDst, int hDst)
 void CMainFrame::ToggleSyncInput()
 {
 	mSyncInput = !mSyncInput;
+	if (mSyncInput) {
+		::SetProp(GetSafeHwnd(), VIEWER_SYNC_INPUT_PROPERTY,
+			reinterpret_cast<HANDLE>(1));
+	} else {
+		::RemoveProp(GetSafeHwnd(), VIEWER_SYNC_INPUT_PROPERTY);
+		mSyncViewStatePending = false;
+	}
 }
 
 void CMainFrame::BroadcastSyncInput(const ViewerSyncInputState &input)
@@ -521,6 +533,15 @@ BOOL CMainFrame::OnCopyData(CWnd *pWnd, COPYDATASTRUCT *pCopyDataStruct)
 
 	const ViewerSyncInputState *incoming =
 		static_cast<const ViewerSyncInputState *>(pCopyDataStruct->lpData);
+	if (incoming->command == VIEWER_SYNC_VIEW_STATE) {
+		mPendingSyncViewState = *incoming;
+		if (!mSyncViewStatePending) {
+			mSyncViewStatePending = true;
+			PostMessage(WM_APPLY_SYNC_VIEW_STATE);
+		}
+		return TRUE;
+	}
+
 	ViewerSyncInputState *pending = new ViewerSyncInputState(*incoming);
 	if (!PostMessage(WM_APPLY_SYNC_INPUT, 0,
 			reinterpret_cast<LPARAM>(pending))) {
@@ -593,6 +614,19 @@ LRESULT CMainFrame::OnApplySyncInput(WPARAM wParam, LPARAM lParam)
 	}
 
 	delete input;
+	return 0;
+}
+
+LRESULT CMainFrame::OnApplySyncViewState(WPARAM wParam, LPARAM lParam)
+{
+	mSyncViewStatePending = false;
+	if (!mSyncInput)
+		return 0;
+
+	CViewerView *pView = static_cast<CViewerView *>(GetActiveView());
+	if (pView != NULL)
+		pView->ApplySyncInput(mPendingSyncViewState);
+
 	return 0;
 }
 

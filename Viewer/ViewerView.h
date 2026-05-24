@@ -108,6 +108,7 @@ public:
 	bool mIsClicked;
 	float mXOff, mYOff;
 	float mXInitOff, mYInitOff;
+	ULONGLONG mLastSyncViewStateTick;
 	int mXDst, mYDst;
 	int mWDst, mHDst;
 
@@ -198,7 +199,7 @@ private:
 	bool HandleNavigationKey(UINT nChar);
 	UINT GetDisplayOptions() const;
 	void BroadcastDisplayOptions();
-	void BroadcastViewState();
+	void BroadcastViewState(bool force = false);
 	void ApplyViewState(float zoom, float xOff, float yOff);
 	void ApplyPlaybackState(bool play);
 	void SetDstSize();
