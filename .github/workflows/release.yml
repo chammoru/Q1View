@@ -28,6 +28,8 @@ env:
   BUILD_CONFIGURATION: Release
   BUILD_PLATFORM: x64
   DIST_DIR: dist/Q1View-windows-x64
+  INSTALLER_BASENAME: Q1ViewSetup-x64
+  INSTALLER_FILE: Q1ViewSetup-x64.exe
 
 jobs:
   build:
@@ -49,25 +51,11 @@ jobs:
       - name: Build Comparer
         run: msbuild Comparer\Comparer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
 
-      - name: Stage release files
+      - name: Stage package files
         shell: pwsh
         run: |
-          $viewer = "Viewer\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\Viewer.exe"
-          $comparer = "Comparer\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\Comparer.exe"
-          $requiredFiles = @($viewer, $comparer)
-
-          foreach ($file in $requiredFiles) {
-            if (-not (Test-Path $file)) {
-              throw "Missing build output: $file"
-            }
-          }
-
-          New-Item -ItemType Directory -Force $env:DIST_DIR | Out-Null
-          Copy-Item $viewer $env:DIST_DIR
-          Copy-Item $comparer $env:DIST_DIR
-
-          Copy-Item "Viewer\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\*.dll" $env:DIST_DIR -Force
-          Copy-Item "Comparer\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\*.dll" $env:DIST_DIR -Force
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          .\build\Package-Q1View.ps1 -Configuration $env:BUILD_CONFIGURATION -Platform $env:BUILD_PLATFORM -OutputDir $env:DIST_DIR
 
       - name: Resolve release metadata
         id: release_info
@@ -81,7 +69,16 @@ jobs:
             $releaseTag = "manual-${{ github.run_number }}"
           }
 
+          $appVersion = $releaseTag
+          if ($appVersion.StartsWith("v")) {
+            $appVersion = $appVersion.Substring(1)
+          }
+          if ($appVersion -notmatch '^\d+(\.\d+){0,3}$') {
+            $appVersion = "0.0.0"
+          }
+
           "release_tag=$releaseTag" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "app_version=$appVersion" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Generate git history
         shell: pwsh
@@ -105,10 +102,49 @@ jobs:
 
           Copy-Item CHANGELOG.md $env:DIST_DIR
 
+      - name: Sign application binaries
+        shell: pwsh
+        env:
+          Q1VIEW_SIGN_CERT_BASE64: ${{ secrets.Q1VIEW_SIGN_CERT_BASE64 }}
+          Q1VIEW_SIGN_CERT_PASSWORD: ${{ secrets.Q1VIEW_SIGN_CERT_PASSWORD }}
+          Q1VIEW_SIGN_CERT_PATH: ${{ secrets.Q1VIEW_SIGN_CERT_PATH }}
+          Q1VIEW_SIGN_CERT_THUMBPRINT: ${{ secrets.Q1VIEW_SIGN_CERT_THUMBPRINT }}
+        run: |
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          .\build\Sign-Q1View.ps1 -Files @(
+            "$env:DIST_DIR\Viewer.exe",
+            "$env:DIST_DIR\Comparer.exe"
+          )
+
       - name: Package zip
         shell: pwsh
         run: |
           Compress-Archive -Path "$env:DIST_DIR/*" -DestinationPath Q1View-windows-x64.zip -Force
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress --yes
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          .\build\Build-Q1ViewInstaller.ps1 `
+            -SourceDir $env:DIST_DIR `
+            -OutputDir "dist" `
+            -AppVersion "${{ steps.release_info.outputs.app_version }}" `
+            -OutputBaseFilename $env:INSTALLER_BASENAME
+
+      - name: Sign installer
+        shell: pwsh
+        env:
+          Q1VIEW_SIGN_CERT_BASE64: ${{ secrets.Q1VIEW_SIGN_CERT_BASE64 }}
+          Q1VIEW_SIGN_CERT_PASSWORD: ${{ secrets.Q1VIEW_SIGN_CERT_PASSWORD }}
+          Q1VIEW_SIGN_CERT_PATH: ${{ secrets.Q1VIEW_SIGN_CERT_PATH }}
+          Q1VIEW_SIGN_CERT_THUMBPRINT: ${{ secrets.Q1VIEW_SIGN_CERT_THUMBPRINT }}
+        run: |
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          .\build\Sign-Q1View.ps1 -Files "dist\$env:INSTALLER_FILE"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -116,6 +152,7 @@ jobs:
           name: Q1View-windows-x64
           path: |
             Q1View-windows-x64.zip
+            dist/${{ env.INSTALLER_FILE }}
             ${{ env.DIST_DIR }}/*
 
       - name: Create GitHub release
@@ -127,6 +164,7 @@ jobs:
           name: Q1View ${{ steps.release_info.outputs.release_tag }}
           body_path: CHANGELOG.md
           files: |
+            dist/${{ env.INSTALLER_FILE }}
             Q1View-windows-x64.zip
             ${{ env.DIST_DIR }}/Viewer.exe
             ${{ env.DIST_DIR }}/Comparer.exe
