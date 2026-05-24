@@ -4,7 +4,7 @@
 
 #define GRAPH_OUT_MARGIN_L  50
 #define GRAPH_OUT_MARGIN_T  5
-#define GRAPH_OUT_MARGIN_R  60
+#define GRAPH_OUT_MARGIN_R  86
 #define GRAPH_OUT_MARGIN_B  13
 
 #define GRAPH_IN_MARGIN_L   8

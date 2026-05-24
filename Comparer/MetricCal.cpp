@@ -281,6 +281,8 @@ void MetricCal::DrawAverages(Graphics *graphics, CRect *rect, const char **label
 	StringFormat SF;
 	SF.SetAlignment(StringAlignmentCenter);
 	SF.SetLineAlignment(StringAlignmentCenter);
+	SF.SetFormatFlags(StringFormatFlagsNoWrap);
+	SF.SetTrimming(StringTrimmingEllipsisCharacter);
 
 	int top = rect->top;
 	int left = rect->left;
