@@ -10,14 +10,14 @@ build is configured with `Q1VIEW_HEIF_ROOT`.
 
 For x64 builds, Q1View enables HEIF support automatically. If `Q1VIEW_HEIF_ROOT`
 is not set, MSBuild restores a prebuilt HEIF dependency archive into
-`.deps\libheif-av1-x64-windows`.
+`.deps\libheif-decode-av1-x64-windows`.
 
 `Q1VIEW_HEIF_ROOT` can still be set manually to a libheif installation root that
 contains `include`, `lib`, and `bin` directories.
 
 Default archive:
-- GitHub release tag: `deps-libheif-av1-x64-windows`
-- Asset: `Q1View-libheif-av1-x64-windows.zip`
+- GitHub release tag: `deps-libheif-decode-av1-x64-windows`
+- Asset: `Q1View-libheif-decode-av1-x64-windows.zip`
 
 Overrides:
 - `Q1VIEW_HEIF_ROOT`: use an already extracted libheif install root.
@@ -26,9 +26,11 @@ Overrides:
 - `Q1VIEW_HEIF_SHA256`: verify the zip with a pinned SHA256.
 
 To create or refresh the dependency archive, run the **Build HEIF Dependency**
-workflow manually. It installs `libheif[aom]:x64-windows` through vcpkg, uploads
-the zip to a GitHub release, and writes the SHA256 in the release notes. The
-`aom` feature adds AV1-backed AVIF decoding in addition to HEIF/HEIC/HIF.
+workflow manually. It installs `libheif` through vcpkg with default features
+disabled and the `aom` feature enabled, uploads the zip to a GitHub release, and
+writes the SHA256 in the release notes. That keeps HEVC decoding through
+libde265, adds AV1-backed AVIF decoding through aom, and excludes the x265 HEVC
+encoder DLL.
 
 Example local setup:
 

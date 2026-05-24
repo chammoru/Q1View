@@ -2,7 +2,7 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Q1ViewHeifTriplet Condition="'$(Q1ViewHeifTriplet)' == ''">x64-windows</Q1ViewHeifTriplet>
-    <Q1ViewHeifCodecFlavor Condition="'$(Q1ViewHeifCodecFlavor)' == ''">av1</Q1ViewHeifCodecFlavor>
+    <Q1ViewHeifCodecFlavor Condition="'$(Q1ViewHeifCodecFlavor)' == ''">decode-av1</Q1ViewHeifCodecFlavor>
     <Q1ViewHeifAssetName Condition="'$(Q1ViewHeifAssetName)' == ''">Q1View-libheif-$(Q1ViewHeifCodecFlavor)-$(Q1ViewHeifTriplet).zip</Q1ViewHeifAssetName>
     <Q1ViewHeifReleaseTag Condition="'$(Q1ViewHeifReleaseTag)' == ''">deps-libheif-$(Q1ViewHeifCodecFlavor)-$(Q1ViewHeifTriplet)</Q1ViewHeifReleaseTag>
     <Q1ViewHeifArchiveUrl Condition="'$(Q1VIEW_HEIF_URL)' != ''">$(Q1VIEW_HEIF_URL)</Q1ViewHeifArchiveUrl>
