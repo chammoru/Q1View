@@ -29,6 +29,30 @@
 #define new DEBUG_NEW
 #endif
 
+const ULONG_PTR VIEWER_SYNC_INPUT_TOKEN =
+	static_cast<ULONG_PTR>(::RegisterWindowMessage(_T("Q1View.Viewer.SyncInput.v1")));
+
+struct ViewerSyncBroadcast
+{
+	HWND source;
+	COPYDATASTRUCT copyData;
+};
+
+static BOOL CALLBACK SendViewerSyncInput(HWND hwnd, LPARAM lParam)
+{
+	const ViewerSyncBroadcast *broadcast =
+		reinterpret_cast<const ViewerSyncBroadcast *>(lParam);
+	if (hwnd != broadcast->source) {
+		DWORD_PTR result = 0;
+		::SendMessageTimeout(hwnd, WM_COPYDATA,
+			reinterpret_cast<WPARAM>(broadcast->source),
+			reinterpret_cast<LPARAM>(&broadcast->copyData),
+			SMTO_ABORTIFHUNG, 100, &result);
+	}
+
+	return TRUE;
+}
+
 // CMainFrame
 
 IMPLEMENT_DYNCREATE(CMainFrame, CFrameWnd)
@@ -38,17 +62,21 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_COMMAND(ID_VIEWER_HELP, &CMainFrame::OnHelp)
 	ON_COMMAND(ID_FILE_OPEN, &CMainFrame::OnFileOpen)
 	ON_COMMAND(ID_COMPARE, &CMainFrame::OnExecComparer)
+	ON_COMMAND(ID_SYNC_INPUT, &CMainFrame::OnToggleSyncInput)
 	ON_COMMAND_RANGE(ID_RESOLUTION_START, ID_RESOLUTION_END, &CMainFrame::OnResolutionChange)
 	ON_COMMAND_RANGE(ID_CS_START, ID_CS_END, &CMainFrame::OnCsChange)
 	ON_COMMAND_RANGE(ID_FPS_START, ID_FPS_END, &CMainFrame::OnFpsChange)
 	ON_WM_CREATE()
 	ON_MESSAGE(WM_RELOAD, &CMainFrame::Reload)
+	ON_WM_COPYDATA()
+	ON_MESSAGE(WM_APPLY_SYNC_INPUT, &CMainFrame::OnApplySyncInput)
 	ON_COMMAND(ID_EDIT_COPY, &CMainFrame::OnEditCopy)
 	ON_COMMAND(ID_EDIT_PASTE, &CMainFrame::OnEditPaste)
 END_MESSAGE_MAP()
 
 
 CMainFrame::CMainFrame()
+: mSyncInput(false)
 {
 	mResolutionMenu.CreatePopupMenu();
 	mCsMenu.CreatePopupMenu();
@@ -280,6 +308,9 @@ void CMainFrame::AddMainMenu()
 	str.Format(_T("%0.2ff&ps"), VIEWER_DEF_FPS);
 	GetMenu()->InsertMenu(MENU_POS_FPS, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mFpsMenu.m_hMenu, str);
+
+	GetMenu()->CheckMenuItem(ID_SYNC_INPUT,
+		MF_BYCOMMAND | (mSyncInput ? MF_CHECKED : MF_UNCHECKED));
 }
 
 int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
@@ -372,6 +403,12 @@ void CMainFrame::OnResolutionChange(UINT nID)
 	pDoc->mH = h;
 
 	RefreshView();
+
+	ViewerSyncInputState input = {};
+	input.command = VIEWER_SYNC_RESOLUTION;
+	input.first = w;
+	input.second = h;
+	BroadcastSyncInput(input);
 }
 
 void CMainFrame::OnCsChange(UINT nID)
@@ -394,6 +431,11 @@ void CMainFrame::OnCsChange(UINT nID)
 		return;
 
 	UpdateCs(ci);
+
+	ViewerSyncInputState input = {};
+	input.command = VIEWER_SYNC_COLOR_SPACE;
+	input.first = ci->cs;
+	BroadcastSyncInput(input);
 }
 
 void CMainFrame::OnFpsChange(UINT nID)
@@ -433,6 +475,11 @@ void CMainFrame::OnFpsChange(UINT nID)
 
 	if (wasPlaying)
 		pView->SetPlayTimer(pDoc);
+
+	ViewerSyncInputState input = {};
+	input.command = VIEWER_SYNC_FPS;
+	input.scalar = fps;
+	BroadcastSyncInput(input);
 }
 
 void CMainFrame::UpdateMagnication(float n, int wDst, int hDst)
@@ -445,6 +492,116 @@ void CMainFrame::UpdateMagnication(float n, int wDst, int hDst)
 
 	GetMenu()->ModifyMenu(ID_MAGNIFY, MF_BYCOMMAND | MF_RIGHTJUSTIFY | MF_GRAYED, ID_MAGNIFY, str);
 	DrawMenuBar();
+}
+
+void CMainFrame::OnToggleSyncInput()
+{
+	mSyncInput = !mSyncInput;
+	if (GetMenu() != NULL) {
+		GetMenu()->CheckMenuItem(ID_SYNC_INPUT,
+			MF_BYCOMMAND | (mSyncInput ? MF_CHECKED : MF_UNCHECKED));
+		DrawMenuBar();
+	}
+}
+
+void CMainFrame::BroadcastSyncInput(const ViewerSyncInputState &input)
+{
+	if (!mSyncInput || VIEWER_SYNC_INPUT_TOKEN == 0)
+		return;
+
+	ViewerSyncBroadcast broadcast = {};
+	broadcast.source = GetSafeHwnd();
+	broadcast.copyData.dwData = VIEWER_SYNC_INPUT_TOKEN;
+	broadcast.copyData.cbData = sizeof(input);
+	broadcast.copyData.lpData = const_cast<ViewerSyncInputState *>(&input);
+	::EnumWindows(SendViewerSyncInput,
+		reinterpret_cast<LPARAM>(&broadcast));
+}
+
+BOOL CMainFrame::OnCopyData(CWnd *pWnd, COPYDATASTRUCT *pCopyDataStruct)
+{
+	if (!mSyncInput || pCopyDataStruct == NULL ||
+			pCopyDataStruct->dwData != VIEWER_SYNC_INPUT_TOKEN ||
+			pCopyDataStruct->cbData != sizeof(ViewerSyncInputState) ||
+			pCopyDataStruct->lpData == NULL) {
+		return CFrameWnd::OnCopyData(pWnd, pCopyDataStruct);
+	}
+
+	const ViewerSyncInputState *incoming =
+		static_cast<const ViewerSyncInputState *>(pCopyDataStruct->lpData);
+	ViewerSyncInputState *pending = new ViewerSyncInputState(*incoming);
+	if (!PostMessage(WM_APPLY_SYNC_INPUT, 0,
+			reinterpret_cast<LPARAM>(pending))) {
+		delete pending;
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+LRESULT CMainFrame::OnApplySyncInput(WPARAM wParam, LPARAM lParam)
+{
+	ViewerSyncInputState *input =
+		reinterpret_cast<ViewerSyncInputState *>(lParam);
+	if (input == NULL)
+		return 0;
+
+	if (!mSyncInput) {
+		delete input;
+		return 0;
+	}
+
+	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
+	CViewerView *pView = static_cast<CViewerView *>(GetActiveView());
+
+	switch (input->command) {
+	case VIEWER_SYNC_RESOLUTION:
+		if (pDoc != NULL && pDoc->mDocState != DOC_JUSTLOAD &&
+				(!pDoc->mFrmSrc || !pDoc->mFrmSrc->isFixed()) &&
+				(pDoc->mW != input->first || pDoc->mH != input->second)) {
+			UpdateResolutionLabel(input->first, input->second);
+			CheckResolutionRadio(input->first, input->second);
+			pDoc->mW = input->first;
+			pDoc->mH = input->second;
+			RefreshView();
+		}
+		break;
+	case VIEWER_SYNC_COLOR_SPACE:
+		if (pDoc != NULL && pDoc->mDocState != DOC_JUSTLOAD &&
+				pDoc->mColorSpace != input->first) {
+			for (unsigned int i = 0; i < ARRAY_SIZE(qcsc_info_table); i++) {
+				if (qcsc_info_table[i].cs == input->first) {
+					UpdateCs(&qcsc_info_table[i]);
+					break;
+				}
+			}
+		}
+		break;
+	case VIEWER_SYNC_FPS:
+		if (pDoc != NULL && pView != NULL &&
+				pDoc->mDocState != DOC_JUSTLOAD &&
+				pDoc->mFps != input->scalar) {
+			bool wasPlaying = pView->mIsPlaying;
+			if (wasPlaying)
+				pView->KillPlayTimerSafe();
+
+			pDoc->mFps = input->scalar;
+			UpdateFpsLabel(pDoc->mFps);
+			CheckFpsRadio(pDoc->mFps);
+			DrawMenuBar();
+
+			if (wasPlaying)
+				pView->SetPlayTimer(pDoc);
+		}
+		break;
+	default:
+		if (pView != NULL)
+			pView->ApplySyncInput(*input);
+		break;
+	}
+
+	delete input;
+	return 0;
 }
 
 void CMainFrame::OnExecComparer()

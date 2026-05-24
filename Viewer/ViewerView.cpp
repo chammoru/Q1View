@@ -986,6 +986,33 @@ void CViewerView::ChangeZoom(short zDelta, CPoint &pt)
 	pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
 }
 
+void CViewerView::ApplyViewState(float zoom, float xOff, float yOff)
+{
+	mN = zoom;
+	mD = ZOOM_DELTA(mN);
+	mXOff = xOff;
+	mYOff = yOff;
+
+	SetDstSize();
+	mXDst = q1::DeterminDestPos(mWCanvas, mWDst, mXOff, mN);
+	mYDst = q1::DeterminDestPos(mHCanvas, mHDst, mYOff, mN);
+
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
+	Invalidate(FALSE);
+}
+
+void CViewerView::BroadcastViewState()
+{
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	ViewerSyncInputState input = {};
+	input.command = VIEWER_SYNC_VIEW_STATE;
+	input.scalar = mN;
+	input.x = mXOff;
+	input.y = mYOff;
+	pMainFrm->BroadcastSyncInput(input);
+}
+
 BOOL CViewerView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 {
 	CViewerDoc* pDoc = GetDocument();
@@ -995,6 +1022,7 @@ BOOL CViewerView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 
 	ChangeZoom(zDelta, pt);
 	Invalidate(FALSE);
+	BroadcastViewState();
 
 OnMouseWheelDefault:
 	return CView::OnMouseWheel(nFlags, zDelta, pt);
@@ -1004,6 +1032,7 @@ void CViewerView::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	if (mRcProgress.PtInRect(point)) {
 		CViewerDoc* pDoc = GetDocument();
+		CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 		bool wasPlaying = false;
 
 		if (mIsPlaying) {
@@ -1013,8 +1042,14 @@ void CViewerView::OnLButtonDown(UINT nFlags, CPoint point)
 
 		double R = (point.x + 1) / double(mWCanvas);
 		int frameID = max(ROUND2I(R * pDoc->mFrames) - 1, 0);
-		pDoc->SeekScene(frameID);
-		Invalidate(FALSE);
+		if (pDoc->SeekScene(frameID) >= 0) {
+			mKeyProcessing = true;
+			Invalidate(FALSE);
+			ViewerSyncInputState input = {};
+			input.command = VIEWER_SYNC_SEEK_FRAME;
+			input.first = frameID;
+			pMainFrm->BroadcastSyncInput(input);
+		}
 
 		if (wasPlaying)
 			SetPlayTimer(pDoc);
@@ -1200,6 +1235,7 @@ void CViewerView::OnMouseMove(UINT nFlags, CPoint point)
 
 			::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_HAND));
 			Invalidate(FALSE);
+			BroadcastViewState();
 		}
 	}
 
@@ -1336,7 +1372,7 @@ inline void FindNextFileName(CString *candidate, CFileFind &finder,
 	}
 }
 
-void CViewerView::FindFile(CViewerDoc* pDoc, UINT nChar)
+bool CViewerView::FindFile(CViewerDoc* pDoc, UINT nChar)
 {
 	CFileFind finder;
 	BOOL bWorking = finder.FindFile(pDoc->mPurePathRegex);
@@ -1358,11 +1394,15 @@ void CViewerView::FindFile(CViewerDoc* pDoc, UINT nChar)
 	finder.Close();
 
 	if (candidate != _T("")) {
-		pDoc->OnOpenDocument(candidate);
-		pDoc->SetPathName(candidate, TRUE);
+		if (pDoc->OnOpenDocument(candidate)) {
+			pDoc->SetPathName(candidate, TRUE);
+			return true;
+		}
 	} else {
 		LOGWRN("reach the end in this directory");
 	}
+
+	return false;
 }
 
 void CViewerView::ToggleFullScreen()
@@ -1403,6 +1443,207 @@ void CViewerView::ToggleHelp()
 	Invalidate(FALSE);
 }
 
+UINT CViewerView::GetDisplayOptions() const
+{
+	UINT options = 0;
+	if (mHexMode)
+		options |= VIEWER_DISPLAY_HEX_PIXEL;
+	if (mYMode)
+		options |= VIEWER_DISPLAY_Y_ONLY;
+	if (mInterpol)
+		options |= VIEWER_DISPLAY_INTERPOLATE;
+	if (mShowCoord)
+		options |= VIEWER_DISPLAY_COORDINATES;
+	if (mShowBoxInfo)
+		options |= VIEWER_DISPLAY_BOX_INFO;
+
+	return options;
+}
+
+void CViewerView::BroadcastDisplayOptions()
+{
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	ViewerSyncInputState input = {};
+	input.command = VIEWER_SYNC_DISPLAY_OPTIONS;
+	input.first = GetDisplayOptions();
+	pMainFrm->BroadcastSyncInput(input);
+}
+
+void CViewerView::ApplyPlaybackState(bool play)
+{
+	CViewerDoc* pDoc = GetDocument();
+	ASSERT_VALID(pDoc);
+	if (!pDoc || pDoc->mDocState == DOC_JUSTLOAD)
+		return;
+
+	if (play) {
+		if (!mIsPlaying) {
+			if (pDoc->mCurFrameID == pDoc->mFrames - 1 &&
+					pDoc->FirstScene() < 0) {
+				return;
+			}
+			SetPlayTimer(pDoc);
+		}
+	} else if (mIsPlaying) {
+		KillPlayTimerSafe();
+		pDoc->QueueSource2View();
+	}
+
+	mKeyProcessing = true;
+	Invalidate(FALSE);
+}
+
+void CViewerView::ApplySyncInput(const ViewerSyncInputState &input)
+{
+	CViewerDoc* pDoc = GetDocument();
+	ASSERT_VALID(pDoc);
+	if (!pDoc || pDoc->mDocState == DOC_JUSTLOAD)
+		return;
+
+	int result = -1;
+	switch (input.command) {
+	case VIEWER_SYNC_SEEK_FRAME: {
+		bool wasPlaying = mIsPlaying;
+		if (wasPlaying)
+			KillPlayTimerSafe();
+		result = pDoc->SeekScene(static_cast<int>(input.first));
+		if (wasPlaying)
+			SetPlayTimer(pDoc);
+		break;
+	}
+	case VIEWER_SYNC_FIRST_FILE:
+	case VIEWER_SYNC_LAST_FILE:
+	case VIEWER_SYNC_PREVIOUS_FILE:
+	case VIEWER_SYNC_NEXT_FILE: {
+		if (mIsPlaying)
+			KillPlayTimerSafe();
+		UINT key = VK_PRIOR;
+		if (input.command == VIEWER_SYNC_FIRST_FILE)
+			key = VK_HOME;
+		else if (input.command == VIEWER_SYNC_LAST_FILE)
+			key = VK_END;
+		else if (input.command == VIEWER_SYNC_NEXT_FILE)
+			key = VK_NEXT;
+		result = FindFile(pDoc, key) ? 0 : -1;
+		break;
+	}
+	case VIEWER_SYNC_VIEW_STATE:
+		ApplyViewState(static_cast<float>(input.scalar),
+			static_cast<float>(input.x), static_cast<float>(input.y));
+		return;
+	case VIEWER_SYNC_ROTATE:
+		pDoc->Rotate90();
+		return;
+	case VIEWER_SYNC_PLAYBACK:
+		ApplyPlaybackState(input.first != 0);
+		return;
+	case VIEWER_SYNC_DISPLAY_OPTIONS:
+		mHexMode = (input.first & VIEWER_DISPLAY_HEX_PIXEL) != 0;
+		mYMode = (input.first & VIEWER_DISPLAY_Y_ONLY) != 0;
+		mInterpol = (input.first & VIEWER_DISPLAY_INTERPOLATE) != 0;
+		mShowCoord = (input.first & VIEWER_DISPLAY_COORDINATES) != 0;
+		mShowBoxInfo = (input.first & VIEWER_DISPLAY_BOX_INFO) != 0;
+		mRgbFormat = mHexMode ? mRgbHex : mRgbDec;
+		mKeyProcessing = true;
+		Invalidate(FALSE);
+		return;
+	default:
+		return;
+	}
+
+	if (result < 0)
+		return;
+
+	mKeyProcessing = true;
+	Invalidate(FALSE);
+}
+
+bool CViewerView::HandleNavigationKey(UINT nChar)
+{
+	CViewerDoc* pDoc = GetDocument();
+	ASSERT_VALID(pDoc);
+	ViewerSyncInputState input = {};
+	int result = -1;
+	bool stoppedPlayback = false;
+
+	switch (nChar) {
+	case VK_LEFT:
+		if (!mIsPlaying)
+			result = pDoc->PrevScene();
+		break;
+	case VK_RIGHT:
+		if (!mIsPlaying)
+			result = pDoc->NextScene();
+		break;
+	case VK_HOME:
+		if (mIsPlaying) {
+			KillPlayTimerSafe();
+			stoppedPlayback = true;
+		}
+		if (pDoc->mFrames > 1) {
+			result = pDoc->FirstScene();
+		} else if (FindFile(pDoc, VK_HOME)) {
+			result = 0;
+			input.command = VIEWER_SYNC_FIRST_FILE;
+		}
+		break;
+	case VK_END:
+		if (mIsPlaying) {
+			KillPlayTimerSafe();
+			stoppedPlayback = true;
+		}
+		if (pDoc->mFrames > 1) {
+			result = pDoc->LastScene();
+		} else if (FindFile(pDoc, VK_END)) {
+			result = 0;
+			input.command = VIEWER_SYNC_LAST_FILE;
+		}
+		break;
+	case VK_PRIOR:
+		if (mIsPlaying) {
+			KillPlayTimerSafe();
+			stoppedPlayback = true;
+		}
+		if (FindFile(pDoc, VK_PRIOR)) {
+			result = 0;
+			input.command = VIEWER_SYNC_PREVIOUS_FILE;
+		}
+		break;
+	case VK_NEXT:
+		if (mIsPlaying) {
+			KillPlayTimerSafe();
+			stoppedPlayback = true;
+		}
+		if (FindFile(pDoc, VK_NEXT)) {
+			result = 0;
+			input.command = VIEWER_SYNC_NEXT_FILE;
+		}
+		break;
+	default:
+		return false;
+	}
+
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	if (stoppedPlayback) {
+		ViewerSyncInputState playback = {};
+		playback.command = VIEWER_SYNC_PLAYBACK;
+		playback.first = FALSE;
+		pMainFrm->BroadcastSyncInput(playback);
+	}
+
+	if (result >= 0) {
+		if (input.command == 0) {
+			input.command = VIEWER_SYNC_SEEK_FRAME;
+			input.first = result;
+		}
+		pMainFrm->BroadcastSyncInput(input);
+		mKeyProcessing = true;
+		Invalidate(FALSE);
+	}
+
+	return true;
+}
+
 void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
 	// These keys work even before a document is loaded.
@@ -1426,37 +1667,11 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	if (mKeyProcessing)
 		return;
 
+	if (HandleNavigationKey(nChar))
+		goto OnKeyDefault;
+
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	switch (nChar) {
-	case VK_RIGHT:
-		if (mIsPlaying)
-			break;
-		
-		pDoc->NextScene();
-		break;
-	case VK_LEFT:
-		if (mIsPlaying)
-			break;
-
-		pDoc->PrevScene();
-		break;
-	case VK_HOME:
-		if (mIsPlaying)
-			KillPlayTimerSafe();
-
-		if (pDoc->mFrames > 1)
-			pDoc->FirstScene();
-		else
-			FindFile(pDoc, nChar);
-		break;
-	case VK_END:
-		if (mIsPlaying)
-			KillPlayTimerSafe();
-
-		if (pDoc->mFrames > 1)
-			pDoc->LastScene();
-		else
-			FindFile(pDoc, nChar);
-		break;
 	case VK_SPACE:
 		// No lock is needed here; playback callbacks are marshalled to the UI thread.
 		if (!mIsPlaying) {
@@ -1471,34 +1686,50 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			KillPlayTimerSafe();
 			pDoc->QueueSource2View();
 		}
+		{
+			ViewerSyncInputState input = {};
+			input.command = VIEWER_SYNC_PLAYBACK;
+			input.first = mIsPlaying ? TRUE : FALSE;
+			pMainFrm->BroadcastSyncInput(input);
+		}
 		break;
 	case 'H': // Toggle hexadecimal pixel values.
 		mHexMode = !mHexMode;
 		mRgbFormat = mHexMode ? mRgbHex : mRgbDec;
+		BroadcastDisplayOptions();
 		break;
 	case 'Y': // Show only the luma channel.
 		mYMode = !mYMode;
+		BroadcastDisplayOptions();
 		break;
 	case 'I':
 		mInterpol = !mInterpol;
+		BroadcastDisplayOptions();
 		break;
 	case 'R':
 		pDoc->Rotate90();
+		{
+			ViewerSyncInputState input = {};
+			input.command = VIEWER_SYNC_ROTATE;
+			pMainFrm->BroadcastSyncInput(input);
+		}
 		goto OnKeyDefault;
 	case 'C':
 		mShowCoord = !mShowCoord;
+		BroadcastDisplayOptions();
 		break;
 	case 'B':
 		mShowBoxInfo = !mShowBoxInfo;
+		BroadcastDisplayOptions();
 		break;
 	case 'N':
 		pDoc->NextCs();
-		break;
-	case VK_PRIOR:
-	case VK_NEXT:
-		if (mIsPlaying)
-			KillPlayTimerSafe();
-		FindFile(pDoc, nChar);
+		{
+			ViewerSyncInputState input = {};
+			input.command = VIEWER_SYNC_COLOR_SPACE;
+			input.first = pDoc->mColorSpace;
+			pMainFrm->BroadcastSyncInput(input);
+		}
 		break;
 	}
 

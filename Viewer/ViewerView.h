@@ -4,6 +4,8 @@
 
 #pragma once
 
+struct ViewerSyncInputState;
+
 #include <Mmsystem.h>
 
 #include "SMutex.h"
@@ -187,11 +189,18 @@ public:
 	void DrawBoxInfo(CDC *pDC);
 	void DrawEmptyState(CDC *pDC);
 	void ToggleSelMode();
+	void ApplySyncInput(const ViewerSyncInputState &input);
 
 // Helper
 private:
 	CRect CvtCoord2Show(const CRect &rt);
-	void FindFile(CViewerDoc* pDoc, UINT nChar);
+	bool FindFile(CViewerDoc* pDoc, UINT nChar);
+	bool HandleNavigationKey(UINT nChar);
+	UINT GetDisplayOptions() const;
+	void BroadcastDisplayOptions();
+	void BroadcastViewState();
+	void ApplyViewState(float zoom, float xOff, float yOff);
+	void ApplyPlaybackState(bool play);
 	void SetDstSize();
 	void _ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi);
 	int DrawBoxInfoText(CDC *pDC, CRect &rect, COLORREF color, int hAccumGap);

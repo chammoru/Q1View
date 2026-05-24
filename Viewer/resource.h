@@ -22,6 +22,7 @@
 #define ID_COMPARE                      32771
 #define ID_MAGNIFY                      32772
 #define ID_VIEWER_HELP                  32773
+#define ID_SYNC_INPUT                   32774
 
 // Next default values for new objects
 // 
