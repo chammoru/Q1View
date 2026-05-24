@@ -12,7 +12,8 @@ TARGET_LIB := libQVisionCore.a
 CSRCS :=
 CPPSRCS := QImageOcv.cpp \
            QImageMatcher.cpp \
-		   QCvUtil.cpp
+		   QCvUtil.cpp \
+		   QHeifUtil.cpp
 
 OBJS := $(CSRCS:.c=.o) $(CPPSRCS:.cpp=.o)
 DEPS := $(OBJS:.o=.d)

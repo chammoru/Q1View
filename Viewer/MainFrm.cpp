@@ -142,14 +142,14 @@ void CMainFrame::OnFileOpen()
 {
 	TCHAR name_filter[] =
 		_T("All Files (*.*)|*.*|")
-		_T("BMP Files (*.bmp)|*.bmp|")
+		_T("Image Files (*.bmp;*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.webp;*.heic;*.heif;*.hif;*.avif)|*.bmp;*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.webp;*.heic;*.heif;*.hif;*.avif|")
 		_T("YUV Files (*.yuv)|*.yuv|")
 		_T("RGB Files (*.rgb)|*.rgb|");
 
 	CFileDialog ins_dlg(TRUE, _T("All Files (*.*)"), _T("*.*"),
 		OFN_HIDEREADONLY, name_filter, NULL);
 
-	// Default to common bitmap formats, while still allowing raw/video sources.
+	// Default to common structured image formats, while still allowing raw/video sources.
 	ins_dlg.m_ofn.nFilterIndex = 2;
 
 	if (ins_dlg.DoModal() == IDOK) {

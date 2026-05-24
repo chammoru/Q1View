@@ -388,6 +388,10 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	}
 	// If this fires, even the raw fallback could not open the file.
 	ASSERT(it != std::end(mFrmSrcs));
+	if (it == std::end(mFrmSrcs)) {
+		AfxMessageBox(_T("Unsupported or unreadable file."));
+		return FALSE;
+	}
 
 	mFileChangeNotiThread->fire(pMainFrm, mPathName);
 

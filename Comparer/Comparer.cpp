@@ -118,8 +118,12 @@ void CComparerApp::OnFileOpen()
 	std::vector<CString> filenames;
 
 	// Prompt the user (with all document templates)
+	const LPCTSTR nameFilter =
+		_T("All Files (*.*)|*.*|")
+		_T("Image Files (*.bmp;*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.webp;*.heic;*.heif;*.hif;*.avif)|*.bmp;*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.webp;*.heic;*.heif;*.hif;*.avif||");
 	CFileDialog dialog(TRUE, _T("*.*"), NULL,
-		OFN_ALLOWMULTISELECT | OFN_HIDEREADONLY | OFN_FILEMUSTEXIST, _T("All Files (*.*)|*.*||"));
+		OFN_ALLOWMULTISELECT | OFN_HIDEREADONLY | OFN_FILEMUSTEXIST, nameFilter);
+	dialog.m_ofn.nFilterIndex = 2;
 	if (dialog.DoModal() == IDOK) {
 		// Get the list of selected file names.
 		POSITION pos = dialog.GetStartPosition();

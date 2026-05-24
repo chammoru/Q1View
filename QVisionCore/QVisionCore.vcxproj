@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="QHeifUtil.cpp" />
     <ClCompile Include="QCvUtil.cpp" />
     <ClCompile Include="QDerivative.cpp" />
     <ClCompile Include="QOcv.cpp" />
@@ -36,6 +37,7 @@
     <ClCompile Include="QRotate.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="QHeifUtil.h" />
     <ClInclude Include="QCvUtil.h" />
     <ClInclude Include="QDerivative.h" />
     <ClInclude Include="QOcv.h" />
@@ -93,6 +95,7 @@
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\OpenCV4Debug.props" />
+    <Import Project="..\Q1ViewHeif.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -100,6 +103,7 @@
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\OpenCV4Release.props" />
+    <Import Project="..\Q1ViewHeif.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup />

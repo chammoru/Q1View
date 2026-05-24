@@ -1,6 +1,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <QCommon.h>
 #include "QCvUtil.h"
+#include "QHeifUtil.h"
 
 #include <cstdio>
 
@@ -131,7 +132,11 @@ Mat imreadW(const wstring &filename, int flags)
 	if (!readFileW(filename, data))
 		return Mat();
 
-	return imdecode(data, flags);
+	Mat image = imdecode(data, flags);
+	if (!image.empty())
+		return image;
+
+	return imdecodeHeif(data, flags);
 }
 
 bool imwriteW(const wstring &filename, const Mat &img, const vector<int> &params)

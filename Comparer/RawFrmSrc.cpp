@@ -5,6 +5,7 @@
 #include "QDebug.h"
 #include "QCommon.h"
 #include "ComparerUtil.h"
+#include "QHeifUtil.h"
 
 using namespace cv;
 
@@ -35,6 +36,11 @@ static const struct qcsc_info* findColorSpaceById(
 bool RawFrmSrc::Open(const CString& filePath, const struct qcsc_info* sortedCscInfo,
 	int srcW, int srcH, int dstW, int dstH)
 {
+	if (q1::isHeifFileW(filePath.GetString())) {
+		LOGWRN("HEIF file was not decoded; skip raw fallback");
+		return false;
+	}
+
 	CFileException e;
 	BOOL ok = mFile.Open(filePath,
 		CFile::modeRead | CFile::shareDenyNone | CFile::typeBinary, &e);

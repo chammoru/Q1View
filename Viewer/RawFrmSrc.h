@@ -3,6 +3,7 @@
 #include "FrmSrc.h"
 
 #include "CscThread.h"
+#include "QHeifUtil.h"
 
 class RawFrmSrc : public FrmSrc {
 public:
@@ -24,6 +25,11 @@ public:
 
 	virtual inline bool Open(CString &filePath)
 	{
+		if (q1::isHeifFileW(filePath.GetString())) {
+			LOGWRN("HEIF file was not decoded; skip raw fallback");
+			return false;
+		}
+
 		CFileException e;
 		BOOL ok = mFile.Open(filePath,
 			CFile::modeRead | CFile::shareDenyNone | CFile::typeBinary, &e);

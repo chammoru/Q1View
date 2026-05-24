@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Q1ViewHeifEnabled Condition="'$(Q1VIEW_HEIF_ROOT)' != ''">true</Q1ViewHeifEnabled>
+    <Q1ViewHeifBinDir Condition="'$(Q1VIEW_HEIF_BIN_DIR)' != ''">$(Q1VIEW_HEIF_BIN_DIR)</Q1ViewHeifBinDir>
+    <Q1ViewHeifBinDir Condition="'$(Q1ViewHeifBinDir)' == '' and '$(Q1VIEW_HEIF_ROOT)' != ''">$(Q1VIEW_HEIF_ROOT)\bin</Q1ViewHeifBinDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Q1ViewHeifEnabled)' == 'true'">
+    <ClCompile>
+      <PreprocessorDefinitions>Q1VIEW_ENABLE_LIBHEIF;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(Q1VIEW_HEIF_ROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(Q1VIEW_HEIF_ROOT)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>heif.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>
