@@ -38,6 +38,8 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
+CloseApplications=yes
+RestartApplications=no
 SetupLogging=yes
 LicenseFile=..\LICENSE
 
@@ -57,6 +59,15 @@ Source: "{#SourceDir}\README.md"; DestDir: "{app}"; Flags: ignoreversion skipifs
 
 [InstallDelete]
 Type: files; Name: "{app}\libx265.dll"
+
+[UninstallDelete]
+Type: files; Name: "{app}\Viewer.exe"
+Type: files; Name: "{app}\Comparer.exe"
+Type: files; Name: "{app}\*.dll"
+Type: files; Name: "{app}\CHANGELOG.md"
+Type: files; Name: "{app}\LICENSE"
+Type: files; Name: "{app}\README.md"
+Type: dirifempty; Name: "{app}"
 
 [Icons]
 Name: "{group}\Q1View Viewer"; Filename: "{app}\Viewer.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Viewer.exe"
