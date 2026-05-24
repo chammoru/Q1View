@@ -5,6 +5,10 @@
 
 #include <cstdio>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 using namespace std;
 using namespace cv;
 
@@ -17,6 +21,29 @@ static string narrowAscii(const wstring &text)
 	for (wchar_t ch : text)
 		narrow.push_back(static_cast<char>(ch));
 	return narrow;
+}
+
+string narrowUtf8(const wstring &text)
+{
+#ifdef _WIN32
+	if (text.empty())
+		return string();
+
+	int needed = WideCharToMultiByte(CP_UTF8, 0, text.c_str(), -1, NULL, 0, NULL, NULL);
+	if (needed <= 0)
+		return string();
+
+	string narrow(static_cast<size_t>(needed), '\0');
+	int written = WideCharToMultiByte(CP_UTF8, 0, text.c_str(), -1, &narrow[0],
+									  needed, NULL, NULL);
+	if (written <= 0)
+		return string();
+	if (!narrow.empty() && narrow.back() == '\0')
+		narrow.resize(narrow.size() - 1);
+	return narrow;
+#else
+	return narrowAscii(text);
+#endif
 }
 
 static bool readFileW(const wstring &filename, vector<uchar> &data)
@@ -153,6 +180,20 @@ bool imwriteW(const wstring &filename, const Mat &img, const vector<int> &params
 		return false;
 
 	return writeFileW(filename, data);
+}
+
+bool openVideoCaptureW(VideoCapture &capture, const wstring &filename)
+{
+	string filenameUtf8 = narrowUtf8(filename);
+	if (filenameUtf8.empty())
+		return false;
+
+	capture.release();
+	if (capture.open(filenameUtf8, CAP_FFMPEG) && capture.isOpened())
+		return true;
+
+	capture.release();
+	return capture.open(filenameUtf8) && capture.isOpened();
 }
 
 double calIoU(const Vec4i &bb, const Vec4i &bbgt)

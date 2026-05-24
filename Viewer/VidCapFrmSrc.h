@@ -4,6 +4,7 @@
 
 #include <opencv2/core/core.hpp>
 
+#include "QCvUtil.h"
 #include "VidCapThread.h"
 
 #include <string>
@@ -25,9 +26,7 @@ public:
 
 	virtual inline bool Open(CString &filePath)
 	{
-		std::string str = CT2A(filePath.GetString());
-
-		if (!mVidCap.open(str) || !mVidCap.isOpened())
+		if (!q1::openVideoCaptureW(mVidCap, filePath.GetString()))
 			return false;
 		
 		mNextFrame = 0;

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "VidCapFrmSrc.h"
 #include "QImageStr.h"
+#include "QCvUtil.h"
 #include "QDebug.h"
 
 #include <opencv2/imgproc/imgproc.hpp>
@@ -20,9 +21,7 @@ VidCapFrmSrc::~VidCapFrmSrc()
 bool VidCapFrmSrc::Open(const CString& filePath, const struct qcsc_info* sortedCscInfo,
 	int srcW, int srcH, int dstW, int dstH)
 {
-	String str = CT2A(filePath.GetString());
-
-	if (!mVidCap.open(str) || !mVidCap.isOpened())
+	if (!q1::openVideoCaptureW(mVidCap, filePath.GetString()))
 		return false;
 
 	mSrcW = static_cast<int>(mVidCap.get(cv::CAP_PROP_FRAME_WIDTH));
@@ -49,9 +48,8 @@ void VidCapFrmSrc::Release()
 
 bool VidCapFrmSrc::GetResolution(CString& pathName, int* w, int* h)
 {
-	String str = CT2A(pathName.GetString());
 	VideoCapture vidCap;
-	if (!vidCap.open(str) || !vidCap.isOpened())
+	if (!q1::openVideoCaptureW(vidCap, pathName.GetString()))
 		return false;
 
 	*w = static_cast<int>(vidCap.get(cv::CAP_PROP_FRAME_WIDTH));
@@ -66,9 +64,8 @@ const struct qcsc_info* VidCapFrmSrc::GetColorSpace(const CString& pathName,
 {
 	UNREFERENCED_PARAMETER(doResize);
 
-	String str = CT2A(pathName.GetString());
 	VideoCapture vidCap;
-	if (!vidCap.open(str) || !vidCap.isOpened())
+	if (!q1::openVideoCaptureW(vidCap, pathName.GetString()))
 		return NULL;
 
 	vidCap.release();

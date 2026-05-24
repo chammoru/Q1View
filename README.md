@@ -35,6 +35,7 @@ The installer adds separate Start Menu entries for **Q1View Viewer** and
 - Exact pixel values, coordinates, luma-only view, nearest-neighbor zoom, and
   selected-region copy are built into the workflow.
 - HEIF/HEIC/HIF and AVIF still images are supported in both Viewer and Comparer.
+- Unicode Windows paths are supported, including Korean file and folder names.
 - The release package includes the DLLs it needs, so users do not need to
   install OpenCV or HEIF libraries separately.
 
