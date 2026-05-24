@@ -94,7 +94,7 @@ void CFrmsInfoView::OnDraw(CDC* pDC)
 	if (stepCount <= 0) {
 		DrawCenteredMessage(&memDC, CRect(0, 0, mWClient, mHClient),
 			&mResultFont, &mLabelFont, _T("Metrics"),
-			_T("Open comparable sources to calculate PSNR, SSIM, or MSE"));
+			_T("Open comparable sources to calculate PSNR or SSIM"));
 		pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
 
 		return;

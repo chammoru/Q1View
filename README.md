@@ -1,13 +1,51 @@
 # Q1View
 
 [![Windows](https://img.shields.io/badge/platform-Windows-0078D6)](#download)
-[![Viewer](https://img.shields.io/badge/app-Viewer-2EA44F)](#what-you-get)
-[![Comparer](https://img.shields.io/badge/app-Comparer-2EA44F)](#what-you-get)
+[![Viewer](https://img.shields.io/badge/app-Viewer-2EA44F)](#applications)
+[![Comparer](https://img.shields.io/badge/app-Comparer-2EA44F)](#applications)
 [![HEIF](https://img.shields.io/badge/HEIF%2FHEIC-supported-2EA44F)](#supported-inputs)
 [![AVIF](https://img.shields.io/badge/AVIF%2FAV1-supported-2EA44F)](#supported-inputs)
 
-Q1View is a Windows viewer and comparer for people who inspect pixels, decoded
-frames, raw buffers, and codec output.
+![Q1View overview](docs/images/q1view-overview.webp)
+
+**Q1View** is a Windows Viewer and Comparer for inspecting decoded frames,
+raw pixel buffers, image codec output, and small visual differences that are
+easy to miss in a general-purpose media player.
+
+[Download the latest release](https://github.com/chammoru/Q1View/releases/latest)
+| [User guide](docs/USER_GUIDE.md)
+| [Development guide](docs/DEVELOPMENT.md)
+
+## Why Q1View?
+
+- **Inspect real pixel data.** Raw YUV and RGB formats sit beside regular
+  images, HEIF/HEIC, AVIF, and video input.
+- **Compare output, not impressions.** Comparer places 2-4 sources together
+  with synchronized inspection and PSNR/SSIM measurement.
+- **Check video timing.** Viewer follows the source or selected frame rate and
+  catches up after temporary stalls rather than drifting behind.
+- **Work with practical test material.** Korean/Unicode paths, frame
+  sequences, clipboard images, and linked Viewer controls are supported.
+
+Q1View is not intended to manage photo libraries or replace a consumer video
+player. It is focused on codec development, imaging validation, and quick
+frame-level investigation.
+
+## Applications
+
+### Viewer
+
+Open an image, raw dump, sequence, or video; zoom down to pixels, inspect
+coordinates and values, step through frames, or link multiple Viewer windows.
+
+![Viewer displaying a video frame and timeline](docs/images/viewer-video.webp)
+
+### Comparer
+
+Open two to four sources side by side and see a visual difference together with
+objective similarity measurements.
+
+![Comparer showing PSNR for a reference image and encoded result](docs/images/comparer-psnr.webp)
 
 ## Download
 
@@ -17,34 +55,8 @@ Get the latest Windows x64 build from the
 - **Installer**: `Q1ViewSetup-x64.exe`
 - **Portable package**: `Q1View-windows-x64.zip`
 
-The installer adds separate Start Menu entries for **Q1View Viewer** and
+The installer registers separate Start Menu entries for **Q1View Viewer** and
 **Q1View Comparer**.
-
-## What You Get
-
-- **Viewer** opens images, raw dumps, image sequences, videos, and clipboard
-  images with pixel-level inspection.
-- **Comparer** compares 2-4 sources with synchronized navigation, zooming,
-  color-space handling, PSNR, and SSIM.
-
-## Why Q1View?
-
-- Raw pixel formats are first-class: YUV, NV12/NV21, P010/P210, RGB/BGR/RGBA,
-  grayscale, packed RGB, and more.
-- Image folders can be treated like frame sequences.
-- Video playback follows the source or selected frame rate and catches up after
-  temporary stalls.
-- Exact pixel values, coordinates, luma-only view, nearest-neighbor zoom, and
-  selected-region copy are built into the workflow.
-- Multiple Viewer windows can link input controls for synchronized inspection.
-- HEIF/HEIC/HIF and AVIF still images are supported in both Viewer and Comparer.
-- Unicode Windows paths are supported, including Korean file and folder names.
-- The release package includes the DLLs it needs, so users do not need to
-  install OpenCV or HEIF libraries separately.
-
-Q1View is not trying to be a photo library. It is built for Windows pixel
-debugging, frame comparison, and quick visual checks during codec or image
-pipeline work.
 
 ## Supported Inputs
 
@@ -54,7 +66,13 @@ pipeline work.
 - Video files supported by the packaged OpenCV/FFmpeg runtime
 - Raw frame dumps and clipboard images
 
-## Build From Source
+## Documentation
+
+- [User Guide](docs/USER_GUIDE.md): screens, workflows, menus, and shortcuts
+- [Development Guide](docs/DEVELOPMENT.md): local build and release packaging
+- [HEIF and AVIF Support](docs/HEIF_SUPPORT.md): decoder dependency details
+
+## Build
 
 Q1View builds with Visual Studio 2019 or newer on Windows x64.
 
@@ -63,37 +81,11 @@ msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64
 msbuild Comparer\Comparer.sln /m /restore /p:Configuration=Release /p:Platform=x64
 ```
 
-Normal builds restore OpenCV and libheif into `.deps` from published dependency
-archives. Dedicated GitHub Actions workflows refresh those dependency archives
-when needed.
-
-## Release Pipeline
-
-GitHub Actions builds Viewer and Comparer, stages the runtime files, creates the
-portable zip, builds the Inno Setup installer, and publishes release assets for
-version tags such as `v1.0.9`.
-
-The pipeline also supports Authenticode signing when signing credentials are
-configured through repository secrets.
-
-## Project Layout
-
-| Path | Purpose |
-| --- | --- |
-| `Viewer\` | Single-source viewer application |
-| `Comparer\` | Multi-pane frame comparison application |
-| `QVisionCore\` | Image loading, raw color conversion, HEIF/AVIF fallback, metrics |
-| `build\` | Packaging, signing, and dependency helper scripts |
-| `installer\` | Inno Setup installer definition |
-| `docs\` | Focused technical notes |
+See the [Development Guide](docs/DEVELOPMENT.md) for dependencies, packaging,
+and release assets.
 
 ## Videos
 
 | Intro | Viewer | Comparer |
 | --- | --- | --- |
 | [![Intro](https://img.youtube.com/vi/b8VgRVnrxL4/mqdefault.jpg)](https://youtu.be/b8VgRVnrxL4) | [![Viewer](https://img.youtube.com/vi/g6K9bRTKJjY/mqdefault.jpg)](https://youtu.be/g6K9bRTKJjY) | [![Comparer](https://img.youtube.com/vi/EybIIBZLV8Q/mqdefault.jpg)](https://youtu.be/EybIIBZLV8Q) |
-
-More videos:
-
-- [Viewer 2](https://youtu.be/ROpGsgRDdRE)
-- [Source code](https://youtu.be/ZbpRkBzK64Q)
