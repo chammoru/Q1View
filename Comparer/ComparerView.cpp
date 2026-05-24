@@ -348,6 +348,8 @@ void CComparerView::OnDropFiles(HDROP hDropInfo)
 
 	if (uDragCount == 1) {
 		ComparerPane* pane = GetPane(pDoc);
+		const int previousW = pDoc->mW;
+		const int previousH = pDoc->mH;
 
 		pane->pathName = filenames[0];
 		pDoc->ProcessDocument(mPane);
@@ -360,6 +362,8 @@ void CComparerView::OnDropFiles(HDROP hDropInfo)
 		pMainFrm->CheckResolutionRadio(pDoc->mW, pDoc->mH);
 
 		AdjustWindowSize(pMainFrm->mNumOfViews);
+		if (previousW != pDoc->mW || previousH != pDoc->mH)
+			pDoc->ResetViewToFit();
 		pDoc->UpdateAllViews(NULL);
 	} else {
 		pDoc->OpenMultiFiles(filenames);

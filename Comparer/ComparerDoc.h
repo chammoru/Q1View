@@ -105,6 +105,7 @@ public:
 	void SetScene(long frameID, ComparerPane* pane, bool& updated);
 	bool NextScenes();
 	void setDstSize();
+	void ResetViewToFit();
 	bool isFixedResolution();
 	BOOL OpenMultiFiles(const std::vector<CString>& filenames);
 

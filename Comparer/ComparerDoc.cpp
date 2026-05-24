@@ -178,6 +178,26 @@ void CComparerDoc::setDstSize()
 	}
 }
 
+void CComparerDoc::ResetViewToFit()
+{
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	CComparerView *firstView = mPane[IMG_VIEW_1].pView;
+	if (pMainFrm == NULL || firstView == NULL ||
+		firstView->mWCanvas <= 0 || firstView->mHCanvas <= 0)
+		return;
+
+	mXOff = 0.0f;
+	mYOff = 0.0f;
+	mN = q1::GetBestFitRatio(mW, mH, firstView->mWCanvas, firstView->mHCanvas);
+	mD = ZOOM_DELTA(mN);
+
+	setDstSize();
+	for (int i = 0; i < pMainFrm->mNumOfViews; i++)
+		mPane[i].pView->Initialize(this);
+
+	pMainFrm->UpdateMagnication(mN);
+}
+
 void CComparerDoc::LoadSourceImage(ComparerPane *pane)
 {
 	pane->origSceneSize = pane->csLoadInfo(mW, mH, &pane->bufOffset2, &pane->bufOffset3);
@@ -488,6 +508,7 @@ BOOL CComparerDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 		firstView->AdjustWindowSize(pMainFrm->mNumOfViews);
 	}
 
+	ResetViewToFit();
 	UpdateAllViews(NULL);
 
 	return TRUE;
