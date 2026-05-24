@@ -122,7 +122,7 @@ bool createRawThreadEtc(thread_func_t entryFunction,
 	// assigned after the child starts.  Use memory barrier / lock if the child
 	// or other threads also need access.
 	if (threadId != NULL) {
-		*threadId = (thread_id_t)thread; // XXX: this is not portable
+		*threadId = (thread_id_t)thread;
 	}
 
 	return true;

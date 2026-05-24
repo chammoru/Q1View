@@ -59,7 +59,6 @@ SMutex::SMutex()
 
 SMutex::SMutex(const char* name)
 {
-	// XXX: name not used for now
 	HANDLE hMutex;
 
 	QASSERT(sizeof(hMutex) == sizeof(mState));
@@ -70,7 +69,6 @@ SMutex::SMutex(const char* name)
 
 SMutex::SMutex(int type, const char* name)
 {
-	// XXX: type and name not used for now
 	HANDLE hMutex;
 
 	QASSERT(sizeof(hMutex) == sizeof(mState));

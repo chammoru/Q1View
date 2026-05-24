@@ -93,4 +93,3 @@ More videos:
 
 - [Viewer 2](https://youtu.be/ROpGsgRDdRE)
 - [Source code](https://youtu.be/ZbpRkBzK64Q)
-- [TODOs and etc.](https://youtu.be/s2dngkHUFpQ)
