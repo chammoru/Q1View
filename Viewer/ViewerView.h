@@ -138,6 +138,13 @@ public:
 	int mPlayFrameCount;
 	TIMECAPS mTc;
 	UINT mTimerID;
+	LARGE_INTEGER mPlaybackClockFrequency;
+	LARGE_INTEGER mPlaybackStartCounter;
+	long mPlaybackStartFrameID;
+	long mDroppedFrameCount;
+	double mPlaybackRate;
+	bool mPlaybackEndPending;
+	volatile LONG mPlayTickPosted;
 
 	// Frame queues shared with the playback worker.
 	SSafeCQ<BufferInfo> *mBufferQueue;
@@ -202,6 +209,8 @@ private:
 	void BroadcastViewState(bool force = false);
 	void ApplyViewState(float zoom, float xOff, float yOff);
 	void ApplyPlaybackState(bool play);
+	double GetEffectivePlaybackFps(const CViewerDoc* pDoc) const;
+	long GetDuePlaybackFrameID(const CViewerDoc* pDoc) const;
 	void SetDstSize();
 	void _ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi);
 	int DrawBoxInfoText(CDC *pDC, CRect &rect, COLORREF color, int hAccumGap);

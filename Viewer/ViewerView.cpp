@@ -99,6 +99,11 @@ CViewerView::CViewerView()
 , mPreMaxL(0)
 , mIsPlaying(false)
 , mTimerID(0)
+, mPlaybackStartFrameID(0)
+, mDroppedFrameCount(0)
+, mPlaybackRate(1.0)
+, mPlaybackEndPending(false)
+, mPlayTickPosted(0)
 , mNewRgbBufferInfoQ(new SSafeCQ<BufferInfo>(1))
 , mBufferPool(NULL)
 , mKeyProcessing(false)
@@ -146,9 +151,10 @@ CViewerView::CViewerView()
 	bmiHeader.biXPelsPerMeter = 0L;
 	bmiHeader.biYPelsPerMeter = 0L;
 
-	// Use the system timer resolution requested by the multimedia timer.
+	// Query timer capabilities now; request resolution only during playback.
 	timeGetDevCaps(&mTc, sizeof (TIMECAPS));
-	timeBeginPeriod(mTc.wPeriodMin);
+	QueryPerformanceFrequency(&mPlaybackClockFrequency);
+	mPlaybackStartCounter.QuadPart = 0;
 
 	memset(&mStableRgbBufferInfo, 0, sizeof(BufferInfo));
 
@@ -361,28 +367,87 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 	}
 }
 
-// Multimedia timer callbacks run outside the UI thread.
+// Multimedia timer callbacks run outside the UI thread. Keep them lightweight:
+// the UI thread owns presentation decisions and buffer lifetime.
 static void CALLBACK PlayTimerThread(UINT uID, UINT uMsg, DWORD_PTR dwUser,
 		DWORD_PTR dw1, DWORD_PTR dw2)
 {
 	CViewerView *pView = reinterpret_cast<CViewerView *>(dwUser);
-	BufferInfo bi = {0, };
-
-	bool ok = pView->mBufferQueue->try_pop(bi);
-	if (ok) {
-		ok = pView->mNewRgbBufferInfoQ->push(bi);
-		if (ok) {
-			::PostMessage(pView->m_hWnd, WM_VIEWER_PLAY_TIMER, 0, 0);
-		} else if (bi.addr) {
-			pView->mBufferPool->turn_back(bi.addr);
-		}
-	}
+	if (::InterlockedExchange(&pView->mPlayTickPosted, 1) == 0)
+		::PostMessage(pView->m_hWnd, WM_VIEWER_PLAY_TIMER, 0, 0);
 }
 
 LRESULT CViewerView::OnPlayTimer(WPARAM wParam, LPARAM lParam)
 {
-	Invalidate(FALSE);
+	::InterlockedExchange(&mPlayTickPosted, 0);
+	if (!mIsPlaying)
+		return 0;
+
+	CViewerDoc* pDoc = GetDocument();
+	long dueFrameID = GetDuePlaybackFrameID(pDoc);
+	BufferInfo latest = {0, };
+	bool hasLatest = mNewRgbBufferInfoQ->try_pop(latest);
+	long candidateFrameID = mStableRgbBufferInfo.ID;
+
+	if (hasLatest) {
+		if (latest.ID == MSG_QUIT) {
+			mNewRgbBufferInfoQ->push(latest);
+			Invalidate(FALSE);
+			return 0;
+		}
+		candidateFrameID = latest.ID;
+	}
+
+	while (candidateFrameID < dueFrameID) {
+		BufferInfo candidate = {0, };
+		if (!mBufferQueue->try_pop(candidate))
+			break;
+
+		if (candidate.ID == MSG_QUIT) {
+			if (hasLatest) {
+				mPlaybackEndPending = true;
+			} else {
+				latest = candidate;
+				hasLatest = true;
+			}
+			break;
+		}
+
+		if (hasLatest && latest.addr) {
+			mBufferPool->turn_back(latest.addr);
+			mDroppedFrameCount++;
+		}
+		latest = candidate;
+		hasLatest = true;
+		candidateFrameID = candidate.ID;
+	}
+
+	if (hasLatest) {
+		if (mNewRgbBufferInfoQ->push(latest)) {
+			Invalidate(FALSE);
+		} else if (latest.addr) {
+			mBufferPool->turn_back(latest.addr);
+			mDroppedFrameCount++;
+		}
+	}
 	return 0;
+}
+
+double CViewerView::GetEffectivePlaybackFps(const CViewerDoc* pDoc) const
+{
+	double fps = pDoc->mFps * mPlaybackRate;
+	return fps > 0.0 ? fps : VIEWER_DEF_FPS;
+}
+
+long CViewerView::GetDuePlaybackFrameID(const CViewerDoc* pDoc) const
+{
+	LARGE_INTEGER now;
+	QueryPerformanceCounter(&now);
+
+	double elapsedSeconds = (now.QuadPart - mPlaybackStartCounter.QuadPart) /
+		static_cast<double>(mPlaybackClockFrequency.QuadPart);
+	return mPlaybackStartFrameID +
+		static_cast<long>(elapsedSeconds * GetEffectivePlaybackFps(pDoc));
 }
 
 void CViewerView::SetPlayTimer(CViewerDoc* pDoc)
@@ -398,25 +463,46 @@ void CViewerView::SetPlayTimer(CViewerDoc* pDoc)
 	mIsPlaying = true;
 	mPreKeyFrameStamp = 0;
 	mPlayFrameCount = 0;
-	mTimerID = timeSetEvent(ROUND2I(1000 / pDoc->mFps), mTc.wPeriodMin, PlayTimerThread,
+	mPlaybackStartFrameID = pDoc->mCurFrameID;
+	mDroppedFrameCount = 0;
+	mPlaybackEndPending = false;
+	::InterlockedExchange(&mPlayTickPosted, 0);
+	QueryPerformanceCounter(&mPlaybackStartCounter);
+
+	double pollMilliseconds = 500.0 / GetEffectivePlaybackFps(pDoc);
+	if (pollMilliseconds > 5.0)
+		pollMilliseconds = 5.0;
+	if (pollMilliseconds < static_cast<double>(mTc.wPeriodMin))
+		pollMilliseconds = static_cast<double>(mTc.wPeriodMin);
+	UINT pollPeriod = static_cast<UINT>(pollMilliseconds + 0.999);
+
+	timeBeginPeriod(mTc.wPeriodMin);
+	mTimerID = timeSetEvent(pollPeriod, mTc.wPeriodMin, PlayTimerThread,
 		(DWORD_PTR)this, TIME_PERIODIC);
+	if (mTimerID == 0) {
+		mIsPlaying = false;
+		timeEndPeriod(mTc.wPeriodMin);
+		frmSrc->Stop();
+	}
 }
 
-// Timer callbacks post to the UI thread before this can be called.
+// Timer callbacks only post clock ticks, so pausing does not need to wait for
+// a callback that might own a frame buffer.
 void CViewerView::KillPlayTimer()
 {
 	if (!mIsPlaying)
 		return;
 
-	mNewRgbBufferInfoQ->destroy();
-
 	mIsPlaying = false;
 	timeKillEvent(mTimerID);
+	mTimerID = 0;
 	timeEndPeriod(mTc.wPeriodMin);
+	::InterlockedExchange(&mPlayTickPosted, 0);
+	mPlaybackEndPending = false;
+
+	mNewRgbBufferInfoQ->destroy();
 
 	CViewerDoc* pDoc = GetDocument();
-	Sleep(ROUND2I(1000 / pDoc->mFps)); // make sure all timer event passed
-
 	std::vector<FrmSrc *> &frmSrcs = pDoc->mFrmSrcs;
 	for (auto it = std::begin(frmSrcs); it != std::end(frmSrcs); it++)
 		(*it)->Stop();
@@ -791,6 +877,7 @@ void CViewerView::OnDraw(CDC *pDC)
 	memDC.SetStretchBltMode(COLORONCOLOR);
 	memDC.FillSolidRect(CRect(0, 0, mWClient, mHClient), Q1UI_COLOR_CANVAS_BG);
 
+	bool stopAfterPresent = false;
 	BufferInfo bi;
 	bool ok = mNewRgbBufferInfoQ->try_pop(bi);
 	if (ok && (bi.addr != mStableRgbBufferInfo.addr || bi.ID != mStableRgbBufferInfo.ID)) {
@@ -803,6 +890,9 @@ void CViewerView::OnDraw(CDC *pDC)
 			// Optional playback timing trace.
 			if (mIsPlaying & printPlaySpeed)
 				PrintPlaySpeed(pDoc->mFps);
+
+			stopAfterPresent = mPlaybackEndPending;
+			mPlaybackEndPending = false;
 		}
 	}
 
@@ -865,6 +955,9 @@ void CViewerView::OnDraw(CDC *pDC)
 	pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
 
 	pDoc->mCurFrameID = mStableRgbBufferInfo.ID;
+
+	if (stopAfterPresent && mIsPlaying)
+		KillPlayTimerSafe();
 
 	if (mKeyProcessing == true)
 		mKeyProcessing = false;

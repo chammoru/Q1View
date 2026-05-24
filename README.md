@@ -32,6 +32,8 @@ The installer adds separate Start Menu entries for **Q1View Viewer** and
 - Raw pixel formats are first-class: YUV, NV12/NV21, P010/P210, RGB/BGR/RGBA,
   grayscale, packed RGB, and more.
 - Image folders can be treated like frame sequences.
+- Video playback follows the source or selected frame rate and catches up after
+  temporary stalls.
 - Exact pixel values, coordinates, luma-only view, nearest-neighbor zoom, and
   selected-region copy are built into the workflow.
 - Multiple Viewer windows can link input controls for synchronized inspection.
