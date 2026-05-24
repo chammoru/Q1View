@@ -37,6 +37,7 @@ enum QMouseMenuID
 {
 	QMouseMenuStart = 0x10000000,
 	QMouseMenuSel = QMouseMenuStart,
+	QMouseMenuSyncInput,
 };
 
 struct QMouseMenuInfo {
@@ -46,6 +47,7 @@ struct QMouseMenuInfo {
 
 static const QMouseMenuInfo QMouseMenu[] = {
 	{ "Sel Mode", QMouseMenuSel },
+	{ "Sync Input", QMouseMenuSyncInput },
 };
 
 using namespace std;
@@ -1818,6 +1820,14 @@ void CViewerView::OnMouseMenu(UINT nID)
 	case QMouseMenuSel:
 		ToggleSelMode();
 		break;
+	case QMouseMenuSyncInput: {
+		CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+		pMainFrm->ToggleSyncInput();
+		UINT nFlags = MF_BYCOMMAND |
+			(pMainFrm->IsSyncInputEnabled() ? MF_CHECKED : MF_UNCHECKED);
+		mMouseMenu.CheckMenuItem(nID, nFlags);
+		break;
+	}
 	default:
 		QASSERT(0);
 	}

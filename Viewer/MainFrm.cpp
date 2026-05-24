@@ -62,7 +62,6 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_COMMAND(ID_VIEWER_HELP, &CMainFrame::OnHelp)
 	ON_COMMAND(ID_FILE_OPEN, &CMainFrame::OnFileOpen)
 	ON_COMMAND(ID_COMPARE, &CMainFrame::OnExecComparer)
-	ON_COMMAND(ID_SYNC_INPUT, &CMainFrame::OnToggleSyncInput)
 	ON_COMMAND_RANGE(ID_RESOLUTION_START, ID_RESOLUTION_END, &CMainFrame::OnResolutionChange)
 	ON_COMMAND_RANGE(ID_CS_START, ID_CS_END, &CMainFrame::OnCsChange)
 	ON_COMMAND_RANGE(ID_FPS_START, ID_FPS_END, &CMainFrame::OnFpsChange)
@@ -309,8 +308,6 @@ void CMainFrame::AddMainMenu()
 	GetMenu()->InsertMenu(MENU_POS_FPS, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mFpsMenu.m_hMenu, str);
 
-	GetMenu()->CheckMenuItem(ID_SYNC_INPUT,
-		MF_BYCOMMAND | (mSyncInput ? MF_CHECKED : MF_UNCHECKED));
 }
 
 int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
@@ -494,14 +491,9 @@ void CMainFrame::UpdateMagnication(float n, int wDst, int hDst)
 	DrawMenuBar();
 }
 
-void CMainFrame::OnToggleSyncInput()
+void CMainFrame::ToggleSyncInput()
 {
 	mSyncInput = !mSyncInput;
-	if (GetMenu() != NULL) {
-		GetMenu()->CheckMenuItem(ID_SYNC_INPUT,
-			MF_BYCOMMAND | (mSyncInput ? MF_CHECKED : MF_UNCHECKED));
-		DrawMenuBar();
-	}
 }
 
 void CMainFrame::BroadcastSyncInput(const ViewerSyncInputState &input)

@@ -79,6 +79,7 @@ public:
 	void AddMainMenu();
 	void RefreshView();
 	bool IsSyncInputEnabled() const { return mSyncInput; }
+	void ToggleSyncInput();
 	void BroadcastSyncInput(const ViewerSyncInputState &input);
 
 // Generated message map functions
@@ -89,7 +90,6 @@ public:
 	afx_msg void OnHelp();
 	afx_msg void OnFileOpen();
 	afx_msg void OnExecComparer();
-	afx_msg void OnToggleSyncInput();
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg void OnResolutionChange(UINT nID);
 	afx_msg void OnCsChange(UINT nID);
