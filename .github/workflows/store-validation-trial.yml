@@ -179,7 +179,7 @@ jobs:
           }
 
           Capture-AppWindow "Viewer.exe" "`"$reference`"" "artifacts\screenshots\viewer.png"
-          Capture-AppWindow "Comparer.exe" "`"$reference|$encoded`"" "artifacts\screenshots\comparer.png"
+          Capture-AppWindow "Comparer.exe" "`"$reference`" `"$encoded`"" "artifacts\screenshots\comparer.png"
 
       - name: Uninstall smoke-tested package
         shell: pwsh

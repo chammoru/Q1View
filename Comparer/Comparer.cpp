@@ -30,6 +30,21 @@ CComparerApp::CComparerApp()
 
 CComparerApp theApp;
 
+class CComparerCommandLineInfo : public CCommandLineInfo
+{
+public:
+	virtual void ParseParam(const TCHAR* pszParam, BOOL bFlag, BOOL bLast)
+	{
+		if (!bFlag && m_nShellCommand == FileOpen && !m_strFileName.IsEmpty()) {
+			m_strFileName += CSV_SEPARATOR;
+			m_strFileName += pszParam;
+			return;
+		}
+
+		CCommandLineInfo::ParseParam(pszParam, bFlag, bLast);
+	}
+};
+
 
 // CComparerApp initialization
 
@@ -55,7 +70,7 @@ BOOL CComparerApp::InitInstance()
 
 
 	// Parse command line for standard shell commands, DDE, file open
-	CCommandLineInfo cmdInfo;
+	CComparerCommandLineInfo cmdInfo;
 	ParseCommandLine(cmdInfo);
 
 
