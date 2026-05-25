@@ -480,7 +480,12 @@ void CViewerView::SetPlayTimer(CViewerDoc* pDoc)
 		mIsPlaying = false;
 		timeEndPeriod(mTc.wPeriodMin);
 		frmSrc->Stop();
+		return;
 	}
+
+	double startSec = pDoc->mFps > 0.0 ? pDoc->mCurFrameID / pDoc->mFps : 0.0;
+	if (mAudioPlayer.Open(pDoc->mPathName.GetString()))
+		mAudioPlayer.Play(startSec);
 }
 
 // Timer callbacks only post clock ticks, so pausing does not need to wait for
@@ -490,6 +495,7 @@ void CViewerView::KillPlayTimer()
 	if (!mIsPlaying)
 		return;
 
+	mAudioPlayer.Pause();
 	mIsPlaying = false;
 	timeKillEvent(mTimerID);
 	mTimerID = 0;

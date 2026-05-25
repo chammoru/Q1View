@@ -7,6 +7,7 @@
 struct ViewerSyncInputState;
 
 #include <Mmsystem.h>
+#include "AudioPlayer.h"
 
 #include "SMutex.h"
 
@@ -130,6 +131,7 @@ public:
 	int mPreMaxL;
 
 	// Play
+	AudioPlayer mAudioPlayer;
 	bool mIsPlaying;
 	ULONGLONG mPreKeyFrameStamp;
 	int mPlayFrameCount;
