@@ -45,6 +45,11 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
+      - name: Build and run core regression tests
+        run: |
+          msbuild Tests\CoreRegressionTests.vcxproj /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
+          .\Tests\bin\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\CoreRegressionTests.exe
+
       - name: Build Viewer
         run: msbuild Viewer\Viewer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
 

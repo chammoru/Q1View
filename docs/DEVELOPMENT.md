@@ -20,6 +20,28 @@ Normal builds restore prebuilt OpenCV and libheif dependency archives into
 `.deps`. Dedicated GitHub Actions workflows create updated dependency archives
 when dependency versions change.
 
+## Core Regression Tests
+
+The portable core suite verifies raw layout sizing, source-native pixel
+sampling, RGB conversion outputs, and PSNR/SSIM reference values with small
+deterministic fixtures.
+
+On macOS or Linux:
+
+```sh
+./Tests/run_core_regression_tests.sh
+```
+
+From a Visual Studio Developer PowerShell on Windows:
+
+```powershell
+msbuild Tests\CoreRegressionTests.vcxproj /m /p:Configuration=Release /p:Platform=x64
+.\Tests\bin\x64\Release\CoreRegressionTests.exe
+```
+
+The Windows GitHub Actions build runs this suite before building the
+applications.
+
 ## Package Locally
 
 After both applications are built:
