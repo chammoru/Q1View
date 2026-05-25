@@ -152,7 +152,7 @@ jobs:
           .\build\Sign-Q1View.ps1 -Files "dist\$env:INSTALLER_FILE"
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Q1View-windows-x64
           path: |
