@@ -41,8 +41,24 @@ typedef void (*QIMAGE_CSC_FN) (qu8 *, qu8 *, qu8 *,
  */
 typedef int (*QIMAGE_CS_INFO_FN) (int w, int h, int *bufoff2, int *bufoff3);
 
-typedef void (*QIMAGE_SET_PIXEL_STR_FN) (qu8 *, int w, int h,
-                                         int x, int y, int base, char* str);
+typedef enum _QIMAGE_PIXEL_MODEL
+{
+	QIMAGE_PIXEL_MODEL_NONE,
+	QIMAGE_PIXEL_MODEL_RGB,
+	QIMAGE_PIXEL_MODEL_YUV,
+} QIMAGE_PIXEL_MODEL;
+
+typedef struct _QIMAGE_NATIVE_PIXEL_SAMPLE
+{
+	QIMAGE_PIXEL_MODEL model;
+	int component[3];
+	int bit_depth;
+	int chroma_x;
+	int chroma_y;
+} QIMAGE_NATIVE_PIXEL_SAMPLE;
+
+typedef int (*QIMAGE_SAMPLE_NATIVE_PIXEL_FN) (const qu8 *, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample);
 
 struct qcsc_info
 {
@@ -51,7 +67,7 @@ struct qcsc_info
 	const QIMAGE_CS_INFO_FN cs_load_info;
 	const QIMAGE_CSC_FN csc2rgb888;
 	const QIMAGE_CSC_FN csc2yuv420;
-	const QIMAGE_SET_PIXEL_STR_FN cs_set_pixel_str;
+	const QIMAGE_SAMPLE_NATIVE_PIXEL_FN sample_native_pixel;
 };
 
 int qimage_yuv420_load_info(int w, int h, int *bufoff2, int *bufoff3);
@@ -115,14 +131,24 @@ void qimage_bgr888_to_nv21(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 void qimage_bgr888_to_yuv420(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 							 int s_bgr, int w, int h);
 
-void qimage_yuv420_set_pixel_str(qu8 *src, int w, int h,
-                                 int x, int y, int base, char *str);
-void qimage_p010_set_pixel_str(qu8* src, int w, int h,
-                               int x, int y, int base, char* str);
-void qimage_p210_set_pixel_str(qu8* src, int w, int h,
-							   int x, int y, int base, char* str);
-void qimage_abgr2101010_set_pixel_str(qu8* src, int w, int h,
-                                      int x, int y, int base, char* str);
+int qimage_yuv420_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample);
+int qimage_nv12_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample);
+int qimage_nv21_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample);
+int qimage_t256x16_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample);
+int qimage_yuv420p10le_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample);
+int qimage_yuv422p10le_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample);
+int qimage_p010_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample);
+int qimage_p210_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample);
+int qimage_abgr2101010_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample);
 
 static const struct qcsc_info qcsc_info_table[] =
 {
@@ -132,7 +158,7 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_yuv420_load_info,
 		qimage_yuv420_to_bgr888,
 		NULL,
-		qimage_yuv420_set_pixel_str,
+		qimage_yuv420_sample_native,
 	},
 	{
 		QIMAGE_CS_NV12,
@@ -140,7 +166,7 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_nv12_load_info,
 		qimage_nv12_to_bgr888,
 		qimage_nv12_to_420,
-		NULL,
+		qimage_nv12_sample_native,
 	},
 	{
 		QIMAGE_CS_NV12_T256X16,
@@ -148,7 +174,7 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_t256x16_load_info,
 		qimage_t256x16_to_bgr888,
 		NULL,
-		NULL,
+		qimage_t256x16_sample_native,
 	},
 	{
 		QIMAGE_CS_NV21,
@@ -156,7 +182,7 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_nv21_load_info,
 		qimage_nv21_to_bgr888,
 		qimage_nv21_to_420,
-		NULL,
+		qimage_nv21_sample_native,
 	},
 	{
 		QIMAGE_CS_YUV420P10LE,
@@ -164,7 +190,7 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_yuv420p10le_load_info,
 		qimage_yuv420p10le_to_bgr888,
 		NULL,
-		NULL,
+		qimage_yuv420p10le_sample_native,
 	},
 	{
 		QIMAGE_CS_P010,
@@ -172,7 +198,7 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_p010_load_info,
 		qimage_p010_to_bgr888,
 		NULL,
-		qimage_p010_set_pixel_str,
+		qimage_p010_sample_native,
 	},
 	/* ... add more yuv colors */
 	{
@@ -181,7 +207,7 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_p210_load_info,
 		qimage_p210_to_bgr888,
 		NULL,
-		qimage_p210_set_pixel_str,
+		qimage_p210_sample_native,
 	},
 	{
 		QIMAGE_CS_YUV422P10LE,
@@ -189,7 +215,7 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_yuv422p10le_load_info,
 		qimage_yuv422p10le_to_bgr888,
 		NULL,
-		NULL,
+		qimage_yuv422p10le_sample_native,
 	},
 	{
 		QIMAGE_CS_GRAYSCALE,
@@ -245,7 +271,7 @@ static const struct qcsc_info qcsc_info_table[] =
 		qimage_abgr2101010_load_info,
 		qimage_abgr2101010_to_bgr888,
 		NULL,
-		qimage_abgr2101010_set_pixel_str,
+		qimage_abgr2101010_sample_native,
 	},
 	{
 		QIMAGE_CS_RGB16U,
@@ -261,7 +287,6 @@ static const struct qcsc_info qcsc_info_table[] =
 #define QIMG_DEF_CS_IDX       0
 #define QIMG_DST_RGB_BYTES    3
 #define QPLANES               3 /* color plane, 3 for rgb and yuv */
-#define QIMG_MAX_COLOR_STR    64
 
 #ifdef __cplusplus
 }

@@ -53,7 +53,7 @@ CViewerDoc::CViewerDoc()
 , mColorSpace(qcsc_info_table[QIMG_DEF_CS_IDX].cs)
 , mCsc2Rgb888(qcsc_info_table[QIMG_DEF_CS_IDX].csc2rgb888)
 , mCsLoadInfo(qcsc_info_table[QIMG_DEF_CS_IDX].cs_load_info)
-, mCsSetPixelStr(qcsc_info_table[QIMG_DEF_CS_IDX].cs_set_pixel_str)
+, mSampleNativePixel(qcsc_info_table[QIMG_DEF_CS_IDX].sample_native_pixel)
 , mFrmSrc(NULL)
 , mBgr888Processor(NULL)
 , mFileChangeNotiThread(new FileChangeNotiThread)
@@ -151,6 +151,14 @@ bool CViewerDoc::QueueSource2View()
 	newBuffer1Q->push(bi);
 
 	return true;
+}
+
+bool CViewerDoc::RefreshNativePixelSource()
+{
+	if (mSampleNativePixel == nullptr || mFrmSrc == nullptr)
+		return false;
+
+	return mFrmSrc->LoadOrigBuf(this, mOrigBuf);
 }
 
 static inline void GetScreenSize(CMainFrame *pMainFrm, int &wScreen, int &hScreen)
@@ -640,8 +648,12 @@ void CViewerDoc::SetPathName(LPCTSTR lpszPathName, BOOL bAddToMRU)
 	ASSERT_VALID(this);
 }
 
-void CViewerDoc::SetPixelString(int viewX, int viewY, int base, char* strBuf)
+bool CViewerDoc::GetNativePixelSample(int viewX, int viewY,
+	QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
 {
+	if (mSampleNativePixel == nullptr)
+		return false;
+
 	int imgX = viewX, imgY = viewY;
 	int imgW = mW, imgH = mH;
 	switch (mRot) {
@@ -661,7 +673,7 @@ void CViewerDoc::SetPixelString(int viewX, int viewY, int base, char* strBuf)
 		break;
 	}
 
-	mCsSetPixelStr(mOrigBuf, imgW, imgH, imgX, imgY, base, strBuf);
+	return mSampleNativePixel(mOrigBuf, imgW, imgH, imgX, imgY, sample) != 0;
 }
 
 void CViewerDoc::NextCs()

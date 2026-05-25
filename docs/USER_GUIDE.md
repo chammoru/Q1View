@@ -23,6 +23,14 @@ Video playback follows the source FPS or the FPS chosen in the menu. If display
 or decode work briefly falls behind, Viewer drops late presentation frames to
 return to the media timeline.
 
+When a raw YUV source is zoomed far enough to show pixel values, Viewer shows
+source-native `Y`, `U`, and `V` values by default. They are sampled from the
+planes in the selected raw layout, including subsampled and 10-bit formats,
+rather than reconstructed from the displayed RGB image. Press `V` to toggle
+between source YUV values and displayed RGB values. A small corner badge
+identifies the active pixel-value mode without adding labels to every pixel.
+Decoded images and video show RGB values only.
+
 ### Controls
 
 Viewer includes a built-in control panel, opened with `?`.
@@ -38,6 +46,7 @@ Viewer includes a built-in control panel, opened with `?`.
 | Previous or next frame | Left / Right |
 | First or last frame | Home / End |
 | Toggle luma-only view | `Y` |
+| Toggle RGB / source YUV pixel values | `V` |
 | Rotate clockwise | `R` |
 | Toggle pixel coordinates | `C` |
 | Toggle selection mode | `S` |

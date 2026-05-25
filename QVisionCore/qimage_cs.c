@@ -1050,98 +1050,206 @@ void qimage_bgr888_to_yuv420(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 	}
 }
 
-void qimage_yuv420_set_pixel_str(qu8* src, int w, int h,
-                                 int x, int y, int base, char* str)
+static int qimage_begin_native_sample(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_PIXEL_MODEL model, int bit_depth,
+	int chroma_x, int chroma_y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
 {
-	int luma_size = w * h;
-	int chroma_size = ((w + 1) >> 1) * ((h + 1) >> 1);
-	int w_chroma = (w + 1) >> 1;
-	int x_chroma = x >> 1;
-	int y_chroma = y >> 1;
+	if (src == NULL || sample == NULL || x < 0 || y < 0 || x >= w || y >= h)
+		return 0;
 
-	qu8 *y_plane = src;
-	qu8 *u_plane = src + luma_size;
-	qu8 *v_plane = src + luma_size + chroma_size;
-
-	qu8 y_val = y_plane[w * y + x];
-	qu8 u_val = u_plane[w_chroma * y_chroma + x_chroma];
-	qu8 v_val = v_plane[w_chroma * y_chroma + x_chroma];
-
-	if (base == 16) {
-		sprintf(str, "%02X\n%02X\n%02X", y_val, u_val, v_val);
-	} else {
-		sprintf(str, "%03d\n%03d\n%03d", y_val, u_val, v_val);
-	}
+	sample->model = model;
+	sample->bit_depth = bit_depth;
+	sample->chroma_x = chroma_x;
+	sample->chroma_y = chroma_y;
+	return 1;
 }
 
-void qimage_p010_set_pixel_str(qu8* src, int w, int h,
-                               int x, int y, int base, char* str)
+int qimage_yuv420_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
 {
-	int luma_size = w * h;
-	int x_chroma = ROUNDDOWN_EVEN(x);
-	int y_chroma = y >> 1;
+	int luma_size;
+	int chroma_size;
+	int chroma_w;
+	int chroma_x = x >> 1;
+	int chroma_y = y >> 1;
+	const qu8 *u_plane;
+	const qu8 *v_plane;
 
-	qu16 *luma_plane = (qu16 *)src;
-	qu16 y_val = luma_plane[w * y + x];
+	if (!qimage_begin_native_sample(src, w, h, x, y, QIMAGE_PIXEL_MODEL_YUV,
+			8, chroma_x, chroma_y, sample))
+		return 0;
 
-	qu16* chroma_plane = luma_plane + luma_size;
-	qu16* chroma_point = chroma_plane + ROUNDUP_EVEN(w) * y_chroma + x_chroma;
-	qu16 u_val = *chroma_point++;
-	qu16 v_val = *chroma_point;
-
-	// https://learn.microsoft.com/en-us/windows/win32/medfound/10-bit-and-16-bit-yuv-video-formats
-	// The lowest 6 bits are zero
-	y_val >>= 6;
-	u_val >>= 6;
-	v_val >>= 6;
-
-	if (base == 16) {
-		sprintf(str, "%03X\n%03X\n%03X", y_val, u_val, v_val);
-	} else {
-		sprintf(str, "%04d\n%04d\n%04d", y_val, u_val, v_val);
-	}
+	luma_size = w * h;
+	chroma_w = (w + 1) >> 1;
+	chroma_size = chroma_w * ((h + 1) >> 1);
+	u_plane = src + luma_size;
+	v_plane = u_plane + chroma_size;
+	sample->component[0] = src[w * y + x];
+	sample->component[1] = u_plane[chroma_w * chroma_y + chroma_x];
+	sample->component[2] = v_plane[chroma_w * chroma_y + chroma_x];
+	return 1;
 }
 
-void qimage_p210_set_pixel_str(qu8* src, int w, int h,
-	int x, int y, int base, char* str)
+static int qimage_nv_sample_native(const qu8 *src, int w, int h,
+	int x, int y, int v_first, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
 {
-	int luma_size = w * h;
-	int x_chroma = ROUNDDOWN_EVEN(x);
-	int y_chroma = y;
+	int chroma_x = x >> 1;
+	int chroma_y = y >> 1;
+	int chroma_index;
+	const qu8 *chroma_plane;
 
-	qu16* luma_plane = (qu16*)src;
-	qu16 y_val = luma_plane[w * y + x];
+	if (!qimage_begin_native_sample(src, w, h, x, y, QIMAGE_PIXEL_MODEL_YUV,
+			8, chroma_x, chroma_y, sample))
+		return 0;
 
-	qu16* chroma_plane = luma_plane + luma_size;
-	qu16* chroma_point = chroma_plane + ROUNDUP_EVEN(w) * y_chroma + x_chroma;
-	qu16 u_val = *chroma_point++;
-	qu16 v_val = *chroma_point;
-
-	// https://learn.microsoft.com/en-us/windows/win32/medfound/10-bit-and-16-bit-yuv-video-formats
-	// The lowest 6 bits are zero
-	y_val >>= 6;
-	u_val >>= 6;
-	v_val >>= 6;
-
-	if (base == 16) {
-		sprintf(str, "%03X\n%03X\n%03X", y_val, u_val, v_val);
-	}
-	else {
-		sprintf(str, "%04d\n%04d\n%04d", y_val, u_val, v_val);
-	}
+	chroma_plane = src + w * h;
+	chroma_index = ROUNDUP_EVEN(w) * chroma_y + ROUNDDOWN_EVEN(x);
+	sample->component[0] = src[w * y + x];
+	sample->component[1] = chroma_plane[chroma_index + (v_first ? 1 : 0)];
+	sample->component[2] = chroma_plane[chroma_index + (v_first ? 0 : 1)];
+	return 1;
 }
 
-void qimage_abgr2101010_set_pixel_str(qu8* src, int w, int h,
-                                      int x, int y, int base, char* str)
+int qimage_nv12_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
 {
-	qu32 abgr2101010 = ((qu32*)src)[w * y + x];
-	qu32 B10 = (abgr2101010 >> 20) & 0x3ff;
-	qu32 G10 = (abgr2101010 >> 10) & 0x3ff;
-	qu32 R10 = abgr2101010 & 0x3ff;
+	return qimage_nv_sample_native(src, w, h, x, y, 0, sample);
+}
 
-	if (base == 16) {
-		sprintf(str, "%03X\n%03X\n%03X", R10, G10, B10);
-	} else {
-		sprintf(str, "%04d\n%04d\n%04d", R10, G10, B10);
-	}
+int qimage_nv21_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
+{
+	return qimage_nv_sample_native(src, w, h, x, y, 1, sample);
+}
+
+int qimage_t256x16_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
+{
+	int tile_x;
+	int tile_y;
+	int local_x;
+	int local_y;
+	int h_aligned;
+	int y_offset;
+	int chroma_tile_offset;
+	int chroma_offset;
+	const qu8 *chroma_plane;
+
+	if (!qimage_begin_native_sample(src, w, h, x, y, QIMAGE_PIXEL_MODEL_YUV,
+			8, x >> 1, y >> 1, sample) || x >= 2048)
+		return 0;
+
+	tile_x = x & ~0xff;
+	tile_y = y & ~0xf;
+	local_x = x - tile_x;
+	local_y = y - tile_y;
+	h_aligned = (h + 0x1f) & ~0x1f;
+
+	y_offset = (tile_x << 4) + (tile_y << 11) + (local_y << 8) + local_x;
+	if (((tile_y >> 4) & 0x1) == 0)
+		chroma_tile_offset = (tile_x << 4) + (tile_y << 10);
+	else
+		chroma_tile_offset = (tile_x << 4) + 2048 + ((tile_y - 16) << 10);
+	chroma_offset = chroma_tile_offset + ((local_y & ~0x1) << 7) +
+		(local_x & ~0x1);
+	chroma_plane = src + 2048 * h_aligned;
+
+	sample->component[0] = src[y_offset];
+	sample->component[1] = chroma_plane[chroma_offset];
+	sample->component[2] = chroma_plane[chroma_offset + 1];
+	return 1;
+}
+
+static int qimage_planar10_sample_native(const qu8 *src, int w, int h,
+	int x, int y, int chroma_y_shift, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
+{
+	int luma_size;
+	int chroma_w;
+	int chroma_h;
+	int chroma_size;
+	int chroma_x = x >> 1;
+	int chroma_y = y >> chroma_y_shift;
+	const qu16 *luma_plane;
+	const qu16 *u_plane;
+	const qu16 *v_plane;
+
+	if (!qimage_begin_native_sample(src, w, h, x, y, QIMAGE_PIXEL_MODEL_YUV,
+			10, chroma_x, chroma_y, sample))
+		return 0;
+
+	luma_size = w * h;
+	chroma_w = (w + 1) >> 1;
+	chroma_h = chroma_y_shift ? ((h + 1) >> 1) : h;
+	chroma_size = chroma_w * chroma_h;
+	luma_plane = (const qu16 *)src;
+	u_plane = luma_plane + luma_size;
+	v_plane = u_plane + chroma_size;
+	sample->component[0] = luma_plane[w * y + x] & 0x3ff;
+	sample->component[1] = u_plane[chroma_w * chroma_y + chroma_x] & 0x3ff;
+	sample->component[2] = v_plane[chroma_w * chroma_y + chroma_x] & 0x3ff;
+	return 1;
+}
+
+int qimage_yuv420p10le_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
+{
+	return qimage_planar10_sample_native(src, w, h, x, y, 1, sample);
+}
+
+int qimage_yuv422p10le_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
+{
+	return qimage_planar10_sample_native(src, w, h, x, y, 0, sample);
+}
+
+static int qimage_p0x_sample_native(const qu8 *src, int w, int h,
+	int x, int y, int chroma_y_shift, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
+{
+	int luma_size;
+	int chroma_x = x >> 1;
+	int chroma_y = y >> chroma_y_shift;
+	int chroma_index;
+	const qu16 *luma_plane;
+	const qu16 *chroma_plane;
+
+	if (!qimage_begin_native_sample(src, w, h, x, y, QIMAGE_PIXEL_MODEL_YUV,
+			10, chroma_x, chroma_y, sample))
+		return 0;
+
+	luma_size = w * h;
+	luma_plane = (const qu16 *)src;
+	chroma_plane = luma_plane + luma_size;
+	chroma_index = ROUNDUP_EVEN(w) * chroma_y + ROUNDDOWN_EVEN(x);
+	sample->component[0] = (luma_plane[w * y + x] >> 6) & 0x3ff;
+	sample->component[1] = (chroma_plane[chroma_index] >> 6) & 0x3ff;
+	sample->component[2] = (chroma_plane[chroma_index + 1] >> 6) & 0x3ff;
+	return 1;
+}
+
+int qimage_p010_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
+{
+	return qimage_p0x_sample_native(src, w, h, x, y, 1, sample);
+}
+
+int qimage_p210_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
+{
+	return qimage_p0x_sample_native(src, w, h, x, y, 0, sample);
+}
+
+int qimage_abgr2101010_sample_native(const qu8 *src, int w, int h,
+	int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *sample)
+{
+	qu32 value;
+
+	if (!qimage_begin_native_sample(src, w, h, x, y, QIMAGE_PIXEL_MODEL_RGB,
+			10, x, y, sample))
+		return 0;
+
+	value = ((const qu32 *)src)[w * y + x];
+	sample->component[0] = value & 0x3ff;
+	sample->component[1] = (value >> 10) & 0x3ff;
+	sample->component[2] = (value >> 20) & 0x3ff;
+	return 1;
 }

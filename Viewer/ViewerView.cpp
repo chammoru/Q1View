@@ -118,6 +118,7 @@ CViewerView::CViewerView()
 , mShowBoxInfo(true)
 , mWasZoomed(false)
 , mHexMode(false)
+, mShowSourceYuv(true)
 , mRgbHex(_T("%02X\n%02X\n%02X"))
 , mRgbDec(_T("%03d\n%03d\n%03d"))
 , mRgbFormat(mRgbDec)
@@ -168,14 +169,10 @@ CViewerView::CViewerView()
 	}
 
 	mDeltaRect.SetRectEmpty();
-
-	mStrBuf = new char[QIMG_MAX_COLOR_STR];
 }
 
 CViewerView::~CViewerView()
 {
-	delete[] mStrBuf;
-
 	mSelRegions.clear();
 	delete mNewRgbBufferInfoQ;
 
@@ -648,7 +645,7 @@ static void Convert2YYY(BYTE *srcBgr, BYTE *dstYyy, int stride, int w, int h)
 	}
 }
 
-void CViewerView::DrawRgbText(CDC *pDC, q1::GridInfo &gi)
+void CViewerView::DrawPixelText(CDC *pDC, q1::GridInfo &gi)
 {
 	CViewerDoc* pDoc = GetDocument();
 	CString label;
@@ -660,9 +657,9 @@ void CViewerView::DrawRgbText(CDC *pDC, q1::GridInfo &gi)
 	pixelTextFont.CreateFontIndirect(&lf);
 	pDC->SelectObject(&pixelTextFont);
 	pDC->SetTextColor(COLOR_PIXEL_TEXT);
-	pDC->DrawText(_T("000\n000\n000"), -1, refRect, DT_CENTER | DT_VCENTER | DT_CALCRECT);
+	pDC->DrawText(_T("0000\n0000\n0000"), -1, refRect,
+		DT_CENTER | DT_VCENTER | DT_CALCRECT);
 	int y = gi.y;
-	int base = mHexMode ? 16 : 10;
 	for (int i = 0; i < (int)gi.Hs.size(); i++) {
 		int x = gi.x;
 		for (int j = 0; j < (int)gi.Ws.size(); j++) {
@@ -671,11 +668,35 @@ void CViewerView::DrawRgbText(CDC *pDC, q1::GridInfo &gi)
 			cv::Vec3b px = gi.pixelMap.at<cv::Vec3b>(i, j);
 			pDC->SetBkColor(RGB((0x80 + px[2]) / 2, (0x80 + px[1]) / 2, (0x80 + px[0]) / 2));
 
-			if (pDoc->mCsSetPixelStr != nullptr) {
-				int viewY = gi.pixelCoordMap.at<cv::Vec2w>(i, j)[0] / QIMG_DST_RGB_BYTES;
-				int viewX = gi.pixelCoordMap.at<cv::Vec2w>(i, j)[1] / QIMG_DST_RGB_BYTES;
-				pDoc->SetPixelString(viewX, viewY, base, mStrBuf);
-				label = mStrBuf;
+			int viewY = gi.pixelCoordMap.at<cv::Vec2w>(i, j)[0] / QIMG_DST_RGB_BYTES;
+			int viewX = gi.pixelCoordMap.at<cv::Vec2w>(i, j)[1] / QIMG_DST_RGB_BYTES;
+			QIMAGE_NATIVE_PIXEL_SAMPLE sample = {};
+			bool hasNative = pDoc->GetNativePixelSample(viewX, viewY, &sample);
+			if (mShowSourceYuv && hasNative &&
+					sample.model == QIMAGE_PIXEL_MODEL_YUV) {
+				int digits = mHexMode ? (sample.bit_depth + 3) / 4 :
+					(sample.bit_depth > 8 ? 4 : 3);
+				if (mHexMode) {
+					label.Format(_T("%0*X\n%0*X\n%0*X"),
+						digits, sample.component[0], digits, sample.component[1],
+						digits, sample.component[2]);
+				} else {
+					label.Format(_T("%0*d\n%0*d\n%0*d"),
+						digits, sample.component[0], digits, sample.component[1],
+						digits, sample.component[2]);
+				}
+			} else if (hasNative && sample.model == QIMAGE_PIXEL_MODEL_RGB) {
+				int digits = mHexMode ? (sample.bit_depth + 3) / 4 :
+					(sample.bit_depth > 8 ? 4 : 3);
+				if (mHexMode) {
+					label.Format(_T("%0*X\n%0*X\n%0*X"),
+						digits, sample.component[0], digits, sample.component[1],
+						digits, sample.component[2]);
+				} else {
+					label.Format(_T("%0*d\n%0*d\n%0*d"),
+						digits, sample.component[0], digits, sample.component[1],
+						digits, sample.component[2]);
+				}
 			} else {
 				label.Format(mRgbFormat, px[2], px[1], px[0]);
 			}
@@ -722,6 +743,7 @@ void CViewerView::DrawHelpMenu(CDC *pDC)
 		"Return         Full screen\n"
 		"H              Toggle hex pixel values\n"
 		"Y              Toggle Y-only view\n"
+		"V              Toggle RGB/source YUV pixel values\n"
 		"R              Rotate 90 degrees clockwise\n"
 		"Page Up/Down   Previous or next file\n"
 		"S              Selection capture mode\n"
@@ -795,6 +817,35 @@ void CViewerView::DrawCursorCoordinates(CDC *pDC)
 	pDC->FillSolidRect(bgRect, COLOR_COORDINATE_RECT);
 	pDC->SetTextColor(Q1UI_COLOR_OVERLAY_TEXT);
 	pDC->DrawText(coord, &bgRect, DT_CENTER | DT_VCENTER);
+}
+
+void CViewerView::DrawPixelValueMode(CDC *pDC)
+{
+	QIMAGE_NATIVE_PIXEL_SAMPLE sample = {};
+	if (!GetDocument()->GetNativePixelSample(0, 0, &sample) ||
+			sample.model != QIMAGE_PIXEL_MODEL_YUV) {
+		return;
+	}
+
+	LOGFONT lf;
+	CFont modeFont;
+	mConsolasFont.GetLogFont(&lf);
+	lf.lfHeight = 14;
+	modeFont.CreateFontIndirect(&lf);
+	CFont *prevFont = pDC->SelectObject(&modeFont);
+
+	CString mode = mShowSourceYuv ? _T("PIXEL: YUV SOURCE") :
+		_T("PIXEL: RGB DISPLAY");
+	CRect refRect;
+	pDC->DrawText(mode, -1, refRect, DT_SINGLELINE | DT_CALCRECT);
+	CRect bgRect(0, 0, refRect.Width(), refRect.Height());
+	bgRect.InflateRect(8, 3, 8, 3);
+	pDC->FillSolidRect(bgRect, COLOR_COORDINATE_RECT);
+	int prevBkMode = pDC->SetBkMode(TRANSPARENT);
+	pDC->SetTextColor(Q1UI_COLOR_OVERLAY_TEXT);
+	pDC->DrawText(mode, &bgRect, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+	pDC->SetBkMode(prevBkMode);
+	pDC->SelectObject(prevFont);
 }
 
 int CViewerView::DrawBoxInfoText(CDC *pDC, CRect &rect, COLORREF color, int hAccumGap)
@@ -883,6 +934,7 @@ void CViewerView::OnDraw(CDC *pDC)
 	if (ok && (bi.addr != mStableRgbBufferInfo.addr || bi.ID != mStableRgbBufferInfo.ID)) {
 		if (bi.ID == MSG_QUIT) {
 			KillPlayTimerSafe();
+			pDoc->RefreshNativePixelSource();
 		} else {
 			mBufferPool->turn_back(mStableRgbBufferInfo.addr);
 			mStableRgbBufferInfo = bi;
@@ -933,8 +985,10 @@ void CViewerView::OnDraw(CDC *pDC)
 		0, 0, 0, mHClient,
 		mRgbBuf, &mBmi, DIB_RGB_COLORS);
 #endif
-	if (!mIsPlaying && mN > ZOOM_TEXT_START)
-		DrawRgbText(&memDC, gi);
+	if (!mIsPlaying && mN > ZOOM_TEXT_START) {
+		DrawPixelText(&memDC, gi);
+		DrawPixelValueMode(&memDC);
+	}
 
 	DrawSelectRect(&memDC);
 
@@ -956,8 +1010,10 @@ void CViewerView::OnDraw(CDC *pDC)
 
 	pDoc->mCurFrameID = mStableRgbBufferInfo.ID;
 
-	if (stopAfterPresent && mIsPlaying)
+	if (stopAfterPresent && mIsPlaying) {
 		KillPlayTimerSafe();
+		pDoc->RefreshNativePixelSource();
+	}
 
 	if (mKeyProcessing == true)
 		mKeyProcessing = false;
@@ -1567,6 +1623,8 @@ UINT CViewerView::GetDisplayOptions() const
 		options |= VIEWER_DISPLAY_COORDINATES;
 	if (mShowBoxInfo)
 		options |= VIEWER_DISPLAY_BOX_INFO;
+	if (mShowSourceYuv)
+		options |= VIEWER_DISPLAY_SOURCE_YUV;
 
 	return options;
 }
@@ -1654,6 +1712,7 @@ void CViewerView::ApplySyncInput(const ViewerSyncInputState &input)
 		mInterpol = (input.first & VIEWER_DISPLAY_INTERPOLATE) != 0;
 		mShowCoord = (input.first & VIEWER_DISPLAY_COORDINATES) != 0;
 		mShowBoxInfo = (input.first & VIEWER_DISPLAY_BOX_INFO) != 0;
+		mShowSourceYuv = (input.first & VIEWER_DISPLAY_SOURCE_YUV) != 0;
 		mRgbFormat = mHexMode ? mRgbHex : mRgbDec;
 		mKeyProcessing = true;
 		Invalidate(FALSE);
@@ -1811,6 +1870,10 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		break;
 	case 'Y': // Show only the luma channel.
 		mYMode = !mYMode;
+		BroadcastDisplayOptions();
+		break;
+	case 'V': // Toggle source-native YUV values for raw YUV input.
+		mShowSourceYuv = !mShowSourceYuv;
 		BroadcastDisplayOptions();
 		break;
 	case 'I':
