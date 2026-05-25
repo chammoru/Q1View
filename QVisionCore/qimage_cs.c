@@ -1,4 +1,5 @@
 
+#include <limits.h>
 #include <string.h>
 
 #include "qimage_cs.h"
@@ -322,7 +323,7 @@ void qimage_rgba8888_to_bgr888(qu8 *bgr, qu8 *src_argb, qu8 *n1, qu8 *n2,
 
 int qimage_bgr888_load_info(int w, int h, int *bufoff2, int *bufoff3)
 {
-	return qimage_rgb888_load_info(w, h, bufoff2, bufoff2);
+	return qimage_rgb888_load_info(w, h, bufoff2, bufoff3);
 }
 
 void qimage_bgr888_to_bgr888(qu8 *bgr, qu8 *src_bgr, qu8 *n1, qu8 *n2,
@@ -522,8 +523,8 @@ void qimage_rgb16u_to_bgr888(qu8* bgr, qu8* src_rgb, qu8* n1, qu8* n2,
 		for (j = 0; j < w; j++)
 		{
 			int R16 = ((qu16*)src_rgb)[0];
-			int G16 = ((qu16*)src_rgb)[2];
-			int B16 = ((qu16*)src_rgb)[4];
+			int G16 = ((qu16*)src_rgb)[1];
+			int B16 = ((qu16*)src_rgb)[2];
 
 			R16 = ((R16 - RGB16RangeMin) * UCHAR_MAX + range16_half) / range16;
 			G16 = ((G16 - RGB16RangeMin) * UCHAR_MAX + range16_half) / range16;
@@ -649,6 +650,12 @@ void qimage_t256x16_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 int qimage_grayscale_load_info(int w, int h, int *bufoff2, int *bufoff3)
 {
 	int scene_size = w * h;
+
+	if (bufoff2)
+		*bufoff2 = 0;
+
+	if (bufoff3)
+		*bufoff3 = 0;
 
 	return scene_size;
 }
