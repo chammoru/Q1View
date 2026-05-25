@@ -86,7 +86,7 @@ public:
 	QIMAGE_CS mColorSpace;
 	QIMAGE_CSC_FN mCsc2Rgb888;
 	QIMAGE_CS_INFO_FN mCsLoadInfo;
-	QIMAGE_SET_PIXEL_STR_FN mCsSetPixelStr;
+	QIMAGE_SAMPLE_NATIVE_PIXEL_FN mSampleNativePixel;
 	struct qcsc_info *mSortedCscInfo;
 
 	CString mPendingFile;
@@ -101,6 +101,7 @@ public:
 // Operations
 public:
 	bool QueueSource2View();
+	bool RefreshNativePixelSource();
 	int SeekScene(int frameID);
 	int NextScene();
 	int PrevScene();
@@ -135,6 +136,6 @@ public:
 	virtual BOOL OnSaveDocument(LPCTSTR lpszPathName);
 	virtual BOOL DoSave(LPCTSTR lpszPathName, BOOL bReplace = TRUE);
 	virtual void SetPathName(LPCTSTR lpszPathName, BOOL bAddToMRU = TRUE);
-	void SetPixelString(int viewX, int viewY, int base, char* strBuf);
+	bool GetNativePixelSample(int viewX, int viewY, QIMAGE_NATIVE_PIXEL_SAMPLE *sample);
 	void NextCs();
 };
