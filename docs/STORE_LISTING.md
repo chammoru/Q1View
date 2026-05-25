@@ -54,7 +54,7 @@ TECHNICAL NOTES
 • Windows x64 only
 • Korean and Unicode file and folder names are supported
 • No internet connection required; no data is collected or transmitted
-• Installer registers separate Start Menu entries for Viewer and Comparer
+• The Store app launches its dedicated Comparer workflow directly from Viewer
 • Portable ZIP available for use without installation
 ```
 
@@ -73,7 +73,7 @@ TECHNICAL NOTES
 8. Frame sequence navigation through same-folder images
 9. Clipboard paste and screen capture support
 10. Unicode and Korean path support
-11. Separate Viewer and Comparer applications, each with a Start Menu entry
+11. Launch the dedicated Comparer workflow directly from Viewer
 12. Step through video frames one at a time with Left/Right arrow keys
 13. Rotation, luma-only view, interpolation, and hex pixel value modes
 14. Allow Different Resolution mode for cross-resolution comparisons

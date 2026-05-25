@@ -632,31 +632,40 @@ LRESULT CMainFrame::OnApplySyncViewState(WPARAM wParam, LPARAM lParam)
 
 void CMainFrame::OnExecComparer()
 {
-	TCHAR curDir[MAX_PATH];
-	::GetCurrentDirectory(MAX_PATH, curDir);
-
+	TCHAR viewerPath[MAX_PATH] = {0, };
 	CString cmperPath;
 	BOOL cmperExists;
 	STARTUPINFO startUpInfo = {0, };
 	PROCESS_INFORMATION processInfo = {0, };
 	startUpInfo.cb = sizeof(STARTUPINFO);
 
-	cmperPath = curDir;
+	DWORD viewerPathLength = ::GetModuleFileName(NULL, viewerPath, _countof(viewerPath));
+	if (viewerPathLength == 0 || viewerPathLength >= _countof(viewerPath) ||
+			!::PathRemoveFileSpec(viewerPath)) {
+		MessageBox(_T("Couldn't determine the Viewer installation directory."),
+			_T("Warning"), MB_ICONWARNING);
+		return;
+	}
+
+	cmperPath = viewerPath;
 	cmperPath += _T("\\Comparer.exe");
 
 	cmperExists = ::PathFileExists(cmperPath);
 
 #ifdef _DEBUG
 	if (!cmperExists) {
-		cmperPath = curDir;
-		cmperPath += _T("\\..\\Comparer\\x64\\Debug\\Comparer.exe");
+		TCHAR curDir[MAX_PATH] = {0, };
+		if (::GetCurrentDirectory(_countof(curDir), curDir) != 0) {
+			cmperPath = curDir;
+			cmperPath += _T("\\..\\Comparer\\x64\\Debug\\Comparer.exe");
 
-		cmperExists = ::PathFileExists(cmperPath);
+			cmperExists = ::PathFileExists(cmperPath);
+		}
 	}
 #endif
 
 	if (!cmperExists) {
-		MessageBox(_T("Coundn't find the 'Comparer.exe'"), _T("Warning"), MB_ICONWARNING);
+		MessageBox(_T("Couldn't find 'Comparer.exe' next to Viewer.exe."), _T("Warning"), MB_ICONWARNING);
 		return;
 	}
 
