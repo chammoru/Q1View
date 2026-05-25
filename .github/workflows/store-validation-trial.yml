@@ -104,8 +104,7 @@ jobs:
             throw "Failed to make screenshot input images."
           }
 
-      - name: Capture installed application windows
-        continue-on-error: true
+      - name: Capture packaged-build application windows
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force "artifacts\screenshots" | Out-Null
@@ -123,42 +122,14 @@ jobs:
               [DllImport("user32.dll")]
               public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
           }
-
-          [ComImport, Guid("2e941141-7f97-4756-ba1a-9decde894a3d"),
-           InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-          interface IApplicationActivationManager {
-              [PreserveSig]
-              int ActivateApplication(
-                  [In, MarshalAs(UnmanagedType.LPWStr)] string appUserModelId,
-                  [In, MarshalAs(UnmanagedType.LPWStr)] string arguments,
-                  [In] uint options,
-                  [Out] out uint processId);
-          }
-
-          [ComImport, Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")]
-          class ApplicationActivationManager {
-          }
-
-          public static class Q1AppLauncher {
-              public static int Launch(string appUserModelId, string arguments) {
-                  IApplicationActivationManager manager =
-                      (IApplicationActivationManager)new ApplicationActivationManager();
-                  uint processId;
-                  int result = manager.ActivateApplication(appUserModelId, arguments, 0, out processId);
-                  Marshal.ThrowExceptionForHR(result);
-                  return (int)processId;
-              }
-          }
           "@
 
-          $pkg = Get-AppxPackage -Name "KyuwonKim.Q1View"
           $reference = (Resolve-Path "artifacts\screenshots\input\reference.png").Path
           $encoded = (Resolve-Path "artifacts\screenshots\input\encoded.jpg").Path
 
           function Capture-AppWindow([string]$appId, [string]$arguments, [string]$destination) {
-            $appUserModelId = "$($pkg.PackageFamilyName)!$appId"
-            $processId = [Q1AppLauncher]::Launch($appUserModelId, $arguments)
-            $process = Get-Process -Id $processId -ErrorAction Stop
+            $exePath = Join-Path $env:DIST_DIR "$appId.exe"
+            $process = Start-Process -FilePath $exePath -ArgumentList $arguments -PassThru
             try {
               foreach ($attempt in 1..20) {
                 Start-Sleep -Milliseconds 500
@@ -222,7 +193,6 @@ jobs:
             Out-File "artifacts\validation\install-uninstall-result.txt"
 
       - name: Run Windows App Certification Kit
-        continue-on-error: true
         timeout-minutes: 30
         shell: pwsh
         run: |
@@ -246,4 +216,11 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: Q1View-store-validation-trial
-          path: artifacts/
+          path: |
+            artifacts/store-submission/
+            artifacts/screenshots/
+            artifacts/validation/WACKReport.xml
+            artifacts/validation/signature.txt
+            artifacts/validation/installed-package.txt
+            artifacts/validation/install-uninstall-result.txt
+            artifacts/validation/wack-command.txt
