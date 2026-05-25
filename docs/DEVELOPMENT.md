@@ -65,6 +65,64 @@ Application releases publish two user-facing assets:
 Dependency artifact releases are separate build inputs and are not end-user
 application downloads.
 
+## MSIX Packaging
+
+MSIX is required for Microsoft Store submission and supports side-loading on
+Windows 10 (version 1809 or later) and Windows 11.
+
+### Prerequisites
+
+- Windows 10 SDK — provides `makeappx.exe` and `signtool.exe`.
+  Install via Visual Studio Installer → Individual components → Windows 10 SDK.
+- A code-signing certificate whose Subject CN matches the `Publisher` value in
+  `installer/msix/AppxManifest.xml`.
+  - **Microsoft Store**: use the certificate assigned in Partner Center.
+  - **Side-loading / development**: a self-signed certificate works.
+- Logo PNG assets in `installer/msix/Assets/` (see
+  `installer/msix/Assets/README.md` for required sizes).
+
+### Build an MSIX package locally
+
+Build the applications first, then run:
+
+```powershell
+# Stage binaries
+.\build\Package-Q1View.ps1 -Configuration Release -Platform x64
+
+# Create and sign the MSIX
+.\build\Package-Q1ViewMsix.ps1 `
+    -AppVersion 1.0.16.0 `
+    -Publisher "CN=YourPublisherCN"
+```
+
+The signed package is written to `dist\Q1View-windows-x64.msix`.
+
+To validate the manifest without signing:
+
+```powershell
+.\build\Package-Q1ViewMsix.ps1 -AppVersion 1.0.0.0 -SkipSigning
+```
+
+### Manifest
+
+`installer/msix/AppxManifest.xml` defines the package identity, both
+application entry points (Viewer and Comparer), and the `runFullTrust`
+capability required for unpackaged Win32 applications.
+
+Before Store submission, update `Identity/@Publisher` to match the exact
+Publisher string shown in Microsoft Partner Center. The `Version` and
+`Publisher` fields are overridden at build time by `Package-Q1ViewMsix.ps1`.
+
+### Sideloading
+
+To install the MSIX outside the Store:
+
+1. Install the signing certificate as a Trusted Root CA (one-time setup).
+2. Double-click `Q1View-windows-x64.msix` or run:
+   ```powershell
+   Add-AppPackage -Path .\dist\Q1View-windows-x64.msix
+   ```
+
 ## Documentation Assets
 
 Product-facing documentation belongs in `docs/`, with screenshots in
