@@ -757,7 +757,7 @@ void CMainFrame::UpdateCs(const struct qcsc_info* const ci)
 	pDoc->mColorSpace = ci->cs;
 	pDoc->mCsc2Rgb888 = ci->csc2rgb888;
 	pDoc->mCsLoadInfo = ci->cs_load_info;
-	pDoc->mCsSetPixelStr = ci->cs_set_pixel_str;
+	pDoc->mSampleNativePixel = ci->sample_native_pixel;
 
 	RefreshView();
 }

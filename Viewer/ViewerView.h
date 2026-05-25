@@ -92,9 +92,6 @@ protected: // create from serialization only
 	CViewerView();
 	DECLARE_DYNCREATE(CViewerView)
 
-private:
-	char *mStrBuf;
-
 // Attributes
 public:
 	CViewerDoc* GetDocument() const;
@@ -165,6 +162,7 @@ public:
 	bool mShowBoxInfo;
 	bool mWasZoomed;
 	bool mHexMode;
+	bool mShowSourceYuv;
 	const CString mRgbHex;
 	const CString mRgbDec;
 	CString mRgbFormat;
@@ -190,7 +188,8 @@ public:
 	void ChangeZoom(short zDelta, CPoint &pt);
 	cv::Mat CreateRoiMat(int x0, int y0, int w, int h);
 	void ToggleFullScreen();
-	void DrawRgbText(CDC *pDC, q1::GridInfo &gi);
+	void DrawPixelText(CDC *pDC, q1::GridInfo &gi);
+	void DrawPixelValueMode(CDC *pDC);
 	void ToggleHelp();
 	void DrawHelpMenu(CDC *pDC);
 	void DrawCursorCoordinates(CDC *pDC);
