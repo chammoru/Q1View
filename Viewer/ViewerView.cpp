@@ -834,8 +834,8 @@ void CViewerView::DrawPixelValueMode(CDC *pDC)
 	modeFont.CreateFontIndirect(&lf);
 	CFont *prevFont = pDC->SelectObject(&modeFont);
 
-	CString mode = mShowSourceYuv ? _T("PIXEL: YUV SOURCE") :
-		_T("PIXEL: RGB DISPLAY");
+	CString mode = mShowSourceYuv ? _T("PIXEL: Y/U/V SOURCE") :
+		_T("PIXEL: R/G/B DISPLAY");
 	CRect refRect;
 	pDC->DrawText(mode, -1, refRect, DT_SINGLELINE | DT_CALCRECT);
 	CRect bgRect(0, 0, refRect.Width(), refRect.Height());

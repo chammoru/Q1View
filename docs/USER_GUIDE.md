@@ -28,7 +28,8 @@ source-native `Y`, `U`, and `V` values by default. They are sampled from the
 planes in the selected raw layout, including subsampled and 10-bit formats,
 rather than reconstructed from the displayed RGB image. Press `V` to toggle
 between source YUV values and displayed RGB values. A small corner badge
-identifies the active pixel-value mode without adding labels to every pixel.
+identifies the active pixel-value mode and row order (`Y/U/V` or `R/G/B`)
+without adding labels to every pixel.
 Decoded images and video show RGB values only.
 
 ### Controls
