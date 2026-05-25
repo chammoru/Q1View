@@ -43,6 +43,8 @@ CComparerDoc::CComparerDoc()
 , mD(0.f)
 , mN(ZOOM_RATIO(mD))
 , mFrmState("")
+, mPosInfoView(NULL)
+, mFrmsInfoView(NULL)
 , mMaxFrames(0)
 , mMinFrames(0)
 , mFrmCmpStrategy(NULL)
@@ -519,11 +521,14 @@ BOOL CComparerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	CString fileList = lpszPathName == NULL ? _T("") : lpszPathName;
 
-	if (pMainFrm == NULL) {
-		// Command-line open can reach here before the SDI frame exists.
-		// Defer the real open until CMainFrame::ActivateFrame().
+	if (pMainFrm == NULL || !pMainFrm->IsWindowVisible()) {
+		// A startup shell-open can run before the frame views have received
+		// their initial layout. Delay loading until there is a drawable pane.
 		mPendingFile = fileList;
-		::CoInitialize(NULL);
+		if (pMainFrm == NULL)
+			::CoInitialize(NULL);
+		else
+			pMainFrm->PostMessage(WM_OPEN_PENDING_FILE);
 		return TRUE;
 	}
 

@@ -108,6 +108,12 @@ jobs:
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force "artifacts\screenshots" | Out-Null
+          $diagnostics = (New-Item -ItemType Directory -Force "artifacts\diagnostics").FullName
+          $dumpKey = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\Comparer.exe"
+          New-Item -Path $dumpKey -Force | Out-Null
+          New-ItemProperty -Path $dumpKey -Name DumpFolder -PropertyType ExpandString -Value $diagnostics -Force | Out-Null
+          New-ItemProperty -Path $dumpKey -Name DumpType -PropertyType DWord -Value 2 -Force | Out-Null
+          Copy-Item "Comparer\x64\Release\Comparer.pdb" $diagnostics -ErrorAction SilentlyContinue
           Import-Module ServerCore -ErrorAction SilentlyContinue
           if (Get-Command Set-DisplayResolution -ErrorAction SilentlyContinue) {
             Set-DisplayResolution -Width 1920 -Height 1080 -Force
@@ -135,7 +141,9 @@ jobs:
                 Start-Sleep -Milliseconds 500
                 $process.Refresh()
                 if ($process.HasExited) {
-                  throw "$appId exited before its window could be captured."
+                  "$appId exit code before capture: $($process.ExitCode)" |
+                    Out-File "artifacts\diagnostics\process-exits.txt" -Append
+                  throw "$appId exited before its window could be captured (exit code $($process.ExitCode))."
                 }
                 if ($process.MainWindowHandle -ne 0) {
                   break
@@ -148,7 +156,9 @@ jobs:
               Start-Sleep -Seconds 3
               $process.Refresh()
               if ($process.HasExited) {
-                throw "$appId exited after opening its command-line source input."
+                "$appId exit code after open: $($process.ExitCode)" |
+                  Out-File "artifacts\diagnostics\process-exits.txt" -Append
+                throw "$appId exited after opening its command-line source input (exit code $($process.ExitCode))."
               }
 
               $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
@@ -167,6 +177,8 @@ jobs:
                 $graphics.Dispose()
                 $bitmap.Dispose()
               }
+              "$appId remained running through screenshot capture." |
+                Out-File "artifacts\diagnostics\process-exits.txt" -Append
             }
             finally {
               if (-not $process.HasExited) {
@@ -176,7 +188,17 @@ jobs:
           }
 
           Capture-AppWindow "Viewer" "`"$reference`"" "artifacts\screenshots\viewer.png"
-          Capture-AppWindow "Comparer" "`"$reference`" `"$encoded`"" "artifacts\screenshots\comparer.png"
+          try {
+            Capture-AppWindow "Comparer" "`"$reference`" `"$encoded`"" "artifacts\screenshots\comparer.png"
+          }
+          catch {
+            Start-Sleep -Seconds 2
+            Get-WinEvent -FilterHashtable @{LogName="Application"; StartTime=(Get-Date).AddMinutes(-5)} -ErrorAction SilentlyContinue |
+              Where-Object {$_.ProviderName -eq "Application Error" -or $_.ProviderName -eq "Windows Error Reporting"} |
+              Format-List TimeCreated, ProviderName, Id, Message |
+              Out-File "artifacts\diagnostics\application-errors.txt"
+            throw
+          }
 
       - name: Uninstall smoke-tested package
         shell: powershell
@@ -219,6 +241,7 @@ jobs:
           path: |
             artifacts/store-submission/
             artifacts/screenshots/
+            artifacts/diagnostics/
             artifacts/validation/WACKReport.xml
             artifacts/validation/signature.txt
             artifacts/validation/installed-package.txt

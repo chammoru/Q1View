@@ -19,7 +19,13 @@
 // CComparerView
 
 CComparerView::CComparerView()
-: mIsClicked(false)
+: mXDst(0)
+, mYDst(0)
+, mWClient(0)
+, mHClient(0)
+, mWCanvas(0)
+, mHCanvas(0)
+, mIsClicked(false)
 , mProcessing(false)
 , mRgbBufSize(0)
 , mRgbBuf(NULL)
