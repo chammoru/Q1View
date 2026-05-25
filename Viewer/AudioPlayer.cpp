@@ -1,12 +1,10 @@
 #include "stdafx.h"
 #include "AudioPlayer.h"
 #include <mfapi.h>
-#include <propvarutil.h>
 
 #pragma comment(lib, "mfplat.lib")
 #pragma comment(lib, "mfreadwrite.lib")
 #pragma comment(lib, "mfuuid.lib")
-#pragma comment(lib, "Propsys.lib")
 
 using Microsoft::WRL::ComPtr;
 
@@ -107,10 +105,10 @@ void AudioPlayer::Close()
 
 bool AudioPlayer::SeekReader(double timeSec)
 {
-    PROPVARIANT var;
-    InitPropVariantFromInt64(static_cast<LONGLONG>(timeSec * 1e7), &var); // 100-ns units
+    PROPVARIANT var = {};
+    var.vt = VT_I8;
+    var.hVal.QuadPart = static_cast<LONGLONG>(timeSec * 1e7); // 100-ns units
     HRESULT hr = mReader->SetCurrentPosition(GUID_NULL, var);
-    PropVariantClear(&var);
     return SUCCEEDED(hr);
 }
 
