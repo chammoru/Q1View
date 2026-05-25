@@ -1,0 +1,219 @@
+name: Store Validation Trial
+
+on:
+  push:
+    branches:
+      - codex/store-validation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BUILD_CONFIGURATION: Release
+  BUILD_PLATFORM: x64
+  DIST_DIR: dist/Q1View-windows-x64
+  STORE_VERSION: 1.0.16.0
+  STORE_PUBLISHER: CN=A89D24B3-A271-4AE1-9B9E-BFAE414EB0C6
+
+jobs:
+  validate:
+    name: Install, WACK, and capture on Windows
+    runs-on: windows-2022
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Build applications
+        shell: pwsh
+        run: |
+          msbuild Viewer\Viewer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
+          msbuild Comparer\Comparer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
+          .\build\Package-Q1View.ps1 `
+            -Configuration $env:BUILD_CONFIGURATION `
+            -Platform $env:BUILD_PLATFORM `
+            -OutputDir $env:DIST_DIR
+
+      - name: Build Store submission MSIX
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "artifacts\store-submission" | Out-Null
+          .\build\Package-Q1ViewMsix.ps1 `
+            -SourceDir $env:DIST_DIR `
+            -OutputDir "dist" `
+            -AppVersion $env:STORE_VERSION `
+            -Publisher $env:STORE_PUBLISHER `
+            -SkipSigning
+          Copy-Item "dist\Q1View-windows-x64.msix" "artifacts\store-submission\Q1View-windows-x64.msix"
+
+      - name: Create certificate for sideload validation
+        id: dev_cert
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "artifacts\validation" | Out-Null
+          $cert = New-SelfSignedCertificate `
+            -Type Custom `
+            -Subject "CN=Q1ViewValidation" `
+            -KeyUsage DigitalSignature `
+            -FriendlyName "Q1View Store validation" `
+            -CertStoreLocation "Cert:\CurrentUser\My" `
+            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3")
+          $cerPath = Join-Path $PWD "artifacts\validation\Q1ViewValidation.cer"
+          Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
+          Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\LocalMachine\TrustedPeople" | Out-Null
+          "thumbprint=$($cert.Thumbprint)" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Build signed validation MSIX
+        shell: pwsh
+        run: |
+          .\build\Package-Q1ViewMsix.ps1 `
+            -SourceDir $env:DIST_DIR `
+            -OutputDir "dist" `
+            -AppVersion $env:STORE_VERSION `
+            -Publisher "CN=Q1ViewValidation" `
+            -CertificateThumbprint "${{ steps.dev_cert.outputs.thumbprint }}"
+          Copy-Item "dist\Q1View-windows-x64.msix" "artifacts\validation\Q1View-validation.msix"
+          Get-AuthenticodeSignature "artifacts\validation\Q1View-validation.msix" |
+            Format-List * | Out-File "artifacts\validation\signature.txt"
+
+      - name: Install package and record identity
+        shell: pwsh
+        run: |
+          Add-AppxPackage -Path "artifacts\validation\Q1View-validation.msix"
+          $pkg = Get-AppxPackage -Name "KyuwonKim.Q1View"
+          if (-not $pkg) {
+            throw "The installed Q1View validation package was not found."
+          }
+          $pkg | Format-List Name, PackageFullName, PackageFamilyName, InstallLocation, Status |
+            Out-File "artifacts\validation\installed-package.txt"
+
+      - name: Prepare screenshot input images
+        shell: pwsh
+        run: |
+          choco install imagemagick.app --no-progress --yes
+          New-Item -ItemType Directory -Force "artifacts\screenshots\input" | Out-Null
+          $magick = (Get-Command magick.exe -ErrorAction Stop).Source
+          & $magick "docs\images\viewer-video.webp" -crop "960x540+100+108" +repage "artifacts\screenshots\input\reference.png"
+          & $magick "artifacts\screenshots\input\reference.png" -quality 72 "artifacts\screenshots\input\encoded.jpg"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to make screenshot input images."
+          }
+
+      - name: Capture installed application windows
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "artifacts\screenshots" | Out-Null
+          choco install qres --no-progress --yes
+          $qres = Get-Command QRes.exe -ErrorAction SilentlyContinue
+          if ($qres) {
+            & $qres.Source /x:1920 /y:1080
+          }
+
+          Add-Type -AssemblyName System.Drawing
+          Add-Type -AssemblyName System.Windows.Forms
+          Add-Type @"
+          using System;
+          using System.Runtime.InteropServices;
+          public static class Q1WindowTools {
+              [DllImport("user32.dll")]
+              public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+          }
+          "@
+
+          $pkg = Get-AppxPackage -Name "KyuwonKim.Q1View"
+          $reference = (Resolve-Path "artifacts\screenshots\input\reference.png").Path
+          $encoded = (Resolve-Path "artifacts\screenshots\input\encoded.jpg").Path
+
+          function Capture-AppWindow([string]$exeName, [string]$arguments, [string]$destination) {
+            $exePath = Join-Path $pkg.InstallLocation $exeName
+            $process = Start-Process -FilePath $exePath -ArgumentList $arguments -PassThru
+            try {
+              foreach ($attempt in 1..20) {
+                Start-Sleep -Milliseconds 500
+                $process.Refresh()
+                if ($process.HasExited) {
+                  throw "$exeName exited before its window could be captured."
+                }
+                if ($process.MainWindowHandle -ne 0) {
+                  break
+                }
+              }
+              if ($process.MainWindowHandle -eq 0) {
+                throw "No visible window was created for $exeName."
+              }
+              [Q1WindowTools]::ShowWindowAsync($process.MainWindowHandle, 3) | Out-Null
+              Start-Sleep -Seconds 3
+
+              $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+              "$exeName primary screen: $($bounds.Width)x$($bounds.Height)" |
+                Out-File "artifacts\screenshots\display.txt" -Append
+              if ($bounds.Width -lt 1366 -or $bounds.Height -lt 768) {
+                throw "Screen resolution $($bounds.Width)x$($bounds.Height) is below Store screenshot minimum."
+              }
+              $bitmap = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height)
+              $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+              try {
+                $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+                $bitmap.Save($destination, [System.Drawing.Imaging.ImageFormat]::Png)
+              }
+              finally {
+                $graphics.Dispose()
+                $bitmap.Dispose()
+              }
+            }
+            finally {
+              if (-not $process.HasExited) {
+                Stop-Process -Id $process.Id -Force
+              }
+            }
+          }
+
+          Capture-AppWindow "Viewer.exe" "`"$reference`"" "artifacts\screenshots\viewer.png"
+          Capture-AppWindow "Comparer.exe" "`"$reference|$encoded`"" "artifacts\screenshots\comparer.png"
+
+      - name: Uninstall smoke-tested package
+        shell: pwsh
+        run: |
+          $pkg = Get-AppxPackage -Name "KyuwonKim.Q1View"
+          if (-not $pkg) {
+            throw "Q1View package disappeared before uninstall testing."
+          }
+          Remove-AppxPackage -Package $pkg.PackageFullName
+          if (Get-AppxPackage -Name "KyuwonKim.Q1View") {
+            throw "Q1View package was still installed after Remove-AppxPackage."
+          }
+          "Package installed and uninstalled cleanly." |
+            Out-File "artifacts\validation\install-uninstall-result.txt"
+
+      - name: Run Windows App Certification Kit
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: |
+          $appCert = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\App Certification Kit" `
+            -Filter appcert.exe -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $appCert) {
+            throw "appcert.exe was not found on the Windows runner."
+          }
+          "Using WACK: $($appCert.FullName)" | Out-File "artifacts\validation\wack-command.txt"
+          & $appCert.FullName reset
+          & $appCert.FullName test `
+            -appxpackagepath (Resolve-Path "artifacts\validation\Q1View-validation.msix").Path `
+            -reportoutputpath (Join-Path $PWD "artifacts\validation\WACKReport.xml")
+          if ($LASTEXITCODE -ne 0) {
+            throw "WACK failed with exit code $LASTEXITCODE. See WACKReport.xml."
+          }
+
+      - name: Upload validation output
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: Q1View-store-validation-trial
+          path: artifacts/
