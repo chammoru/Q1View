@@ -30,6 +30,31 @@ CComparerApp::CComparerApp()
 
 CComparerApp theApp;
 
+class CComparerCommandLineInfo : public CCommandLineInfo
+{
+public:
+	CString m_strFilesToOpen;
+
+	virtual void ParseParam(const TCHAR* pszParam, BOOL bFlag, BOOL bLast)
+	{
+		if (!bFlag && (m_nShellCommand == FileNew || !m_strFilesToOpen.IsEmpty())) {
+			if (!m_strFilesToOpen.IsEmpty())
+				m_strFilesToOpen += CSV_SEPARATOR;
+			m_strFilesToOpen += pszParam;
+
+			if (bLast) {
+				// Let MFC create the SDI frame without treating a multi-file
+				// list as one shell/MRU path. The app opens these files below.
+				m_nShellCommand = FileNew;
+				m_bShowSplash = FALSE;
+			}
+			return;
+		}
+
+		CCommandLineInfo::ParseParam(pszParam, bFlag, bLast);
+	}
+};
+
 
 // CComparerApp initialization
 
@@ -55,7 +80,7 @@ BOOL CComparerApp::InitInstance()
 
 
 	// Parse command line for standard shell commands, DDE, file open
-	CCommandLineInfo cmdInfo;
+	CComparerCommandLineInfo cmdInfo;
 	ParseCommandLine(cmdInfo);
 
 
@@ -67,6 +92,17 @@ BOOL CComparerApp::InitInstance()
 	// The one and only window has been initialized, so show and update it
 	m_pMainWnd->ShowWindow(SW_SHOW);
 	m_pMainWnd->UpdateWindow();
+
+	if (!cmdInfo.m_strFilesToOpen.IsEmpty()) {
+		CMainFrame *pMainFrm = static_cast<CMainFrame *>(m_pMainWnd);
+		CComparerDoc *pDoc = static_cast<CComparerDoc *>(pMainFrm->GetActiveDocument());
+		if (pDoc == NULL)
+			return FALSE;
+
+		pDoc->mPendingFile = cmdInfo.m_strFilesToOpen;
+		pMainFrm->PostMessage(WM_OPEN_PENDING_FILE);
+	}
+
 	// call DragAcceptFiles only if there's a suffix
 	//  In an SDI app, this should occur after ProcessShellCommand
 	return TRUE;
