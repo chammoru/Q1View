@@ -8,13 +8,12 @@
 
 // Modify the following defines if you have to target a platform prior to the ones specified below.
 // Refer to MSDN for the latest info on corresponding values for different platforms.
-#ifndef WINVER          // Specifies that the minimum required platform is Windows Vista.
-#define WINVER 0x0600   // Change this to the appropriate value to target other versions of Windows.
+#ifndef WINVER          // Minimum required platform: Windows 8 (XAudio2 needs Win8+).
+#define WINVER 0x0602
 #endif
 
-#ifndef _WIN32_WINNT        // Specifies that the minimum required platform is Windows Vista.
-// Change this to the appropriate value to target other versions of Windows.
-#define _WIN32_WINNT 0x0600
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0602
 #endif
 
 #ifndef _WIN32_WINDOWS        // Specifies that the minimum required platform is Windows 98.
