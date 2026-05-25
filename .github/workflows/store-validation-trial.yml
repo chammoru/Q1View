@@ -108,12 +108,6 @@ jobs:
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force "artifacts\screenshots" | Out-Null
-          $diagnostics = (New-Item -ItemType Directory -Force "artifacts\diagnostics").FullName
-          $dumpKey = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\Comparer.exe"
-          New-Item -Path $dumpKey -Force | Out-Null
-          New-ItemProperty -Path $dumpKey -Name DumpFolder -PropertyType ExpandString -Value $diagnostics -Force | Out-Null
-          New-ItemProperty -Path $dumpKey -Name DumpType -PropertyType DWord -Value 2 -Force | Out-Null
-          Copy-Item "Comparer\x64\Release\Comparer.pdb" $diagnostics -ErrorAction SilentlyContinue
           Import-Module ServerCore -ErrorAction SilentlyContinue
           if (Get-Command Set-DisplayResolution -ErrorAction SilentlyContinue) {
             Set-DisplayResolution -Width 1920 -Height 1080 -Force
@@ -142,7 +136,7 @@ jobs:
                 $process.Refresh()
                 if ($process.HasExited) {
                   "$appId exit code before capture: $($process.ExitCode)" |
-                    Out-File "artifacts\diagnostics\process-exits.txt" -Append
+                    Out-File "artifacts\screenshots\capture-result.txt" -Append
                   throw "$appId exited before its window could be captured (exit code $($process.ExitCode))."
                 }
                 if ($process.MainWindowHandle -ne 0) {
@@ -157,7 +151,7 @@ jobs:
               $process.Refresh()
               if ($process.HasExited) {
                 "$appId exit code after open: $($process.ExitCode)" |
-                  Out-File "artifacts\diagnostics\process-exits.txt" -Append
+                  Out-File "artifacts\screenshots\capture-result.txt" -Append
                 throw "$appId exited after opening its command-line source input (exit code $($process.ExitCode))."
               }
 
@@ -178,7 +172,7 @@ jobs:
                 $bitmap.Dispose()
               }
               "$appId remained running through screenshot capture." |
-                Out-File "artifacts\diagnostics\process-exits.txt" -Append
+                Out-File "artifacts\screenshots\capture-result.txt" -Append
             }
             finally {
               if (-not $process.HasExited) {
@@ -188,30 +182,7 @@ jobs:
           }
 
           Capture-AppWindow "Viewer" "`"$reference`"" "artifacts\screenshots\viewer.png"
-          $procdumpZip = Join-Path $env:TEMP "Procdump.zip"
-          $procdumpDir = Join-Path $env:TEMP "Procdump"
-          Invoke-WebRequest "https://download.sysinternals.com/files/Procdump.zip" -OutFile $procdumpZip
-          Expand-Archive -Path $procdumpZip -DestinationPath $procdumpDir -Force
-          $comparerExe = (Resolve-Path (Join-Path $env:DIST_DIR "Comparer.exe")).Path
-          Remove-Item -Path $dumpKey -Recurse -Force
-          & (Join-Path $procdumpDir "procdump64.exe") -accepteula -e 1 -n 1 -x $diagnostics `
-            $comparerExe $reference $encoded
-          Get-Process Comparer -ErrorAction SilentlyContinue | Stop-Process -Force
-          Get-ChildItem $diagnostics | Format-Table Name, Length |
-            Out-File "artifacts\diagnostics\procdump-files.txt"
-          throw "Comparer first-chance diagnostic dump captured; inspect diagnostics artifact."
-
-          try {
-            Capture-AppWindow "Comparer" "`"$reference`" `"$encoded`"" "artifacts\screenshots\comparer.png"
-          }
-          catch {
-            Start-Sleep -Seconds 2
-            Get-WinEvent -FilterHashtable @{LogName="Application"; StartTime=(Get-Date).AddMinutes(-5)} -ErrorAction SilentlyContinue |
-              Where-Object {$_.ProviderName -eq "Application Error" -or $_.ProviderName -eq "Windows Error Reporting"} |
-              Format-List TimeCreated, ProviderName, Id, Message |
-              Out-File "artifacts\diagnostics\application-errors.txt"
-            throw
-          }
+          Capture-AppWindow "Comparer" "`"$reference`" `"$encoded`"" "artifacts\screenshots\comparer.png"
 
       - name: Uninstall smoke-tested package
         shell: powershell
@@ -252,8 +223,8 @@ jobs:
         with:
           name: Q1View-store-validation-trial
           path: |
+            artifacts/store-submission/
             artifacts/screenshots/
-            artifacts/diagnostics/
             artifacts/validation/WACKReport.xml
             artifacts/validation/signature.txt
             artifacts/validation/installed-package.txt
