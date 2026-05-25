@@ -41,15 +41,21 @@ Viewer includes a built-in control panel, opened with `?`.
 | Action | Control |
 | --- | --- |
 | Open a file | Drag and drop or `Ctrl+O` |
+| Paste image from clipboard | `Ctrl+V` |
 | Zoom | Mouse wheel |
 | Full screen | `Return` |
 | Play or pause video | `Space` |
 | Previous or next frame | Left / Right |
 | First or last frame | Home / End |
+| Previous or next file | Page Up / Page Down |
 | Toggle luma-only view | `Y` |
 | Toggle RGB / source YUV pixel values | `V` |
+| Toggle hex pixel values | `H` |
 | Rotate clockwise | `R` |
 | Toggle pixel coordinates | `C` |
+| Toggle box info display | `B` |
+| Toggle pixel interpolation | `I` |
+| Next color space | `N` |
 | Toggle selection mode | `S` |
 | Capture view or selected region | `Ctrl+C` |
 
