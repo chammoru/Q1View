@@ -657,8 +657,16 @@ LRESULT CMainFrame::OnOpenPendingFile(WPARAM, LPARAM)
 	if (pDoc == NULL || pDoc->mPendingFile.IsEmpty())
 		return 0;
 
-	// Wait until startup activation and layout messages have completed before a
-	// multi-source open starts metric calculation and the scan worker.
+	CComparerView *firstView = pDoc->mPane[CComparerDoc::IMG_VIEW_1].pView;
+	if (!IsWindowVisible() || pDoc->mPosInfoView == NULL ||
+		pDoc->mFrmsInfoView == NULL || firstView == NULL ||
+		firstView->mWCanvas <= 0 || firstView->mHCanvas <= 0) {
+		PostMessage(WM_OPEN_PENDING_FILE);
+		return 0;
+	}
+
+	// Multi-source open starts metric calculation and the scan worker; run it
+	// only after the startup frame layout supplies usable view dimensions.
 	CString pendingFile = pDoc->mPendingFile;
 	pDoc->mPendingFile.Empty();
 	pDoc->OnOpenDocument(pendingFile);
