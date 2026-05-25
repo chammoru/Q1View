@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AppxManifest.xml — MSIX package manifest for Q1View.
+
+  Before building for Microsoft Store submission:
+  1. Set Identity/@Publisher to the exact CN from your Store code-signing certificate.
+     In Partner Center: Account settings > Organization profile > Publisher display name.
+     The Publisher value must match the certificate Subject exactly, character for character.
+  2. Identity/@Version and Identity/@Name are set by Package-Q1ViewMsix.ps1 at build time.
+  3. Replace placeholder Assets with properly sized PNG files (see Assets/README.md).
+
+  For local development and sideloading, Publisher="CN=Q1ViewDev" works with any
+  self-signed certificate whose Subject matches that string.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="KyuwonKim.Q1View"
+    Publisher="CN=Q1ViewPublisher"
+    Version="1.0.0.0"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Q1View</DisplayName>
+    <PublisherDisplayName>Kyuwon Kim</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <!--
+      MinVersion 10.0.17763.0 = Windows 10 version 1809 (October 2018 Update).
+      This is the minimum that reliably supports MSIX for desktop Win32 apps.
+      MaxVersionTested should be updated when tested on newer Windows builds.
+    -->
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="10.0.17763.0"
+      MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+
+    <Application
+      Id="Viewer"
+      Executable="Viewer.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Q1View Viewer"
+        Description="Inspect decoded frames, raw pixel buffers, and image files at the pixel level."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile
+          Wide310x150Logo="Assets\Wide310x150Logo.png"
+          ShortName="Viewer" />
+      </uap:VisualElements>
+    </Application>
+
+    <Application
+      Id="Comparer"
+      Executable="Comparer.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Q1View Comparer"
+        Description="Compare image and video sources side by side with PSNR and SSIM metrics."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile
+          Wide310x150Logo="Assets\Wide310x150Logo.png"
+          ShortName="Comparer" />
+      </uap:VisualElements>
+    </Application>
+
+  </Applications>
+
+  <Capabilities>
+    <!--
+      runFullTrust grants the packaged Win32 applications unrestricted access to the
+      system. Required for all non-sandboxed desktop apps. Microsoft Store approves
+      this automatically for desktop application submissions.
+    -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+</Package>
