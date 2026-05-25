@@ -51,6 +51,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_WM_TIMER()
 	ON_WM_DESTROY()
 	ON_WM_CREATE()
+	ON_MESSAGE(WM_OPEN_PENDING_FILE, &CMainFrame::OnOpenPendingFile)
 END_MESSAGE_MAP()
 
 CMainFrame::CMainFrame()
@@ -646,8 +647,21 @@ void CMainFrame::ActivateFrame(int nCmdShow)
 	CFrameWnd::ActivateFrame(nCmdShow);
 
 	CComparerDoc *pDoc = static_cast<CComparerDoc *>(GetActiveDocument());
-	if (pDoc->mPendingFile != "") {
-		pDoc->OnOpenDocument(pDoc->mPendingFile);
-		pDoc->mPendingFile = "";
-	}
+	if (pDoc != NULL && !pDoc->mPendingFile.IsEmpty())
+		PostMessage(WM_OPEN_PENDING_FILE);
+}
+
+LRESULT CMainFrame::OnOpenPendingFile(WPARAM, LPARAM)
+{
+	CComparerDoc *pDoc = static_cast<CComparerDoc *>(GetActiveDocument());
+	if (pDoc == NULL || pDoc->mPendingFile.IsEmpty())
+		return 0;
+
+	// Wait until startup activation and layout messages have completed before a
+	// multi-source open starts metric calculation and the scan worker.
+	CString pendingFile = pDoc->mPendingFile;
+	pDoc->mPendingFile.Empty();
+	pDoc->OnOpenDocument(pendingFile);
+
+	return 0;
 }
