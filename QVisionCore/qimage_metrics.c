@@ -116,7 +116,7 @@ static double ssim_window(qu8 *src, qu8 *dst, int real_w, int px_w)
 double qSSIM(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w)
 {
 	double mean_ssim, total_ssim = 0;
-	int real_w = w * px_w;
+	int real_w = stride * px_w;
 	int i, j;
 	int nW = w - SIZE_N + 1;
 	int nH = h - SIZE_N + 1;
