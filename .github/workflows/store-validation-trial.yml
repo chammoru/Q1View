@@ -188,6 +188,17 @@ jobs:
           }
 
           Capture-AppWindow "Viewer" "`"$reference`"" "artifacts\screenshots\viewer.png"
+          $procdumpZip = Join-Path $env:TEMP "Procdump.zip"
+          $procdumpDir = Join-Path $env:TEMP "Procdump"
+          Invoke-WebRequest "https://download.sysinternals.com/files/Procdump.zip" -OutFile $procdumpZip
+          Expand-Archive -Path $procdumpZip -DestinationPath $procdumpDir -Force
+          $comparerExe = (Resolve-Path (Join-Path $env:DIST_DIR "Comparer.exe")).Path
+          & (Join-Path $procdumpDir "procdump64.exe") -accepteula -ma -e 1 -n 1 -x $diagnostics `
+            $comparerExe $reference $encoded
+          Get-ChildItem $diagnostics | Format-Table Name, Length |
+            Out-File "artifacts\diagnostics\procdump-files.txt"
+          throw "Comparer first-chance diagnostic dump captured; inspect diagnostics artifact."
+
           try {
             Capture-AppWindow "Comparer" "`"$reference`" `"$encoded`"" "artifacts\screenshots\comparer.png"
           }
