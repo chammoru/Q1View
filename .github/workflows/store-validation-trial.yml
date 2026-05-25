@@ -204,7 +204,8 @@ jobs:
             if ($viewerProcess.MainWindowHandle -eq 0) {
               throw "Viewer did not create a window for its Compare action test."
             }
-            [Q1WindowTools]::SendMessage($viewerProcess.MainWindowHandle, 0x0111, [UIntPtr]32771, [IntPtr]::Zero) | Out-Null
+            $compareCommand = [UIntPtr]::new([uint32]32771)
+            [Q1WindowTools]::SendMessage($viewerProcess.MainWindowHandle, 0x0111, $compareCommand, [IntPtr]::Zero) | Out-Null
             foreach ($attempt in 1..20) {
               Start-Sleep -Milliseconds 500
               $comparerProcess = Get-Process -Name "Comparer" -ErrorAction SilentlyContinue |
