@@ -193,8 +193,10 @@ jobs:
           Invoke-WebRequest "https://download.sysinternals.com/files/Procdump.zip" -OutFile $procdumpZip
           Expand-Archive -Path $procdumpZip -DestinationPath $procdumpDir -Force
           $comparerExe = (Resolve-Path (Join-Path $env:DIST_DIR "Comparer.exe")).Path
-          & (Join-Path $procdumpDir "procdump64.exe") -accepteula -ma -e 1 -n 1 -x $diagnostics `
+          Remove-Item -Path $dumpKey -Recurse -Force
+          & (Join-Path $procdumpDir "procdump64.exe") -accepteula -e 1 -n 1 -x $diagnostics `
             $comparerExe $reference $encoded
+          Get-Process Comparer -ErrorAction SilentlyContinue | Stop-Process -Force
           Get-ChildItem $diagnostics | Format-Table Name, Length |
             Out-File "artifacts\diagnostics\procdump-files.txt"
           throw "Comparer first-chance diagnostic dump captured; inspect diagnostics artifact."
@@ -250,7 +252,6 @@ jobs:
         with:
           name: Q1View-store-validation-trial
           path: |
-            artifacts/store-submission/
             artifacts/screenshots/
             artifacts/diagnostics/
             artifacts/validation/WACKReport.xml
