@@ -35,9 +35,14 @@ class CComparerCommandLineInfo : public CCommandLineInfo
 public:
 	virtual void ParseParam(const TCHAR* pszParam, BOOL bFlag, BOOL bLast)
 	{
-		if (!bFlag && m_nShellCommand == FileOpen && !m_strFileName.IsEmpty()) {
+		if (!bFlag && !m_strFileName.IsEmpty() &&
+			(m_nShellCommand == FileNew || m_nShellCommand == FileOpen)) {
 			m_strFileName += CSV_SEPARATOR;
 			m_strFileName += pszParam;
+			if (bLast) {
+				m_nShellCommand = FileOpen;
+				m_bShowSplash = FALSE;
+			}
 			return;
 		}
 
