@@ -105,9 +105,11 @@ To validate the manifest without signing:
 
 ### Manifest
 
-`installer/msix/AppxManifest.xml` defines the package identity, both
-application entry points (Viewer and Comparer), and the `runFullTrust`
-capability required for unpackaged Win32 applications.
+`installer/msix/AppxManifest.xml` defines the package identity, the Viewer
+application entry point, and the `runFullTrust` capability required for
+packaged Win32 applications. `Comparer.exe` remains in the MSIX payload and
+is launched through Viewer's **Compare** action; declaring it as a second
+Store entry point fails WACK package compliance.
 
 Before Store submission, update `Identity/@Publisher` to match the exact
 Publisher string shown in Microsoft Partner Center. The `Version` and
