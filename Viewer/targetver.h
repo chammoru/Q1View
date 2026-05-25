@@ -8,12 +8,12 @@
 
 // Modify the following defines if you have to target a platform prior to the ones specified below.
 // Refer to MSDN for the latest info on corresponding values for different platforms.
-#ifndef WINVER          // Minimum required platform: Windows 8 (XAudio2 needs Win8+).
-#define WINVER 0x0602
+#ifndef WINVER          // Minimum required platform: Windows 10 (matches the MSIX target;
+#define WINVER 0x0A00   // gives us the inline XAudio2Create from xaudio2.h).
 #endif
 
 #ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0602
+#define _WIN32_WINNT 0x0A00
 #endif
 
 #ifndef _WIN32_WINDOWS        // Specifies that the minimum required platform is Windows 98.
