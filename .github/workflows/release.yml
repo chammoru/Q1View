@@ -121,6 +121,17 @@ jobs:
             "$env:DIST_DIR\Comparer.exe"
           )
 
+      - name: Build MSIX package
+        shell: pwsh
+        run: |
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          .\build\Package-Q1ViewMsix.ps1 `
+            -SourceDir $env:DIST_DIR `
+            -OutputDir "dist" `
+            -AppVersion "${{ steps.release_info.outputs.app_version }}.0" `
+            -Publisher "CN=A89D24B3-A271-4AE1-9B9E-BFAE414EB0C6" `
+            -SkipSigning
+
       - name: Package zip
         shell: pwsh
         run: |
@@ -158,6 +169,7 @@ jobs:
           path: |
             Q1View-windows-x64.zip
             dist/${{ env.INSTALLER_FILE }}
+            dist/Q1View-windows-x64.msix
             ${{ env.DIST_DIR }}/*
 
       - name: Create GitHub release
@@ -171,6 +183,7 @@ jobs:
           files: |
             dist/${{ env.INSTALLER_FILE }}
             Q1View-windows-x64.zip
+            dist/Q1View-windows-x64.msix
 
       - name: Remove redundant assets from application releases
         if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.create_release)
