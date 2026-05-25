@@ -109,10 +109,9 @@ jobs:
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force "artifacts\screenshots" | Out-Null
-          choco install qres --no-progress --yes
-          $qres = Get-Command QRes.exe -ErrorAction SilentlyContinue
-          if ($qres) {
-            & $qres.Source /x:1920 /y:1080
+          Import-Module ServerCore -ErrorAction SilentlyContinue
+          if (Get-Command Set-DisplayResolution -ErrorAction SilentlyContinue) {
+            Set-DisplayResolution -Width 1920 -Height 1080 -Force
           }
 
           Add-Type -AssemblyName System.Drawing
@@ -124,38 +123,65 @@ jobs:
               [DllImport("user32.dll")]
               public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
           }
+
+          [ComImport, Guid("2e941141-7f97-4756-ba1a-9decde894a3d"),
+           InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+          interface IApplicationActivationManager {
+              [PreserveSig]
+              int ActivateApplication(
+                  [In, MarshalAs(UnmanagedType.LPWStr)] string appUserModelId,
+                  [In, MarshalAs(UnmanagedType.LPWStr)] string arguments,
+                  [In] uint options,
+                  [Out] out uint processId);
+          }
+
+          [ComImport, Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")]
+          class ApplicationActivationManager {
+          }
+
+          public static class Q1AppLauncher {
+              public static int Launch(string appUserModelId, string arguments) {
+                  IApplicationActivationManager manager =
+                      (IApplicationActivationManager)new ApplicationActivationManager();
+                  uint processId;
+                  int result = manager.ActivateApplication(appUserModelId, arguments, 0, out processId);
+                  Marshal.ThrowExceptionForHR(result);
+                  return (int)processId;
+              }
+          }
           "@
 
           $pkg = Get-AppxPackage -Name "KyuwonKim.Q1View"
           $reference = (Resolve-Path "artifacts\screenshots\input\reference.png").Path
           $encoded = (Resolve-Path "artifacts\screenshots\input\encoded.jpg").Path
 
-          function Capture-AppWindow([string]$exeName, [string]$arguments, [string]$destination) {
-            $exePath = Join-Path $pkg.InstallLocation $exeName
-            $process = Start-Process -FilePath $exePath -ArgumentList $arguments -PassThru
+          function Capture-AppWindow([string]$appId, [string]$arguments, [string]$destination) {
+            $appUserModelId = "$($pkg.PackageFamilyName)!$appId"
+            $processId = [Q1AppLauncher]::Launch($appUserModelId, $arguments)
+            $process = Get-Process -Id $processId -ErrorAction Stop
             try {
               foreach ($attempt in 1..20) {
                 Start-Sleep -Milliseconds 500
                 $process.Refresh()
                 if ($process.HasExited) {
-                  throw "$exeName exited before its window could be captured."
+                  throw "$appId exited before its window could be captured."
                 }
                 if ($process.MainWindowHandle -ne 0) {
                   break
                 }
               }
               if ($process.MainWindowHandle -eq 0) {
-                throw "No visible window was created for $exeName."
+                throw "No visible window was created for $appId."
               }
               [Q1WindowTools]::ShowWindowAsync($process.MainWindowHandle, 3) | Out-Null
               Start-Sleep -Seconds 3
               $process.Refresh()
               if ($process.HasExited) {
-                throw "$exeName exited after opening its command-line source input."
+                throw "$appId exited after opening its command-line source input."
               }
 
               $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-              "$exeName primary screen: $($bounds.Width)x$($bounds.Height)" |
+              "$appId primary screen: $($bounds.Width)x$($bounds.Height)" |
                 Out-File "artifacts\screenshots\display.txt" -Append
               if ($bounds.Width -lt 1366 -or $bounds.Height -lt 768) {
                 throw "Screen resolution $($bounds.Width)x$($bounds.Height) is below Store screenshot minimum."
@@ -178,8 +204,8 @@ jobs:
             }
           }
 
-          Capture-AppWindow "Viewer.exe" "`"$reference`"" "artifacts\screenshots\viewer.png"
-          Capture-AppWindow "Comparer.exe" "`"$reference`" `"$encoded`"" "artifacts\screenshots\comparer.png"
+          Capture-AppWindow "Viewer" "`"$reference`"" "artifacts\screenshots\viewer.png"
+          Capture-AppWindow "Comparer" "`"$reference`" `"$encoded`"" "artifacts\screenshots\comparer.png"
 
       - name: Uninstall smoke-tested package
         shell: powershell
