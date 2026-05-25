@@ -13,6 +13,8 @@
 #define FRAMES_INFO_H         84
 #define POS_INFO_W            76
 
+#define WM_OPEN_PENDING_FILE  (WM_APP + 1)
+
 #define COMPARER_DEF_W        (CANVAS_DEF_W + /* left */ \
                               (CANVAS_DEF_W + QSPLITTER_W) + /* right */ \
                               (POS_INFO_W + QSPLITTER_W)) /* position */
@@ -98,6 +100,7 @@ public:
 	afx_msg void OnFpsChange(UINT nID);
 	afx_msg void OnViewsChange(UINT nID);
 	afx_msg void OnOptionsChange(UINT nID);
+	afx_msg LRESULT OnOpenPendingFile(WPARAM wParam, LPARAM lParam);
 	virtual void ActivateFrame(int nCmdShow = -1);
 };
 

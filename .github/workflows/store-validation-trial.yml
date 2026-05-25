@@ -149,6 +149,10 @@ jobs:
               }
               [Q1WindowTools]::ShowWindowAsync($process.MainWindowHandle, 3) | Out-Null
               Start-Sleep -Seconds 3
+              $process.Refresh()
+              if ($process.HasExited) {
+                throw "$exeName exited after opening its command-line source input."
+              }
 
               $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
               "$exeName primary screen: $($bounds.Width)x$($bounds.Height)" |
