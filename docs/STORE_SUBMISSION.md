@@ -33,7 +33,7 @@ msbuild Comparer\Comparer.sln /m /restore /p:Configuration=Release /p:Platform=x
 #    Publisher must exactly match your Partner Center certificate Subject.
 .\build\Package-Q1ViewMsix.ps1 `
     -AppVersion 1.0.16.0 `
-    -Publisher "CN=<your-publisher-cn>"
+    -Publisher "CN=A89D24B3-A271-4AE1-9B9E-BFAE414EB0C6"
 ```
 
 The signed package is written to `dist\Q1View-windows-x64.msix`.
