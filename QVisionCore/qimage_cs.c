@@ -32,14 +32,16 @@ void qimage_yuv420_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 	int r, g, b;
 	qu8 *cy, *cu, *cv;
 	int gap;
+	int chroma_w;
 
-	gap  = (s_bgr - ROUNDUP_EVEN(w)) * 3;
+	gap = (s_bgr - w) * 3;
+	chroma_w = (w + 1) >> 1;
 
 	for (i = 0; i < h; i++)
 	{
 		cy = y + i * w;
-		cu = u + (i >> 1) * (w >> 1);
-		cv = v + (i >> 1) * (w >> 1);
+		cu = u + (i >> 1) * chroma_w;
+		cv = v + (i >> 1) * chroma_w;
 
 		for (j = 0; j < w; j += 2)
 		{
@@ -55,15 +57,17 @@ void qimage_yuv420_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 			*bgr++ = SAT_S32_TO_U8(g >> 8);
 			*bgr++ = SAT_S32_TO_U8(r >> 8);
 
-			c = (*cy++ - 16) * 298 - c;
+			if (j + 1 < w) {
+				c = (*cy++ - 16) * 298 - c;
 
-			r += c;
-			g += c;
-			b += c;
+				r += c;
+				g += c;
+				b += c;
 
-			*bgr++ = SAT_S32_TO_U8(b >> 8);
-			*bgr++ = SAT_S32_TO_U8(g >> 8);
-			*bgr++ = SAT_S32_TO_U8(r >> 8);
+				*bgr++ = SAT_S32_TO_U8(b >> 8);
+				*bgr++ = SAT_S32_TO_U8(g >> 8);
+				*bgr++ = SAT_S32_TO_U8(r >> 8);
+			}
 		}
 
 		bgr += gap;
@@ -92,16 +96,18 @@ void qimage_nv12_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 	int r, g, b;
 	qu8 *cy, *cu, *cv;
 	int gap;
+	int chroma_stride;
 
-	gap = (s_bgr - ROUNDUP_EVEN(w)) * 3;
+	gap = (s_bgr - w) * 3;
+	chroma_stride = ROUNDUP_EVEN(w);
 
 	for (i = 0; i < h; i++)
 	{
 		cy = y + i * w;
-		cu = u + (i >> 1) * w;
+		cu = u + (i >> 1) * chroma_stride;
 		cv = cu + 1;
 
-		for (j = 0; j < w; j += 2) // assume even width
+		for (j = 0; j < w; j += 2)
 		{
 			c = *cy++ - 16;
 			d = *cu - 128;
@@ -118,15 +124,17 @@ void qimage_nv12_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 			*bgr++ = SAT_S32_TO_U8(g);
 			*bgr++ = SAT_S32_TO_U8(r);
 
-			c = *cy++ - 16;
+			if (j + 1 < w) {
+				c = *cy++ - 16;
 
-			b = (298 * c + 516 * d           + 128) >> 8;
-			g = (298 * c - 100 * d - 208 * e + 128) >> 8;
-			r = (298 * c           + 409 * e + 128) >> 8;
+				b = (298 * c + 516 * d           + 128) >> 8;
+				g = (298 * c - 100 * d - 208 * e + 128) >> 8;
+				r = (298 * c           + 409 * e + 128) >> 8;
 
-			*bgr++ = SAT_S32_TO_U8(b);
-			*bgr++ = SAT_S32_TO_U8(g);
-			*bgr++ = SAT_S32_TO_U8(r);
+				*bgr++ = SAT_S32_TO_U8(b);
+				*bgr++ = SAT_S32_TO_U8(g);
+				*bgr++ = SAT_S32_TO_U8(r);
+			}
 		}
 
 		bgr += gap;
@@ -175,16 +183,18 @@ void qimage_nv21_to_bgr888(qu8 *bgr, qu8 *y, qu8 *v, qu8 *u,
 	int r, g, b;
 	qu8 *cy, *cu, *cv;
 	int gap;
+	int chroma_stride;
 
-	gap = (s_bgr - ROUNDUP_EVEN(w)) * 3;
+	gap = (s_bgr - w) * 3;
+	chroma_stride = ROUNDUP_EVEN(w);
 
 	for (i = 0; i < h; i++)
 	{
 		cy = y + i * w;
-		cv = v + (i >> 1) * w;
+		cv = v + (i >> 1) * chroma_stride;
 		cu = cv + 1;
 
-		for (j = 0; j < w; j += 2) // assume even width
+		for (j = 0; j < w; j += 2)
 		{
 			c = *cy++ - 16;
 			d = *cu - 128;
@@ -201,15 +211,17 @@ void qimage_nv21_to_bgr888(qu8 *bgr, qu8 *y, qu8 *v, qu8 *u,
 			*bgr++ = SAT_S32_TO_U8(g);
 			*bgr++ = SAT_S32_TO_U8(r);
 
-			c = *cy++ - 16;
+			if (j + 1 < w) {
+				c = *cy++ - 16;
 
-			b = (298 * c + 516 * d           + 128) >> 8;
-			g = (298 * c - 100 * d - 208 * e + 128) >> 8;
-			r = (298 * c           + 409 * e + 128) >> 8;
+				b = (298 * c + 516 * d           + 128) >> 8;
+				g = (298 * c - 100 * d - 208 * e + 128) >> 8;
+				r = (298 * c           + 409 * e + 128) >> 8;
 
-			*bgr++ = SAT_S32_TO_U8(b);
-			*bgr++ = SAT_S32_TO_U8(g);
-			*bgr++ = SAT_S32_TO_U8(r);
+				*bgr++ = SAT_S32_TO_U8(b);
+				*bgr++ = SAT_S32_TO_U8(g);
+				*bgr++ = SAT_S32_TO_U8(r);
+			}
 		}
 
 		bgr += gap;
@@ -617,15 +629,17 @@ void qimage_t256x16_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 					*dst++ = SAT_S32_TO_U8(g);
 					*dst++ = SAT_S32_TO_U8(r);
 
-					c = *cy++ - 16;
+					if (l + 1 < tile_w) {
+						c = *cy++ - 16;
 
-					b = (298 * c + 516 * d           + 128) >> 8;
-					g = (298 * c - 100 * d - 208 * e + 128) >> 8;
-					r = (298 * c           + 409 * e + 128) >> 8;
+						b = (298 * c + 516 * d           + 128) >> 8;
+						g = (298 * c - 100 * d - 208 * e + 128) >> 8;
+						r = (298 * c           + 409 * e + 128) >> 8;
 
-					*dst++ = SAT_S32_TO_U8(b);
-					*dst++ = SAT_S32_TO_U8(g);
-					*dst++ = SAT_S32_TO_U8(r);
+						*dst++ = SAT_S32_TO_U8(b);
+						*dst++ = SAT_S32_TO_U8(g);
+						*dst++ = SAT_S32_TO_U8(r);
+					}
 				}
 			}
 		}
@@ -706,18 +720,20 @@ void qimage_yuv420p10le_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 	qu16 *cy, *cu, *cv;
 	qu8 y3, u3, v3;
 	int gap;
+	int chroma_w;
 
 	y2 = (qu16 *)y;
 	u2 = (qu16 *)u;
 	v2 = (qu16 *)v;
 
-	gap = (s_bgr - ROUNDUP_EVEN(w)) * 3;
+	gap = (s_bgr - w) * 3;
+	chroma_w = (w + 1) >> 1;
 
 	for (i = 0; i < h; i++)
 	{
 		cy = y2 + i * w;
-		cu = u2 + (i >> 1) * (w >> 1);
-		cv = v2 + (i >> 1) * (w >> 1);
+		cu = u2 + (i >> 1) * chroma_w;
+		cv = v2 + (i >> 1) * chroma_w;
 
 		for (j = 0; j < w; j += 2)
 		{
@@ -737,17 +753,19 @@ void qimage_yuv420p10le_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 			*bgr++ = SAT_S32_TO_U8(g >> 8);
 			*bgr++ = SAT_S32_TO_U8(r >> 8);
 
-			y3 = *cy++ >> 2;
+			if (j + 1 < w) {
+				y3 = *cy++ >> 2;
 
-			c = (y3 - 16) * 298 - c;
+				c = (y3 - 16) * 298 - c;
 
-			r += c;
-			g += c;
-			b += c;
+				r += c;
+				g += c;
+				b += c;
 
-			*bgr++ = SAT_S32_TO_U8(b >> 8);
-			*bgr++ = SAT_S32_TO_U8(g >> 8);
-			*bgr++ = SAT_S32_TO_U8(r >> 8);
+				*bgr++ = SAT_S32_TO_U8(b >> 8);
+				*bgr++ = SAT_S32_TO_U8(g >> 8);
+				*bgr++ = SAT_S32_TO_U8(r >> 8);
+			}
 		}
 
 		bgr += gap;
@@ -764,18 +782,20 @@ void qimage_yuv422p10le_to_bgr888(qu8* bgr, qu8* y, qu8* u, qu8* v,
 	qu16* cy, * cu, * cv;
 	qu8 y3, u3, v3;
 	int gap;
+	int chroma_w;
 
 	y2 = (qu16*)y;
 	u2 = (qu16*)u;
 	v2 = (qu16*)v;
 
-	gap = (s_bgr - ROUNDUP_EVEN(w)) * 3;
+	gap = (s_bgr - w) * 3;
+	chroma_w = (w + 1) >> 1;
 
 	for (i = 0; i < h; i++)
 	{
 		cy = y2 + i * w;
-		cu = u2 + i * (w >> 1);
-		cv = v2 + i * (w >> 1);
+		cu = u2 + i * chroma_w;
+		cv = v2 + i * chroma_w;
 
 		for (j = 0; j < w; j += 2)
 		{
@@ -795,17 +815,19 @@ void qimage_yuv422p10le_to_bgr888(qu8* bgr, qu8* y, qu8* u, qu8* v,
 			*bgr++ = SAT_S32_TO_U8(g >> 8);
 			*bgr++ = SAT_S32_TO_U8(r >> 8);
 
-			y3 = *cy++ >> 2;
+			if (j + 1 < w) {
+				y3 = *cy++ >> 2;
 
-			c = (y3 - 16) * 298 - c;
+				c = (y3 - 16) * 298 - c;
 
-			r += c;
-			g += c;
-			b += c;
+				r += c;
+				g += c;
+				b += c;
 
-			*bgr++ = SAT_S32_TO_U8(b >> 8);
-			*bgr++ = SAT_S32_TO_U8(g >> 8);
-			*bgr++ = SAT_S32_TO_U8(r >> 8);
+				*bgr++ = SAT_S32_TO_U8(b >> 8);
+				*bgr++ = SAT_S32_TO_U8(g >> 8);
+				*bgr++ = SAT_S32_TO_U8(r >> 8);
+			}
 		}
 
 		bgr += gap;
@@ -852,19 +874,21 @@ void qimage_p010_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 	qu16 *cy, *cu, *cv;
 	qu8 y3, u3, v3;
 	int gap;
+	int chroma_stride;
 
 	y2 = (qu16 *)y;
 	u2 = (qu16 *)u;
 
-	gap = (s_bgr - ROUNDUP_EVEN(w)) * 3;
+	gap = (s_bgr - w) * 3;
+	chroma_stride = ROUNDUP_EVEN(w);
 
 	for (i = 0; i < h; i++)
 	{
 		cy = y2 + i * w;
-		cu = u2 + (i >> 1) * w;
+		cu = u2 + (i >> 1) * chroma_stride;
 		cv = cu + 1;
 
-		for (j = 0; j < w; j += 2) // assume even width
+		for (j = 0; j < w; j += 2)
 		{
 			y3 = *cy++ >> 8;
 			u3 = *cu >> 8;
@@ -885,17 +909,19 @@ void qimage_p010_to_bgr888(qu8 *bgr, qu8 *y, qu8 *u, qu8 *v,
 			*bgr++ = SAT_S32_TO_U8(g >> 8);
 			*bgr++ = SAT_S32_TO_U8(r >> 8);
 
-			y3 = *cy++ >> 8;
+			if (j + 1 < w) {
+				y3 = *cy++ >> 8;
 
-			c = (y3 - 16) * 298 - c;
+				c = (y3 - 16) * 298 - c;
 
-			b += c;
-			g += c;
-			r += c;
+				b += c;
+				g += c;
+				r += c;
 
-			*bgr++ = SAT_S32_TO_U8(b >> 8);
-			*bgr++ = SAT_S32_TO_U8(g >> 8);
-			*bgr++ = SAT_S32_TO_U8(r >> 8);
+				*bgr++ = SAT_S32_TO_U8(b >> 8);
+				*bgr++ = SAT_S32_TO_U8(g >> 8);
+				*bgr++ = SAT_S32_TO_U8(r >> 8);
+			}
 		}
 
 		bgr += gap;
@@ -912,19 +938,21 @@ void qimage_p210_to_bgr888(qu8* bgr, qu8* y, qu8* u, qu8* v,
 	qu16* cy, * cu, * cv;
 	qu8 y3, u3, v3;
 	int gap;
+	int chroma_stride;
 
 	y2 = (qu16*)y;
 	u2 = (qu16*)u;
 
-	gap = (s_bgr - ROUNDUP_EVEN(w)) * 3;
+	gap = (s_bgr - w) * 3;
+	chroma_stride = ROUNDUP_EVEN(w);
 
 	for (i = 0; i < h; i++)
 	{
 		cy = y2 + i * w;
-		cu = u2 + i * w;
+		cu = u2 + i * chroma_stride;
 		cv = cu + 1;
 
-		for (j = 0; j < w; j += 2) // assume even width
+		for (j = 0; j < w; j += 2)
 		{
 			y3 = *cy++ >> 8;
 			u3 = *cu >> 8;
@@ -945,17 +973,19 @@ void qimage_p210_to_bgr888(qu8* bgr, qu8* y, qu8* u, qu8* v,
 			*bgr++ = SAT_S32_TO_U8(g >> 8);
 			*bgr++ = SAT_S32_TO_U8(r >> 8);
 
-			y3 = *cy++ >> 8;
+			if (j + 1 < w) {
+				y3 = *cy++ >> 8;
 
-			c = (y3 - 16) * 298 - c;
+				c = (y3 - 16) * 298 - c;
 
-			b += c;
-			g += c;
-			r += c;
+				b += c;
+				g += c;
+				r += c;
 
-			*bgr++ = SAT_S32_TO_U8(b >> 8);
-			*bgr++ = SAT_S32_TO_U8(g >> 8);
-			*bgr++ = SAT_S32_TO_U8(r >> 8);
+				*bgr++ = SAT_S32_TO_U8(b >> 8);
+				*bgr++ = SAT_S32_TO_U8(g >> 8);
+				*bgr++ = SAT_S32_TO_U8(r >> 8);
+			}
 		}
 
 		bgr += gap;
@@ -1025,7 +1055,7 @@ void qimage_yuv420_set_pixel_str(qu8* src, int w, int h,
 {
 	int luma_size = w * h;
 	int chroma_size = ((w + 1) >> 1) * ((h + 1) >> 1);
-	int w_chroma = w >> 1;
+	int w_chroma = (w + 1) >> 1;
 	int x_chroma = x >> 1;
 	int y_chroma = y >> 1;
 

@@ -75,6 +75,8 @@ The same reference and encoded image below are shown with SSIM selected:
 ## Input Notes
 
 - HEIF/HEIC/HIF and AVIF still images are supported by both applications.
+- Linear YUV raw inputs support odd dimensions such as `321x241`, with the
+  resolution and color-space token supplied in the file name.
 - The portable package and installer include the required runtime libraries.
 - Unicode paths are supported, including Korean file and directory names.
 - Video decoding depends on the codecs supported by the bundled OpenCV/FFmpeg
