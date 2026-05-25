@@ -82,7 +82,7 @@ jobs:
             Format-List * | Out-File "artifacts\validation\signature.txt"
 
       - name: Install package and record identity
-        shell: pwsh
+        shell: powershell
         run: |
           Add-AppxPackage -Path "artifacts\validation\Q1View-validation.msix"
           $pkg = Get-AppxPackage -Name "KyuwonKim.Q1View"
@@ -106,7 +106,7 @@ jobs:
 
       - name: Capture installed application windows
         continue-on-error: true
-        shell: pwsh
+        shell: powershell
         run: |
           New-Item -ItemType Directory -Force "artifacts\screenshots" | Out-Null
           choco install qres --no-progress --yes
@@ -182,7 +182,7 @@ jobs:
           Capture-AppWindow "Comparer.exe" "`"$reference`" `"$encoded`"" "artifacts\screenshots\comparer.png"
 
       - name: Uninstall smoke-tested package
-        shell: pwsh
+        shell: powershell
         run: |
           $pkg = Get-AppxPackage -Name "KyuwonKim.Q1View"
           if (-not $pkg) {
