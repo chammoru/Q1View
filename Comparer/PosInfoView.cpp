@@ -59,6 +59,21 @@ void CPosInfoView::OnInitialUpdate()
 	CScrollView::OnInitialUpdate();
 }
 
+static void DrawDiffPosLines(CDC *pDC, CRect *frameRect, bool *flags, int n)
+{
+	int top = frameRect->top + 1;
+	int left = frameRect->left + 1;
+	int right = frameRect->right - 1;
+
+	for (int i = 0; i < n; i++) {
+		if (flags[i] == false)
+			continue;
+
+		pDC->MoveTo(left, top + i);
+		pDC->LineTo(right, top + i);
+	}
+}
+
 void CPosInfoView::DrawEachRect(CDC* pDC,
 								ComparerPane *pane,
 								CRect *frameRect,
@@ -83,9 +98,19 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 	pDC->FillSolidRect(frameRect, frameColor);
 	pDC->Draw3dRect(frameRect, Q1UI_COLOR_SURFACE, Q1UI_COLOR_SURFACE);
 
-	// Per-row red diff lines have been replaced by the pink grid overlay in
-	// ComparerView. Pilot keeps the frame tiles for video-frame selection but
-	// no longer draws the per-row indicators.
+	// Keep the timeline overview for video sources; the pink overlay only
+	// describes differences in the currently displayed frame.
+	if (parseDone) {
+		CPen *prev = pDC->SelectObject(mDiffPen);
+		IFrmCmpStrategy *frmCmpStrategy = pDoc->mFrmCmpStrategy;
+		list<RLC> diffRLC[QPLANES];
+
+		if (frmCmpStrategy && mFileScanThread->copyDiffRLC(i, diffRLC)) {
+			frmCmpStrategy->FlagTotalDiffLine(diffRLC, mDiffFlags, mPosLinesPerFrame);
+			DrawDiffPosLines(pDC, frameRect, mDiffFlags, mPosLinesPerFrame);
+		}
+		pDC->SelectObject(prev);
+	}
 
 	const COLORREF curIdColor = Q1UI_COLOR_ACCENT;
 	COLORREF preColor;
