@@ -89,7 +89,28 @@ bool AudioPlayer::Open(const wchar_t* filePath)
     mSourceVoice = src;
     mWfx         = wfx;
     mHasAudio    = true;
+    ApplyVolume();
     return true;
+}
+
+void AudioPlayer::SetVolume(float volume)
+{
+    if (volume < 0.0f) volume = 0.0f;
+    if (volume > 1.0f) volume = 1.0f;
+    mVolume = volume;
+    ApplyVolume();
+}
+
+void AudioPlayer::SetMuted(bool muted)
+{
+    mMuted = muted;
+    ApplyVolume();
+}
+
+void AudioPlayer::ApplyVolume()
+{
+    if (mSourceVoice)
+        mSourceVoice->SetVolume(mMuted ? 0.0f : mVolume);
 }
 
 void AudioPlayer::Close()
