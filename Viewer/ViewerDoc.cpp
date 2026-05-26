@@ -194,6 +194,7 @@ void CViewerDoc::LoadSourceImage(bool adjustWindow)
 	mBufferQueue->destroy();
 
 	pView->KillPlayTimer();
+	pView->mAudioPlayer.Close();
 	pView->mSelRegions.clear();
 
 	int w = mW, h = mH;
