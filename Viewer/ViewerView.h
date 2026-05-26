@@ -153,6 +153,11 @@ public:
 	bool mKeyProcessing;
 
 	CRect mRcProgress;
+	CRect mRcVolume;
+	CRect mRcMute;
+	float mVolume;
+	bool  mVolumeMuted;
+	bool  mVolumeDragging;
 	CMenu mMouseMenu;
 
 	bool mSelMode;
@@ -177,6 +182,9 @@ public:
 public:
 	void AdjustWindowSize();
 	void ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID);
+	void UpdateVolumeFromPoint(CPoint point);
+	void DrawMuteButton(CDC *pDC, const CRect &rect);
+	void ToggleMute();
 	void SetPlayTimer(CViewerDoc* pDoc);
 	void KillPlayTimer();
 	void KillPlayTimerSafe();

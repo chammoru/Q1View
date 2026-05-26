@@ -160,6 +160,11 @@ CViewerView::CViewerView()
 	memset(&mStableRgbBufferInfo, 0, sizeof(BufferInfo));
 
 	mRcProgress.SetRectEmpty();
+	mRcVolume.SetRectEmpty();
+	mRcMute.SetRectEmpty();
+	mVolume         = 1.0f;
+	mVolumeMuted    = false;
+	mVolumeDragging = false;
 
 	mMouseMenu.CreatePopupMenu();
 	CString str;
@@ -293,10 +298,12 @@ void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool pr
 void CViewerView::ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID)
 {
 	const int barMargin = MARGIN_PROGESS_BAR;
+	const int volWidth  = 64;
+	const int volGap    = 6;
+	const int muteSize  = PROGRESS_BAR_H - barMargin * 2; // square button inside the band
+	const int muteGap   = 6;
 
 	int frameMax = pDoc->mFrames - 1;
-	int limit =
-		ROUND2I((mWClient - (barMargin << 1)) * frameID / (float)frameMax);
 
 	CString str;
 	str.Format(_T("%d / %d"), frameID, frameMax);
@@ -304,28 +311,120 @@ void CViewerView::ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID)
 	CRect progressBand(0, mHCanvas, mWClient, mHClient);
 	pDC->FillSolidRect(progressBand, Q1UI_COLOR_SURFACE_ALT);
 
-	CRect barTextRect, barRect;
-	CRect trackRect;
-
-	trackRect.top = mHCanvas + barMargin;
-	trackRect.left = barMargin;
-	trackRect.bottom = mHClient - barMargin;
-	trackRect.right = mWClient - barMargin;
-	pDC->FillSolidRect(trackRect, Q1UI_COLOR_BORDER_SOFT);
-
-	barRect = trackRect;
-	barRect.right = barRect.left + limit;
-	pDC->FillSolidRect(&barRect, mBarColor);
-
-	barTextRect.top = mHCanvas;
-	barTextRect.left = 0;
-	barTextRect.bottom = mHClient;
-	barTextRect.right = mWClient - barMargin;
-
 	pDC->SelectObject(&mProgressFont);
 	pDC->SetTextColor(COLOR_PROGRESS_TEXT);
 	pDC->SetBkMode(TRANSPARENT);
-	pDC->DrawText(str, &barTextRect, DT_SINGLELINE | DT_RIGHT |  DT_VCENTER);
+
+	// Reserve a stable slot on the right based on the maximum frame number
+	// (not the current one) so the volume/mute layout does not shift as the
+	// counter advances during playback.
+	CString maxStr;
+	maxStr.Format(_T("%d / %d"), frameMax, frameMax);
+	int  textW    = pDC->GetTextExtent(maxStr).cx;
+	int  rightEnd = mWClient - barMargin;
+	int  textLeft = rightEnd - textW;
+
+	bool showVolume    = mAudioPlayer.IsOpen();
+	int  progressRight = textLeft - barMargin;
+	if (showVolume)
+		progressRight -= muteSize + muteGap + volWidth + volGap;
+
+	if (progressRight < barMargin + 4)
+		progressRight = barMargin + 4;
+
+	CRect trackRect;
+	trackRect.top    = mHCanvas + barMargin;
+	trackRect.left   = barMargin;
+	trackRect.bottom = mHClient - barMargin;
+	trackRect.right  = progressRight;
+	pDC->FillSolidRect(trackRect, Q1UI_COLOR_BORDER_SOFT);
+
+	// Hit-test region for seeks. Extends vertically over the whole band so
+	// clicks just above/below the slim track still seek, but horizontally
+	// stays inside the track so frame-counter and volume areas are excluded.
+	mRcProgress.SetRect(trackRect.left, mHCanvas, trackRect.right, mHClient);
+
+	int limit = ROUND2I((trackRect.Width()) * frameID / (float)frameMax);
+	CRect barRect = trackRect;
+	barRect.right = barRect.left + limit;
+	pDC->FillSolidRect(&barRect, mBarColor);
+
+	if (showVolume) {
+		// Mute button (small square) just before the volume bar.
+		CRect muteRect;
+		muteRect.top    = trackRect.top;
+		muteRect.bottom = trackRect.bottom;
+		muteRect.right  = textLeft - barMargin - volWidth - volGap;
+		muteRect.left   = muteRect.right - muteSize;
+		DrawMuteButton(pDC, muteRect);
+		mRcMute = muteRect;
+
+		// Volume bar
+		CRect volTrack;
+		volTrack.top    = trackRect.top;
+		volTrack.bottom = trackRect.bottom;
+		volTrack.right  = textLeft - barMargin;
+		volTrack.left   = volTrack.right - volWidth;
+		pDC->FillSolidRect(volTrack, Q1UI_COLOR_BORDER_SOFT);
+
+		COLORREF fillColor = mVolumeMuted ? Q1UI_COLOR_WARNING : mBarColor;
+		float    fillLevel = mVolumeMuted ? 1.0f : mVolume;
+		int      fillW     = ROUND2I(volTrack.Width() * fillLevel);
+		CRect    volFill   = volTrack;
+		volFill.right      = volFill.left + fillW;
+		pDC->FillSolidRect(&volFill, fillColor);
+
+		mRcVolume = volTrack;
+	} else {
+		mRcVolume.SetRectEmpty();
+		mRcMute.SetRectEmpty();
+	}
+
+	CRect barTextRect;
+	barTextRect.top    = mHCanvas;
+	barTextRect.bottom = mHClient;
+	barTextRect.right  = rightEnd;
+	barTextRect.left   = 0;
+	pDC->DrawText(str, &barTextRect, DT_SINGLELINE | DT_RIGHT | DT_VCENTER);
+}
+
+// Draws a small speaker icon centered in |rect|. The icon is rendered from
+// GDI primitives (rectangle + triangle) so it works without depending on
+// any specific Unicode glyph being available in the progress-band font.
+void CViewerView::DrawMuteButton(CDC *pDC, const CRect &rect)
+{
+	COLORREF accent = mVolumeMuted ? Q1UI_COLOR_WARNING : mBarColor;
+
+	// Speaker base (small rectangle on the left) + cone (triangle to the right).
+	int cx = rect.left + rect.Width() / 2;
+	int cy = rect.top  + rect.Height() / 2;
+	int half = rect.Height() / 2;
+	int baseW = max(half / 2, 2);
+
+	CRect baseRect(cx - baseW, cy - half / 2, cx, cy + half / 2);
+	pDC->FillSolidRect(baseRect, accent);
+
+	CBrush brush(accent);
+	HGDIOBJ oldBrush = pDC->SelectObject(brush);
+	HGDIOBJ oldPen   = pDC->SelectObject(::GetStockObject(NULL_PEN));
+	POINT cone[3] = {
+		{ cx,        cy - half + 1 },
+		{ cx + half, cy - half - 1 },
+		{ cx + half, cy + half + 1 },
+	};
+	pDC->Polygon(cone, 3);
+	pDC->SelectObject(oldBrush);
+
+	// When muted, draw a slash through the speaker.
+	if (mVolumeMuted) {
+		CPen slashPen(PS_SOLID, 2, Q1UI_COLOR_DANGER);
+		HGDIOBJ oldSlash = pDC->SelectObject(slashPen);
+		pDC->MoveTo(rect.left + 1,  rect.bottom - 1);
+		pDC->LineTo(rect.right - 1, rect.top    + 1);
+		pDC->SelectObject(oldSlash);
+	}
+
+	pDC->SelectObject(oldPen);
 }
 
 void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
@@ -484,8 +583,11 @@ void CViewerView::SetPlayTimer(CViewerDoc* pDoc)
 	}
 
 	double startSec = pDoc->mFps > 0.0 ? pDoc->mCurFrameID / pDoc->mFps : 0.0;
-	if (mAudioPlayer.Open(pDoc->mPathName.GetString()))
+	if (mAudioPlayer.Open(pDoc->mPathName.GetString())) {
+		mAudioPlayer.SetVolume(mVolume);
+		mAudioPlayer.SetMuted(mVolumeMuted);
 		mAudioPlayer.Play(startSec);
+	}
 }
 
 // Timer callbacks only post clock ticks, so pausing does not need to wait for
@@ -763,6 +865,7 @@ void CViewerView::DrawHelpMenu(CDC *pDC)
 		"B              Selected box size\n"
 		"I              Interpolate pixels\n"
 		"N              Next color space\n"
+		"M              Mute or unmute video audio\n"
 		);
 	pDC->DrawText(manual, &manualRect, DT_LEFT | DT_TOP);
 }
@@ -1198,8 +1301,41 @@ OnMouseWheelDefault:
 	return CView::OnMouseWheel(nFlags, zDelta, pt);
 }
 
+void CViewerView::UpdateVolumeFromPoint(CPoint point)
+{
+	if (mRcVolume.IsRectEmpty())
+		return;
+	int x = point.x - mRcVolume.left;
+	int w = mRcVolume.Width();
+	if (w <= 0) return;
+	if (x < 0) x = 0;
+	if (x > w) x = w;
+	mVolume      = static_cast<float>(x) / static_cast<float>(w);
+	mVolumeMuted = false;
+	mAudioPlayer.SetMuted(false);
+	mAudioPlayer.SetVolume(mVolume);
+	Invalidate(FALSE);
+}
+
+void CViewerView::ToggleMute()
+{
+	mVolumeMuted = !mVolumeMuted;
+	mAudioPlayer.SetMuted(mVolumeMuted);
+	Invalidate(FALSE);
+}
+
 void CViewerView::OnLButtonDown(UINT nFlags, CPoint point)
 {
+	if (!mRcMute.IsRectEmpty() && mRcMute.PtInRect(point)) {
+		ToggleMute();
+		return;
+	}
+	if (!mRcVolume.IsRectEmpty() && mRcVolume.PtInRect(point)) {
+		SetCapture();
+		mVolumeDragging = true;
+		UpdateVolumeFromPoint(point);
+		return;
+	}
 	if (mRcProgress.PtInRect(point)) {
 		CViewerDoc* pDoc = GetDocument();
 		CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
@@ -1210,8 +1346,12 @@ void CViewerView::OnLButtonDown(UINT nFlags, CPoint point)
 			KillPlayTimerSafe();
 		}
 
-		double R = (point.x + 1) / double(mWCanvas);
+		int trackW = mRcProgress.Width();
+		double R = trackW > 0
+			? (point.x - mRcProgress.left + 1) / double(trackW) : 0.0;
 		int frameID = max(ROUND2I(R * pDoc->mFrames) - 1, 0);
+		int frameMax = static_cast<int>(pDoc->mFrames) - 1;
+		if (frameID > frameMax) frameID = frameMax;
 		if (pDoc->SeekScene(frameID) >= 0) {
 			mKeyProcessing = true;
 			Invalidate(FALSE);
@@ -1264,6 +1404,11 @@ void CViewerView::OnLButtonDown(UINT nFlags, CPoint point)
 
 void CViewerView::OnLButtonUp(UINT nFlags, CPoint point)
 {
+	if (mVolumeDragging) {
+		mVolumeDragging = false;
+		::ReleaseCapture();
+		return;
+	}
 	if (mSelMode && !(nFlags & MK_CONTROL) && mIsClicked) {
 		CPoint transPointS, transPointE;
 		QSelRegion selRegion;
@@ -1330,6 +1475,10 @@ DefaultOnLButtonUp:
 
 void CViewerView::OnMouseMove(UINT nFlags, CPoint point)
 {
+	if (mVolumeDragging) {
+		UpdateVolumeFromPoint(point);
+		return;
+	}
 	if (mSelMode && !(nFlags & MK_CONTROL)) {
 		CPoint transPointS(int((-mXDst + mPointS.x) / mN), int((-mYDst + mPointS.y) / mN));
 		CPoint transPointE(int((-mXDst + point.x) / mN), int((-mYDst + point.y) / mN));
@@ -1886,6 +2035,9 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		mInterpol = !mInterpol;
 		BroadcastDisplayOptions();
 		break;
+	case 'M':
+		ToggleMute();
+		break;
 	case 'R':
 		pDoc->Rotate90();
 		{
@@ -1969,6 +2121,12 @@ void CViewerView::OnSize(UINT nType, int cx, int cy)
 
 void CViewerView::OnRButtonUp(UINT nFlags, CPoint point)
 {
+	if ((!mRcVolume.IsRectEmpty() && mRcVolume.PtInRect(point)) ||
+		(!mRcMute.IsRectEmpty()   && mRcMute.PtInRect(point))) {
+		ToggleMute();
+		return;
+	}
+
 	CPoint screenPoint = point;
 
 	ClientToScreen(&screenPoint);

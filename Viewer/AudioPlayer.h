@@ -32,7 +32,15 @@ public:
     // Pause playback. Call Play() to resume from a new position.
     void Pause();
 
+    // Volume in [0.0, 1.0]; values outside the range are clamped.
+    void SetVolume(float volume);
+    void SetMuted(bool muted);
+    float GetVolume() const { return mVolume; }
+    bool  IsMuted()  const { return mMuted; }
+
 private:
+    void ApplyVolume();
+
     bool SeekReader(double timeSec);
     void FeedLoop();
 
@@ -44,6 +52,8 @@ private:
 
     std::wstring      mOpenedPath;
     bool              mHasAudio = false;
+    float             mVolume = 1.0f;
+    bool              mMuted  = false;
 
     std::thread       mFeedThread;
     std::atomic<bool> mFeedRunning{ false };
