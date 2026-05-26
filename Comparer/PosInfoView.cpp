@@ -59,21 +59,6 @@ void CPosInfoView::OnInitialUpdate()
 	CScrollView::OnInitialUpdate();
 }
 
-static void DrawDiffPosLines(CDC *pDC, CRect *frameRect, bool *flags, int n)
-{
-	int top = frameRect->top + 1;
-	int left = frameRect->left + 1;
-	int right = frameRect->right - 1;
-
-	for (int i = 0; i < n; i++) {
-		if (flags[i] == false)
-			continue;
-
-		pDC->MoveTo(left, top + i);
-		pDC->LineTo(right, top + i);
-	}
-}
-
 void CPosInfoView::DrawEachRect(CDC* pDC,
 								ComparerPane *pane,
 								CRect *frameRect,
@@ -98,17 +83,9 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 	pDC->FillSolidRect(frameRect, frameColor);
 	pDC->Draw3dRect(frameRect, Q1UI_COLOR_SURFACE, Q1UI_COLOR_SURFACE);
 
-	if (parseDone) {
-		CPen *prev = pDC->SelectObject(mDiffPen);
-		IFrmCmpStrategy *frmCmpStrategy = pDoc->mFrmCmpStrategy;
-		list<RLC> diffRLC[QPLANES];
-
-		if (mFileScanThread->copyDiffRLC(i, diffRLC)) {
-			frmCmpStrategy->FlagTotalDiffLine(diffRLC, mDiffFlags, mPosLinesPerFrame);
-			DrawDiffPosLines(pDC, frameRect, mDiffFlags, mPosLinesPerFrame);
-		}
-		pDC->SelectObject(prev);
-	}
+	// Per-row red diff lines have been replaced by the pink grid overlay in
+	// ComparerView. Pilot keeps the frame tiles for video-frame selection but
+	// no longer draws the per-row indicators.
 
 	const COLORREF curIdColor = Q1UI_COLOR_ACCENT;
 	COLORREF preColor;
@@ -183,7 +160,13 @@ void CPosInfoView::OnDraw(CDC* pDC)
 
 	memDC.FillSolidRect(CRect(0, 0, mWClient, h), Q1UI_COLOR_APP_BG);
 
-	if (!paneL->isAvail() && !paneR->isAvail()) {
+	// Pilot: hide the timeline entirely when neither pane is a video. The pink
+	// grid overlay in ComparerView already conveys diff information; the
+	// timeline is only useful for picking a frame in a video source.
+	bool hasVideo = (paneL->isAvail() && paneL->frames > 1)
+	             || (paneR->isAvail() && paneR->frames > 1);
+
+	if (!paneL->isAvail() && !paneR->isAvail() || !hasVideo) {
 		LOGFONT lf;
 		mPosNumFont.GetLogFont(&lf);
 		::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
@@ -195,7 +178,10 @@ void CPosInfoView::OnDraw(CDC* pDC)
 		memDC.SetBkMode(TRANSPARENT);
 		memDC.SetTextColor(Q1UI_COLOR_TEXT_MUTED);
 		CRect msgRect(0, 0, mWClient, h);
-		memDC.DrawText(_T("Timeline"), &msgRect, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+		LPCTSTR msg = (paneL->isAvail() || paneR->isAvail())
+			? _T("Timeline\n(video only)") : _T("Timeline");
+		memDC.DrawText(msg, &msgRect,
+			DT_CENTER | DT_VCENTER | DT_WORDBREAK | DT_NOCLIP);
 		memDC.SelectObject(prevFont);
 		goto OnDrawExit;
 	}
