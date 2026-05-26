@@ -17,8 +17,10 @@ msbuild Comparer\Comparer.sln /m /restore /p:Configuration=Release /p:Platform=x
 ```
 
 Normal builds restore prebuilt OpenCV and libheif dependency archives into
-`.deps`. Dedicated GitHub Actions workflows create updated dependency archives
-when dependency versions change.
+`.deps`. The OpenCV archive is built with the VS2019 `v142` toolset so its
+static libraries link with VS2019 and newer MSVC toolsets. Dedicated GitHub
+Actions workflows create updated dependency archives when dependency versions
+or toolsets change.
 
 ## Core Regression Tests
 

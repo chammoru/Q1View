@@ -1,6 +1,8 @@
 param(
     [string]$Version = "4.3.0",
 
+    [string]$Toolset = "v142",
+
     [string]$SourceRoot = "",
 
     [string]$BuildRoot = "",
@@ -160,8 +162,10 @@ $cmake = Get-CMake
 $configureStamp = Join-Path $buildRootPath "CMakeCache.txt"
 if (Test-Path $configureStamp) {
     $cacheText = Get-Content -LiteralPath $configureStamp -Raw
-    if ($cacheText -notmatch "BUILD_WITH_STATIC_CRT:BOOL=ON") {
-        Write-Host "Reconfiguring OpenCV because the existing build tree does not use the static CRT"
+    $toolsetPattern = "CMAKE_GENERATOR_TOOLSET:INTERNAL=$([regex]::Escape($Toolset))(\r?\n|,)"
+    if ($cacheText -notmatch "BUILD_WITH_STATIC_CRT:BOOL=ON" -or
+            $cacheText -notmatch $toolsetPattern) {
+        Write-Host "Reconfiguring OpenCV because the existing build tree does not use $Toolset with the static CRT"
         Remove-Item -LiteralPath $buildRootPath -Recurse -Force
         if (Test-Path $installRootPath) {
             Remove-Item -LiteralPath $installRootPath -Recurse -Force
@@ -177,6 +181,7 @@ if (-not (Test-Path $configureStamp)) {
         "-S", $sourceRootPath,
         "-B", $buildRootPath,
         "-A", $platformName,
+        "-T", $Toolset,
         "-DOpenCV_ARCH=$platformName",
         "-DOpenCV_RUNTIME=vc16",
         "-DCMAKE_INSTALL_PREFIX=$installRootPath",
@@ -239,7 +244,7 @@ foreach ($configuration in $Configurations) {
     }
 
     $stampPath = Join-Path $installRootPath "q1view-opencv-$configuration.stamp"
-    "OpenCV $Version $configuration $platformName static-crt" | Out-File -LiteralPath $stampPath -Encoding ascii
+    "OpenCV $Version $configuration $platformName $Toolset static-crt" | Out-File -LiteralPath $stampPath -Encoding ascii
 }
 
 $ffmpegDllPath = Join-Path $installRootPath "$binaryPrefix\bin\opencv_videoio_ffmpeg430_64.dll"

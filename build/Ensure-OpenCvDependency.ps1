@@ -1,6 +1,8 @@
 param(
     [string]$Version = "4.3.0",
 
+    [string]$Toolset = "v142",
+
     [Parameter(Mandatory = $true)]
     [string]$InstallRoot,
 
@@ -63,7 +65,7 @@ function Get-ArchiveFileName {
     param([string]$Url)
 
     if ([string]::IsNullOrWhiteSpace($Url)) {
-        return "Q1View-opencv-$Version-msvc-x64-static-mt.zip"
+        return "Q1View-opencv-$Version-msvc-$Toolset-x64-static-mt.zip"
     }
 
     try {
@@ -76,7 +78,7 @@ function Get-ArchiveFileName {
     catch {
     }
 
-    return "Q1View-opencv-$Version-msvc-x64-static-mt.zip"
+    return "Q1View-opencv-$Version-msvc-$Toolset-x64-static-mt.zip"
 }
 
 function Resolve-Archive {

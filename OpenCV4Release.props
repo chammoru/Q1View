@@ -4,14 +4,15 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <Q1ViewOpenCvVersion Condition="'$(Q1ViewOpenCvVersion)' == ''">4.3.0</Q1ViewOpenCvVersion>
-    <Q1ViewOpenCvAssetName Condition="'$(Q1ViewOpenCvAssetName)' == ''">Q1View-opencv-$(Q1ViewOpenCvVersion)-msvc-x64-static-mt.zip</Q1ViewOpenCvAssetName>
-    <Q1ViewOpenCvReleaseTag Condition="'$(Q1ViewOpenCvReleaseTag)' == ''">deps-opencv-$(Q1ViewOpenCvVersion)-msvc-x64-static-mt</Q1ViewOpenCvReleaseTag>
+    <Q1ViewOpenCvToolset Condition="'$(Q1ViewOpenCvToolset)' == ''">v142</Q1ViewOpenCvToolset>
+    <Q1ViewOpenCvAssetName Condition="'$(Q1ViewOpenCvAssetName)' == ''">Q1View-opencv-$(Q1ViewOpenCvVersion)-msvc-$(Q1ViewOpenCvToolset)-x64-static-mt.zip</Q1ViewOpenCvAssetName>
+    <Q1ViewOpenCvReleaseTag Condition="'$(Q1ViewOpenCvReleaseTag)' == ''">deps-opencv-$(Q1ViewOpenCvVersion)-msvc-$(Q1ViewOpenCvToolset)-x64-static-mt</Q1ViewOpenCvReleaseTag>
     <Q1ViewOpenCvArchiveUrl Condition="'$(Q1VIEW_OPENCV_URL)' != ''">$(Q1VIEW_OPENCV_URL)</Q1ViewOpenCvArchiveUrl>
     <Q1ViewOpenCvArchiveUrl Condition="'$(Q1ViewOpenCvArchiveUrl)' == ''">https://github.com/chammoru/Q1View/releases/download/$(Q1ViewOpenCvReleaseTag)/$(Q1ViewOpenCvAssetName)</Q1ViewOpenCvArchiveUrl>
     <Q1ViewOpenCvArchivePath Condition="'$(Q1VIEW_OPENCV_ARCHIVE)' != ''">$(Q1VIEW_OPENCV_ARCHIVE)</Q1ViewOpenCvArchivePath>
     <Q1ViewOpenCvSha256 Condition="'$(Q1VIEW_OPENCV_SHA256)' != ''">$(Q1VIEW_OPENCV_SHA256)</Q1ViewOpenCvSha256>
     <Q1ViewOpenCvInstallRoot Condition="'$(Q1VIEW_OPENCV_ROOT)' != ''">$(Q1VIEW_OPENCV_ROOT)</Q1ViewOpenCvInstallRoot>
-    <Q1ViewOpenCvInstallRoot Condition="'$(Q1ViewOpenCvInstallRoot)' == ''">$(MSBuildThisFileDirectory).deps\opencv-$(Q1ViewOpenCvVersion)-msvc-x64-static-mt</Q1ViewOpenCvInstallRoot>
+    <Q1ViewOpenCvInstallRoot Condition="'$(Q1ViewOpenCvInstallRoot)' == ''">$(MSBuildThisFileDirectory).deps\opencv-$(Q1ViewOpenCvVersion)-msvc-$(Q1ViewOpenCvToolset)-x64-static-mt</Q1ViewOpenCvInstallRoot>
     <Q1ViewOpenCvBinaryPrefix Condition="'$(Q1ViewOpenCvBinaryPrefix)' == ''">x64\vc16</Q1ViewOpenCvBinaryPrefix>
     <Q1ViewOpenCvLibDir>$(Q1ViewOpenCvInstallRoot)\$(Q1ViewOpenCvBinaryPrefix)\staticlib</Q1ViewOpenCvLibDir>
     <Q1ViewOpenCvBinDir>$(Q1ViewOpenCvInstallRoot)\$(Q1ViewOpenCvBinaryPrefix)\bin</Q1ViewOpenCvBinDir>
@@ -22,7 +23,7 @@
           BeforeTargets="PrepareForBuild"
           Condition="'$(Platform)' == 'x64' and (!Exists('$(Q1ViewOpenCvInstallRoot)\include\opencv2\core.hpp') or !Exists('$(Q1ViewOpenCvCoreLib)') or !Exists('$(Q1ViewOpenCvStamp)'))">
     <Message Text="Preparing OpenCV $(Q1ViewOpenCvVersion) dependency at $(Q1ViewOpenCvInstallRoot)" Importance="High" />
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)build\Ensure-OpenCvDependency.ps1&quot; -Version &quot;$(Q1ViewOpenCvVersion)&quot; -InstallRoot &quot;$(Q1ViewOpenCvInstallRoot)&quot; -ArchiveUrl &quot;$(Q1ViewOpenCvArchiveUrl)&quot; -ArchivePath &quot;$(Q1ViewOpenCvArchivePath)&quot; -Sha256 &quot;$(Q1ViewOpenCvSha256)&quot; -Configuration &quot;$(Configuration)&quot; -Platform &quot;$(Platform)&quot; -BinaryPrefix &quot;$(Q1ViewOpenCvBinaryPrefix)&quot;" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)build\Ensure-OpenCvDependency.ps1&quot; -Version &quot;$(Q1ViewOpenCvVersion)&quot; -Toolset &quot;$(Q1ViewOpenCvToolset)&quot; -InstallRoot &quot;$(Q1ViewOpenCvInstallRoot)&quot; -ArchiveUrl &quot;$(Q1ViewOpenCvArchiveUrl)&quot; -ArchivePath &quot;$(Q1ViewOpenCvArchivePath)&quot; -Sha256 &quot;$(Q1ViewOpenCvSha256)&quot; -Configuration &quot;$(Configuration)&quot; -Platform &quot;$(Platform)&quot; -BinaryPrefix &quot;$(Q1ViewOpenCvBinaryPrefix)&quot;" />
   </Target>
   <Target Name="Q1ViewCopyOpenCvRuntime"
           AfterTargets="Build"

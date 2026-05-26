@@ -22,6 +22,7 @@ jobs:
 
     env:
       OPENCV_VERSION: ${{ inputs.opencv_version || '4.3.0' }}
+      OPENCV_TOOLSET: v142
 
     steps:
       - name: Checkout
@@ -35,6 +36,7 @@ jobs:
         run: |
           .\build\Build-OpenCvDependency.ps1 `
             -Version $env:OPENCV_VERSION `
+            -Toolset $env:OPENCV_TOOLSET `
             -Configurations Release,Debug `
             -Platform x64
 
@@ -42,9 +44,9 @@ jobs:
         id: package
         shell: pwsh
         run: |
-          $packageName = "Q1View-opencv-$($env:OPENCV_VERSION)-msvc-x64-static-mt.zip"
+          $packageName = "Q1View-opencv-$($env:OPENCV_VERSION)-msvc-$($env:OPENCV_TOOLSET)-x64-static-mt.zip"
           $hashFile = "$packageName.sha256.txt"
-          $tagName = "deps-opencv-$($env:OPENCV_VERSION)-msvc-x64-static-mt"
+          $tagName = "deps-opencv-$($env:OPENCV_VERSION)-msvc-$($env:OPENCV_TOOLSET)-x64-static-mt"
           $installRoot = ".deps\opencv-$($env:OPENCV_VERSION)-build\install"
 
           if (-not (Test-Path "$installRoot\include\opencv2\core.hpp")) {
@@ -59,6 +61,7 @@ jobs:
             "# OpenCV dependency for Q1View",
             "",
             "- OpenCV: $env:OPENCV_VERSION",
+            "- MSVC toolset: $env:OPENCV_TOOLSET",
             "- Package: $packageName",
             "- SHA256: $hash",
             "",
@@ -73,8 +76,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.package.outputs.tag_name }}
-          target_commitish: ${{ github.sha }}
-          name: OpenCV ${{ env.OPENCV_VERSION }} dependency
+          name: OpenCV ${{ env.OPENCV_VERSION }} dependency (${{ env.OPENCV_TOOLSET }})
           body_path: RELEASE_NOTES.md
           overwrite_files: true
           fail_on_unmatched_files: true
