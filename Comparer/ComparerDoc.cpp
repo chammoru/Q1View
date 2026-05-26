@@ -15,6 +15,7 @@
 #include "MetricCal.h"
 #include "QViewerCmn.h"
 #include "ComparerUtil.h"
+#include "FileChangeNotiThread.h"
 
 #include "QImageStr.h"
 
@@ -76,6 +77,8 @@ CComparerDoc::CComparerDoc()
 	bmiHeader.biYPelsPerMeter = 0L;
 
 	mFileScanThread = new FileScanThread(this);
+	for (int i = 0; i < IMG_VIEW_MAX; i++)
+		mFileChangeNotiThreads[i] = new FileChangeNotiThread();
 
 	mSortedCscInfo =
 		static_cast<struct qcsc_info *>(malloc(sizeof(qcsc_info_table)));
@@ -87,6 +90,11 @@ CComparerDoc::CComparerDoc()
 CComparerDoc::~CComparerDoc()
 {
 	mFileScanThread->requestExitAndWait();
+
+	for (int i = 0; i < IMG_VIEW_MAX; i++) {
+		delete mFileChangeNotiThreads[i];
+		mFileChangeNotiThreads[i] = NULL;
+	}
 
 	delete [] mPane;
 
@@ -375,6 +383,40 @@ void CComparerDoc::ProcessDocument(ComparerPane *pane)
 	pView->UpdateFileName(fileName);
 
 	RefleshPaneImages(pane, settingChanged);
+
+	// Start (or rebind) the file-change watcher for this pane so disk edits
+	// trigger a refresh.
+	int paneIdx = static_cast<int>(pane - mPane);
+	if (paneIdx >= 0 && paneIdx < IMG_VIEW_MAX && mFileChangeNotiThreads[paneIdx]) {
+		CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+		mFileChangeNotiThreads[paneIdx]->fire(pMainFrm, pane->pathName, paneIdx);
+	}
+}
+
+void CComparerDoc::ReloadPane(int paneIdx)
+{
+	if (paneIdx < 0 || paneIdx >= IMG_VIEW_MAX)
+		return;
+	ComparerPane *pane = &mPane[paneIdx];
+	if (!pane->isAvail() || pane->pathName.IsEmpty())
+		return;
+
+	// Re-read the current frame from disk. ProcessDocument handles a possible
+	// resolution / color-space change after the file was rewritten.
+	ProcessDocument(pane);
+
+	// Recompute metrics between the active pair so the pixel-diff overlay,
+	// PSNR/SSIM, and any visible labels reflect the new contents.
+	if (mFrmCmpStrategy) {
+		ComparerPane *paneL = &mPane[IMG_VIEW_1];
+		ComparerPane *paneR = &mPane[IMG_VIEW_2];
+		CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+		if (paneL->isAvail() && paneR->isAvail())
+			mFrmCmpStrategy->CalMetrics(paneL, paneR,
+				pMainFrm->mMetricIdx, mFrmState);
+	}
+
+	UpdateAllViews(NULL);
 }
 
 void CComparerDoc::ViewOnMouseWheel(short zDelta, int wCanvas, int hCanvas)
