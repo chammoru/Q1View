@@ -64,6 +64,7 @@ CComparerDoc::CComparerDoc()
 , mFps(COMPARER_DEF_FPS)
 , mInterpol(false)
 , mDiffRes(false)
+, mDiffOverlay(true)
 {
 	BITMAPINFOHEADER &bmiHeader = mBmi.bmiHeader;
 	bmiHeader.biSize = (DWORD)sizeof(BITMAPINFOHEADER);

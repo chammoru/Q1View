@@ -79,6 +79,7 @@ public:
 	double mFps;
 	bool mInterpol;
 	bool mDiffRes;
+	bool mDiffOverlay;
 
 // Operations
 public:

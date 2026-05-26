@@ -9,6 +9,9 @@
 
 #include "ComparerDoc.h"
 
+#include <gdiplus.h>
+#pragma comment(lib, "gdiplus.lib")
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -62,6 +65,9 @@ BOOL CComparerApp::InitInstance()
 {
 	CWinApp::InitInstance();
 
+	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+	Gdiplus::GdiplusStartup(&mGdiplusToken, &gdiplusStartupInput, NULL);
+
 	SetRegistryKey(_T("Chammoru"));
 	LoadStdProfileSettings(4);  // Load standard INI file options (including MRU)
 
@@ -106,6 +112,12 @@ BOOL CComparerApp::InitInstance()
 	// call DragAcceptFiles only if there's a suffix
 	//  In an SDI app, this should occur after ProcessShellCommand
 	return TRUE;
+}
+
+int CComparerApp::ExitInstance()
+{
+	Gdiplus::GdiplusShutdown(mGdiplusToken);
+	return CWinApp::ExitInstance();
 }
 
 

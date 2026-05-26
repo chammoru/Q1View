@@ -43,6 +43,7 @@ public:
 	CQMenuItem mNameQMenu;
 	CQMenuItem mCsQMenu;
 	bool mProcessing;
+	bool mShowHelp;
 	int mRgbBufSize;
 	BYTE *mRgbBuf;
 	CFont mDefPixelTextFont;
@@ -57,6 +58,9 @@ public:
 	void ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *dst, int sDst,
 		q1::GridInfo &gi);
 	void DrawEmptyPane(CDC *pDC, CComparerDoc *pDoc);
+	void DrawDiffOverlay(CDC *pDC, CComparerDoc *pDoc, ComparerPane *pane);
+	void DrawHelpMenu(CDC *pDC);
+	void ToggleHelp();
 
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg void OnDropFiles(HDROP hDropInfo);

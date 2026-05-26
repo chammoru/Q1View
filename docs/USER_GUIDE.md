@@ -56,6 +56,7 @@ Viewer includes a built-in control panel, opened with `?`.
 | Toggle box info display | `B` |
 | Toggle pixel interpolation | `I` |
 | Next color space | `N` |
+| Mute or unmute video audio | `M` |
 | Toggle selection mode | `S` |
 | Capture view or selected region | `Ctrl+C` |
 
@@ -87,6 +88,33 @@ and options.
 The same reference and encoded image below are shown with SSIM selected:
 
 ![Comparer showing SSIM for the same sources](images/comparer-ssim.webp)
+
+### Pixel-Level Diff Overlay
+
+When two sources are loaded, Comparer highlights every region where the pixels
+differ from the reference pane. The image area is divided into a fixed-size
+grid in display pixels; each cell that contains any differing pixel gets a
+translucent pink rectangle outline plus a center dot. Because the cell size is
+fixed on screen, zooming in implicitly subdivides the source area each cell
+covers — at maximum zoom each dot resolves to a single differing source pixel.
+The overlay is hidden automatically when zoom is high enough to show per-pixel
+values, since the pixel labels already convey the diff.
+
+### Controls
+
+Comparer also includes a built-in shortcut panel, opened with `?`.
+
+| Action | Control |
+| --- | --- |
+| Show or hide the shortcut panel | `?` |
+| Open a source into a pane | Drag and drop |
+| Zoom | Mouse wheel |
+| Previous or next video frame | Left / Right |
+| Play or pause | `Space` |
+| Toggle hex pixel values | `H` |
+| Toggle pixel interpolation | `I` |
+| Toggle pink diff overlay (grid + dots) | `D` |
+| Pick a frame in the timeline (video) | Click left or right side |
 
 ## Input Notes
 

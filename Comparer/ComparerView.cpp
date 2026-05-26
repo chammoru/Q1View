@@ -16,6 +16,8 @@
 #include <QViewerCmn.h>
 #include <QImageStr.h>
 
+#include <gdiplus.h>
+
 // CComparerView
 
 CComparerView::CComparerView()
@@ -27,6 +29,7 @@ CComparerView::CComparerView()
 , mHCanvas(0)
 , mIsClicked(false)
 , mProcessing(false)
+, mShowHelp(false)
 , mRgbBufSize(0)
 , mRgbBuf(NULL)
 {
@@ -242,9 +245,159 @@ void CComparerView::OnDraw(CDC *pDC)
 		}
 	}
 
+	DrawDiffOverlay(&memDC, pDoc, pane);
+
+	if (mShowHelp)
+		DrawHelpMenu(&memDC);
+
 	pDC->BitBlt(0, mRcControls.bottom, mWCanvas, mHCanvas, &memDC, 0, 0, SRCCOPY);
 
 	mProcessing = false;
+}
+
+void CComparerView::ToggleHelp()
+{
+	mShowHelp = !mShowHelp;
+	Invalidate(FALSE);
+}
+
+void CComparerView::DrawHelpMenu(CDC *pDC)
+{
+	const int W_HELP = 460;
+	const int H_HELP = 280;
+	const int W_MARGIN = 18;
+	const int H_MARGIN = 14;
+	const int X_HELP = (mWCanvas - W_HELP) / 2;
+	const int Y_HELP = (mHCanvas - H_HELP) / 2;
+	CRect bgRect(X_HELP, Y_HELP, X_HELP + W_HELP, Y_HELP + H_HELP);
+	pDC->FillSolidRect(bgRect, Q1UI_COLOR_SURFACE);
+	CPen borderPen(PS_SOLID, 1, Q1UI_COLOR_BORDER);
+	CPen *prevPen = pDC->SelectObject(&borderPen);
+	pDC->SelectStockObject(NULL_BRUSH);
+	pDC->Rectangle(bgRect);
+	pDC->SelectObject(prevPen);
+
+	CRect manualRect(bgRect.left + W_MARGIN, bgRect.top + H_MARGIN,
+		bgRect.right - W_MARGIN, bgRect.bottom - H_MARGIN);
+	LOGFONT lf;
+	CFont manualFont;
+	mDefPixelTextFont.GetLogFont(&lf);
+	lf.lfHeight = 14;
+	lf.lfWeight = FW_NORMAL;
+	manualFont.CreateFontIndirect(&lf);
+	pDC->SetBkMode(TRANSPARENT);
+	CFont *prevFont = pDC->SelectObject(&manualFont);
+	pDC->SetTextColor(Q1UI_COLOR_TEXT);
+	CString manual(
+		"Comparer shortcuts\n"
+		"\n"
+		"?              Show or hide this panel\n"
+		"Drag && Drop    Open a source into a pane\n"
+		"Mouse Wheel    Zoom in or out; high zoom shows pixel values\n"
+		"Left/Right     Previous or next video frame\n"
+		"Space          Play or pause\n"
+		"H              Toggle hex pixel values\n"
+		"I              Interpolate pixels\n"
+		"D              Toggle pink diff overlay (grid + dots)\n"
+		"Click timeline Pick a video frame (left/right pane)\n"
+		);
+	pDC->DrawText(manual, &manualRect, DT_LEFT | DT_TOP);
+	pDC->SelectObject(prevFont);
+}
+
+// Pilot: draw a semi-transparent pink cell outline + center dot in every
+// grid cell that contains at least one pixel that differs from the reference
+// pane. Cell size is fixed in display pixels, so zooming in implicitly
+// subdivides the source region each cell covers — at maximum zoom each dot
+// resolves to a single differing source pixel.
+void CComparerView::DrawDiffOverlay(CDC *pDC, CComparerDoc *pDoc, ComparerPane *pane)
+{
+	if (!pDoc->mDiffOverlay)
+		return;
+	// At high zoom the per-pixel value labels already convey the diff
+	// information; the grid and dots would just clutter the view.
+	if (pDoc->mN > ZOOM_TEXT_START)
+		return;
+	if (!pane || !pane->isAvail() || !pane->rgbBuf)
+		return;
+
+	// Find any other available pane to compare against (pilot assumes 2 panes).
+	ComparerPane *other = nullptr;
+	for (int i = 0; i < CComparerDoc::IMG_VIEW_MAX; i++) {
+		ComparerPane *p = &pDoc->mPane[i];
+		if (p == pane)
+			continue;
+		if (p->isAvail() && p->rgbBuf) {
+			other = p;
+			break;
+		}
+	}
+	if (!other || pDoc->mW <= 0 || pDoc->mH <= 0)
+		return;
+
+	const int rowBytes = ROUNDUP_DWORD(pDoc->mW) * QIMG_DST_RGB_BYTES;
+	const BYTE *bufA = pane->rgbBuf;
+	const BYTE *bufB = other->rgbBuf;
+
+	const int cellPx = 48;   // grid cell size in display pixels
+	const int dotR   = 3;    // center dot radius
+
+	Gdiplus::Graphics g(pDC->m_hDC);
+	g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+	g.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
+
+	const Gdiplus::Color cellColor(200, 0xff, 0x3d, 0x8a);   // ~78% alpha pink
+	const Gdiplus::Color dotColor (235, 0xff, 0x3d, 0x8a);   // ~92% alpha pink
+	Gdiplus::Pen        cellPen(cellColor, 1.0f);
+	cellPen.SetAlignment(Gdiplus::PenAlignmentInset);
+	Gdiplus::SolidBrush dotBrush(dotColor);
+
+	const float invN = (pDoc->mN > 0.0f) ? (1.0f / pDoc->mN) : 1.0f;
+
+	for (int cy = 0; cy < mHCanvas; cy += cellPx) {
+		int cellBot = cy + cellPx;
+		if (cellBot > mHCanvas) cellBot = mHCanvas;
+
+		int sy0 = (int)floorf((cy      - mYDst) * invN);
+		int sy1 = (int)ceilf ((cellBot - mYDst) * invN);
+		if (sy0 < 0)         sy0 = 0;
+		if (sy1 > pDoc->mH)  sy1 = pDoc->mH;
+		if (sy0 >= sy1)      continue;
+
+		for (int cx = 0; cx < mWCanvas; cx += cellPx) {
+			int cellRight = cx + cellPx;
+			if (cellRight > mWCanvas) cellRight = mWCanvas;
+
+			int sx0 = (int)floorf((cx        - mXDst) * invN);
+			int sx1 = (int)ceilf ((cellRight - mXDst) * invN);
+			if (sx0 < 0)        sx0 = 0;
+			if (sx1 > pDoc->mW) sx1 = pDoc->mW;
+			if (sx0 >= sx1)     continue;
+
+			bool hasDiff = false;
+			const int byteStart = sx0 * QIMG_DST_RGB_BYTES;
+			const int byteLen   = (sx1 - sx0) * QIMG_DST_RGB_BYTES;
+			for (int sy = sy0; sy < sy1; sy++) {
+				const BYTE *ra = bufA + sy * rowBytes + byteStart;
+				const BYTE *rb = bufB + sy * rowBytes + byteStart;
+				if (memcmp(ra, rb, byteLen) != 0) {
+					hasDiff = true;
+					break;
+				}
+			}
+
+			if (hasDiff) {
+				g.DrawRectangle(&cellPen,
+					(float)cx, (float)cy,
+					(float)(cellRight - cx - 1), (float)(cellBot - cy - 1));
+
+				float dotX = (cx + cellRight) * 0.5f;
+				float dotY = (cy + cellBot)   * 0.5f;
+				g.FillEllipse(&dotBrush,
+					dotX - dotR, dotY - dotR, 2.0f * dotR, 2.0f * dotR);
+			}
+		}
+	}
 }
 
 void CComparerView::DrawEmptyPane(CDC *pDC, CComparerDoc *pDoc)
@@ -677,6 +830,12 @@ void CComparerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	case 'I':
 		pDoc->mInterpol = !pDoc->mInterpol;
 		Invalidate(FALSE);
+		break;
+	case 'D':
+		pDoc->mDiffOverlay = !pDoc->mDiffOverlay;
+		break;
+	case VK_OEM_2: // '?' / '/' on US keyboards.
+		ToggleHelp();
 		break;
 	}
 
