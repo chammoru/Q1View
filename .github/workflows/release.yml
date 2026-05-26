@@ -91,7 +91,7 @@ jobs:
           $head = git rev-parse --short HEAD
           $tag = "${{ steps.release_info.outputs.release_tag }}"
 
-          $previousTag = git describe --tags --abbrev=0 HEAD^ 2>$null
+          $previousTag = git describe --tags --match "v[0-9]*" --abbrev=0 HEAD^ 2>$null
           $range = if ($previousTag) { "$previousTag..HEAD" } else { "HEAD" }
 
           "# Q1View $tag" | Out-File CHANGELOG.md -Encoding utf8
