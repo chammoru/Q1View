@@ -52,6 +52,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_WM_DESTROY()
 	ON_WM_CREATE()
 	ON_MESSAGE(WM_OPEN_PENDING_FILE, &CMainFrame::OnOpenPendingFile)
+	ON_MESSAGE(WM_RELOAD_PANE, &CMainFrame::OnReloadPane)
 END_MESSAGE_MAP()
 
 CMainFrame::CMainFrame()
@@ -671,5 +672,15 @@ LRESULT CMainFrame::OnOpenPendingFile(WPARAM, LPARAM)
 	pDoc->mPendingFile.Empty();
 	pDoc->OnOpenDocument(pendingFile);
 
+	return 0;
+}
+
+LRESULT CMainFrame::OnReloadPane(WPARAM wParam, LPARAM /*lParam*/)
+{
+	CComparerDoc *pDoc = static_cast<CComparerDoc *>(GetActiveDocument());
+	if (pDoc == NULL)
+		return 0;
+
+	pDoc->ReloadPane(static_cast<int>(wParam));
 	return 0;
 }

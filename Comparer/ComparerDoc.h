@@ -62,6 +62,7 @@ public:
 	CFrmsInfoView *mFrmsInfoView;
 	int mMaxFrames, mMinFrames;
 	FileScanThread *mFileScanThread;
+	class FileChangeNotiThread *mFileChangeNotiThreads[IMG_VIEW_MAX];
 	IFrmCmpStrategy *mFrmCmpStrategy;
 	YuvFrmCmpStrategy *mYuvCompare;
 	RgbFrmCmpStrategy *mRgbCompare;
@@ -86,6 +87,7 @@ public:
 	void ProcessDocument(ComparerPane *pane);
 	void LoadSourceImage(ComparerPane *pane);
 	bool ReadSource4View(ComparerPane *pane);
+	void ReloadPane(int paneIdx);
 	bool IsRGBCompare(const SQPane *paneA, const SQPane *paneB) const;
 	void RefleshPaneImages(ComparerPane *pane, bool settingChanged);
 	inline ComparerPane* GetOppositePane(ComparerPane* pane) {

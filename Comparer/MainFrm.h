@@ -14,6 +14,7 @@
 #define POS_INFO_W            76
 
 #define WM_OPEN_PENDING_FILE  (WM_APP + 1)
+#define WM_RELOAD_PANE        (WM_USER + 100)
 
 #define COMPARER_DEF_W        (CANVAS_DEF_W + /* left */ \
                               (CANVAS_DEF_W + QSPLITTER_W) + /* right */ \
@@ -101,6 +102,7 @@ public:
 	afx_msg void OnViewsChange(UINT nID);
 	afx_msg void OnOptionsChange(UINT nID);
 	afx_msg LRESULT OnOpenPendingFile(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnReloadPane(WPARAM wParam, LPARAM lParam);
 	virtual void ActivateFrame(int nCmdShow = -1);
 };
 
