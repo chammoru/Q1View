@@ -84,8 +84,14 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 {
 	CComparerDoc* pDoc = GetDocument();
 
+	bool isCurFrame = pane->isAvail() && (i == pane->curFrameID);
+	bool isLeftPane = (pane == &pDoc->mPane[CComparerDoc::IMG_VIEW_1]);
+
 	COLORREF frameColor;
-	if (!pane->isAvail()) {
+	if (isCurFrame) {
+		// Pane-specific highlight so left vs right is obvious at a glance.
+		frameColor = isLeftPane ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_WARNING;
+	} else if (!pane->isAvail()) {
 		frameColor = Q1UI_COLOR_SURFACE;
 	} else if (parseDone) {
 		frameColor = Q1UI_COLOR_ACCENT_SOFT;
@@ -112,12 +118,12 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 		pDC->SelectObject(prev);
 	}
 
-	const COLORREF curIdColor = Q1UI_COLOR_ACCENT;
-	COLORREF preColor;
-	bool isCurFrame = i == pane->curFrameID;
-
-	if (isCurFrame)
-		preColor = pDC->SetTextColor(curIdColor);
+	COLORREF preColor = 0;
+	if (isCurFrame) {
+		// Use surface (near-white) on the saturated highlight fill for
+		// maximum contrast.
+		preColor = pDC->SetTextColor(Q1UI_COLOR_SURFACE);
+	}
 
 	CString numStr;
 	numStr.Format(_T("%d"), i);
