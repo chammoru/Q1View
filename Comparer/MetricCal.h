@@ -27,6 +27,11 @@ class MetricCal
 	size_t mStepCount;
 	size_t mFrameIdx;
 
+	// Frame range currently visible on the X axis. Default covers the whole
+	// parsed run; mouse wheel zoom narrows it around the cursor frame.
+	size_t mViewStartFrame;
+	size_t mViewEndFrame;
+
 	list<size_t> mShowID;
 	list<double> mShowVal[QPLANES];
 
@@ -54,6 +59,13 @@ public:
 
 	void Update(const FileScanThread *fileScanThread, size_t stepCount);
 	size_t CalculateCoords(CRect *graphRect, int metricIdx);
+
+	// Zoom the X axis around the frame at |graphX|. |graphX| is in graph-area
+	// pixels (0 == left edge of the drawable graph). zDelta uses the standard
+	// WHEEL_DELTA sign convention.
+	void ZoomAtX(short zDelta, int graphX);
+	// Restore the X axis to cover the full parsed range.
+	void ResetView();
 
 	void DrawCmpResult(CDC* pDC, CFont *font) const;
 	void DrawYLabel(CDC* pDC, CRect *yLabelRect, CFont *font) const;

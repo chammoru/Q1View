@@ -18,6 +18,8 @@ MetricCal::MetricCal()
 , mFileScanThread(NULL)
 , mStepCount(0)
 , mFrameIdx(0)
+, mViewStartFrame(0)
+, mViewEndFrame(0)
 , mAvgFont(new Font(&FontFamily(Q1UI_FONT_TEXT), 9))
 , mMetricIdx(METRIC_PSNR_IDX)
 {
@@ -90,7 +92,16 @@ void MetricCal::Setup(CRect *graphRect, int metricIdx)
 {
 	mGraphRect = *graphRect;
 
-	mStepW = getGraphW() / int(mStepCount + 1);
+	// Clamp the view range to the current parsed run. Zoom may have left the
+	// range outside the new bounds after a fresh load or scan progress.
+	if (mViewEndFrame == 0 || mViewEndFrame > mStepCount)
+		mViewEndFrame = mStepCount;
+	if (mViewStartFrame >= mViewEndFrame)
+		mViewStartFrame = 0;
+
+	size_t viewSpan = mViewEndFrame > mViewStartFrame
+		? mViewEndFrame - mViewStartFrame : 1;
+	mStepW = getGraphW() / int(viewSpan + 1);
 	mStepW = max(mStepW, MIN_X_AXIS_STEP_W);
 
 	mShowID.clear();
@@ -126,7 +137,60 @@ void MetricCal::Update(const FileScanThread *fileScanThread, size_t stepCount)
 	mFileScanThread = fileScanThread;
 	mStepCount = stepCount;
 
+	ResetView();
 	Init();
+}
+
+void MetricCal::ResetView()
+{
+	mViewStartFrame = 0;
+	mViewEndFrame = mStepCount;
+}
+
+void MetricCal::ZoomAtX(short zDelta, int graphX)
+{
+	if (mStepCount == 0)
+		return;
+
+	int graphW = getGraphW();
+	if (graphW <= 0)
+		return;
+
+	if (graphX < 0) graphX = 0;
+	if (graphX > graphW) graphX = graphW;
+
+	// Anchor: the frame currently sitting under the cursor pixel.
+	double span = double(mViewEndFrame - mViewStartFrame);
+	if (span <= 0.0)
+		span = double(mStepCount);
+	double cursorFrame = double(mViewStartFrame) + (double(graphX) / graphW) * span;
+
+	// One wheel notch (WHEEL_DELTA == 120) zooms by ~25%.
+	const double kStep = 1.25;
+	double notches = double(zDelta) / 120.0;
+	double factor = pow(kStep, -notches); // zDelta > 0 -> zoom in -> smaller span
+	double newSpan = span * factor;
+
+	// Show at least 10 frames; don't zoom past the full parsed range.
+	const double kMinSpan = 10.0;
+	if (newSpan < kMinSpan)
+		newSpan = kMinSpan;
+	if (newSpan > double(mStepCount))
+		newSpan = double(mStepCount);
+
+	double newStart = cursorFrame - (double(graphX) / graphW) * newSpan;
+	double newEnd = newStart + newSpan;
+	if (newStart < 0.0) { newEnd -= newStart; newStart = 0.0; }
+	if (newEnd > double(mStepCount)) {
+		newStart -= newEnd - double(mStepCount);
+		newEnd = double(mStepCount);
+		if (newStart < 0.0) newStart = 0.0;
+	}
+
+	mViewStartFrame = static_cast<size_t>(newStart);
+	mViewEndFrame   = static_cast<size_t>(newEnd);
+	if (mViewEndFrame <= mViewStartFrame)
+		mViewEndFrame = mViewStartFrame + 1;
 }
 
 void MetricCal::CalMinMaxAccum()
@@ -175,9 +239,11 @@ size_t MetricCal::CalculateCoords(CRect *graphRect, int metricIdx)
 
 	size_t prevID = -1;
 	int graphW = getGraphW();
+	size_t viewSpan = mViewEndFrame > mViewStartFrame
+		? mViewEndFrame - mViewStartFrame : 1;
 
 	for (int i = 0; i < graphW; i += mStepW) {
-		size_t frameID = (i * mStepCount) / graphW;
+		size_t frameID = mViewStartFrame + (size_t(i) * viewSpan) / graphW;
 
 		if (frameID >= mFrameIdx)
 			break;

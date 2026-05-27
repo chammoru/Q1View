@@ -53,6 +53,8 @@ BEGIN_MESSAGE_MAP(CFrmsInfoView, CView)
 	ON_WM_SIZE()
 	ON_WM_CREATE()
 	ON_WM_ERASEBKGND()
+	ON_WM_MOUSEWHEEL()
+	ON_WM_LBUTTONDBLCLK()
 END_MESSAGE_MAP()
 
 
@@ -184,4 +186,28 @@ int CFrmsInfoView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 BOOL CFrmsInfoView::OnEraseBkgnd(CDC* pDC)
 {
 	return TRUE;
+}
+
+BOOL CFrmsInfoView::OnMouseWheel(UINT /*nFlags*/, short zDelta, CPoint pt)
+{
+	// pt is in screen coordinates; convert to client coordinates so we can
+	// check the cursor against the graph area.
+	CPoint client = pt;
+	ScreenToClient(&client);
+	if (!mGraphRect.PtInRect(client))
+		return FALSE;
+
+	int graphX = client.x - mGraphRect.left - GRAPH_IN_MARGIN_L;
+	mPsnrCal->ZoomAtX(zDelta, graphX);
+	Invalidate(FALSE);
+	return TRUE;
+}
+
+void CFrmsInfoView::OnLButtonDblClk(UINT /*nFlags*/, CPoint point)
+{
+	// Double-click anywhere on the graph restores the full-range view.
+	if (mGraphRect.PtInRect(point)) {
+		mPsnrCal->ResetView();
+		Invalidate(FALSE);
+	}
 }
