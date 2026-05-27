@@ -122,7 +122,7 @@ bool createRawThreadEtc(thread_func_t entryFunction,
 	// assigned after the child starts.  Use memory barrier / lock if the child
 	// or other threads also need access.
 	if (threadId != NULL) {
-		*threadId = (thread_id_t)thread;
+		*threadId = thread;
 	}
 
 	return true;
@@ -130,7 +130,12 @@ bool createRawThreadEtc(thread_func_t entryFunction,
 
 thread_id_t getThreadId()
 {
-	return (thread_id_t)pthread_self();
+	return pthread_self();
+}
+
+bool thread_id_equals(thread_id_t a, thread_id_t b)
+{
+	return pthread_equal(a, b) != 0;
 }
 
 #elif defined(_WIN32)
@@ -178,7 +183,7 @@ static bool doCreateThread(thread_func_t fn, void* arg, thread_id_t *id)
 	}
 
 	if (id != NULL) {
-		*id = (thread_id_t)(uint64_t)thrdaddr;
+		*id = thrdaddr;
 	}
 
 	CloseHandle(hThread);
@@ -198,7 +203,12 @@ bool createRawThreadEtc(thread_func_t fn,
 
 thread_id_t getThreadId()
 {
-	return (thread_id_t)(uint64_t)GetCurrentThreadId();
+	return GetCurrentThreadId();
+}
+
+bool thread_id_equals(thread_id_t a, thread_id_t b)
+{
+	return a == b;
 }
 
 #else
@@ -210,11 +220,14 @@ thread_id_t getThreadId()
  */
 
 SThread::SThread()
-	:mThread(thread_id_t(-1)),
+	:mThread(),
 	mStatus(SMP_OK),
 	mExitPending(false),
 	mRunning(false)
 {
+	// mThread is only read while mRunning is true, so its initial value is
+	// irrelevant; value-initialisation above keeps it deterministic on the
+	// pointer/integer pthread_t variants we support.
 }
 
 SThread::~SThread()
@@ -234,7 +247,6 @@ SmpError SThread::run(const char* name, int priority, int stack)
 	// try again after an error happened (either below, or in readyToRun())
 	mStatus = SMP_OK;
 	mExitPending = false;
-	mThread = thread_id_t(-1);
 	mRunning = true;
 
 	bool res;
@@ -243,8 +255,6 @@ SmpError SThread::run(const char* name, int priority, int stack)
 	if (res == false) {
 		mStatus = SMP_UNKNOWN;   // something happened!
 		mRunning = false;
-		mThread = thread_id_t(-1);
-
 		return SMP_UNKNOWN;
 	}
 
@@ -298,9 +308,9 @@ int SThread::_threadLoop(void* user)
 			if (result == false || self->mExitPending) {
 				self->mExitPending = true;
 				self->mRunning = false;
-				// clear thread ID so that requestExitAndWait() does not exit if
-				// called by a new thread using the same thread ID as this one.
-				self->mThread = thread_id_t(-1);
+				// mRunning gates reads of mThread, so the deadlock check in
+				// requestExitAndWait()/join() will not false-match a new thread
+				// that happens to be assigned the same kernel thread ID.
 				// note that interested observers blocked in requestExitAndWait are
 				// awoken by broadcast, but blocked on mLock until break exits scope
 				self->mThreadExitedCondition.broadcast();
@@ -323,7 +333,7 @@ int SThread::requestExitAndWait()
 {
 	SMutex::Autolock _l(mLock);
 
-	if (mThread == getThreadId()) {
+	if (mRunning && thread_id_equals(mThread, getThreadId())) {
 		LOGWRN(
 	        "Thread (this=%p): don't call waitForExit() from this "
 	        "Thread object's thread. It's a guaranteed deadlock!",
@@ -348,7 +358,7 @@ int SThread::join()
 {
 	SMutex::Autolock _l(mLock);
 
-	if (mThread == getThreadId()) {
+	if (mRunning && thread_id_equals(mThread, getThreadId())) {
 		LOGWRN(
 	        "Thread (this=%p): don't call join() from this "
 			"Thread object's thread. It's a guaranteed deadlock!",

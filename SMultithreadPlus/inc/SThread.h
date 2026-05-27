@@ -5,8 +5,21 @@
 #include "SMutex.h"
 #include "SCondition.h"
 
-typedef void * thread_id_t;
+#if defined(ANDROID) || defined(__GNUC__)
+// pthread_t is opaque on some POSIX implementations (macOS, musl), so we
+// keep it as the platform's native pthread_t and compare via pthread_equal.
+typedef pthread_t thread_id_t;
+#elif defined(_WIN32)
+// Equivalent to Win32 DWORD; using unsigned long avoids pulling <windows.h>
+// into this public header.
+typedef unsigned long thread_id_t;
+#else
+# error "need to implement for this platform."
+#endif
+
 typedef int (*thread_func_t)(void *);
+
+bool thread_id_equals(thread_id_t a, thread_id_t b);
 
 // This maps directly to the "nice" priorities we use in Linux.
 enum {
