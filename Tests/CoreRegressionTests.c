@@ -317,6 +317,22 @@ static void test_metrics(void)
 	check_near("SSIM constant reference",
 		qSSIM(zero, ten, 8, 8, 8, 1),
 		6.5025 / 106.5025, 0.000000001);
+
+	{
+		/* When the window slides from a bright region into a dark region the
+		 * column sums decrease.  The sliding update
+		 *   win_x += col_x[c + SIZE_N] - col_x[c]
+		 * computed the difference in 32-bit unsigned, which wrapped to a large
+		 * positive value and inflated win_x, corrupting SSIM (sometimes > 1).
+		 * For identical src/dst the result must be exactly 1.0. */
+		qu8 bright_dark[8 * 16];
+		for (y = 0; y < 8; y++) {
+			for (x = 0; x < 16; x++)
+				bright_dark[y * 16 + x] = (x < 8) ? 255 : 0;
+		}
+		check_near("SSIM bright-to-dark identical images",
+			qSSIM(bright_dark, bright_dark, 16, 8, 16, 1), 1.0, 0.000000001);
+	}
 }
 
 int main(void)
