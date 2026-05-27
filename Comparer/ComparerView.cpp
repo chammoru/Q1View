@@ -32,6 +32,8 @@ CComparerView::CComparerView()
 , mShowHelp(false)
 , mRgbBufSize(0)
 , mRgbBuf(NULL)
+, mDiffCellPen(nullptr)
+, mDiffDotBrush(nullptr)
 {
 	LOGFONT lf;
 
@@ -64,6 +66,13 @@ CComparerView::~CComparerView()
 
 	if (mRgbBuf)
 		_mm_free(mRgbBuf);
+
+	if (mMemDC.GetSafeHdc())
+		mMemDC.DeleteDC();
+	mMemBitmap.DeleteObject();
+
+	delete mDiffCellPen;
+	delete mDiffDotBrush;
 }
 
 
@@ -194,26 +203,21 @@ void CComparerView::OnDraw(CDC *pDC)
 		return;
 	}
 
-	CDC memDC;
-	memDC.CreateCompatibleDC(pDC);
+	if (!mMemDC.GetSafeHdc())
+		return;
 
-	CBitmap bitmap;
-	bitmap.CreateCompatibleBitmap(pDC, mWCanvas, mHCanvas);
-
-	memDC.SelectObject(bitmap);
-	memDC.SetStretchBltMode(COLORONCOLOR);
 	if (pDoc->mWDst < mWCanvas || pDoc->mHDst < mHCanvas)
-		memDC.FillSolidRect(CRect(0, 0, mWCanvas, mHCanvas), Q1UI_COLOR_CANVAS_BG);
+		mMemDC.FillSolidRect(CRect(0, 0, mWCanvas, mHCanvas), Q1UI_COLOR_CANVAS_BG);
 
 	q1::GridInfo gi;
 	ScaleRgbBuf(pDoc, pane->rgbBuf, gi);
 #ifdef USE_STRETCH_DIB
-	StretchDIBits(memDC.m_hDC,
+	StretchDIBits(mMemDC.m_hDC,
 		mXDst, mYDst, pDoc->mWDst, pDoc->mHDst,
 		0, 0, pDoc->mW, pDoc->mH,
 		pane->rgbBuf, &pDoc->mBmi, DIB_RGB_COLORS, SRCCOPY); // main image
 #else
-	SetDIBitsToDevice(memDC.m_hDC,
+	SetDIBitsToDevice(mMemDC.m_hDC,
 		0, 0, mWClient, mHClient,
 		0, 0, 0, mHClient,
 		mRgbBuf, &pDoc->mBmi, DIB_RGB_COLORS);
@@ -226,9 +230,9 @@ void CComparerView::OnDraw(CDC *pDC)
 		mDefPixelTextFont.GetLogFont(&lf);
 		lf.lfHeight = LONG(pDoc->mN * 4 / 15);
 		pixelTextFont.CreateFontIndirect(&lf);
-		memDC.SelectObject(&pixelTextFont);
-		memDC.SetTextColor(COLOR_PIXEL_TEXT);
-		memDC.DrawText(_T("000\n000\n000"), -1, rect, DT_CENTER | DT_CALCRECT);
+		mMemDC.SelectObject(&pixelTextFont);
+		mMemDC.SetTextColor(COLOR_PIXEL_TEXT);
+		mMemDC.DrawText(_T("000\n000\n000"), -1, rect, DT_CENTER | DT_CALCRECT);
 		int y = gi.y;
 		for (int i = 0; i < (int)gi.Hs.size(); i++) {
 			int x = gi.x;
@@ -237,20 +241,20 @@ void CComparerView::OnDraw(CDC *pDC)
 				label.Format(pDoc->mRgbFormat, px[2], px[1], px[0]);
 				CRect rect(x, y + (gi.Hs[i] - rect.Height()) / 2,
 					x + gi.Ws[j] - 1, y + gi.Hs[i] - 1);
-				memDC.SetBkColor(RGB((0x80+px[2])/2, (0x80+px[1])/2, (0x80+px[0])/2));
-				memDC.DrawText(label, &rect, DT_CENTER |  DT_VCENTER);
+				mMemDC.SetBkColor(RGB((0x80+px[2])/2, (0x80+px[1])/2, (0x80+px[0])/2));
+				mMemDC.DrawText(label, &rect, DT_CENTER |  DT_VCENTER);
 				x += gi.Ws[j];
 			}
 			y += gi.Hs[i];
 		}
 	}
 
-	DrawDiffOverlay(&memDC, pDoc, pane);
+	DrawDiffOverlay(&mMemDC, pDoc, pane);
 
 	if (mShowHelp)
-		DrawHelpMenu(&memDC);
+		DrawHelpMenu(&mMemDC);
 
-	pDC->BitBlt(0, mRcControls.bottom, mWCanvas, mHCanvas, &memDC, 0, 0, SRCCOPY);
+	pDC->BitBlt(0, mRcControls.bottom, mWCanvas, mHCanvas, &mMemDC, 0, 0, SRCCOPY);
 
 	mProcessing = false;
 }
@@ -342,15 +346,16 @@ void CComparerView::DrawDiffOverlay(CDC *pDC, CComparerDoc *pDoc, ComparerPane *
 	const int cellPx = 48;   // grid cell size in display pixels
 	const int dotR   = 3;    // center dot radius
 
-	Gdiplus::Graphics g(pDC->m_hDC);
-	g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-	g.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
+	if (!mDiffCellPen) {
+		const Gdiplus::Color cellColor(200, 0xff, 0x3d, 0x8a);
+		const Gdiplus::Color dotColor (235, 0xff, 0x3d, 0x8a);
+		mDiffCellPen = new Gdiplus::Pen(cellColor, 1.0f);
+		mDiffCellPen->SetAlignment(Gdiplus::PenAlignmentInset);
+		mDiffDotBrush = new Gdiplus::SolidBrush(dotColor);
+	}
 
-	const Gdiplus::Color cellColor(200, 0xff, 0x3d, 0x8a);   // ~78% alpha pink
-	const Gdiplus::Color dotColor (235, 0xff, 0x3d, 0x8a);   // ~92% alpha pink
-	Gdiplus::Pen        cellPen(cellColor, 1.0f);
-	cellPen.SetAlignment(Gdiplus::PenAlignmentInset);
-	Gdiplus::SolidBrush dotBrush(dotColor);
+	Gdiplus::Graphics g(pDC->m_hDC);
+	g.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
 
 	const float invN = (pDoc->mN > 0.0f) ? (1.0f / pDoc->mN) : 1.0f;
 
@@ -387,13 +392,13 @@ void CComparerView::DrawDiffOverlay(CDC *pDC, CComparerDoc *pDoc, ComparerPane *
 			}
 
 			if (hasDiff) {
-				g.DrawRectangle(&cellPen,
+				g.DrawRectangle(mDiffCellPen,
 					(float)cx, (float)cy,
 					(float)(cellRight - cx - 1), (float)(cellBot - cy - 1));
 
 				float dotX = (cx + cellRight) * 0.5f;
 				float dotY = (cy + cellBot)   * 0.5f;
-				g.FillEllipse(&dotBrush,
+				g.FillEllipse(mDiffDotBrush,
 					dotX - dotR, dotY - dotR, 2.0f * dotR, 2.0f * dotR);
 			}
 		}
@@ -656,6 +661,17 @@ void CComparerView::OnSize(UINT nType, int cx, int cy)
 		mNameQMenu.MoveWindow(mRcNameQMenu);
 
 	DeterminDestOriginCoord(pDoc);
+
+	if (mWCanvas > 0 && mHCanvas > 0) {
+		CClientDC dc(this);
+		if (mMemDC.GetSafeHdc())
+			mMemDC.DeleteDC();
+		mMemBitmap.DeleteObject();
+		mMemDC.CreateCompatibleDC(&dc);
+		mMemBitmap.CreateCompatibleBitmap(&dc, mWCanvas, mHCanvas);
+		mMemDC.SelectObject(&mMemBitmap);
+		mMemDC.SetStretchBltMode(COLORONCOLOR);
+	}
 }
 
 void CComparerView::OnMouseMove(UINT nFlags, CPoint point)

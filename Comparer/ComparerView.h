@@ -4,6 +4,11 @@
 #include "QMenuItem.h"
 #include "QViewerCmn.h"
 
+namespace Gdiplus {
+	class Pen;
+	class SolidBrush;
+}
+
 #define QMENUITEM_IN_MARGIN_H     8
 
 class CComparerView : public CScrollView
@@ -47,6 +52,10 @@ public:
 	int mRgbBufSize;
 	BYTE *mRgbBuf;
 	CFont mDefPixelTextFont;
+	CDC mMemDC;
+	CBitmap mMemBitmap;
+	Gdiplus::Pen*        mDiffCellPen;
+	Gdiplus::SolidBrush* mDiffDotBrush;
 
 	void AdjustWindowSize(int numPrevViews, int splitBarChange = 0) const;
 	void Initialize(CComparerDoc *pDoc);
