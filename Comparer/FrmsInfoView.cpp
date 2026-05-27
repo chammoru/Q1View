@@ -55,6 +55,7 @@ BEGIN_MESSAGE_MAP(CFrmsInfoView, CView)
 	ON_WM_ERASEBKGND()
 	ON_WM_MOUSEWHEEL()
 	ON_WM_LBUTTONDBLCLK()
+	ON_WM_LBUTTONDOWN()
 END_MESSAGE_MAP()
 
 
@@ -210,4 +211,43 @@ void CFrmsInfoView::OnLButtonDblClk(UINT /*nFlags*/, CPoint point)
 		mPsnrCal->ResetView();
 		Invalidate(FALSE);
 	}
+}
+
+void CFrmsInfoView::OnLButtonDown(UINT nFlags, CPoint point)
+{
+	if (!mGraphRect.PtInRect(point)) {
+		CView::OnLButtonDown(nFlags, point);
+		return;
+	}
+
+	CComparerDoc *pDoc = GetDocument();
+	if (pDoc->mMinFrames <= 0) {
+		CView::OnLButtonDown(nFlags, point);
+		return;
+	}
+
+	int graphX = point.x - mGraphRect.left - GRAPH_IN_MARGIN_L;
+	long frameID = mPsnrCal->FrameAtX(graphX);
+	if (frameID < 0) {
+		CView::OnLButtonDown(nFlags, point);
+		return;
+	}
+
+	pDoc->KillPlayTimer();
+	pDoc->SetScenes(frameID);
+
+	// Refresh the per-frame metric label shown in FrmInfoView for the new
+	// pair of frames.
+	IFrmCmpStrategy *compareStrategy = pDoc->mFrmCmpStrategy;
+	if (compareStrategy) {
+		CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+		ComparerPane *paneL = &pDoc->mPane[CComparerDoc::IMG_VIEW_1];
+		ComparerPane *paneR = &pDoc->mPane[CComparerDoc::IMG_VIEW_2];
+		compareStrategy->CalMetrics(paneL, paneR,
+			pMainFrm->mMetricIdx, pDoc->mFrmState);
+	}
+
+	pDoc->UpdateAllViews(NULL);
+
+	CView::OnLButtonDown(nFlags, point);
 }

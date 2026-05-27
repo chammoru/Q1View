@@ -193,6 +193,29 @@ void MetricCal::ZoomAtX(short zDelta, int graphX)
 		mViewEndFrame = mViewStartFrame + 1;
 }
 
+long MetricCal::FrameAtX(int graphX) const
+{
+	if (mStepCount == 0 || mFrameIdx == 0)
+		return -1;
+	int graphW = getGraphW();
+	if (graphW <= 0)
+		return -1;
+
+	if (graphX < 0)       graphX = 0;
+	if (graphX > graphW)  graphX = graphW;
+
+	size_t viewSpan = mViewEndFrame > mViewStartFrame
+		? mViewEndFrame - mViewStartFrame : 1;
+	long frameID = long(mViewStartFrame)
+		+ long((size_t(graphX) * viewSpan) / size_t(graphW));
+
+	// Clamp to frames that actually have parsed metrics so far.
+	long maxFrame = long(mFrameIdx) - 1;
+	if (frameID > maxFrame) frameID = maxFrame;
+	if (frameID < 0)        frameID = 0;
+	return frameID;
+}
+
 void MetricCal::CalMinMaxAccum()
 {
 	size_t i;

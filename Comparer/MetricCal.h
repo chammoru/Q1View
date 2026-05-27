@@ -66,6 +66,9 @@ public:
 	void ZoomAtX(short zDelta, int graphX);
 	// Restore the X axis to cover the full parsed range.
 	void ResetView();
+	// Frame index at the given graph-area X pixel under the current view
+	// range. Returns -1 if no data is available.
+	long FrameAtX(int graphX) const;
 
 	void DrawCmpResult(CDC* pDC, CFont *font) const;
 	void DrawYLabel(CDC* pDC, CRect *yLabelRect, CFont *font) const;
