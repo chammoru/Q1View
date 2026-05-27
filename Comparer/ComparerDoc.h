@@ -101,6 +101,7 @@ public:
 	}
 	std::vector<ComparerPane*> GetOtherPanes(ComparerPane* pane);
 	void KillPlayTimer();
+	void TogglePlay();
 	bool OffsetScenes(long offset);
 	void MarkImgViewProcessing();
 	bool CheckImgViewProcessing();

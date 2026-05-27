@@ -51,6 +51,7 @@ BEGIN_MESSAGE_MAP(CPosInfoView, CScrollView)
 	ON_WM_DESTROY()
 	ON_WM_MOUSEWHEEL()
 	ON_WM_VSCROLL()
+	ON_WM_KEYDOWN()
 END_MESSAGE_MAP()
 
 
@@ -350,4 +351,17 @@ void CPosInfoView::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 	nPos = si.nTrackPos;
 
 	CScrollView::OnVScroll(nSBCode, nPos, pScrollBar);
+}
+
+void CPosInfoView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+	// The timeline owns focus after a seek click, so route play/pause here too.
+	if (nChar == VK_SPACE) {
+		CComparerDoc* pDoc = GetDocument();
+		pDoc->TogglePlay();
+		pDoc->UpdateAllViews(NULL);
+		return;
+	}
+
+	CScrollView::OnKeyDown(nChar, nRepCnt, nFlags);
 }
