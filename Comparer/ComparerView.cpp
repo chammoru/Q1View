@@ -802,8 +802,6 @@ void CComparerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	if (nChar != VK_SPACE && isProcessing)
 		return;
 
-	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
-
 	switch (nChar) {
 	case VK_RIGHT:
 		pDoc->OffsetScenes(1);
@@ -812,15 +810,7 @@ void CComparerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		pDoc->OffsetScenes(-1);
 		break;
 	case VK_SPACE:
-		if (!pDoc->mIsPlaying) {
-			pDoc->mIsPlaying = true;
-			pMainFrm->SetTimer(CTI_ID_PLAY, ROUND2I((1000 / pDoc->mFps) - FPS_ADJUSTMENT), NULL);
-			bool changed = pDoc->NextScenes();
-			if (!changed)
-				pDoc->SetScenes(0);
-		} else {
-			pDoc->KillPlayTimer();
-		}
+		pDoc->TogglePlay();
 		break;
 	case 'H': // Toggle hexadecimal pixel values.
 		pDoc->mHexMode = !pDoc->mHexMode;

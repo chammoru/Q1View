@@ -682,6 +682,20 @@ void CComparerDoc::KillPlayTimer()
 	mIsPlaying = false;
 }
 
+void CComparerDoc::TogglePlay()
+{
+	if (mIsPlaying) {
+		KillPlayTimer();
+		return;
+	}
+
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	mIsPlaying = true;
+	pMainFrm->SetTimer(CTI_ID_PLAY, ROUND2I((1000 / mFps) - FPS_ADJUSTMENT), NULL);
+	if (!NextScenes())
+		SetScenes(0);
+}
+
 void CComparerDoc::MarkImgViewProcessing()
 {
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
