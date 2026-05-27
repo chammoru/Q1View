@@ -13,11 +13,17 @@ SMutex::SMutex() {
 	pthread_mutex_init(&mMutex, NULL);
 }
 
-SMutex::SMutex(const char* name) {
+// `name` is part of the API contract for symmetry with platforms that support
+// named mutexes; POSIX mutex objects have no kernel-level name, so it is
+// intentionally unused here.
+SMutex::SMutex(const char* /*name*/) {
 	pthread_mutex_init(&mMutex, NULL);
 }
 
-SMutex::SMutex(int type, const char* name) {
+// `name` is intentionally unused on POSIX (see above). `type` selects between
+// a regular process-private mutex and one shared across processes via the
+// pthread `PTHREAD_PROCESS_SHARED` attribute.
+SMutex::SMutex(int type, const char* /*name*/) {
 	if (type == SHARED) {
 		pthread_mutexattr_t attr;
 		pthread_mutexattr_init(&attr);
@@ -57,7 +63,12 @@ SMutex::SMutex()
 	mState = (void*) hMutex;
 }
 
-SMutex::SMutex(const char* name)
+// Win32 supports named/shared mutexes, but no caller in this codebase uses
+// them today. The overloads are kept for API symmetry with POSIX and behave
+// the same as the default constructor — `name` and `type` are intentionally
+// ignored. Implement them here if cross-process or named mutex semantics are
+// later required.
+SMutex::SMutex(const char* /*name*/)
 {
 	HANDLE hMutex;
 
@@ -67,7 +78,7 @@ SMutex::SMutex(const char* name)
 	mState = (void*) hMutex;
 }
 
-SMutex::SMutex(int type, const char* name)
+SMutex::SMutex(int /*type*/, const char* /*name*/)
 {
 	HANDLE hMutex;
 
