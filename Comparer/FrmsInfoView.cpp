@@ -56,6 +56,7 @@ BEGIN_MESSAGE_MAP(CFrmsInfoView, CView)
 	ON_WM_MOUSEWHEEL()
 	ON_WM_LBUTTONDBLCLK()
 	ON_WM_LBUTTONDOWN()
+	ON_WM_KEYDOWN()
 END_MESSAGE_MAP()
 
 
@@ -249,5 +250,42 @@ void CFrmsInfoView::OnLButtonDown(UINT nFlags, CPoint point)
 
 	pDoc->UpdateAllViews(NULL);
 
+	// Take focus so the user can drive playback (Space / Left / Right)
+	// directly from the graph after picking a frame; otherwise the frame's
+	// active view stays on ComparerView and OnKeyDown never fires here.
+	SetFocus();
+
 	CView::OnLButtonDown(nFlags, point);
+}
+
+void CFrmsInfoView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+	// Mirror CComparerView::OnKeyDown's playback subset so Space / Left /
+	// Right behave the same when the user has clicked into the graph instead
+	// of the image canvas.
+	CComparerDoc* pDoc = GetDocument();
+
+	bool isProcessing = pDoc->CheckImgViewProcessing();
+	if (nChar != VK_SPACE && isProcessing) {
+		CView::OnKeyDown(nChar, nRepCnt, nFlags);
+		return;
+	}
+
+	switch (nChar) {
+	case VK_SPACE:
+		pDoc->TogglePlay();
+		break;
+	case VK_LEFT:
+		pDoc->OffsetScenes(-1);
+		break;
+	case VK_RIGHT:
+		pDoc->OffsetScenes(1);
+		break;
+	default:
+		CView::OnKeyDown(nChar, nRepCnt, nFlags);
+		return;
+	}
+
+	pDoc->MarkImgViewProcessing();
+	pDoc->UpdateAllViews(NULL);
 }
