@@ -255,6 +255,9 @@ void CComparerView::OnDraw(CDC *pDC)
 
 	DrawDiffOverlay(&mMemDC, pDoc, pane);
 
+	if (pDoc->mShowCursorCoord && pDoc->mCursorView == this)
+		DrawCursorCoord(&mMemDC, pDoc);
+
 	if (mShowHelp)
 		DrawHelpMenu(&mMemDC);
 
@@ -307,6 +310,7 @@ void CComparerView::DrawHelpMenu(CDC *pDC)
 		"H              Toggle hex pixel values\n"
 		"I              Interpolate pixels\n"
 		"D              Toggle pink diff overlay (grid + dots)\n"
+		"C              Toggle cursor pixel coordinates\n"
 		"Click timeline Pick a video frame (left/right pane)\n"
 		);
 	pDC->DrawText(manual, &manualRect, DT_LEFT | DT_TOP);
@@ -512,6 +516,82 @@ void CComparerView::DrawHighZoomCells(CComparerDoc *pDoc, ComparerPane *pane)
 	mMemDC.SetBkMode(prevBkMode);
 	mMemDC.SetTextColor(prevTextColor);
 	mMemDC.SelectObject(prevFont);
+}
+
+void CComparerView::UpdateCursorCoord(const CPoint &clientPoint)
+{
+	CComparerDoc *pDoc = GetDocument();
+	if (!pDoc || pDoc->mW <= 0 || pDoc->mH <= 0)
+		return;
+
+	// clientPoint is in window-client space; the canvas starts at y =
+	// mRcControls.bottom (the controls strip sits above it).
+	int canvasX = clientPoint.x;
+	int canvasY = clientPoint.y - mRcControls.bottom;
+
+	int xCoord = int((canvasX - mXDst) / pDoc->mN);
+	int yCoord = int((canvasY - mYDst) / pDoc->mN);
+
+	// Hide the overlay whenever the cursor is over the controls strip or off
+	// the image itself; otherwise the displayed coord would be misleading
+	// (negative or past mW/mH).
+	bool outside = (canvasY < 0) ||
+		(xCoord < 0) || (xCoord >= pDoc->mW) ||
+		(yCoord < 0) || (yCoord >= pDoc->mH);
+
+	if (outside) {
+		if (pDoc->mCursorView == this) {
+			pDoc->mCursorView = NULL;
+			if (pDoc->mShowCursorCoord)
+				Invalidate(FALSE);
+		}
+		return;
+	}
+
+	if (pDoc->mCursorView == this &&
+		pDoc->mCursorX == xCoord && pDoc->mCursorY == yCoord) {
+		return;
+	}
+
+	CComparerView *prev = pDoc->mCursorView;
+	pDoc->mCursorView = this;
+	pDoc->mCursorX = xCoord;
+	pDoc->mCursorY = yCoord;
+
+	if (pDoc->mShowCursorCoord) {
+		if (prev != NULL && prev != this)
+			prev->Invalidate(FALSE);
+		Invalidate(FALSE);
+	}
+}
+
+void CComparerView::DrawCursorCoord(CDC *pDC, CComparerDoc *pDoc)
+{
+	LOGFONT lf;
+	mDefPixelTextFont.GetLogFont(&lf);
+	lf.lfHeight = 16;
+	lf.lfWeight = FW_NORMAL;
+	CFont coordFont;
+	coordFont.CreateFontIndirect(&lf);
+
+	CFont *prevFont = pDC->SelectObject(&coordFont);
+
+	CString coord;
+	coord.Format(_T("x:%d,y:%d"), pDoc->mCursorX, pDoc->mCursorY);
+
+	CRect refRect;
+	pDC->DrawText(coord, -1, refRect, DT_CENTER | DT_VCENTER | DT_CALCRECT);
+	CRect bgRect(mWCanvas - refRect.Width(), mHCanvas - refRect.Height(),
+		mWCanvas, mHCanvas);
+	bgRect.InflateRect(8, 2, 0, 0);
+	pDC->FillSolidRect(bgRect, Q1UI_COLOR_OVERLAY);
+
+	int prevBkMode = pDC->SetBkMode(TRANSPARENT);
+	COLORREF prevTextColor = pDC->SetTextColor(Q1UI_COLOR_OVERLAY_TEXT);
+	pDC->DrawText(coord, &bgRect, DT_CENTER | DT_VCENTER);
+	pDC->SetTextColor(prevTextColor);
+	pDC->SetBkMode(prevBkMode);
+	pDC->SelectObject(prevFont);
 }
 
 void CComparerView::DrawEmptyPane(CDC *pDC, CComparerDoc *pDoc)
@@ -742,6 +822,11 @@ BOOL CComparerView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 	for (auto view : GetOhterViews(pDoc))
 		view->DeterminDestOriginCoord(pDoc);
 
+	// Reposition cursor coord at the new zoom; clientPoint already excludes
+	// the controls strip, so add it back so UpdateCursorCoord can subtract.
+	CPoint cursorPoint(clientPoint.x, clientPoint.y + mRcControls.bottom);
+	UpdateCursorCoord(cursorPoint);
+
 	pDoc->UpdateAllViews(NULL);
 
 OnMouseWheelDefault:
@@ -802,6 +887,8 @@ void CComparerView::OnMouseMove(UINT nFlags, CPoint point)
 		for (auto view : GetOhterViews(pDoc))
 			view->Invalidate(FALSE);
 	}
+
+	UpdateCursorCoord(point);
 
 OnMouseMoveDefault:
 	CScrollView::OnMouseMove(nFlags, point);
@@ -948,6 +1035,14 @@ void CComparerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		break;
 	case 'D':
 		pDoc->mDiffOverlay = !pDoc->mDiffOverlay;
+		break;
+	case 'C':
+		pDoc->mShowCursorCoord = !pDoc->mShowCursorCoord;
+		// Repaint all panes: the active one needs the overlay drawn (or
+		// cleared); the others may have been left tracking a stale cursor.
+		for (auto view : GetOhterViews(pDoc))
+			view->Invalidate(FALSE);
+		Invalidate(FALSE);
 		break;
 	case VK_OEM_2: // '?' / '/' on US keyboards.
 		ToggleHelp();
