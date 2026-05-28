@@ -52,6 +52,8 @@ public:
 	int mRgbBufSize;
 	BYTE *mRgbBuf;
 	CFont mDefPixelTextFont;
+	CFont mPixelTextFont;
+	LONG  mPixelTextFontHeight;
 	CDC mMemDC;
 	CBitmap mMemBitmap;
 	Gdiplus::Pen*        mDiffCellPen;
@@ -66,6 +68,9 @@ public:
 	void ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridInfo &gi);
 	void ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *dst, int sDst,
 		q1::GridInfo &gi);
+	void EnsureNnOffsetBuf(CComparerDoc *pDoc);
+	void EnsurePixelTextFont(float n);
+	void DrawHighZoomCells(CComparerDoc *pDoc, ComparerPane *pane);
 	void DrawEmptyPane(CDC *pDC, CComparerDoc *pDoc);
 	void DrawDiffOverlay(CDC *pDC, CComparerDoc *pDoc, ComparerPane *pane);
 	void DrawHelpMenu(CDC *pDC);

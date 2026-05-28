@@ -32,6 +32,7 @@ CComparerView::CComparerView()
 , mShowHelp(false)
 , mRgbBufSize(0)
 , mRgbBuf(NULL)
+, mPixelTextFontHeight(0)
 , mDiffCellPen(nullptr)
 , mDiffDotBrush(nullptr)
 {
@@ -144,6 +145,55 @@ void CComparerView::ScaleNearestNeighbor(CComparerDoc *pDoc, BYTE *src, BYTE *ds
 	}
 }
 
+void CComparerView::EnsureNnOffsetBuf(CComparerDoc *pDoc)
+{
+	int maxL = QMAX(pDoc->mWDst, pDoc->mHDst);
+	if (pDoc->mPreN == pDoc->mN && pDoc->mPreMaxL >= maxL)
+		return;
+
+	if (pDoc->mNnOffsetBufSize < maxL) {
+		if (pDoc->mNnOffsetBuf)
+			_mm_free(pDoc->mNnOffsetBuf);
+
+		if (pDoc->mNnOffsetYBorderFlag)
+			_mm_free(pDoc->mNnOffsetYBorderFlag);
+
+		if (pDoc->mNnOffsetXBorderFlag)
+			_mm_free(pDoc->mNnOffsetXBorderFlag);
+
+		pDoc->mNnOffsetBufSize = maxL;
+		pDoc->mNnOffsetBuf =
+			static_cast<qu16 *>(_mm_malloc(pDoc->mNnOffsetBufSize * sizeof(qu16), 16));
+		pDoc->mNnOffsetYBorderFlag =
+			static_cast<qu8 *>(_mm_malloc(pDoc->mNnOffsetBufSize * sizeof(qu8), 16));
+		pDoc->mNnOffsetXBorderFlag =
+			static_cast<qu8 *>(_mm_malloc(pDoc->mNnOffsetBufSize * sizeof(qu8), 16));
+	}
+
+	float ratio = 1 / pDoc->mN;
+	for (int i = 0; i < maxL; i++)
+		pDoc->mNnOffsetBuf[i] = int(i * ratio) * QIMG_DST_RGB_BYTES;
+
+	pDoc->mPreN = pDoc->mN;
+	pDoc->mPreMaxL = maxL;
+}
+
+void CComparerView::EnsurePixelTextFont(float n)
+{
+	LONG h = LONG(n * 4 / 15);
+	if (h == mPixelTextFontHeight && mPixelTextFont.GetSafeHandle())
+		return;
+
+	if (mPixelTextFont.GetSafeHandle())
+		mPixelTextFont.DeleteObject();
+
+	LOGFONT lf;
+	mDefPixelTextFont.GetLogFont(&lf);
+	lf.lfHeight = h;
+	mPixelTextFont.CreateFontIndirect(&lf);
+	mPixelTextFontHeight = h;
+}
+
 void CComparerView::ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridInfo &gi)
 {
 	int sDst = ROUNDUP_DWORD(mWClient);
@@ -157,34 +207,7 @@ void CComparerView::ScaleRgbBuf(CComparerDoc *pDoc, BYTE *rgbBuffer, q1::GridInf
 		mRgbBuf = static_cast<BYTE *>(_mm_malloc(mRgbBufSize, 16));
 	}
 
-	int maxL = QMAX(pDoc->mWDst, pDoc->mHDst);
-	if (pDoc->mPreN != pDoc->mN || pDoc->mPreMaxL < maxL) {
-		if (pDoc->mNnOffsetBufSize < maxL) {
-			if (pDoc->mNnOffsetBuf)
-				_mm_free(pDoc->mNnOffsetBuf);
-
-			if (pDoc->mNnOffsetYBorderFlag)
-				_mm_free(pDoc->mNnOffsetYBorderFlag);
-
-			if (pDoc->mNnOffsetXBorderFlag)
-				_mm_free(pDoc->mNnOffsetXBorderFlag);
-
-			pDoc->mNnOffsetBufSize = maxL;
-			pDoc->mNnOffsetBuf =
-				static_cast<qu16 *>(_mm_malloc(pDoc->mNnOffsetBufSize * sizeof(qu16), 16));
-			pDoc->mNnOffsetYBorderFlag =
-				static_cast<qu8 *>(_mm_malloc(pDoc->mNnOffsetBufSize * sizeof(qu8), 16));
-			pDoc->mNnOffsetXBorderFlag =
-				static_cast<qu8 *>(_mm_malloc(pDoc->mNnOffsetBufSize * sizeof(qu8), 16));
-		}
-
-		float ratio = 1 / pDoc->mN;
-		for (int i = 0; i < maxL; i++)
-			pDoc->mNnOffsetBuf[i] = int(i * ratio) * QIMG_DST_RGB_BYTES;
-
-		pDoc->mPreN = pDoc->mN;
-		pDoc->mPreMaxL = maxL;
-	}
+	EnsureNnOffsetBuf(pDoc);
 
 	ScaleNearestNeighbor(pDoc, rgbBuffer, mRgbBuf, sDst, gi);
 
@@ -209,44 +232,25 @@ void CComparerView::OnDraw(CDC *pDC)
 	if (pDoc->mWDst < mWCanvas || pDoc->mHDst < mHCanvas)
 		mMemDC.FillSolidRect(CRect(0, 0, mWCanvas, mHCanvas), Q1UI_COLOR_CANVAS_BG);
 
-	q1::GridInfo gi;
-	ScaleRgbBuf(pDoc, pane->rgbBuf, gi);
-#ifdef USE_STRETCH_DIB
-	StretchDIBits(mMemDC.m_hDC,
-		mXDst, mYDst, pDoc->mWDst, pDoc->mHDst,
-		0, 0, pDoc->mW, pDoc->mH,
-		pane->rgbBuf, &pDoc->mBmi, DIB_RGB_COLORS, SRCCOPY); // main image
-#else
-	SetDIBitsToDevice(mMemDC.m_hDC,
-		0, 0, mWClient, mHClient,
-		0, 0, 0, mHClient,
-		mRgbBuf, &pDoc->mBmi, DIB_RGB_COLORS);
-#endif
 	if (pDoc->mN > ZOOM_TEXT_START) {
-		CString label;
-		CRect rect;
-		LOGFONT lf;
-		CFont pixelTextFont;
-		mDefPixelTextFont.GetLogFont(&lf);
-		lf.lfHeight = LONG(pDoc->mN * 4 / 15);
-		pixelTextFont.CreateFontIndirect(&lf);
-		mMemDC.SelectObject(&pixelTextFont);
-		mMemDC.SetTextColor(COLOR_PIXEL_TEXT);
-		mMemDC.DrawText(_T("000\n000\n000"), -1, rect, DT_CENTER | DT_CALCRECT);
-		int y = gi.y;
-		for (int i = 0; i < (int)gi.Hs.size(); i++) {
-			int x = gi.x;
-			for (int j = 0; j < (int)gi.Ws.size(); j++) {
-				cv::Vec3b px = gi.pixelMap.at<cv::Vec3b>(i, j);
-				label.Format(pDoc->mRgbFormat, px[2], px[1], px[0]);
-				CRect rect(x, y + (gi.Hs[i] - rect.Height()) / 2,
-					x + gi.Ws[j] - 1, y + gi.Hs[i] - 1);
-				mMemDC.SetBkColor(RGB((0x80+px[2])/2, (0x80+px[1])/2, (0x80+px[0])/2));
-				mMemDC.DrawText(label, &rect, DT_CENTER |  DT_VCENTER);
-				x += gi.Ws[j];
-			}
-			y += gi.Hs[i];
-		}
+		// At this zoom level each source pixel becomes a large display cell.
+		// Draw each cell directly (dimmed 1px border + solid interior + label)
+		// instead of synthesizing a full canvas-sized DIB and blitting it.
+		DrawHighZoomCells(pDoc, pane);
+	} else {
+		q1::GridInfo gi;
+		ScaleRgbBuf(pDoc, pane->rgbBuf, gi);
+#ifdef USE_STRETCH_DIB
+		StretchDIBits(mMemDC.m_hDC,
+			mXDst, mYDst, pDoc->mWDst, pDoc->mHDst,
+			0, 0, pDoc->mW, pDoc->mH,
+			pane->rgbBuf, &pDoc->mBmi, DIB_RGB_COLORS, SRCCOPY); // main image
+#else
+		SetDIBitsToDevice(mMemDC.m_hDC,
+			0, 0, mWClient, mHClient,
+			0, 0, 0, mHClient,
+			mRgbBuf, &pDoc->mBmi, DIB_RGB_COLORS);
+#endif
 	}
 
 	DrawDiffOverlay(&mMemDC, pDoc, pane);
@@ -403,6 +407,111 @@ void CComparerView::DrawDiffOverlay(CDC *pDC, CComparerDoc *pDoc, ComparerPane *
 			}
 		}
 	}
+}
+
+// Mirrors the dimmed-border + solid-interior pattern that
+// q1::ScaleUsingOffset produces via nOffsetBorderFlag, but without going
+// through the full canvas-sized RGB buffer + SetDIBitsToDevice. Each visible
+// source pixel is drawn as one cell rectangle, so the work is O(visible
+// cells) instead of O(canvas pixels).
+void CComparerView::DrawHighZoomCells(CComparerDoc *pDoc, ComparerPane *pane)
+{
+	if (!pane || !pane->rgbBuf)
+		return;
+
+	EnsureNnOffsetBuf(pDoc);
+
+	// Visible region in scaled-image coordinates. This intentionally matches
+	// ScaleNearestNeighbor's computation so InvestigatePixelBorder receives
+	// identical inputs.
+	long yStart, yEnd, xStart, xEnd;
+	if (mYDst > 0) {
+		yStart = 0;
+		yEnd = pDoc->mHDst;
+	} else {
+		yStart = -mYDst;
+		yEnd = mHClient - mYDst - mRcControls.bottom;
+	}
+	if (mXDst > 0) {
+		xStart = 0;
+		xEnd = pDoc->mWDst;
+	} else {
+		xStart = -mXDst;
+		xEnd = mWClient - mXDst;
+	}
+
+	long yBase = mYDst > 0 ? mYDst : 0;
+	long xBase = mXDst > 0 ? mXDst : 0;
+
+	q1::GridInfo gi;
+	q1::InvestigatePixelBorder(pDoc->mNnOffsetBuf, yStart, yEnd, yBase, pDoc->mHDst,
+		&gi.y, &gi.Hs, pDoc->mNnOffsetYBorderFlag);
+	q1::InvestigatePixelBorder(pDoc->mNnOffsetBuf, xStart, xEnd, xBase, pDoc->mWDst,
+		&gi.x, &gi.Ws, pDoc->mNnOffsetXBorderFlag);
+
+	if (gi.Hs.empty() || gi.Ws.empty())
+		return;
+
+	EnsurePixelTextFont(pDoc->mN);
+
+	CFont *prevFont = mMemDC.SelectObject(&mPixelTextFont);
+	int prevBkMode = mMemDC.SetBkMode(OPAQUE);
+	COLORREF prevTextColor = mMemDC.SetTextColor(COLOR_PIXEL_TEXT);
+
+	// Measured once with the cached font; reused for every cell.
+	CRect calcRect;
+	mMemDC.DrawText(_T("000\n000\n000"), -1, calcRect, DT_CENTER | DT_CALCRECT);
+	int textHeight = calcRect.Height();
+
+	const int srcStride = ROUNDUP_DWORD(pDoc->mW);
+	const qu16 *nOffset = pDoc->mNnOffsetBuf;
+
+	int y = gi.y;
+	int srcY = yStart;
+	for (size_t i = 0; i < gi.Hs.size(); i++) {
+		int cellH = gi.Hs[i];
+		const BYTE *src_y = pane->rgbBuf + nOffset[srcY] * srcStride;
+
+		int x = gi.x;
+		int srcX = xStart;
+		for (size_t j = 0; j < gi.Ws.size(); j++) {
+			int cellW = gi.Ws[j];
+			const BYTE *src_x = src_y + nOffset[srcX];
+			BYTE b = src_x[0];
+			BYTE g = src_x[1];
+			BYTE r = src_x[2];
+
+			COLORREF solid = RGB(r, g, b);
+			COLORREF dim   = RGB((0x80 + r) >> 1, (0x80 + g) >> 1, (0x80 + b) >> 1);
+
+			// Dim the full cell first; the interior is then overwritten with
+			// the true pixel color, leaving the 1px border dim. This matches
+			// the GIRD_SIDE_START / GRID_SIDE_END branch in ScaleUsingOffset.
+			mMemDC.FillSolidRect(x, y, cellW, cellH, dim);
+			if (cellW > 2 && cellH > 2)
+				mMemDC.FillSolidRect(x + 1, y + 1, cellW - 2, cellH - 2, solid);
+
+			CString label;
+			label.Format(pDoc->mRgbFormat, r, g, b);
+			mMemDC.SetBkColor(dim);
+			// Same off-by-one rect as the original loop: width cellW-1,
+			// bottom y+cellH-1 -- leaves the rightmost column and bottom
+			// row untouched so the dim border on those sides is preserved
+			// even when OPAQUE text bg would otherwise repaint them.
+			CRect textRect(x, y + (cellH - textHeight) / 2,
+				x + cellW - 1, y + cellH - 1);
+			mMemDC.DrawText(label, &textRect, DT_CENTER | DT_VCENTER);
+
+			x += cellW;
+			srcX += cellW;
+		}
+		y += cellH;
+		srcY += cellH;
+	}
+
+	mMemDC.SetBkMode(prevBkMode);
+	mMemDC.SetTextColor(prevTextColor);
+	mMemDC.SelectObject(prevFont);
 }
 
 void CComparerView::DrawEmptyPane(CDC *pDC, CComparerDoc *pDoc)
