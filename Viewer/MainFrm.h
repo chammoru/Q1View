@@ -93,7 +93,7 @@ public:
 //	afx_msg void OnDropFiles(HDROP hDropInfo);
 	afx_msg void OnHelp();
 	afx_msg void OnFileOpen();
-	afx_msg void OnExecComparer();
+	afx_msg void OnExecComparator();
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg void OnResolutionChange(UINT nID);
 	afx_msg void OnCsChange(UINT nID);

@@ -36,8 +36,8 @@ Example local setup:
 
 ```powershell
 msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64
-msbuild Comparer\Comparer.sln /m /restore /p:Configuration=Release /p:Platform=x64
+msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64
 ```
 
 The build copies the libheif runtime DLLs from `Q1VIEW_HEIF_ROOT\bin` next to
-`Viewer.exe` and `Comparer.exe`.
+`Viewer.exe` and `Comparator.exe`.

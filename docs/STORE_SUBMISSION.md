@@ -24,7 +24,7 @@ Build both applications, then create the MSIX:
 ```powershell
 # 1. Build
 msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64
-msbuild Comparer\Comparer.sln /m /restore /p:Configuration=Release /p:Platform=x64
+msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64
 
 # 2. Stage binaries
 .\build\Package-Q1View.ps1 -Configuration Release -Platform x64

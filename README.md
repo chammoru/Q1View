@@ -96,7 +96,7 @@ Q1View builds with Visual Studio 2019 or newer on Windows x64.
 
 ```powershell
 msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64
-msbuild Comparer\Comparer.sln /m /restore /p:Configuration=Release /p:Platform=x64
+msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64
 ```
 
 See the [Development Guide](docs/DEVELOPMENT.md) for dependencies, packaging,

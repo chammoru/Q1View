@@ -64,7 +64,7 @@ void NearestNeighbor(qu8* src, int h, int w, int hDst, int wDst, int xDst, int y
 void Interpolate(qu8* src, int h, int w, int wCanvas, long xStart, long xEnd,
 	long yStart, long yEnd, qu16* nOffsetBuf, qu8* dst);
 
-// Add new preset resolutions here. Menus in Viewer and Comparer are generated
+// Add new preset resolutions here. Menus in Viewer and Comparator are generated
 // directly from this table.
 static const char *resolution_info_table[] = {
 	"176x144 (QCIF)",
