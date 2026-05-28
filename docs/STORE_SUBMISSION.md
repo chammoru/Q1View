@@ -15,7 +15,7 @@ Before starting a submission, confirm the following are ready:
 | Logo assets (all required sizes) | Required | See `installer/msix/Assets/README.md` |
 | Privacy Policy URL | Ready | `https://github.com/chammoru/Q1View/blob/master/PRIVACY.md` |
 | Store listing text | Ready | See `docs/STORE_LISTING.md` |
-| Store screenshots | Required | Show both Viewer and Comparer workflows; see [Screenshots](#screenshots) below |
+| Store screenshots | Required | Show both Viewer and Comparator workflows; see [Screenshots](#screenshots) below |
 
 ## MSIX Packaging
 
@@ -44,7 +44,7 @@ The signed package is written to `dist\Q1View-windows-x64.msix`.
 # Install (sideload)
 Add-AppPackage -Path .\dist\Q1View-windows-x64.msix
 
-# Verify Viewer launches and its Compare action opens Comparer, then uninstall
+# Verify Viewer launches and its Compare action opens Comparator, then uninstall
 Get-AppPackage -Name "KyuwonKim.Q1View" | Remove-AppPackage
 ```
 
@@ -108,8 +108,8 @@ Use the text from `docs/STORE_LISTING.md`:
 
 ### 5. Screenshots
 
-At minimum, provide screenshots that show the Viewer and Comparer workflows.
-The Store package exposes Viewer as its single entry point; Comparer is
+At minimum, provide screenshots that show the Viewer and Comparator workflows.
+The Store package exposes Viewer as its single entry point; Comparator is
 included in the package and launched from Viewer's **Compare** action.
 Recommended set:
 
@@ -118,8 +118,8 @@ Recommended set:
 | Viewer — video frame | 1920 × 1080 | Video playback with seek bar visible |
 | Viewer — pixel inspection | 1920 × 1080 | High-zoom view showing pixel values |
 | Viewer — Sync Input | 1920 × 1080 | Two Viewer windows synchronized |
-| Comparer — PSNR | 1920 × 1080 | Side-by-side with PSNR graph |
-| Comparer — SSIM | 1920 × 1080 | Side-by-side with SSIM graph |
+| Comparator — PSNR | 1920 × 1080 | Side-by-side with PSNR graph |
+| Comparator — SSIM | 1920 × 1080 | Side-by-side with SSIM graph |
 
 Accepted sizes: 1366×768 minimum, 3840×2160 maximum. PNG or JPEG.
 
@@ -129,7 +129,7 @@ Accepted sizes: 1366×768 minimum, 3840×2160 maximum. PNG or JPEG.
 - [ ] Confirm package details in Partner Center match the manifest:
   - Publisher CN matches certificate
   - Version matches the release tag (e.g. `1.0.16.0`)
-  - Viewer appears as the Store entry point and can launch the included Comparer workflow
+  - Viewer appears as the Store entry point and can launch the included Comparator workflow
 
 ### 7. Final review and submit
 

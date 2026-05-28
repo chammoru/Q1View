@@ -66,7 +66,7 @@ number in the PR description rather than in every commit message.
 
 ```
 Support odd-width YUV raw frames
-Fix Comparer launch file handling
+Fix Comparator launch file handling
 Reduce Sync Input pan latency
 ```
 

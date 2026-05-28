@@ -1,7 +1,7 @@
 # Q1View User Guide
 
 Q1View contains two focused Windows applications: **Viewer** for inspecting a
-single source and **Comparer** for measuring differences between sources.
+single source and **Comparator** for measuring differences between sources.
 
 ## Viewer
 
@@ -69,13 +69,13 @@ Viewer windows.
 
 ![Viewer context menu with Sync Input enabled](images/viewer-sync-menu.webp)
 
-## Comparer
+## Comparator
 
-Comparer opens two to four images, raw dumps, or video/frame sources in aligned
+Comparator opens two to four images, raw dumps, or video/frame sources in aligned
 panes. The header controls the interpreted resolution, metric, FPS, view count,
 and options.
 
-![Comparer showing PSNR for a reference and an encoded result](images/comparer-psnr.webp)
+![Comparator showing PSNR for a reference and an encoded result](images/comparer-psnr.webp)
 
 ### Typical Workflow
 
@@ -87,11 +87,11 @@ and options.
 
 The same reference and encoded image below are shown with SSIM selected:
 
-![Comparer showing SSIM for the same sources](images/comparer-ssim.webp)
+![Comparator showing SSIM for the same sources](images/comparer-ssim.webp)
 
 ### Pixel-Level Diff Overlay
 
-When two sources are loaded, Comparer highlights every region where the pixels
+When two sources are loaded, Comparator highlights every region where the pixels
 differ from the reference pane. The image area is divided into a fixed-size
 grid in display pixels; each cell that contains any differing pixel gets a
 translucent pink rectangle outline plus a center dot. Because the cell size is
@@ -102,19 +102,20 @@ values, since the pixel labels already convey the diff.
 
 ### Controls
 
-Comparer also includes a built-in shortcut panel, opened with `?`.
+Comparator also includes a built-in shortcut panel, opened with `?`.
 
 | Action | Control |
 | --- | --- |
 | Show or hide the shortcut panel | `?` |
-| Open a source into a pane | Drag and drop |
+| Open a source in a pane | Drag and drop |
 | Zoom | Mouse wheel |
 | Previous or next video frame | Left / Right |
 | Play or pause | `Space` |
 | Toggle hex pixel values | `H` |
 | Toggle pixel interpolation | `I` |
 | Toggle pink diff overlay (grid + dots) | `D` |
-| Pick a frame in the timeline (video) | Click left or right side |
+| Toggle cursor pixel coordinates | `C` |
+| Seek to a frame in the timeline (video) | Click left or right side |
 
 ## Input Notes
 

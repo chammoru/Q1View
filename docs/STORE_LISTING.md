@@ -30,10 +30,10 @@ It ships as two focused applications:
 VIEWER
 Open an image, raw frame dump, frame sequence, or video file. Zoom down to individual pixels, read exact component values (Y/U/V for raw YUV sources, R/G/B for decoded images), step through video frames one at a time, and inspect coordinates and selection regions. Video playback follows the source FPS or a user-selected rate and recovers from stalls without drifting.
 
-Open multiple Viewer windows and enable Sync Input to keep navigation, zoom, pan, rotation, playback, and display settings synchronized across all of them — useful for side-by-side review of related sources without using Comparer.
+Open multiple Viewer windows and enable Sync Input to keep navigation, zoom, pan, rotation, playback, and display settings synchronized across all of them — useful for side-by-side review of related sources without using Comparator.
 
-COMPARER
-Open two to four sources side by side. Comparer aligns them in a synchronized view and calculates PSNR and SSIM frame by frame. A bottom graph shows metric values across all frames; a side panel marks which frames contain differences. Use the PSNR or SSIM score to find the encoded output that differs most from the reference, then zoom in to see exactly which pixels changed.
+COMPARATOR
+Open two to four sources side by side. Comparator aligns them in a synchronized view and calculates PSNR and SSIM frame by frame. A bottom graph shows metric values across all frames; a side panel marks which frames contain differences. Use the PSNR or SSIM score to find the encoded output that differs most from the reference, then zoom in to see exactly which pixels changed.
 
 SUPPORTED INPUTS
 • BMP, JPEG, PNG, TIFF, WebP
@@ -54,7 +54,7 @@ TECHNICAL NOTES
 • Windows x64 only
 • Korean and Unicode file and folder names are supported
 • No internet connection required; no data is collected or transmitted
-• The Store app launches its dedicated Comparer workflow directly from Viewer
+• The Store app launches its dedicated Comparator workflow directly from Viewer
 • Portable ZIP available for use without installation
 ```
 
@@ -73,7 +73,7 @@ TECHNICAL NOTES
 8. Frame sequence navigation through same-folder images
 9. Clipboard paste and screen capture support
 10. Unicode and Korean path support
-11. Launch the dedicated Comparer workflow directly from Viewer
+11. Launch the dedicated Comparator workflow directly from Viewer
 12. Step through video frames one at a time with Left/Right arrow keys
 13. Rotation, luma-only view, interpolation, and hex pixel value modes
 14. Allow Different Resolution mode for cross-resolution comparisons

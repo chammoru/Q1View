@@ -5,7 +5,7 @@ labels: bug
 ---
 
 **Q1View version:**  
-**Application:** Viewer / Comparer (delete as appropriate)
+**Application:** Viewer / Comparator (delete as appropriate)
 
 **Steps to reproduce:**
 1. 

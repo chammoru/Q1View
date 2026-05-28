@@ -97,7 +97,7 @@ void CFrmsInfoView::OnDraw(CDC* pDC)
 	if (stepCount <= 0) {
 		DrawCenteredMessage(&memDC, CRect(0, 0, mWClient, mHClient),
 			&mResultFont, &mLabelFont, _T("Metrics"),
-			_T("Open comparable sources to calculate PSNR or SSIM"));
+			_T("Open two sources to calculate PSNR or SSIM"));
 		pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
 
 		return;
@@ -108,7 +108,7 @@ void CFrmsInfoView::OnDraw(CDC* pDC)
 	if (itemCount <= 0) {
 		DrawCenteredMessage(&memDC, CRect(0, 0, mWClient, mHClient),
 			&mResultFont, &mLabelFont, _T("Scanning"),
-			_T("Metric points will appear as frames are parsed"));
+			_T("Per-frame measurements will appear as frames are processed"));
 		pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
 		return;
 	}
