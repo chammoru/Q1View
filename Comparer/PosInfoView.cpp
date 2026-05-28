@@ -330,6 +330,11 @@ void CPosInfoView::OnLButtonDown(UINT nFlags, CPoint point)
 
 	pDoc->UpdateAllViews(NULL);
 
+	// Take focus so the user can drive playback (Space / Left / Right)
+	// directly from the timeline after seeking; otherwise the frame's active
+	// view stays on ComparerView and OnKeyDown never fires here.
+	SetFocus();
+
 	CScrollView::OnLButtonDown(nFlags, point);
 }
 
@@ -355,13 +360,33 @@ void CPosInfoView::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 
 void CPosInfoView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
-	// The timeline owns focus after a seek click, so route play/pause here too.
-	if (nChar == VK_SPACE) {
-		CComparerDoc* pDoc = GetDocument();
-		pDoc->TogglePlay();
-		pDoc->UpdateAllViews(NULL);
+	// The timeline owns focus after a seek click, so route playback controls
+	// here too: Space toggles play/pause, Left/Right step one frame. Mirrors
+	// CComparerView::OnKeyDown so the same shortcuts behave identically
+	// whether the image view or the timeline currently has focus.
+	CComparerDoc* pDoc = GetDocument();
+
+	bool isProcessing = pDoc->CheckImgViewProcessing();
+	if (nChar != VK_SPACE && isProcessing) {
+		CScrollView::OnKeyDown(nChar, nRepCnt, nFlags);
 		return;
 	}
 
-	CScrollView::OnKeyDown(nChar, nRepCnt, nFlags);
+	switch (nChar) {
+	case VK_SPACE:
+		pDoc->TogglePlay();
+		break;
+	case VK_LEFT:
+		pDoc->OffsetScenes(-1);
+		break;
+	case VK_RIGHT:
+		pDoc->OffsetScenes(1);
+		break;
+	default:
+		CScrollView::OnKeyDown(nChar, nRepCnt, nFlags);
+		return;
+	}
+
+	pDoc->MarkImgViewProcessing();
+	pDoc->UpdateAllViews(NULL);
 }
