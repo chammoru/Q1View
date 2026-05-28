@@ -100,6 +100,29 @@ covers — at maximum zoom each dot resolves to a single differing source pixel.
 The overlay is hidden automatically when zoom is high enough to show per-pixel
 values, since the pixel labels already convey the diff.
 
+### Pane Layout
+
+Three secondary panes sit around the image canvases and surface per-frame and
+across-frame comparison information.
+
+- **Position timeline (left column).** A vertical strip that lists every frame
+  in the active pair, top to bottom. Frames where the two panes differ are
+  marked with a red line; identical frames are blank. Click a row to seek both
+  panes to that frame. The currently shown frame is highlighted so it is easy
+  to find your place after scrolling. Space, Left, and Right are also routed
+  here, so the timeline owns playback control once it has been clicked.
+- **Per-frame metric text (between the timeline and the graph).** Shows the
+  metric value (PSNR or SSIM, whichever is selected in the header) for the
+  currently displayed frame pair, along with auxiliary numbers such as channel
+  breakdowns where the metric provides them. The label updates whenever either
+  pane changes frames or the metric selection changes.
+- **Metric-over-time graph (bottom strip).** Plots the same metric value across
+  every frame in the comparison, with the running average alongside. The
+  current frame is marked. Click a point on the graph to jump both panes to
+  that frame, mouse-wheel to zoom the horizontal axis, and double-click to
+  reset the zoom. Playback shortcuts work here as well once the graph has
+  focus.
+
 ### Controls
 
 Comparator also includes a built-in shortcut panel, opened with `?`.
