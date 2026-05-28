@@ -8,24 +8,42 @@
 
 ![Q1View overview](docs/images/q1view-overview.webp)
 
-**Q1View** is a Windows Viewer and Comparator for inspecting decoded frames,
-raw pixel buffers, image codec output, and small visual differences that are
-easy to miss in a general-purpose media player.
+**Q1View** is a Windows toolkit for engineers who need to look at the actual
+pixels — raw frame buffers, codec output, decoded images, and the small
+visual differences that ordinary media players gloss over.
 
 [Download the latest release](https://github.com/chammoru/Q1View/releases/latest)
 | [User guide](docs/USER_GUIDE.md)
 | [Development guide](docs/DEVELOPMENT.md)
 
-## Why Q1View?
+## Who should use this?
 
-- **Inspect real pixel data.** Raw YUV and RGB formats sit beside regular
-  images, HEIF/HEIC, AVIF, and video input.
-- **Compare output, not impressions.** Comparator places 2-4 sources together
-  with synchronized inspection and PSNR/SSIM measurement.
-- **Check video timing.** Viewer follows the source or selected frame rate and
-  catches up after temporary stalls rather than drifting behind.
-- **Work with practical test material.** Korean/Unicode paths, frame
-  sequences, clipboard images, and linked Viewer controls are supported.
+Q1View is built for people whose work depends on what individual pixels look
+like and how two outputs differ — not for browsing a photo library.
+
+- **Codec and video engineers** validating encoder/decoder output against a
+  reference, frame by frame.
+- **Imaging engineers** verifying camera pipelines, color-space conversions,
+  and ISP tuning against raw buffer dumps.
+- **Computer vision engineers** comparing pre- and post-processing stages or
+  inspecting model input/output frames.
+- **QA and validation engineers** confirming regressions, picking out
+  off-by-one pixel shifts, and checking timing behavior on real material.
+- **Researchers** stepping through experiment outputs and capturing exact
+  pixel values for reports.
+
+## Typical workflows
+
+- Inspect a **raw YUV or RGB dump** at any subsampling or bit depth, including
+  odd-width sources, and read source-native channel values at the cursor.
+- Compare a **reference image against a processed result** with PSNR and SSIM
+  overlaid and a pink pixel-diff highlight showing exactly where they disagree.
+- Step through an **image sequence** in a folder (`frame_001.png` … `frame_100.png`)
+  or a video, with synchronized navigation across two to four sources.
+- Pull a **clipboard screenshot** in and check pixel coordinates, hex values,
+  and small color drifts.
+- Drive **two Viewer windows in sync** to compare different decodes of the
+  same source while panning and zooming as one.
 
 Q1View is not intended to manage photo libraries or replace a consumer video
 player. It is focused on codec development, imaging validation, and quick
