@@ -73,8 +73,9 @@ public:
 	void DrawHighZoomCells(CComparerDoc *pDoc, ComparerPane *pane);
 	void DrawEmptyPane(CDC *pDC, CComparerDoc *pDoc);
 	void DrawDiffOverlay(CDC *pDC, CComparerDoc *pDoc, ComparerPane *pane);
-	void DrawCursorCoord(CDC *pDC, CComparerDoc *pDoc);
+	void DrawCursorCoord(CDC *pDC, CComparerDoc *pDoc, ComparerPane *pane);
 	void UpdateCursorCoord(const CPoint &clientPoint);
+	void InvalidateCursorCoord(CComparerDoc *pDoc);
 	void DrawHelpMenu(CDC *pDC);
 	void ToggleHelp();
 
