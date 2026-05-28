@@ -1,4 +1,4 @@
-#include "QPort.h"
+﻿#include "QPort.h"
 #include "QDebug.h"
 
 #if defined(_WIN32)
