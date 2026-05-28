@@ -50,7 +50,7 @@ $sourcePath = [System.IO.Path]::GetFullPath($SourceDir)
 $outputPath = [System.IO.Path]::GetFullPath($OutputDir)
 $scriptPath = Join-Path $repoRoot "installer\Q1View.iss"
 
-foreach ($requiredFile in @("Viewer.exe", "Comparer.exe")) {
+foreach ($requiredFile in @("Viewer.exe", "Comparator.exe")) {
     $path = Join-Path $sourcePath $requiredFile
     if (-not (Test-Path $path)) {
         throw "Missing installer input: $path"

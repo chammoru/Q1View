@@ -33,7 +33,7 @@ jobs:
         shell: pwsh
         run: |
           msbuild Viewer\Viewer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
-          msbuild Comparer\Comparer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
+          msbuild Comparator\Comparator.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
           .\build\Package-Q1View.ps1 `
             -Configuration $env:BUILD_CONFIGURATION `
             -Platform $env:BUILD_PLATFORM `
@@ -184,7 +184,7 @@ jobs:
           }
 
           Capture-AppWindow "Viewer" "`"$reference`"" "artifacts\screenshots\viewer.png"
-          Capture-AppWindow "Comparer" "`"$reference`" `"$encoded`"" "artifacts\screenshots\comparer.png"
+          Capture-AppWindow "Comparator" "`"$reference`" `"$encoded`"" "artifacts\screenshots\comparer.png"
 
           $viewerPath = (Resolve-Path (Join-Path $env:DIST_DIR "Viewer.exe")).Path
           $viewerProcess = Start-Process -FilePath $viewerPath `
@@ -208,16 +208,16 @@ jobs:
             [Q1WindowTools]::SendMessage($viewerProcess.MainWindowHandle, 0x0111, $compareCommand, [IntPtr]::Zero) | Out-Null
             foreach ($attempt in 1..20) {
               Start-Sleep -Milliseconds 500
-              $comparerProcess = Get-Process -Name "Comparer" -ErrorAction SilentlyContinue |
+              $comparerProcess = Get-Process -Name "Comparator" -ErrorAction SilentlyContinue |
                 Select-Object -First 1
               if ($comparerProcess -and $comparerProcess.MainWindowHandle -ne 0) {
                 break
               }
             }
             if (-not $comparerProcess -or $comparerProcess.MainWindowHandle -eq 0) {
-              throw "Viewer's Compare action did not open the packaged Comparer executable."
+              throw "Viewer's Compare action did not open the packaged Comparator executable."
             }
-            "Viewer Compare action opened the packaged Comparer executable from a different working directory." |
+            "Viewer Compare action opened the packaged Comparator executable from a different working directory." |
               Out-File "artifacts\screenshots\capture-result.txt" -Append
           }
           finally {

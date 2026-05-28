@@ -53,8 +53,8 @@ jobs:
       - name: Build Viewer
         run: msbuild Viewer\Viewer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
 
-      - name: Build Comparer
-        run: msbuild Comparer\Comparer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
+      - name: Build Comparator
+        run: msbuild Comparator\Comparator.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
 
       - name: Stage package files
         shell: pwsh
@@ -118,7 +118,7 @@ jobs:
           Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
           .\build\Sign-Q1View.ps1 -Files @(
             "$env:DIST_DIR\Viewer.exe",
-            "$env:DIST_DIR\Comparer.exe"
+            "$env:DIST_DIR\Comparator.exe"
           )
 
       - name: Build MSIX package
@@ -206,7 +206,7 @@ jobs:
                 continue
               }
               foreach ($asset in $release.assets) {
-                if ($asset.name -in @("Viewer.exe", "Comparer.exe") -or
+                if ($asset.name -in @("Viewer.exe", "Comparator.exe") -or
                     $asset.name -match '\.dll$') {
                   Invoke-RestMethod -Method Delete -Headers $headers -Uri $asset.url
                   Write-Host "Removed $($release.tag_name)/$($asset.name)"
