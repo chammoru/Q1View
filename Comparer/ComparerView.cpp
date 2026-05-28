@@ -1,4 +1,4 @@
-// ComparerViewC.cpp : implementation file
+﻿// ComparerViewC.cpp : implementation file
 //
 
 #include "stdafx.h"
@@ -255,8 +255,8 @@ void CComparerView::OnDraw(CDC *pDC)
 
 	DrawDiffOverlay(&mMemDC, pDoc, pane);
 
-	if (pDoc->mShowCursorCoord && pDoc->mCursorView == this)
-		DrawCursorCoord(&mMemDC, pDoc);
+	if (pDoc->mShowCursorCoord && pDoc->mCursorView != NULL)
+		DrawCursorCoord(&mMemDC, pDoc, pane);
 
 	if (mShowHelp)
 		DrawHelpMenu(&mMemDC);
@@ -540,10 +540,10 @@ void CComparerView::UpdateCursorCoord(const CPoint &clientPoint)
 		(yCoord < 0) || (yCoord >= pDoc->mH);
 
 	if (outside) {
-		if (pDoc->mCursorView == this) {
+		if (pDoc->mCursorView != NULL) {
 			pDoc->mCursorView = NULL;
 			if (pDoc->mShowCursorCoord)
-				Invalidate(FALSE);
+				InvalidateCursorCoord(pDoc);
 		}
 		return;
 	}
@@ -553,20 +553,41 @@ void CComparerView::UpdateCursorCoord(const CPoint &clientPoint)
 		return;
 	}
 
-	CComparerView *prev = pDoc->mCursorView;
 	pDoc->mCursorView = this;
 	pDoc->mCursorX = xCoord;
 	pDoc->mCursorY = yCoord;
 
-	if (pDoc->mShowCursorCoord) {
-		if (prev != NULL && prev != this)
-			prev->Invalidate(FALSE);
-		Invalidate(FALSE);
-	}
+	// Every loaded pane shows its own source-mapped coord, so a change to the
+	// shared (mW/mH) cursor coord must repaint all of them, not just this one.
+	if (pDoc->mShowCursorCoord)
+		InvalidateCursorCoord(pDoc);
 }
 
-void CComparerView::DrawCursorCoord(CDC *pDC, CComparerDoc *pDoc)
+void CComparerView::InvalidateCursorCoord(CComparerDoc *pDoc)
 {
+	Invalidate(FALSE);
+	for (auto view : GetOhterViews(pDoc))
+		view->Invalidate(FALSE);
+}
+
+void CComparerView::DrawCursorCoord(CDC *pDC, CComparerDoc *pDoc, ComparerPane *pane)
+{
+	// mCursorX / mCursorY live in the shared mW x mH (normalized) canvas
+	// space. When "Allow different resolutions" is on, each pane's source has
+	// its own srcW x srcH and is resized into that shared space, so to show a
+	// source-pixel coord we must scale back per pane. The pane the cursor is
+	// over reports its own source pixel; the other panes report the pixel that
+	// lines up at the same canvas position.
+	int srcW = (pane && pane->srcW > 0) ? pane->srcW : pDoc->mW;
+	int srcH = (pane && pane->srcH > 0) ? pane->srcH : pDoc->mH;
+
+	int dispX = (srcW == pDoc->mW)
+		? pDoc->mCursorX
+		: int((long long)pDoc->mCursorX * srcW / pDoc->mW);
+	int dispY = (srcH == pDoc->mH)
+		? pDoc->mCursorY
+		: int((long long)pDoc->mCursorY * srcH / pDoc->mH);
+
 	LOGFONT lf;
 	mDefPixelTextFont.GetLogFont(&lf);
 	lf.lfHeight = 16;
@@ -577,7 +598,7 @@ void CComparerView::DrawCursorCoord(CDC *pDC, CComparerDoc *pDoc)
 	CFont *prevFont = pDC->SelectObject(&coordFont);
 
 	CString coord;
-	coord.Format(_T("x:%d,y:%d"), pDoc->mCursorX, pDoc->mCursorY);
+	coord.Format(_T("x:%d,y:%d"), dispX, dispY);
 
 	CRect refRect;
 	pDC->DrawText(coord, -1, refRect, DT_CENTER | DT_VCENTER | DT_CALCRECT);
@@ -824,8 +845,9 @@ BOOL CComparerView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 
 	// Reposition cursor coord at the new zoom; clientPoint already excludes
 	// the controls strip, so add it back so UpdateCursorCoord can subtract.
-	CPoint cursorPoint(clientPoint.x, clientPoint.y + mRcControls.bottom);
-	UpdateCursorCoord(cursorPoint);
+	// Inlined to avoid C4533 — a named local with a ctor would be initialized
+	// past the earlier `goto OnMouseWheelDefault`.
+	UpdateCursorCoord(CPoint(clientPoint.x, clientPoint.y + mRcControls.bottom));
 
 	pDoc->UpdateAllViews(NULL);
 
