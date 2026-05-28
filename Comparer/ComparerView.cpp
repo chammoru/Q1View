@@ -300,10 +300,10 @@ void CComparerView::DrawHelpMenu(CDC *pDC)
 	CFont *prevFont = pDC->SelectObject(&manualFont);
 	pDC->SetTextColor(Q1UI_COLOR_TEXT);
 	CString manual(
-		"Comparer shortcuts\n"
+		"Comparator shortcuts\n"
 		"\n"
 		"?              Show or hide this panel\n"
-		"Drag && Drop    Open a source into a pane\n"
+		"Drag && Drop    Open a source in a pane\n"
 		"Mouse Wheel    Zoom in or out; high zoom shows pixel values\n"
 		"Left/Right     Previous or next video frame\n"
 		"Space          Play or pause\n"
@@ -311,7 +311,7 @@ void CComparerView::DrawHelpMenu(CDC *pDC)
 		"I              Interpolate pixels\n"
 		"D              Toggle pink diff overlay (grid + dots)\n"
 		"C              Toggle cursor pixel coordinates\n"
-		"Click timeline Pick a video frame (left/right pane)\n"
+		"Click timeline Seek to a video frame (left/right pane)\n"
 		);
 	pDC->DrawText(manual, &manualRect, DT_LEFT | DT_TOP);
 	pDC->SelectObject(prevFont);
@@ -613,7 +613,7 @@ void CComparerView::DrawEmptyPane(CDC *pDC, CComparerDoc *pDoc)
 	lf.lfWeight = FW_NORMAL;
 	bodyFont.CreateFontIndirect(&lf);
 
-	CString title(_T("Drop a frame source"));
+	CString title(_T("Drop an image or video"));
 	CString body(_T("Use 2-4 panes to compare images, raw dumps, or video frames"));
 
 	CRect textRect = canvas;

@@ -2,13 +2,13 @@
 
 [![Windows](https://img.shields.io/badge/platform-Windows-0078D6)](#download)
 [![Viewer](https://img.shields.io/badge/app-Viewer-2EA44F)](#applications)
-[![Comparer](https://img.shields.io/badge/app-Comparer-2EA44F)](#applications)
+[![Comparator](https://img.shields.io/badge/app-Comparator-2EA44F)](#applications)
 [![HEIF](https://img.shields.io/badge/HEIF%2FHEIC-supported-2EA44F)](#supported-inputs)
 [![AVIF](https://img.shields.io/badge/AVIF%2FAV1-supported-2EA44F)](#supported-inputs)
 
 ![Q1View overview](docs/images/q1view-overview.webp)
 
-**Q1View** is a Windows Viewer and Comparer for inspecting decoded frames,
+**Q1View** is a Windows Viewer and Comparator for inspecting decoded frames,
 raw pixel buffers, image codec output, and small visual differences that are
 easy to miss in a general-purpose media player.
 
@@ -20,7 +20,7 @@ easy to miss in a general-purpose media player.
 
 - **Inspect real pixel data.** Raw YUV and RGB formats sit beside regular
   images, HEIF/HEIC, AVIF, and video input.
-- **Compare output, not impressions.** Comparer places 2-4 sources together
+- **Compare output, not impressions.** Comparator places 2-4 sources together
   with synchronized inspection and PSNR/SSIM measurement.
 - **Check video timing.** Viewer follows the source or selected frame rate and
   catches up after temporary stalls rather than drifting behind.
@@ -40,12 +40,12 @@ coordinates and values, step through frames, or link multiple Viewer windows.
 
 ![Viewer displaying a video frame and timeline](docs/images/viewer-video.webp)
 
-### Comparer
+### Comparator
 
 Open two to four sources side by side and see a visual difference together with
 objective similarity measurements.
 
-![Comparer showing PSNR for a reference image and encoded result](docs/images/comparer-psnr.webp)
+![Comparator showing PSNR for a reference image and encoded result](docs/images/comparer-psnr.webp)
 
 ## Download
 
@@ -56,7 +56,7 @@ Get the latest Windows x64 build from the
 - **Portable package**: `Q1View-windows-x64.zip`
 
 The installer registers separate Start Menu entries for **Q1View Viewer** and
-**Q1View Comparer**.
+**Q1View Comparator**.
 
 ## Supported Inputs
 
@@ -86,6 +86,6 @@ and release assets.
 
 ## Videos
 
-| Intro | Viewer | Comparer |
+| Intro | Viewer | Comparator |
 | --- | --- | --- |
-| [![Intro](https://img.youtube.com/vi/b8VgRVnrxL4/mqdefault.jpg)](https://youtu.be/b8VgRVnrxL4) | [![Viewer](https://img.youtube.com/vi/g6K9bRTKJjY/mqdefault.jpg)](https://youtu.be/g6K9bRTKJjY) | [![Comparer](https://img.youtube.com/vi/EybIIBZLV8Q/mqdefault.jpg)](https://youtu.be/EybIIBZLV8Q) |
+| [![Intro](https://img.youtube.com/vi/b8VgRVnrxL4/mqdefault.jpg)](https://youtu.be/b8VgRVnrxL4) | [![Viewer](https://img.youtube.com/vi/g6K9bRTKJjY/mqdefault.jpg)](https://youtu.be/g6K9bRTKJjY) | [![Comparator](https://img.youtube.com/vi/EybIIBZLV8Q/mqdefault.jpg)](https://youtu.be/EybIIBZLV8Q) |

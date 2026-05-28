@@ -599,7 +599,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	CheckViewsRadio(mNumOfViews);
 
 	// Options menu.
-	str.Format(_T("Allow Different Resolution"));
+	str.Format(_T("Allow Different Resolutions"));
 	mOptionsMenu.AppendMenu(MF_STRING, (UINT_PTR)ID_OPTIONS_DIFF_RESOLUTION, str);
 
 	str.Format(_T("OPTIONS"));

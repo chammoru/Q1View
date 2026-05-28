@@ -55,7 +55,7 @@ After both applications are built:
 
 The portable directory contains `Viewer.exe`, `Comparer.exe`, and required
 runtime DLLs together. The installer places the same runtime set on the target
-machine and registers separate Viewer and Comparer Start Menu entries.
+machine and registers separate Viewer and Comparator Start Menu entries.
 
 ## Release Assets
 

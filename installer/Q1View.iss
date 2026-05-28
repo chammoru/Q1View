@@ -71,9 +71,9 @@ Type: dirifempty; Name: "{app}"
 
 [Icons]
 Name: "{group}\Q1View Viewer"; Filename: "{app}\Viewer.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Viewer.exe"
-Name: "{group}\Q1View Comparer"; Filename: "{app}\Comparer.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Comparer.exe"
+Name: "{group}\Q1View Comparator"; Filename: "{app}\Comparer.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Comparer.exe"
 Name: "{autodesktop}\Q1View Viewer"; Filename: "{app}\Viewer.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Viewer.exe"; Tasks: desktopicon
-Name: "{autodesktop}\Q1View Comparer"; Filename: "{app}\Comparer.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Comparer.exe"; Tasks: desktopicon
+Name: "{autodesktop}\Q1View Comparator"; Filename: "{app}\Comparer.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Comparer.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Viewer.exe"; Description: "Launch Q1View Viewer"; Flags: nowait postinstall skipifsilent

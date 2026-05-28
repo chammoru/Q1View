@@ -5,7 +5,7 @@ and current screenshots remain separate from application source directories.
 
 ## Guides
 
-- [User Guide](USER_GUIDE.md): current Viewer and Comparer workflows
+- [User Guide](USER_GUIDE.md): current Viewer and Comparator workflows
 - [Development Guide](DEVELOPMENT.md): dependencies, build, packaging, release
 - [HEIF and AVIF Support](HEIF_SUPPORT.md): libheif integration notes
 

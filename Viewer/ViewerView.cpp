@@ -855,7 +855,7 @@ void CViewerView::DrawHelpMenu(CDC *pDC)
 		"R              Rotate 90 degrees clockwise\n"
 		"Page Up/Down   Previous or next file\n"
 		"S              Selection capture mode\n"
-		"Ctrl + C       Capture viewer screen or selected region\n"
+		"Ctrl + C       Capture view or selected region\n"
 		"Ctrl + V       Paste image from clipboard\n"
 		"Left/Right     Previous or next video frame\n"
 		"Home/End       First or last frame/file\n"
