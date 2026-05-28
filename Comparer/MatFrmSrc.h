@@ -1,4 +1,5 @@
 #pragma once
+#include <vector>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include "FrmSrc.h"
@@ -23,6 +24,13 @@ public:
 	virtual double GetFps();
 
 private:
+	void BuildFileList(const CString& filePath, int srcW, int srcH);
+	bool LoadFrame(long id);
+	bool AdvanceTo(long startID);
+
 	cv::Mat mOcvMat;
+	std::vector<CString> mFileList;
+	long mCurFrameID;
+	int mDstW, mDstH;
 };
 
