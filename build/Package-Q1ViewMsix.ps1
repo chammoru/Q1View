@@ -52,7 +52,7 @@ if ([string]::IsNullOrWhiteSpace($ManifestTemplate)) {
 if (-not (Test-Path $SourceDir)) {
     throw "SourceDir not found: $SourceDir`n  Build the applications first with Package-Q1View.ps1."
 }
-foreach ($exe in @("Viewer.exe", "Comparer.exe")) {
+foreach ($exe in @("Viewer.exe", "Comparator.exe")) {
     if (-not (Test-Path (Join-Path $SourceDir $exe))) {
         throw "Missing required binary in SourceDir: $exe"
     }

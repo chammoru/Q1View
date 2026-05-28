@@ -51,7 +51,7 @@ Name: "desktopicon"; Description: "Create desktop shortcuts"; GroupDescription: 
 
 [Files]
 Source: "{#SourceDir}\Viewer.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourceDir}\Comparer.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceDir}\Comparator.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#SourceDir}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
@@ -62,7 +62,7 @@ Type: files; Name: "{app}\libx265.dll"
 
 [UninstallDelete]
 Type: files; Name: "{app}\Viewer.exe"
-Type: files; Name: "{app}\Comparer.exe"
+Type: files; Name: "{app}\Comparator.exe"
 Type: files; Name: "{app}\*.dll"
 Type: files; Name: "{app}\CHANGELOG.md"
 Type: files; Name: "{app}\LICENSE"
@@ -71,9 +71,9 @@ Type: dirifempty; Name: "{app}"
 
 [Icons]
 Name: "{group}\Q1View Viewer"; Filename: "{app}\Viewer.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Viewer.exe"
-Name: "{group}\Q1View Comparator"; Filename: "{app}\Comparer.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Comparer.exe"
+Name: "{group}\Q1View Comparator"; Filename: "{app}\Comparator.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Comparator.exe"
 Name: "{autodesktop}\Q1View Viewer"; Filename: "{app}\Viewer.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Viewer.exe"; Tasks: desktopicon
-Name: "{autodesktop}\Q1View Comparator"; Filename: "{app}\Comparer.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Comparer.exe"; Tasks: desktopicon
+Name: "{autodesktop}\Q1View Comparator"; Filename: "{app}\Comparator.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Comparator.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Viewer.exe"; Description: "Launch Q1View Viewer"; Flags: nowait postinstall skipifsilent

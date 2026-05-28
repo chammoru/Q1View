@@ -26,9 +26,9 @@ if (-not $outputPath.StartsWith($distRoot, [System.StringComparison]::OrdinalIgn
 }
 
 $viewerDir = Join-Path $repoRoot "Viewer\$Platform\$Configuration"
-$comparerDir = Join-Path $repoRoot "Comparer\$Platform\$Configuration"
+$comparerDir = Join-Path $repoRoot "Comparator\$Platform\$Configuration"
 $viewerExe = Join-Path $viewerDir "Viewer.exe"
-$comparerExe = Join-Path $comparerDir "Comparer.exe"
+$comparerExe = Join-Path $comparerDir "Comparator.exe"
 
 foreach ($requiredFile in @($viewerExe, $comparerExe)) {
     if (-not (Test-Path $requiredFile)) {

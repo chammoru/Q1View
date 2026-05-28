@@ -13,7 +13,7 @@ From the repository root:
 
 ```powershell
 msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64
-msbuild Comparer\Comparer.sln /m /restore /p:Configuration=Release /p:Platform=x64
+msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64
 ```
 
 Normal builds restore prebuilt OpenCV and libheif dependency archives into
@@ -53,7 +53,7 @@ After both applications are built:
 .\build\Build-Q1ViewInstaller.ps1 -SourceDir .\dist\Q1View-windows-x64 -OutputDir .\dist
 ```
 
-The portable directory contains `Viewer.exe`, `Comparer.exe`, and required
+The portable directory contains `Viewer.exe`, `Comparator.exe`, and required
 runtime DLLs together. The installer places the same runtime set on the target
 machine and registers separate Viewer and Comparator Start Menu entries.
 
@@ -109,7 +109,7 @@ To validate the manifest without signing:
 
 `installer/msix/AppxManifest.xml` defines the package identity, the Viewer
 application entry point, and the `runFullTrust` capability required for
-packaged Win32 applications. `Comparer.exe` remains in the MSIX payload and
+packaged Win32 applications. `Comparator.exe` remains in the MSIX payload and
 is launched through Viewer's **Compare** action; declaring it as a second
 Store entry point fails WACK package compliance.
 

@@ -34,7 +34,7 @@ workload, and PowerShell.
 
 ```powershell
 msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64
-msbuild Comparer\Comparer.sln /m /restore /p:Configuration=Release /p:Platform=x64
+msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64
 ```
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for full dependency and packaging

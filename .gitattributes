@@ -1,24 +1,24 @@
 # Keep this repository's own Windows/MFC project files consistent in local checkouts.
 .gitattributes text eol=crlf
 
-/Comparer/*.c text eol=crlf
-/Comparer/*.cc text eol=crlf
-/Comparer/*.cpp text eol=crlf
-/Comparer/*.cxx text eol=crlf
-/Comparer/*.h text eol=crlf
-/Comparer/*.hh text eol=crlf
-/Comparer/*.hpp text eol=crlf
-/Comparer/*.inl text eol=crlf
-/Comparer/*.rc text eol=crlf
-/Comparer/**/*.c text eol=crlf
-/Comparer/**/*.cc text eol=crlf
-/Comparer/**/*.cpp text eol=crlf
-/Comparer/**/*.cxx text eol=crlf
-/Comparer/**/*.h text eol=crlf
-/Comparer/**/*.hh text eol=crlf
-/Comparer/**/*.hpp text eol=crlf
-/Comparer/**/*.inl text eol=crlf
-/Comparer/**/*.rc text eol=crlf
+/Comparator/*.c text eol=crlf
+/Comparator/*.cc text eol=crlf
+/Comparator/*.cpp text eol=crlf
+/Comparator/*.cxx text eol=crlf
+/Comparator/*.h text eol=crlf
+/Comparator/*.hh text eol=crlf
+/Comparator/*.hpp text eol=crlf
+/Comparator/*.inl text eol=crlf
+/Comparator/*.rc text eol=crlf
+/Comparator/**/*.c text eol=crlf
+/Comparator/**/*.cc text eol=crlf
+/Comparator/**/*.cpp text eol=crlf
+/Comparator/**/*.cxx text eol=crlf
+/Comparator/**/*.h text eol=crlf
+/Comparator/**/*.hh text eol=crlf
+/Comparator/**/*.hpp text eol=crlf
+/Comparator/**/*.inl text eol=crlf
+/Comparator/**/*.rc text eol=crlf
 
 /QVisionCore/*.c text eol=crlf
 /QVisionCore/*.cc text eol=crlf

@@ -64,7 +64,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 //	ON_WM_DROPFILES()
 	ON_COMMAND(ID_VIEWER_HELP, &CMainFrame::OnHelp)
 	ON_COMMAND(ID_FILE_OPEN, &CMainFrame::OnFileOpen)
-	ON_COMMAND(ID_COMPARE, &CMainFrame::OnExecComparer)
+	ON_COMMAND(ID_COMPARE, &CMainFrame::OnExecComparator)
 	ON_COMMAND_RANGE(ID_RESOLUTION_START, ID_RESOLUTION_END, &CMainFrame::OnResolutionChange)
 	ON_COMMAND_RANGE(ID_CS_START, ID_CS_END, &CMainFrame::OnCsChange)
 	ON_COMMAND_RANGE(ID_FPS_START, ID_FPS_END, &CMainFrame::OnFpsChange)
@@ -630,7 +630,7 @@ LRESULT CMainFrame::OnApplySyncViewState(WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-void CMainFrame::OnExecComparer()
+void CMainFrame::OnExecComparator()
 {
 	TCHAR viewerPath[MAX_PATH] = {0, };
 	CString cmperPath;
@@ -648,7 +648,7 @@ void CMainFrame::OnExecComparer()
 	}
 
 	cmperPath = viewerPath;
-	cmperPath += _T("\\Comparer.exe");
+	cmperPath += _T("\\Comparator.exe");
 
 	cmperExists = ::PathFileExists(cmperPath);
 
@@ -657,7 +657,7 @@ void CMainFrame::OnExecComparer()
 		TCHAR curDir[MAX_PATH] = {0, };
 		if (::GetCurrentDirectory(_countof(curDir), curDir) != 0) {
 			cmperPath = curDir;
-			cmperPath += _T("\\..\\Comparer\\x64\\Debug\\Comparer.exe");
+			cmperPath += _T("\\..\\Comparator\\x64\\Debug\\Comparator.exe");
 
 			cmperExists = ::PathFileExists(cmperPath);
 		}
@@ -665,7 +665,7 @@ void CMainFrame::OnExecComparer()
 #endif
 
 	if (!cmperExists) {
-		MessageBox(_T("Couldn't find 'Comparer.exe' next to Viewer.exe."), _T("Warning"), MB_ICONWARNING);
+		MessageBox(_T("Couldn't find 'Comparator.exe' next to Viewer.exe."), _T("Warning"), MB_ICONWARNING);
 		return;
 	}
 
@@ -682,7 +682,7 @@ void CMainFrame::OnExecComparer()
 	cmdLine.ReleaseBuffer();
 	if (!ret) {
 		CString msg;
-		msg.Format(_T("Failed to execute Comparer.exe. (error %lu)"), ::GetLastError());
+		msg.Format(_T("Failed to execute Comparator.exe. (error %lu)"), ::GetLastError());
 		MessageBox(msg, _T("Warning"), MB_ICONWARNING);
 		return;
 	}
