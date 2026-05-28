@@ -10,6 +10,53 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ---
 
+## [2.0.0] — 2026-05-29
+
+### Added
+- Comparator: per-pane cursor coordinate readout (`C` to toggle). The hovered
+  pane reports its own source-pixel coordinate; in "Allow Different
+  Resolution" mode the other panes report the corresponding source-pixel
+  position in their own image dimensions.
+- Comparator: a per-pane close (X) button on each controls strip with hover
+  highlight. Clicking releases just that pane's source while leaving the
+  slot in place so a new file can be dropped onto it without changing the
+  pane count.
+- Comparator: image sequence support. Opening a still image now treats the
+  rest of the folder's same-resolution images as a frame sequence — the
+  timeline scales to the sequence length, Left/Right step frames, and Space
+  plays through the sequence.
+- Comparator: playback shortcuts (`Space`, `Left`, `Right`) now work from
+  the timeline column and the bottom metric graph as well, not just the
+  image canvases, so a click into either timeline view keeps keyboard
+  control there.
+
+### Changed
+- Internal rename: `Comparer` → `Comparator` across the directory, project
+  / solution files, classes (`CComparerDoc`, `CComparerView`, `ComparerPane`,
+  …), resources, and `Comparator.exe` build output. The user-facing strings
+  were already switched in 05af565; this completes the rename for internal
+  identifiers. The MFC file-type ID `Comparer.Document` is preserved so file
+  associations registered by older installs do not orphan.
+- README now leads with the target audience and concrete workflows
+  (codec / imaging / CV / QA / research) instead of a generic feature list.
+- User guide documents the three secondary panes in Comparator — the left
+  position timeline, the per-frame metric readout, and the bottom metric
+  graph — including their click and playback behavior.
+
+### Fixed
+- MSVC C4533 / C4819 warnings in the Comparator and SMultithreadPlus
+  sources (named `cursorPoint` initialization crossed by `goto`; missing
+  UTF-8 BOM on files with non-ASCII characters under code page 949).
+
+### Compatibility note
+- Existing installs that ran the previous installer have a leftover
+  `Comparer.exe` in the install directory. The new installer only writes
+  `Comparator.exe`; the orphan file is harmless but stays until manual
+  cleanup or reinstall. A future installer revision can add an explicit
+  cleanup step.
+
+---
+
 ## [1.0.16] — 2026-05-25
 
 ### Added
