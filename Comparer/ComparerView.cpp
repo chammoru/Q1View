@@ -28,6 +28,7 @@ CComparerView::CComparerView()
 , mWCanvas(0)
 , mHCanvas(0)
 , mIsClicked(false)
+, mCloseHover(false)
 , mProcessing(false)
 , mShowHelp(false)
 , mRgbBufSize(0)
@@ -59,6 +60,7 @@ CComparerView::CComparerView()
 	mRcControls.SetRectEmpty();
 	mRcCsQMenu.SetRectEmpty();
 	mRcNameQMenu.SetRectEmpty();
+	mRcClose.SetRectEmpty();
 }
 
 CComparerView::~CComparerView()
@@ -85,6 +87,7 @@ BEGIN_MESSAGE_MAP(CComparerView, CScrollView)
 	ON_WM_MOUSEWHEEL()
 	ON_WM_SIZE()
 	ON_WM_MOUSEMOVE()
+	ON_WM_MOUSELEAVE()
 	ON_WM_LBUTTONDOWN()
 	ON_WM_LBUTTONUP()
 	ON_WM_SETCURSOR()
@@ -223,6 +226,7 @@ void CComparerView::OnDraw(CDC *pDC)
 	ComparerPane *pane = GetPane(pDoc);
 	if (!pane->isAvail()) {
 		DrawEmptyPane(pDC, pDoc);
+		DrawCloseButton(pDC, false);
 		return;
 	}
 
@@ -262,6 +266,11 @@ void CComparerView::OnDraw(CDC *pDC)
 		DrawHelpMenu(&mMemDC);
 
 	pDC->BitBlt(0, mRcControls.bottom, mWCanvas, mHCanvas, &mMemDC, 0, 0, SRCCOPY);
+
+	// The close button lives on the controls strip (above the BitBlt'ed
+	// canvas), in the area we shrunk mNameQMenu away from, so it doesn't
+	// overlap either the canvas or any child window — paint directly on pDC.
+	DrawCloseButton(pDC, true);
 
 	mProcessing = false;
 }
@@ -615,6 +624,102 @@ void CComparerView::DrawCursorCoord(CDC *pDC, CComparerDoc *pDoc, ComparerPane *
 	pDC->SelectObject(prevFont);
 }
 
+void CComparerView::DrawCloseButton(CDC *pDC, bool paneAvailable)
+{
+	if (mRcClose.IsRectEmpty())
+		return;
+
+	// Visual states:
+	//   - empty pane          → SURFACE_ALT bg + BORDER stroke (dim, signals
+	//                           there is nothing to close)
+	//   - loaded, no hover    → SURFACE_ALT bg + TEXT_MUTED stroke (matches
+	//                           mCsQMenu / mNameQMenu's resting look)
+	//   - loaded, hover       → ACCENT_SOFT bg + TEXT stroke (mirrors
+	//                           CQMenuItem's hover treatment)
+	// Hover highlight is suppressed on empty panes so the button doesn't
+	// suggest an action that would be a no-op.
+	bool active = paneAvailable && mCloseHover;
+	COLORREF bg     = active        ? Q1UI_COLOR_ACCENT_SOFT : Q1UI_COLOR_SURFACE_ALT;
+	COLORREF stroke = !paneAvailable ? Q1UI_COLOR_BORDER
+	                : active         ? Q1UI_COLOR_TEXT
+	                                 : Q1UI_COLOR_TEXT_MUTED;
+
+	pDC->FillSolidRect(mRcClose, bg);
+
+	const int inset = 7;
+	CRect r = mRcClose;
+	r.DeflateRect(inset, inset);
+
+	CPen pen(PS_SOLID, 2, stroke);
+	CPen *prevPen = pDC->SelectObject(&pen);
+	pDC->MoveTo(r.left, r.top);
+	pDC->LineTo(r.right + 1, r.bottom + 1);
+	pDC->MoveTo(r.right, r.top);
+	pDC->LineTo(r.left - 1, r.bottom + 1);
+	pDC->SelectObject(prevPen);
+}
+
+void CComparerView::UpdateCloseHover(const CPoint &point)
+{
+	bool over = mRcClose.PtInRect(point);
+	if (over == mCloseHover)
+		return;
+
+	mCloseHover = over;
+	RepaintCloseButton();
+
+	// Arm a one-shot leave notification when entering so the highlight
+	// clears even if the cursor exits via window edges without crossing
+	// back over mRcClose first.
+	if (over) {
+		TRACKMOUSEEVENT tme;
+		tme.cbSize    = sizeof(tme);
+		tme.dwFlags   = TME_LEAVE;
+		tme.hwndTrack = m_hWnd;
+		tme.dwHoverTime = 0;
+		TrackMouseEvent(&tme);
+	}
+}
+
+void CComparerView::RepaintCloseButton()
+{
+	// Bypass the full OnDraw path — that re-runs ScaleRgbBuf / DrawHighZoomCells
+	// for the canvas, which is wasted work when only the small close-button
+	// rect changed. OnDraw still reads mCloseHover, so a later full repaint
+	// stays consistent with whatever this draws now.
+	if (mRcClose.IsRectEmpty())
+		return;
+
+	CComparerDoc *pDoc = GetDocument();
+	if (!pDoc)
+		return;
+	ComparerPane *pane = GetPane(pDoc);
+	bool paneAvail = pane != NULL && pane->isAvail();
+
+	CClientDC dc(this);
+	DrawCloseButton(&dc, paneAvail);
+}
+
+void CComparerView::ClosePane()
+{
+	CComparerDoc *pDoc = GetDocument();
+	if (!pDoc)
+		return;
+
+	ComparerPane *pane = GetPane(pDoc);
+	if (pane == NULL || !pane->isAvail())
+		return;
+
+	// Stop playback if running — the pane that fed it is gone — and clear the
+	// pane's source + filename label. mNumOfViews stays put: this slot just
+	// becomes empty and the user can drop a new file onto it.
+	pDoc->KillPlayTimer();
+	pane->Release();
+	UpdateFileName(_T(""));
+
+	pDoc->UpdateAllViews(NULL);
+}
+
 void CComparerView::DrawEmptyPane(CDC *pDC, CComparerDoc *pDoc)
 {
 	CRect canvas(0, mRcControls.bottom, mWClient, mHClient);
@@ -872,7 +977,14 @@ void CComparerView::OnSize(UINT nType, int cx, int cy)
 	mWCanvas = mWClient;
 	mHCanvas = mHClient - mRcControls.bottom;
 
-	mRcNameQMenu.right = mWClient;
+	// Reserve a square at the right edge of the controls strip for the close
+	// button (sized to the strip height so it lines up with mCsQMenu /
+	// mNameQMenu). When the strip height isn't known yet (OnSize fires before
+	// OnCreate), fall back to a sensible constant.
+	int closeW = mRcControls.bottom > 0 ? mRcControls.bottom : 22;
+	mRcClose.SetRect(mWClient - closeW, 0, mWClient, mRcControls.bottom);
+
+	mRcNameQMenu.right = mWClient - closeW;
 	if (mNameQMenu.GetSafeHwnd())
 		mNameQMenu.MoveWindow(mRcNameQMenu);
 
@@ -911,9 +1023,20 @@ void CComparerView::OnMouseMove(UINT nFlags, CPoint point)
 	}
 
 	UpdateCursorCoord(point);
+	UpdateCloseHover(point);
 
 OnMouseMoveDefault:
 	CScrollView::OnMouseMove(nFlags, point);
+}
+
+void CComparerView::OnMouseLeave()
+{
+	// WM_MOUSELEAVE has no useful CScrollView default handling (and is not
+	// exposed as a virtual through the framework), so just clear the highlight.
+	if (mCloseHover) {
+		mCloseHover = false;
+		RepaintCloseButton();
+	}
 }
 
 void CComparerView::OnLButtonDown(UINT nFlags, CPoint point)
@@ -922,7 +1045,20 @@ void CComparerView::OnLButtonDown(UINT nFlags, CPoint point)
 
 	CComparerDoc* pDoc = GetDocument();
 	ASSERT_VALID(pDoc);
-	if (!pDoc || mRcControls.PtInRect(point)) {
+	if (!pDoc) {
+		CScrollView::OnLButtonDown(nFlags, point);
+		return;
+	}
+
+	// Close button sits inside the controls strip but is a manually drawn
+	// region (not a child window), so test it before the strip-wide
+	// delegate-to-children path.
+	if (mRcClose.PtInRect(point)) {
+		ClosePane();
+		return;
+	}
+
+	if (mRcControls.PtInRect(point)) {
 		CScrollView::OnLButtonDown(nFlags, point);
 		return;
 	}
