@@ -26,6 +26,7 @@ struct IFrmCmpStrategy;
 class YuvFrmCmpStrategy;
 class RgbFrmCmpStrategy;
 struct SQPane;
+class CComparerView;
 class CPosInfoView;
 class CFrmsInfoView;
 
@@ -81,6 +82,9 @@ public:
 	bool mInterpol;
 	bool mDiffRes;
 	bool mDiffOverlay;
+	bool mShowCursorCoord;
+	CComparerView *mCursorView;
+	int mCursorX, mCursorY;
 
 // Operations
 public:
