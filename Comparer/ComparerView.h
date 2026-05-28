@@ -44,6 +44,8 @@ public:
 	CRect mRcControls;
 	CRect mRcCsQMenu;
 	CRect mRcNameQMenu;
+	CRect mRcClose;
+	bool mCloseHover;
 	CMenu mCsMenu;
 	CQMenuItem mNameQMenu;
 	CQMenuItem mCsQMenu;
@@ -76,6 +78,10 @@ public:
 	void DrawCursorCoord(CDC *pDC, CComparerDoc *pDoc, ComparerPane *pane);
 	void UpdateCursorCoord(const CPoint &clientPoint);
 	void InvalidateCursorCoord(CComparerDoc *pDoc);
+	void DrawCloseButton(CDC *pDC, bool paneAvailable);
+	void ClosePane();
+	void UpdateCloseHover(const CPoint &point);
+	void RepaintCloseButton();
 	void DrawHelpMenu(CDC *pDC);
 	void ToggleHelp();
 
@@ -85,6 +91,7 @@ public:
 	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+	afx_msg void OnMouseLeave();
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
 	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
