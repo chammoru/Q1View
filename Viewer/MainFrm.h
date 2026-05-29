@@ -90,7 +90,7 @@ public:
 protected:
 	DECLARE_MESSAGE_MAP()
 public:
-//	afx_msg void OnDropFiles(HDROP hDropInfo);
+	afx_msg void OnDropFiles(HDROP hDropInfo);
 	afx_msg void OnHelp();
 	afx_msg void OnFileOpen();
 	afx_msg void OnExecComparator();
@@ -100,6 +100,8 @@ public:
 	afx_msg void OnFpsChange(UINT nID);
 
 private:
+	BOOL ResolveComparatorPath(CString &cmperPath);
+	BOOL LaunchComparator(const CString &cmperPath, const CString &quotedArgs);
 	afx_msg LRESULT Reload(WPARAM wParam, LPARAM lParam);
 	afx_msg BOOL OnCopyData(CWnd *pWnd, COPYDATASTRUCT *pCopyDataStruct);
 	afx_msg LRESULT OnApplySyncInput(WPARAM wParam, LPARAM lParam);

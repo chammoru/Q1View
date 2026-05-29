@@ -8,6 +8,11 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ## [Unreleased]
 
+### Added
+- Viewer: dropping two or more files now launches Comparator with all of
+  them loaded, so a multi-file drop goes straight to a side-by-side
+  comparison. A single dropped file still opens in the Viewer as before.
+
 ---
 
 ## [2.0.0] — 2026-05-29
