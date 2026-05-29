@@ -61,7 +61,7 @@ static BOOL CALLBACK SendViewerSyncInput(HWND hwnd, LPARAM lParam)
 IMPLEMENT_DYNCREATE(CMainFrame, CFrameWnd)
 
 BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
-//	ON_WM_DROPFILES()
+	ON_WM_DROPFILES()
 	ON_COMMAND(ID_VIEWER_HELP, &CMainFrame::OnHelp)
 	ON_COMMAND(ID_FILE_OPEN, &CMainFrame::OnFileOpen)
 	ON_COMMAND(ID_COMPARE, &CMainFrame::OnExecComparator)
@@ -630,65 +630,107 @@ LRESULT CMainFrame::OnApplySyncViewState(WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-void CMainFrame::OnExecComparator()
+// Resolves the path to Comparator.exe, preferring the copy installed next to
+// Viewer.exe and falling back to the local debug build tree. Returns FALSE when
+// it cannot be located.
+BOOL CMainFrame::ResolveComparatorPath(CString &cmperPath)
 {
 	TCHAR viewerPath[MAX_PATH] = {0, };
-	CString cmperPath;
-	BOOL cmperExists;
-	STARTUPINFO startUpInfo = {0, };
-	PROCESS_INFORMATION processInfo = {0, };
-	startUpInfo.cb = sizeof(STARTUPINFO);
-
 	DWORD viewerPathLength = ::GetModuleFileName(NULL, viewerPath, _countof(viewerPath));
 	if (viewerPathLength == 0 || viewerPathLength >= _countof(viewerPath) ||
-			!::PathRemoveFileSpec(viewerPath)) {
-		MessageBox(_T("Couldn't determine the Viewer installation directory."),
-			_T("Warning"), MB_ICONWARNING);
-		return;
-	}
+			!::PathRemoveFileSpec(viewerPath))
+		return FALSE;
 
 	cmperPath = viewerPath;
 	cmperPath += _T("\\Comparator.exe");
 
-	cmperExists = ::PathFileExists(cmperPath);
+	if (::PathFileExists(cmperPath))
+		return TRUE;
 
 #ifdef _DEBUG
-	if (!cmperExists) {
-		TCHAR curDir[MAX_PATH] = {0, };
-		if (::GetCurrentDirectory(_countof(curDir), curDir) != 0) {
-			cmperPath = curDir;
-			cmperPath += _T("\\..\\Comparator\\x64\\Debug\\Comparator.exe");
+	TCHAR curDir[MAX_PATH] = {0, };
+	if (::GetCurrentDirectory(_countof(curDir), curDir) != 0) {
+		cmperPath = curDir;
+		cmperPath += _T("\\..\\Comparator\\x64\\Debug\\Comparator.exe");
 
-			cmperExists = ::PathFileExists(cmperPath);
-		}
+		if (::PathFileExists(cmperPath))
+			return TRUE;
 	}
 #endif
 
-	if (!cmperExists) {
+	return FALSE;
+}
+
+// Launches cmperPath with quotedArgs (each path already double-quoted and
+// space-prefixed) appended to the command line. Returns the CreateProcess result.
+BOOL CMainFrame::LaunchComparator(const CString &cmperPath, const CString &quotedArgs)
+{
+	STARTUPINFO startUpInfo = {0, };
+	PROCESS_INFORMATION processInfo = {0, };
+	startUpInfo.cb = sizeof(STARTUPINFO);
+
+	CString cmdLine;
+	cmdLine.Format(_T("\"%s\"%s"), cmperPath.GetString(), quotedArgs.GetString());
+
+	BOOL ret = ::CreateProcess(cmperPath,
+		cmdLine.GetBuffer(), NULL, NULL, FALSE, 0, NULL, NULL,
+		&startUpInfo, &processInfo);
+	cmdLine.ReleaseBuffer();
+	if (!ret)
+		return FALSE;
+
+	::CloseHandle(processInfo.hThread);
+	::CloseHandle(processInfo.hProcess);
+	return TRUE;
+}
+
+void CMainFrame::OnExecComparator()
+{
+	CString cmperPath;
+	if (!ResolveComparatorPath(cmperPath)) {
 		MessageBox(_T("Couldn't find 'Comparator.exe' next to Viewer.exe."), _T("Warning"), MB_ICONWARNING);
 		return;
 	}
 
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
 
-	CString cmdLine;
-	cmdLine.Format(_T("\"%s\""), cmperPath.GetString());
+	CString args;
 	if (!pDoc->mPathName.IsEmpty())
-		cmdLine.AppendFormat(_T(" \"%s\""), pDoc->mPathName.GetString());
+		args.Format(_T(" \"%s\""), pDoc->mPathName.GetString());
 
-	BOOL ret = ::CreateProcess(cmperPath,
-		cmdLine.GetBuffer(), NULL, NULL, FALSE, 0, NULL, NULL,
-		&startUpInfo, &processInfo);
-	cmdLine.ReleaseBuffer();
-	if (!ret) {
+	if (!LaunchComparator(cmperPath, args)) {
 		CString msg;
 		msg.Format(_T("Failed to execute Comparator.exe. (error %lu)"), ::GetLastError());
 		MessageBox(msg, _T("Warning"), MB_ICONWARNING);
+	}
+}
+
+// Dropping two or more files implies an intent to compare them, so route them to
+// Comparator. A single file keeps the standard Viewer load. If Comparator can't be
+// located or launched, fall back to the default (first-file) drop behavior.
+void CMainFrame::OnDropFiles(HDROP hDropInfo)
+{
+	UINT uDragCount = ::DragQueryFile(hDropInfo, 0xFFFFFFFF, NULL, 0);
+
+	CString cmperPath;
+	if (uDragCount < 2 || !ResolveComparatorPath(cmperPath)) {
+		CFrameWnd::OnDropFiles(hDropInfo);
 		return;
 	}
 
-	::CloseHandle(processInfo.hThread);
-	::CloseHandle(processInfo.hProcess);
+	CString args;
+	for (UINT i = 0; i < uDragCount; ++i) {
+		TCHAR szPathName[MAX_PATH] = {0, };
+		::DragQueryFile(hDropInfo, i, szPathName, _countof(szPathName));
+		args.AppendFormat(_T(" \"%s\""), szPathName);
+	}
+
+	if (!LaunchComparator(cmperPath, args)) {
+		CFrameWnd::OnDropFiles(hDropInfo);
+		return;
+	}
+
+	::DragFinish(hDropInfo);
 }
 
 void CMainFrame::ActivateFrame(int nCmdShow)
