@@ -12,7 +12,8 @@
 pixels — raw frame buffers, codec output, decoded images, and the small
 visual differences that ordinary media players gloss over.
 
-[Download the latest release](https://github.com/chammoru/Q1View/releases/latest)
+[Download from Microsoft Store](https://apps.microsoft.com/detail/9NQR51WLBTHF)
+| [Download latest release](https://github.com/chammoru/Q1View/releases/latest)
 | [User guide](docs/USER_GUIDE.md)
 | [Development guide](docs/DEVELOPMENT.md)
 
@@ -67,8 +68,11 @@ objective similarity measurements.
 
 ## Download
 
-Get the latest Windows x64 build from the
-[GitHub Releases page](https://github.com/chammoru/Q1View/releases/latest).
+Get Q1View from the **[Microsoft Store](https://apps.microsoft.com/detail/9NQR51WLBTHF)** for automatic background updates and simple installation:
+
+[![Get it from the Microsoft Store](https://get.microsoft.com/images/en-us-dark.svg)](https://apps.microsoft.com/detail/9NQR51WLBTHF)
+
+Alternatively, get the latest Windows x64 build from the [GitHub Releases page](https://github.com/chammoru/Q1View/releases/latest).
 
 - **Installer**: `Q1ViewSetup-x64.exe`
 - **Portable package**: `Q1View-windows-x64.zip`
