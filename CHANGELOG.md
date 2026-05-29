@@ -13,10 +13,23 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 ## [2.0.0] — 2026-05-29
 
 ### Added
+- Comparator: pixel-level pink diff overlay. A translucent pink grid plus a
+  center dot highlights every cell that contains at least one pixel that
+  differs from the reference pane. Cell size is fixed in display pixels, so
+  zooming implicitly subdivides each cell — at maximum zoom every dot
+  resolves to a single differing source pixel. The overlay hides
+  automatically once zoom is high enough that the per-pixel value labels
+  already convey the diff. Toggle with `D`.
 - Comparator: per-pane cursor coordinate readout (`C` to toggle). The hovered
   pane reports its own source-pixel coordinate; in "Allow Different
-  Resolution" mode the other panes report the corresponding source-pixel
+  Resolutions" mode the other panes report the corresponding source-pixel
   position in their own image dimensions.
+- Comparator: click the PSNR / SSIM graph at the bottom to seek to that
+  frame. The graph also zooms with the mouse wheel so individual frame
+  markers stay visible on long sequences with hundreds of frames.
+- Comparator: current-frame highlight in pane-specific row colors on the
+  left timeline column (left pane accent blue, right pane warning amber)
+  so left vs right is obvious at a glance.
 - Comparator: a per-pane close (X) button on each controls strip with hover
   highlight. Clicking releases just that pane's source while leaving the
   slot in place so a new file can be dropped onto it without changing the
@@ -29,14 +42,47 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
   the timeline column and the bottom metric graph as well, not just the
   image canvases, so a click into either timeline view keeps keyboard
   control there.
+- Comparator: multi-file open. Drop two-to-four files at once, or pass
+  multiple file paths on the command line, to populate the panes in a
+  single step. Several startup-timing fixes make sure command-line and
+  drag-drop opens land consistently in the intended pane.
+- Comparator: panes auto-refresh when their source files are replaced or
+  re-saved on disk — no need to drop the file again.
+- Viewer: audio playback for video sources via XAudio2. The controls strip
+  gains a volume slider and a mute button; the audio player closes cleanly
+  when loading a new source.
 
 ### Changed
+- Comparator: PSNR and SSIM kernels are dramatically faster. PSNR is now
+  vectorized with SSE2 (~6–8× on the Y plane). SSIM is reformulated from
+  the naive O(W·H·64) sliding-window scan to an O(W·H) integral-image box
+  filter; 4K SSIM dropped from hundreds of milliseconds to single-digit
+  milliseconds. The on-UI-thread metric call (file load, on-disk reload,
+  timeline-click seek) no longer produces a perceptible hitch, and
+  `FileScanThread` populates the per-frame metric graph far sooner. PSNR
+  values are bit-exact with the previous scalar code; SSIM values may
+  differ in the last few ULPs of double rounding.
+- Comparator: smoother drag / pan. The off-screen `CDC` / `CBitmap` and
+  the pink-overlay GDI+ `Pen` / `SolidBrush` are now cached on the view
+  instead of recreated each paint; at extreme zoom the canvas-sized RGB
+  buffer + `SetDIBitsToDevice` blit is bypassed entirely and each visible
+  source pixel is drawn directly with `FillSolidRect`; the pixel-label
+  `CFont` is cached per zoom level. Rendered pixels are identical to the
+  previous path.
 - Internal rename: `Comparer` → `Comparator` across the directory, project
   / solution files, classes (`CComparerDoc`, `CComparerView`, `ComparerPane`,
   …), resources, and `Comparator.exe` build output. The user-facing strings
   were already switched in 05af565; this completes the rename for internal
   identifiers. The MFC file-type ID `Comparer.Document` is preserved so file
   associations registered by older installs do not orphan.
+- User-facing wording polish: "Custom Fps" → "Custom FPS", "Allow Different
+  Resolution" → "Allow Different Resolutions", "Open a source into a pane"
+  → "Open a source in a pane", "Pick a video frame" → "Seek to a video
+  frame", "Drop a frame source" → "Drop an image or video", "Metric points
+  will appear as frames are parsed" → "Per-frame measurements will appear
+  as frames are processed", "Capture viewer screen or selected region"
+  → "Capture view or selected region" (in Viewer's help), file description
+  "Comparer for all image formats" → "Compare images and video frames".
 - README now leads with the target audience and concrete workflows
   (codec / imaging / CV / QA / research) instead of a generic feature list.
 - User guide documents the three secondary panes in Comparator — the left
@@ -53,7 +99,8 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
   `Comparer.exe` in the install directory. The new installer only writes
   `Comparator.exe`; the orphan file is harmless but stays until manual
   cleanup or reinstall. A future installer revision can add an explicit
-  cleanup step.
+  cleanup step. Microsoft Store users are unaffected — the Store package
+  only ships `Comparator.exe`.
 
 ---
 
