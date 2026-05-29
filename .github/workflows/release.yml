@@ -85,26 +85,47 @@ jobs:
           "release_tag=$releaseTag" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "app_version=$appVersion" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Generate git history
+      - name: Prepare release notes
         shell: pwsh
         run: |
           $head = git rev-parse --short HEAD
           $tag = "${{ steps.release_info.outputs.release_tag }}"
+          $version = $tag -replace '^v', ''
 
-          $previousTag = git describe --tags --match "v[0-9]*" --abbrev=0 HEAD^ 2>$null
-          $range = if ($previousTag) { "$previousTag..HEAD" } else { "HEAD" }
-
-          "# Q1View $tag" | Out-File CHANGELOG.md -Encoding utf8
-          "" | Out-File CHANGELOG.md -Encoding utf8 -Append
-          "- Commit: $head" | Out-File CHANGELOG.md -Encoding utf8 -Append
-          if ($previousTag) {
-            "- Changes since: $previousTag" | Out-File CHANGELOG.md -Encoding utf8 -Append
+          # Pull the matching section out of the curated CHANGELOG.md so the
+          # GitHub release body is the hand-written "What's New" rather than a
+          # raw commit dump. Sections look like: "## [2.1.0] - YYYY-MM-DD".
+          $notes = @()
+          if (Test-Path CHANGELOG.md) {
+            $inSection = $false
+            foreach ($line in (Get-Content CHANGELOG.md -Encoding utf8)) {
+              if ($line -match '^##\s') {
+                if ($inSection) { break }                       # next version section
+                if ($line -match "^##\s+\[?$([regex]::Escape($version))\]?(\s|$)") {
+                  $inSection = $true
+                  continue
+                }
+              }
+              if ($inSection -and $line -notmatch '^---\s*$') { $notes += $line }
+            }
           }
-          "" | Out-File CHANGELOG.md -Encoding utf8 -Append
-          "## Git history" | Out-File CHANGELOG.md -Encoding utf8 -Append
-          "" | Out-File CHANGELOG.md -Encoding utf8 -Append
-          git log --pretty=format:"- %h %s (%an, %ad)" --date=short $range | Out-File CHANGELOG.md -Encoding utf8 -Append
 
+          # Fallback to a git-log summary if there is no curated section
+          # (e.g. an untagged manual run).
+          if (-not ($notes -join "`n").Trim()) {
+            $previousTag = git describe --tags --match "v[0-9]*" --abbrev=0 HEAD^ 2>$null
+            $range = if ($previousTag) { "$previousTag..HEAD" } else { "HEAD" }
+            $notes = @("## Git history", "")
+            $notes += (git log --pretty=format:"- %h %s (%an, %ad)" --date=short $range)
+          }
+
+          $body = ($notes -join "`n").Trim()
+          $full = "https://github.com/${{ github.repository }}/blob/$tag/CHANGELOG.md"
+          "# Q1View $tag`n`n$body`n`n---`n_Commit $($head). Full changelog: $($full)_`n" |
+            Out-File RELEASE_NOTES.md -Encoding utf8
+
+          # Ship the complete curated changelog inside the package (without
+          # overwriting the repo copy).
           Copy-Item CHANGELOG.md $env:DIST_DIR
 
       - name: Sign application binaries
@@ -179,7 +200,7 @@ jobs:
           tag_name: ${{ steps.release_info.outputs.release_tag }}
           target_commitish: ${{ github.sha }}
           name: Q1View ${{ steps.release_info.outputs.release_tag }}
-          body_path: CHANGELOG.md
+          body_path: RELEASE_NOTES.md
           files: |
             dist/${{ env.INSTALLER_FILE }}
             Q1View-windows-x64.zip
