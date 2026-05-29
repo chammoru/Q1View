@@ -8,10 +8,31 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ## [Unreleased]
 
+---
+
+## [2.1.0] — 2026-05-30
+
 ### Added
-- Viewer: dropping two or more files now launches Comparator with all of
-  them loaded, so a multi-file drop goes straight to a side-by-side
-  comparison. A single dropped file still opens in the Viewer as before.
+- Viewer: drop two or more files to compare them. Dropping multiple files
+  onto Viewer now opens them side by side in Comparator; a single dropped
+  file still opens in Viewer as before.
+- File associations: Viewer registers as a handler for the image and raw
+  formats it supports (.yuv, .rgb, .heic, .heif, .hif, .avif, .bmp, .png,
+  .webp, .jpg, .jpeg, .tif, .tiff), so supported files can be opened by
+  double-clicking or through "Open with". Registered in both the MSIX
+  package and the Inno Setup installer.
+
+### Fixed
+- Viewer and Comparator normalize forward slashes in paths to backslashes,
+  so sources given with mixed path separators open reliably.
+
+### Packaging
+- The MSIX manifest now declares the Visual C++ 2015-2022 runtime as a
+  package dependency, so clean machines no longer fail to launch with
+  "MSVCP140.dll was not found" — the Microsoft Store installs the runtime
+  automatically. The requirement is also disclosed in the Store listing.
+- Refreshed the Microsoft Store tile and logo assets from a clean vector
+  master for a sharper, more cohesive icon at every size.
 
 ---
 
