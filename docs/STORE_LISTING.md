@@ -23,6 +23,8 @@ Pixel-level viewer and frame comparer for codec development and imaging QA. Insp
 ## Description (max 10,000 characters)
 
 ```
+NOTICE: This app requires the Microsoft Visual C++ 2015-2022 Redistributable (x64) runtime. The Microsoft Store installs it automatically alongside Q1View.
+
 Q1View is a Windows toolkit for engineers who need to look at image and video data at the pixel level — not play it back casually.
 
 It ships as two focused applications:

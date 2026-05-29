@@ -40,6 +40,18 @@
       Name="Windows.Desktop"
       MinVersion="10.0.17763.0"
       MaxVersionTested="10.0.22621.0" />
+
+    <!--
+      Microsoft Visual C++ 2015-2022 Runtime (Desktop Bridge framework package).
+      Viewer.exe / Comparator.exe link against MSVCP140.dll & VCRUNTIME140.dll.
+      Declaring this PackageDependency lets the Store auto-install the runtime on
+      clean machines, satisfying policy 10.2.4.1 (Software Dependencies). Without
+      it, clean systems fail with "MSVCP140.dll was not found". See issue #51.
+    -->
+    <PackageDependency
+      Name="Microsoft.VCLibs.140.00.UWPDesktop"
+      MinVersion="14.0.30704.0"
+      Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" />
   </Dependencies>
 
   <Resources>

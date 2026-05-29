@@ -146,6 +146,10 @@ reasons to avoid:
 - Inaccurate age rating answers
 - Privacy Policy URL unreachable or missing data collection disclosures
 - Screenshots that do not match the submitted package version
+- Undeclared software dependencies (policy 10.2.4.1). The VC++ runtime is
+  declared as a `PackageDependency` (`Microsoft.VCLibs.140.00.UWPDesktop`) in
+  `AppxManifest.xml` so the Store auto-installs it, and the requirement is
+  disclosed in the first lines of the listing description in `docs/STORE_LISTING.md`.
 
 If certification fails, Partner Center provides a detailed report. Fix the
 identified issue, rebuild the MSIX, and resubmit.
