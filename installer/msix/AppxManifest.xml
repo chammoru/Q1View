@@ -74,6 +74,31 @@
           Wide310x150Logo="Assets\Wide310x150Logo.png"
           ShortName="Viewer" />
       </uap:VisualElements>
+      <Extensions>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="q1viewfile">
+            <uap:SupportedFileTypes>
+              <!-- Raw Formats -->
+              <uap:FileType>.yuv</uap:FileType>
+              <uap:FileType>.rgb</uap:FileType>
+              <!-- High-Efficiency Images -->
+              <uap:FileType>.heic</uap:FileType>
+              <uap:FileType>.heif</uap:FileType>
+              <uap:FileType>.hif</uap:FileType>
+              <uap:FileType>.avif</uap:FileType>
+              <!-- Standard Image Formats -->
+              <uap:FileType>.bmp</uap:FileType>
+              <uap:FileType>.png</uap:FileType>
+              <uap:FileType>.webp</uap:FileType>
+              <uap:FileType>.jpg</uap:FileType>
+              <uap:FileType>.jpeg</uap:FileType>
+              <uap:FileType>.tif</uap:FileType>
+              <uap:FileType>.tiff</uap:FileType>
+            </uap:SupportedFileTypes>
+            <uap:DisplayName>Q1View Supported File</uap:DisplayName>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
     </Application>
 
   </Applications>
