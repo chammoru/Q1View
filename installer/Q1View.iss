@@ -42,6 +42,7 @@ CloseApplications=yes
 RestartApplications=no
 SetupLogging=yes
 LicenseFile=..\LICENSE
+ChangesAssociations=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -74,6 +75,43 @@ Name: "{group}\Q1View Viewer"; Filename: "{app}\Viewer.exe"; WorkingDir: "{app}"
 Name: "{group}\Q1View Comparator"; Filename: "{app}\Comparator.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Comparator.exe"
 Name: "{autodesktop}\Q1View Viewer"; Filename: "{app}\Viewer.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Viewer.exe"; Tasks: desktopicon
 Name: "{autodesktop}\Q1View Comparator"; Filename: "{app}\Comparator.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Comparator.exe"; Tasks: desktopicon
+
+[Registry]
+Root: HKA; Subkey: "Software\Classes\q1viewfile"; ValueType: string; ValueName: ""; ValueData: "Q1View Supported File"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\q1viewfile\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Viewer.exe,0"
+Root: HKA; Subkey: "Software\Classes\q1viewfile\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Viewer.exe"" ""%1"""
+
+; Raw Formats
+Root: HKA; Subkey: "Software\Classes\.yuv"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.yuv\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.rgb"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.rgb\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
+
+; High-Efficiency Images
+Root: HKA; Subkey: "Software\Classes\.heic"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.heic\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.heif"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.heif\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.hif"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.hif\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.avif"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.avif\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
+
+; Standard Image Formats
+Root: HKA; Subkey: "Software\Classes\.bmp"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.bmp\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.png"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.png\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.webp"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.webp\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.jpg"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.jpg\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.jpeg"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.jpeg\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.tif"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.tif\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.tiff"; ValueType: string; ValueName: ""; ValueData: "q1viewfile"; Flags: createvalueifdoesntexist
+Root: HKA; Subkey: "Software\Classes\.tiff\OpenWithProgids"; ValueType: string; ValueName: "q1viewfile"; ValueData: ""; Flags: uninsdeletevalue
 
 [Run]
 Filename: "{app}\Viewer.exe"; Description: "Launch Q1View Viewer"; Flags: nowait postinstall skipifsilent
