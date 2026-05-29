@@ -339,6 +339,8 @@ void CComparatorDoc::RefleshPaneImages(ComparatorPane *pane, bool settingChanged
 
 void CComparatorDoc::ProcessDocument(ComparatorPane *pane)
 {
+	pane->pathName.Replace(_T('/'), _T('\\'));
+
 	int srcW = 0, srcH = 0;
 	bool success = pane->GetResolution(pane->pathName , &srcW, &srcH);
 	if (!success) {
@@ -583,7 +585,8 @@ BOOL CComparatorDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	if (filenames.empty())
 		return FALSE;
 
-	for (const auto& filename : filenames) {
+	for (auto& filename : filenames) {
+		filename.Replace(_T('/'), _T('\\'));
 		if (!fileExists(filename)) {
 			CString msg;
 			msg.Format(_T("%s does not exist or is not accessible."), filename.GetString());

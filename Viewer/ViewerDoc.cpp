@@ -365,8 +365,11 @@ void CViewerDoc::UpdateMenu()
 // CViewerDoc commands
 BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
-	if (mPathName != lpszPathName) {
-		if (!CDocument::OnOpenDocument(lpszPathName))
+	CString pathName = lpszPathName;
+	pathName.Replace(_T('/'), _T('\\'));
+
+	if (mPathName != pathName) {
+		if (!CDocument::OnOpenDocument(pathName))
 			return FALSE;
 	}
 
@@ -374,12 +377,12 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	if (pMainFrm == NULL) {
 		// Command-line open can reach here before the SDI frame/view exists.
 		// Defer the real open until CMainFrame::ActivateFrame().
-		mPendingFile = lpszPathName;
+		mPendingFile = pathName;
 		::CoInitialize(NULL);
 		return TRUE;
 	}
 
-	mPathName = lpszPathName;
+	mPathName = pathName;
 	mPurePathName = mPathName.Left(mPathName.ReverseFind('\\') + 1);
 	mPurePathRegex = mPurePathName + _T("*");
 	mRot = QROT_000;
