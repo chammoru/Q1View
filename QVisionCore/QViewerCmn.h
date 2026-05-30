@@ -6,7 +6,7 @@
 
 namespace q1 {
 
-#define ZOOM_GAMMA         4.f
+#define ZOOM_GAMMA         8.f
 #define ZOOM_RATIO(_D)     exp((_D) / ZOOM_GAMMA)
 #define ZOOM_DELTA(_N)     (ZOOM_GAMMA * log(_N))
 #define ZOOM_MAX           100.f

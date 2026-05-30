@@ -433,7 +433,7 @@ void CComparatorDoc::ViewOnMouseWheel(short zDelta, int wCanvas, int hCanvas)
 	if (mN <= 1 && zDelta < 0) {
 		mN = q1::GetFitRatio(mN, mW, mH, wCanvas, hCanvas);
 	} else {
-		float d = mD + zDelta / WHEEL_DELTA;
+		float d = mD + float(zDelta) / WHEEL_DELTA;
 		float fitN = q1::GetBestFitRatio(mW, mH, wCanvas, hCanvas);
 		mN = q1::GetNextN(mN, fitN, d);
 	}

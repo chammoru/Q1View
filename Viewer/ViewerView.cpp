@@ -1236,7 +1236,7 @@ void CViewerView::ChangeZoom(short zDelta, CPoint &pt)
 		// only if client area is small
 		mN = q1::GetFitRatio(mN, mW, mH, mWCanvas, mHCanvas);
 	} else {
-		float d = mD + zDelta / WHEEL_DELTA;
+		float d = mD + float(zDelta) / WHEEL_DELTA;
 		float fitN = q1::GetBestFitRatio(mW, mH, mWCanvas, mHCanvas);
 		mN = q1::GetNextN(mN, fitN, d);
 	}
