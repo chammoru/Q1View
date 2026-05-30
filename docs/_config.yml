@@ -1,0 +1,10 @@
+title: Q1View
+description: A Windows toolkit for engineers who need to look at the actual pixels — raw frame buffers, codec output, decoded images, and visual differences.
+theme: jekyll-theme-cayman
+
+# Show "View on GitHub" / download buttons in the Cayman header
+show_downloads: false
+
+# Exclude maintainer-only assets from the published site build
+exclude:
+  - README.md.bak

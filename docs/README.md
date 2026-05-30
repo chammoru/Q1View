@@ -1,13 +1,26 @@
 # Q1View Documentation
 
-Q1View documentation is kept here so that user guidance, development notes,
-and current screenshots remain separate from application source directories.
+**Q1View** is a Windows toolkit for engineers who need to look at the actual
+pixels — raw frame buffers, codec output, decoded images, and the small visual
+differences that ordinary media players gloss over.
 
-## Guides
+[Download from Microsoft Store](https://apps.microsoft.com/detail/9NQR51WLBTHF)
+· [Download latest release](https://github.com/chammoru/Q1View/releases/latest)
+· [Source on GitHub](https://github.com/chammoru/Q1View)
+
+## User documentation
 
 - [User Guide](USER_GUIDE.md): current Viewer and Comparator workflows
-- [Development Guide](DEVELOPMENT.md): dependencies, build, packaging, release
 - [HEIF and AVIF Support](HEIF_SUPPORT.md): libheif integration notes
+
+## Developer documentation
+
+- [Development Guide](DEVELOPMENT.md): dependencies, build, packaging, release
+
+## Maintainer / release
+
+- [Store Listing](STORE_LISTING.md): Microsoft Store listing copy
+- [Store Submission Guide](STORE_SUBMISSION.md): submission and certification steps
 
 ## Images
 
