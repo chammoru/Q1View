@@ -12,6 +12,7 @@
 #include "ViewerDoc.h"
 #include "ViewerView.h"
 #include "ThumbnailPane.h"
+#include "StoreUpdate.h"
 
 #include "QCommon.h"
 
@@ -40,6 +41,11 @@
 #define DRAWER_ANIM_TIMER 0xD4A1
 #define DRAWER_ANIM_STEPS 12
 #define DRAWER_ANIM_MS    15
+
+// One-shot timer that kicks off the background Store update check a few seconds
+// after launch, so the check never competes with cold-start work.
+#define STORE_CHECK_TIMER 0xD4A2
+#define STORE_CHECK_DELAY 3000
 
 const ULONG_PTR VIEWER_SYNC_INPUT_TOKEN =
 	static_cast<ULONG_PTR>(::RegisterWindowMessage(_T("Q1View.Viewer.SyncInput.v1")));
@@ -92,6 +98,9 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_WM_TIMER()
 	ON_COMMAND(ID_TOGGLE_DRAWER, &CMainFrame::OnToggleDrawer)
 	ON_UPDATE_COMMAND_UI(ID_TOGGLE_DRAWER, &CMainFrame::OnUpdateToggleDrawer)
+	ON_COMMAND(ID_UPDATE, &CMainFrame::OnUpdateNow)
+	ON_MESSAGE(WM_STORE_UPDATE_AVAILABLE, &CMainFrame::OnStoreUpdateAvailable)
+	ON_MESSAGE(WM_STORE_UPDATE_DONE, &CMainFrame::OnStoreUpdateDone)
 END_MESSAGE_MAP()
 
 
@@ -108,6 +117,7 @@ CMainFrame::CMainFrame()
 , mDrawerAnimSteps(DRAWER_ANIM_STEPS)
 , mAnimReservedFull(0)
 , mAnimCanResize(true)
+, mUpdateMenuShown(false)
 {
 	// Default hidden: the first run looks exactly like the classic Viewer.
 	mDrawerVisible = AfxGetApp()->GetProfileInt(_T("Drawer"), _T("Visible"), 0) != 0;
@@ -397,6 +407,10 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	DrawMenuBar();
 
+	// Schedule the background Store update check (no-op on non-Store builds).
+	if (q1::store::IsPackaged())
+		SetTimer(STORE_CHECK_TIMER, STORE_CHECK_DELAY, NULL);
+
 	return 0;
 }
 
@@ -577,6 +591,11 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 			mDrawerAnimating = false;
 			FinalizeDrawerAnimation();
 		}
+		return;
+	}
+	if (nIDEvent == STORE_CHECK_TIMER) {
+		KillTimer(STORE_CHECK_TIMER);   // one-shot
+		q1::store::CheckForUpdatesAsync(GetSafeHwnd(), WM_STORE_UPDATE_AVAILABLE);
 		return;
 	}
 	CFrameWnd::OnTimer(nIDEvent);
@@ -964,6 +983,69 @@ void CMainFrame::OnExecComparator()
 		msg.Format(_T("Failed to execute Comparator.exe. (error %lu)"), ::GetLastError());
 		MessageBox(msg, _T("Warning"), MB_ICONWARNING);
 	}
+}
+
+// Store update worker reported that an update is available: surface a compact
+// "Update" item just left of the right-aligned "Compare" item in the menu bar.
+LRESULT CMainFrame::OnStoreUpdateAvailable(WPARAM /*wParam*/, LPARAM /*lParam*/)
+{
+	if (mUpdateMenuShown || GetMenu() == NULL)
+		return 0;
+
+	// MF_RIGHTJUSTIFY keeps the item in the right-aligned group; inserting it
+	// before ID_COMPARE places it immediately to the left of "Compare".
+	GetMenu()->InsertMenu(ID_COMPARE, MF_BYCOMMAND | MF_STRING | MF_RIGHTJUSTIFY,
+		ID_UPDATE, _T("&Update"));
+	mUpdateMenuShown = true;
+	DrawMenuBar();
+	return 0;
+}
+
+void CMainFrame::OnUpdateNow()
+{
+	if (MessageBox(
+			_T("A new version of Q1View is available in the Microsoft Store.\n\n")
+			_T("Download and install it now? Q1View will restart to finish."),
+			_T("Update available"), MB_ICONINFORMATION | MB_OKCANCEL) != IDOK)
+		return;
+
+	// Reflect progress on the menu label and avoid re-entrancy.
+	if (GetMenu() != NULL) {
+		GetMenu()->ModifyMenu(ID_UPDATE,
+			MF_BYCOMMAND | MF_STRING | MF_RIGHTJUSTIFY | MF_GRAYED,
+			ID_UPDATE, _T("Updating..."));
+		DrawMenuBar();
+	}
+
+	q1::store::DownloadAndInstallAsync(GetSafeHwnd(), WM_STORE_UPDATE_DONE);
+}
+
+LRESULT CMainFrame::OnStoreUpdateDone(WPARAM wParam, LPARAM /*lParam*/)
+{
+	const bool ok = (wParam != 0);
+	if (ok) {
+		MessageBox(_T("Update installed. Q1View will now restart."),
+			_T("Update complete"), MB_ICONINFORMATION | MB_OK);
+
+		TCHAR exePath[MAX_PATH] = { 0 };
+		if (::GetModuleFileName(NULL, exePath, _countof(exePath)) > 0)
+			::ShellExecute(NULL, _T("open"), exePath, NULL, NULL, SW_SHOWNORMAL);
+		PostMessage(WM_CLOSE);
+		return 0;
+	}
+
+	// Restore the button so the user can retry.
+	if (GetMenu() != NULL) {
+		GetMenu()->ModifyMenu(ID_UPDATE,
+			MF_BYCOMMAND | MF_STRING | MF_RIGHTJUSTIFY,
+			ID_UPDATE, _T("&Update"));
+		DrawMenuBar();
+	}
+	MessageBox(
+		_T("The update could not be completed. Please try again later, or ")
+		_T("update Q1View from the Microsoft Store."),
+		_T("Update failed"), MB_ICONWARNING | MB_OK);
+	return 0;
 }
 
 // Dropping two or more files implies an intent to compare them, so route them to

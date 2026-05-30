@@ -7,6 +7,9 @@
 #define WM_RELOAD (WM_USER + 100)
 #define WM_APPLY_SYNC_INPUT (WM_APP + 100)
 #define WM_APPLY_SYNC_VIEW_STATE (WM_APP + 101)
+// Posted by the Store update worker thread back to the main frame.
+#define WM_STORE_UPDATE_AVAILABLE (WM_APP + 102)
+#define WM_STORE_UPDATE_DONE (WM_APP + 103)
 
 enum ViewerSyncInputCommand
 {
@@ -82,6 +85,10 @@ private:
 	bool mSyncViewStatePending;
 	ViewerSyncInputState mPendingSyncViewState;
 
+	// Whether the right-aligned "Update" menu item (shown only when a Store
+	// update is available) has been inserted into the menu bar.
+	bool mUpdateMenuShown;
+
 	// Left-side thumbnail drawer.
 	CDrawerSplitter mwndSplitter;
 	CThumbnailPane *mpDrawer;
@@ -149,6 +156,11 @@ public:
 	afx_msg void OnToggleDrawer();
 	afx_msg void OnUpdateToggleDrawer(CCmdUI *pCmdUI);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	// "Update" menu command: download and install the available Store update.
+	afx_msg void OnUpdateNow();
+	// Store worker-thread notifications (see WM_STORE_UPDATE_* in this header).
+	afx_msg LRESULT OnStoreUpdateAvailable(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnStoreUpdateDone(WPARAM wParam, LPARAM lParam);
 
 private:
 	BOOL ResolveComparatorPath(CString &cmperPath);

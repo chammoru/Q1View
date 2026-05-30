@@ -217,6 +217,12 @@
     <ClCompile Include="FileFinderThread.cpp" />
     <ClCompile Include="FrmProvideThread.cpp" />
     <ClCompile Include="MainFrm.cpp" />
+    <ClCompile Include="StoreUpdate.cpp">
+      <!-- C++/WinRT needs C++17; this file is self-contained and does not use
+           the project's C++14 precompiled header. -->
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="ThumbnailPane.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -238,6 +244,7 @@
     <ClInclude Include="FileFinderThread.h" />
     <ClInclude Include="FrmProvideThread.h" />
     <ClInclude Include="MainFrm.h" />
+    <ClInclude Include="StoreUpdate.h" />
     <ClInclude Include="ThumbnailPane.h" />
     <ClInclude Include="FrmSrc.h" />
     <ClInclude Include="MatFrmSrc.h" />
