@@ -124,6 +124,13 @@ jobs:
           "# Q1View $tag`n`n$body`n`n---`n_Commit $($head). Full changelog: $($full)_`n" |
             Out-File RELEASE_NOTES.md -Encoding utf8
 
+          # Plain-text "What's New" for the Microsoft Store listing: just the
+          # curated section body (no header/footer). Store release notes are
+          # capped at ~1500 characters, so trim to stay within the limit.
+          $whatsNew = $body
+          if ($whatsNew.Length -gt 1500) { $whatsNew = $whatsNew.Substring(0, 1500) }
+          $whatsNew | Out-File STORE_WHATS_NEW.txt -Encoding utf8
+
           # Ship the complete curated changelog inside the package (without
           # overwriting the repo copy).
           Copy-Item CHANGELOG.md $env:DIST_DIR
@@ -236,3 +243,77 @@ jobs:
             }
             $page++
           } while ($releases.Count -eq 100)
+
+      # --- Microsoft Store submission (CD) -------------------------------------
+      # Tag pushes only. Submits the Store-ready MSIX (built with the Store
+      # publisher identity and intentionally unsigned, so the Store re-signs it)
+      # to Partner Center via the Microsoft Store Developer CLI. Microsoft
+      # certification still runs afterwards before the update goes live, so a
+      # green run here means "submitted", not "published".
+      - name: Set up Microsoft Store Developer CLI
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+
+      - name: Configure Store CLI credentials
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          msstore reconfigure `
+            --tenantId ${{ secrets.AZURE_AD_TENANT_ID }} `
+            --sellerId ${{ secrets.SELLER_ID }} `
+            --clientId ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }} `
+            --clientSecret ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+
+      - name: Publish MSIX to Microsoft Store
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $productId = "${{ vars.STORE_PRODUCT_ID }}"
+
+          # 1. Stage the new package into a draft submission without committing,
+          #    so the "What's New" notes can be attached to the same submission.
+          msstore publish "dist/Q1View-windows-x64.msix" -id $productId --noCommit
+          if ($LASTEXITCODE -ne 0) { throw "msstore publish (staging) failed with exit code $LASTEXITCODE" }
+
+          # 2. Inject the curated What's New text (from CHANGELOG, prepared above)
+          #    into the draft's release notes. Best-effort: a failure here must not
+          #    block shipping the package, so it is wrapped in try/catch. The
+          #    metadata layout (per-language listings) is not hard-coded; we walk
+          #    the JSON and set every "releaseNotes" field we find.
+          $notes = ""
+          if (Test-Path STORE_WHATS_NEW.txt) { $notes = (Get-Content STORE_WHATS_NEW.txt -Raw).Trim() }
+          if ($notes) {
+            try {
+              # msstore can interleave informational lines with the JSON on
+              # stdout, so slice from the first '{' to the last '}' before parsing.
+              $raw = (msstore submission get $productId | Out-String)
+              $open = $raw.IndexOf('{'); $close = $raw.LastIndexOf('}')
+              if ($open -lt 0 -or $close -lt $open) { throw "submission get returned no JSON object" }
+              $json = $raw.Substring($open, $close - $open + 1) | ConvertFrom-Json
+              $script:updated = 0
+              function Set-ReleaseNotes($node, $value) {
+                if ($null -eq $node) { return }
+                if ($node -is [pscustomobject]) {
+                  foreach ($p in $node.PSObject.Properties) {
+                    if ($p.Name -eq 'releaseNotes') { $p.Value = $value; $script:updated++ }
+                    else { Set-ReleaseNotes $p.Value $value }
+                  }
+                } elseif ($node -is [System.Collections.IEnumerable] -and $node -isnot [string]) {
+                  foreach ($item in $node) { Set-ReleaseNotes $item $value }
+                }
+              }
+              Set-ReleaseNotes $json $notes
+              if ($script:updated -gt 0) {
+                msstore submission updateMetadata $productId ($json | ConvertTo-Json -Depth 50 -Compress)
+                Write-Host "Updated What's New in $($script:updated) listing(s)."
+              } else {
+                Write-Host "::warning::No 'releaseNotes' field found in submission metadata; What's New left unchanged."
+              }
+            } catch {
+              Write-Host "::warning::What's New update failed (package still submitted): $($_.Exception.Message)"
+            }
+          }
+
+          # 3. Commit / submit the draft for certification.
+          msstore submission publish $productId
+          if ($LASTEXITCODE -ne 0) { throw "msstore submission publish failed with exit code $LASTEXITCODE" }
