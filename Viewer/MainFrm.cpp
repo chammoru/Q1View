@@ -11,6 +11,7 @@
 
 #include "ViewerDoc.h"
 #include "ViewerView.h"
+#include "ThumbnailPane.h"
 
 #include "QCommon.h"
 
@@ -28,6 +29,17 @@
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
+
+// Thumbnail drawer geometry (logical pixels at the frame's DPI).
+#define DRAWER_MIN        120
+#define DRAWER_MAX        480
+#define DRAWER_DEFAULT    168
+#define DRAWER_SPLIT_BAR  6
+
+// Slide animation: ~180ms split into short timer ticks.
+#define DRAWER_ANIM_TIMER 0xD4A1
+#define DRAWER_ANIM_STEPS 12
+#define DRAWER_ANIM_MS    15
 
 const ULONG_PTR VIEWER_SYNC_INPUT_TOKEN =
 	static_cast<ULONG_PTR>(::RegisterWindowMessage(_T("Q1View.Viewer.SyncInput.v1")));
@@ -75,13 +87,34 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_MESSAGE(WM_APPLY_SYNC_VIEW_STATE, &CMainFrame::OnApplySyncViewState)
 	ON_COMMAND(ID_EDIT_COPY, &CMainFrame::OnEditCopy)
 	ON_COMMAND(ID_EDIT_PASTE, &CMainFrame::OnEditPaste)
+	ON_WM_SIZE()
+	ON_WM_DESTROY()
+	ON_WM_TIMER()
+	ON_COMMAND(ID_TOGGLE_DRAWER, &CMainFrame::OnToggleDrawer)
+	ON_UPDATE_COMMAND_UI(ID_TOGGLE_DRAWER, &CMainFrame::OnUpdateToggleDrawer)
 END_MESSAGE_MAP()
 
 
 CMainFrame::CMainFrame()
 : mSyncInput(false)
 , mSyncViewStatePending(false)
+, mpDrawer(NULL)
+, mDrawerVisible(false)
+, mDrawerWidth(DRAWER_DEFAULT)
+, mSplitterReady(false)
+, mDrawerAnimating(false)
+, mDrawerAnimOpening(false)
+, mDrawerAnimStep(0)
+, mDrawerAnimSteps(DRAWER_ANIM_STEPS)
+, mAnimReservedFull(0)
+, mAnimCanResize(true)
 {
+	// Default hidden: the first run looks exactly like the classic Viewer.
+	mDrawerVisible = AfxGetApp()->GetProfileInt(_T("Drawer"), _T("Visible"), 0) != 0;
+	mDrawerWidth = AfxGetApp()->GetProfileInt(_T("Drawer"), _T("Width"), DRAWER_DEFAULT);
+	if (mDrawerWidth < DRAWER_MIN) mDrawerWidth = DRAWER_MIN;
+	if (mDrawerWidth > DRAWER_MAX) mDrawerWidth = DRAWER_MAX;
+
 	mResolutionMenu.CreatePopupMenu();
 	mCsMenu.CreatePopupMenu();
 	mFpsMenu.CreatePopupMenu();
@@ -101,6 +134,9 @@ CMainFrame::~CMainFrame()
 	mFpsMenu.DestroyMenu();
 	mCsMenu.DestroyMenu();
 	mResolutionMenu.DestroyMenu();
+
+	delete mpDrawer;
+	mpDrawer = NULL;
 }
 
 LRESULT CMainFrame::Reload(WPARAM wParam, LPARAM lParam)
@@ -123,7 +159,10 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 
 	cs.dwExStyle &= ~WS_EX_CLIENTEDGE;
 
-	CRect rcClient(0, 0, VIEWER_DEF_W, VIEWER_DEF_H);
+	int drawerExtra = mDrawerVisible ? mDrawerWidth : 0;
+	// When the drawer is open on launch, expand the initial window size by the drawer width
+	// so the image viewing area doesn't shrink compared to a closed-drawer launch.
+	CRect rcClient(0, 0, VIEWER_DEF_W + drawerExtra, VIEWER_DEF_H);
 	::AdjustWindowRectEx(&rcClient, cs.style, TRUE, cs.dwExStyle);
 
 	cs.cx = rcClient.Width();
@@ -359,6 +398,228 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	DrawMenuBar();
 
 	return 0;
+}
+
+BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext)
+{
+	// Host the thumbnail drawer (column 0) and the image view (column 1) in a
+	// static splitter. Fall back to the default single-view client if anything
+	// fails, so the app still works without the drawer.
+	if (!mwndSplitter.CreateStatic(this, 1, 2, WS_CHILD | WS_VISIBLE))
+		return CFrameWnd::OnCreateClient(lpcs, pContext);
+
+	mwndSplitter.RemoveBar();
+
+	// Image view in column 0 (left, anchored) and the thumbnail drawer in
+	// column 1 (right). Opening grows the window to the right only, so the
+	// image view never moves -- avoids any jitter during the slide.
+	if (!mwndSplitter.CreateView(0, 0, pContext->m_pNewViewClass,
+			CSize(200, 200), pContext))
+		return FALSE;
+
+	mpDrawer = new CThumbnailPane();
+	if (!mpDrawer->CreatePane(&mwndSplitter, mwndSplitter.IdFromRowCol(0, 1)))
+		return FALSE;
+
+	mwndSplitter.SetColumnInfo(0, 200, 0);
+	mwndSplitter.SetColumnInfo(1, mDrawerVisible ? mDrawerWidth : 0, 0);
+	mwndSplitter.RecalcLayout();
+
+	// The image view must remain the active view for doc/view command routing.
+	SetActiveView(static_cast<CView *>(mwndSplitter.GetPane(0, 0)));
+	mSplitterReady = true;
+	return TRUE;
+}
+
+void CMainFrame::PinDrawerColumn()
+{
+	if (!mSplitterReady || !::IsWindow(mwndSplitter.GetSafeHwnd()))
+		return;
+	// During the slide the timer drives the column sizes; don't fight it.
+	if (mDrawerAnimating)
+		return;
+
+	CRect rc;
+	mwndSplitter.GetClientRect(&rc);
+
+	int bar = mwndSplitter.BarWidth();   // 0: gap-free split
+	int drawerCol = mDrawerVisible ? mDrawerWidth : 0;
+	if (drawerCol > rc.Width() - 80)
+		drawerCol = (rc.Width() - 80 > 0) ? rc.Width() - 80 : 0;
+	int viewCol = rc.Width() - drawerCol - bar;
+	if (viewCol < 0)
+		viewCol = 0;
+
+	mwndSplitter.SetColumnInfo(0, viewCol, 0);    // image view (left)
+	mwndSplitter.SetColumnInfo(1, drawerCol, 0);  // drawer (right)
+	mwndSplitter.RecalcLayout();
+}
+
+void CMainFrame::OnSize(UINT nType, int cx, int cy)
+{
+	CFrameWnd::OnSize(nType, cx, cy);
+	PinDrawerColumn();
+}
+
+void CMainFrame::OnToggleDrawer()
+{
+	if (!mSplitterReady || mDrawerAnimating)
+		return;
+
+	// mDrawerWidth is the fixed target width; it is never rederived from the
+	// laid-out column, so repeated toggles can't accumulate any drift.
+	StartDrawerAnimation(!mDrawerVisible);
+}
+
+void CMainFrame::StartDrawerAnimation(bool opening)
+{
+	mDrawerAnimOpening = opening;
+	mDrawerAnimStep = 0;
+	mDrawerAnimSteps = DRAWER_ANIM_STEPS;
+	mAnimCanResize = !IsZoomed();
+
+	// Bar is zero, so the window only needs to grow by the drawer width.
+	mAnimReservedFull = mDrawerWidth;
+
+	CRect rc;
+	GetWindowRect(&rc);
+	mAnimTop = rc.top;
+	mAnimHeight = rc.Height();
+
+	// Width to hold the image-view column at for the whole slide, so the image
+	// never wobbles. Closed: it fills the client; open: its current column size.
+	CRect cr;
+	mwndSplitter.GetClientRect(&cr);
+	if (opening) {
+		mAnimViewWidth = cr.Width();
+	} else {
+		int cur = 0, mn = 0;
+		mwndSplitter.GetColumnInfo(0, cur, mn);
+		mAnimViewWidth = cur;
+	}
+
+	if (opening) {
+		// The window is currently in the closed geometry; it grows to the right.
+		mDrawerVisible = true;
+		mAnimClosedWidth = rc.Width();
+
+		// Start decoding thumbnails now so they appear during the slide.
+		if (mpDrawer && ::IsWindow(mpDrawer->GetSafeHwnd())) {
+			CDocument *pDoc = GetActiveDocument();
+			if (pDoc != NULL && !pDoc->GetPathName().IsEmpty())
+				mpDrawer->SetCurrentFile(pDoc->GetPathName());
+		}
+	} else {
+		// The window is in the open geometry; derive the closed-state width.
+		mAnimClosedWidth = rc.Width() - mAnimReservedFull;
+	}
+
+	mDrawerAnimating = true;
+	SetTimer(DRAWER_ANIM_TIMER, DRAWER_ANIM_MS, NULL);
+
+	// Paint the first frame immediately so there's no flash.
+	OnTimer(DRAWER_ANIM_TIMER);
+}
+
+void CMainFrame::ApplyDrawerReserved(int reserved)
+{
+	if (reserved < 0)
+		reserved = 0;
+	if (reserved > mAnimReservedFull)
+		reserved = mAnimReservedFull;
+
+	if (mAnimCanResize) {
+		// Grow to the right only (position fixed) so the image view never moves.
+		int w = mAnimClosedWidth + reserved;
+		SetWindowPos(NULL, 0, 0, w, mAnimHeight,
+			SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+	}
+
+	CRect rc;
+	mwndSplitter.GetClientRect(&rc);
+	int bar = mwndSplitter.BarWidth();
+
+	// Hold the view column fixed; the drawer column takes the growing remainder.
+	int viewCol = mAnimViewWidth;
+	if (!mAnimCanResize) {
+		// For maximized windows, we cannot resize the frame, so the image view
+		// column must shrink to make room for the animating drawer.
+		if (mDrawerAnimOpening)
+			viewCol = mAnimViewWidth - reserved;
+		else
+			viewCol = mAnimViewWidth + (mAnimReservedFull - reserved);
+	}
+
+	if (viewCol > rc.Width() - bar)
+		viewCol = (rc.Width() - bar > 0) ? rc.Width() - bar : 0;
+	int drawerCol = rc.Width() - viewCol - bar;
+	if (drawerCol < 0)
+		drawerCol = 0;
+
+	mwndSplitter.SetColumnInfo(0, viewCol, 0);    // image view (left), constant
+	mwndSplitter.SetColumnInfo(1, drawerCol, 0);  // drawer (right), grows
+	mwndSplitter.RecalcLayout();
+}
+
+void CMainFrame::OnTimer(UINT_PTR nIDEvent)
+{
+	if (nIDEvent == DRAWER_ANIM_TIMER) {
+		mDrawerAnimStep++;
+		double t = (double)mDrawerAnimStep / mDrawerAnimSteps;
+		if (t > 1.0)
+			t = 1.0;
+		double eased = 1.0 - (1.0 - t) * (1.0 - t);   // ease-out
+		double frac = mDrawerAnimOpening ? eased : (1.0 - eased);
+		ApplyDrawerReserved((int)(frac * mAnimReservedFull + 0.5));
+
+		if (mDrawerAnimStep >= mDrawerAnimSteps) {
+			KillTimer(DRAWER_ANIM_TIMER);
+			mDrawerAnimating = false;
+			FinalizeDrawerAnimation();
+		}
+		return;
+	}
+	CFrameWnd::OnTimer(nIDEvent);
+}
+
+void CMainFrame::FinalizeDrawerAnimation()
+{
+	if (!mDrawerAnimOpening)
+		mDrawerVisible = false;
+
+	// Snap to the exact final column/layout for the resting state.
+	PinDrawerColumn();
+
+	if (mDrawerVisible && mpDrawer && ::IsWindow(mpDrawer->GetSafeHwnd()))
+		mpDrawer->SetFocus();
+}
+
+void CMainFrame::OnUpdateToggleDrawer(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(mDrawerVisible ? 1 : 0);
+}
+
+int CMainFrame::GetDrawerReservedWidth() const
+{
+	return mDrawerVisible ? (mDrawerWidth + mwndSplitter.BarWidth()) : 0;
+}
+
+void CMainFrame::OnDocPathChanged(LPCTSTR lpszPath)
+{
+	// Only sync (and decode thumbnails) while the drawer is actually visible.
+	if (mDrawerVisible && mpDrawer && ::IsWindow(mpDrawer->GetSafeHwnd()))
+		mpDrawer->SetCurrentFile(lpszPath);
+}
+
+void CMainFrame::OnDestroy()
+{
+	if (mDrawerWidth < DRAWER_MIN) mDrawerWidth = DRAWER_MIN;
+	if (mDrawerWidth > DRAWER_MAX) mDrawerWidth = DRAWER_MAX;
+
+	AfxGetApp()->WriteProfileInt(_T("Drawer"), _T("Visible"), mDrawerVisible ? 1 : 0);
+	AfxGetApp()->WriteProfileInt(_T("Drawer"), _T("Width"), mDrawerWidth);
+
+	CFrameWnd::OnDestroy();
 }
 
 void CMainFrame::RefreshView()

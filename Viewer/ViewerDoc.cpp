@@ -650,6 +650,11 @@ void CViewerDoc::SetPathName(LPCTSTR lpszPathName, BOOL bAddToMRU)
 		AfxGetApp()->AddToRecentFileList(m_strPathName);
 
 	ASSERT_VALID(this);
+
+	// Keep the thumbnail drawer in sync with the active file.
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	if (pMainFrm)
+		pMainFrm->OnDocPathChanged(m_strPathName);
 }
 
 bool CViewerDoc::GetNativePixelSample(int viewX, int viewY,

@@ -214,8 +214,16 @@ void CViewerView::AdjustWindowSize()
 	if (!pDoc)
 		return;
 
-	// In this SDI app the view's parent is CMainFrame.
-	CWnd *pMainFrm = GetParent();
+	// The view lives in column 1 of the frame's splitter, so walk up to the frame.
+	CFrameWnd *pMainFrm = GetParentFrame();
+	if (!pMainFrm)
+		return;
+
+	// The thumbnail drawer occupies part of the frame client; reserve its width
+	// so the image area itself still gets the size computed below.
+	int drawerExtra = 0;
+	if (CMainFrame *pFrame = DYNAMIC_DOWNCAST(CMainFrame, pMainFrm))
+		drawerExtra = pFrame->GetDrawerReservedWidth();
 
 	// Restore before resizing so the client area is recalculated from a
 	// normal frame, not from a previously maximized image.
@@ -239,7 +247,7 @@ void CViewerView::AdjustWindowSize()
 	int wClient = max(VIEWER_DEF_W, pDoc->mW);
 	int hClient = max(VIEWER_DEF_H, pDoc->mH);
 
-	CRect rcWin(0, 0, wClient + wGap, hClient + mHProgress + hGap);
+	CRect rcWin(0, 0, wClient + drawerExtra + wGap, hClient + mHProgress + hGap);
 	::AdjustWindowRectEx(&rcWin, dsStyle, TRUE, dsStyleEx);
 
 	if (!mFullMode) {
@@ -846,6 +854,7 @@ void CViewerView::DrawHelpMenu(CDC *pDC)
 		"Viewer shortcuts\n"
 		"\n"
 		"?              Show or hide this panel\n"
+		"E              Toggle thumbnail browser (drawer)\n"
 		"Drag && Drop    Open an image\n"
 		"Mouse Wheel    Zoom in or out; high zoom shows pixel values\n"
 		"Return         Full screen\n"

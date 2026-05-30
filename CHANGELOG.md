@@ -8,6 +8,18 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ## [Unreleased]
 
+### Added
+- Viewer: thumbnail explorer drawer. Hidden by default, so a fresh launch looks
+  and sizes exactly like before. Open it with File ▸ Thumbnail Browser or the E
+  key: the window slides open to the right (the image stays perfectly still) and
+  slides closed again. The drawer is a compact explorer for the current folder:
+  folders and a ".." entry are shown as full-width text (double-click to browse;
+  at a drive root ".." opens the drive list, so any directory is reachable),
+  image files show a small thumbnail decoded in the background, and raw files
+  (.yuv/.rgb) show an extension badge. Double-click (or Enter) opens an image in
+  the main view; the active file is highlighted and hovering a row shows its full
+  name as a tooltip. Its visibility is remembered between sessions.
+
 ---
 
 ## [2.1.0] — 2026-05-30

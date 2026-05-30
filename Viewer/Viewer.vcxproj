@@ -217,6 +217,7 @@
     <ClCompile Include="FileFinderThread.cpp" />
     <ClCompile Include="FrmProvideThread.cpp" />
     <ClCompile Include="MainFrm.cpp" />
+    <ClCompile Include="ThumbnailPane.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -237,6 +238,7 @@
     <ClInclude Include="FileFinderThread.h" />
     <ClInclude Include="FrmProvideThread.h" />
     <ClInclude Include="MainFrm.h" />
+    <ClInclude Include="ThumbnailPane.h" />
     <ClInclude Include="FrmSrc.h" />
     <ClInclude Include="MatFrmSrc.h" />
     <ClInclude Include="RawFrmSrc.h" />

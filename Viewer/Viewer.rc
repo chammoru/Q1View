@@ -93,6 +93,8 @@ BEGIN
         MENUITEM "&Open...\tCtrl+O",            ID_FILE_OPEN,MFT_STRING,MFS_ENABLED
         MENUITEM "Save &As\tCtrl+Alt+S",        ID_FILE_SAVE_AS,MFT_STRING,MFS_ENABLED
         MENUITEM MFT_SEPARATOR
+        MENUITEM "Thumbnail &Browser\tE",       ID_TOGGLE_DRAWER,MFT_STRING,MFS_ENABLED
+        MENUITEM MFT_SEPARATOR
         MENUITEM "Recent File",                 ID_FILE_MRU_FILE1,MFT_STRING,MFS_GRAYED
         MENUITEM MFT_SEPARATOR
     END
@@ -123,6 +125,7 @@ BEGIN
     VK_F6,          ID_NEXT_PANE,           VIRTKEY 
     VK_F6,          ID_PREV_PANE,           VIRTKEY, SHIFT
     VK_OEM_2,       ID_VIEWER_HELP,         VIRTKEY
+    "E",            ID_TOGGLE_DRAWER,       VIRTKEY
 END
 
 

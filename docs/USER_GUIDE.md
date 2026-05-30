@@ -41,6 +41,7 @@ Viewer includes a built-in control panel, opened with `?`.
 | Action | Control |
 | --- | --- |
 | Open a file | Drag and drop or `Ctrl+O` |
+| Toggle thumbnail browser (drawer) | `E` |
 | Paste image from clipboard | `Ctrl+V` |
 | Zoom | Mouse wheel |
 | Full screen | `Return` |
@@ -59,6 +60,16 @@ Viewer includes a built-in control panel, opened with `?`.
 | Mute or unmute video audio | `M` |
 | Toggle selection mode | `S` |
 | Capture view or selected region | `Ctrl+C` |
+
+### Thumbnail Browser
+
+Press `E` (or **File ▸ Thumbnail Browser**) to slide out a thumbnail drawer on
+the right. It is hidden by default, so the window is unchanged until you open
+it. The drawer is a small explorer for the current file's folder: a `..` entry
+and sub-folders let you browse with a double-click, and the supported image and
+raw files are listed with thumbnails (raw formats show a labeled placeholder).
+Double-click an image to open it in the main view. The drawer's visibility is
+remembered between sessions.
 
 ### Synchronized Viewer Windows
 

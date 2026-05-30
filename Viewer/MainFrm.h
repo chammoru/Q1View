@@ -44,6 +44,30 @@ struct ViewerSyncInputState
 	double y;
 };
 
+class CThumbnailPane;
+
+// Static splitter hosting the image view (column 0) and the thumbnail drawer
+// (column 1). It draws no bar or border, and the slide animation grows the
+// window so the view column stays a constant width.
+class CDrawerSplitter : public CSplitterWnd
+{
+public:
+	void RemoveBar()
+	{
+		// Zero every splitter/border metric so there is no visible divider line
+		// and the split is gap-free.
+		m_cxSplitter = m_cySplitter = 0;
+		m_cxSplitterGap = m_cySplitterGap = 0;
+		m_cxBorder = m_cyBorder = 0;
+		m_cxBorderShare = m_cyBorderShare = 0;
+	}
+	int  BarWidth() const { return 0; }
+
+protected:
+	// Draw nothing: no split bar or border lines between the panes.
+	virtual void OnDraw(CDC * /*pDC*/) {}
+};
+
 class CMainFrame : public CFrameWnd
 {
 protected: // create from serialization only
@@ -58,6 +82,23 @@ private:
 	bool mSyncViewStatePending;
 	ViewerSyncInputState mPendingSyncViewState;
 
+	// Left-side thumbnail drawer.
+	CDrawerSplitter mwndSplitter;
+	CThumbnailPane *mpDrawer;
+	bool mDrawerVisible;
+	int  mDrawerWidth;
+	bool mSplitterReady;
+
+	// Open/close slide animation state.
+	bool mDrawerAnimating;
+	bool mDrawerAnimOpening;
+	int  mDrawerAnimStep;
+	int  mDrawerAnimSteps;
+	int  mAnimClosedLeft, mAnimClosedWidth, mAnimTop, mAnimHeight;
+	int  mAnimReservedFull;
+	int  mAnimViewWidth;   // image-view column width held constant during the slide
+	bool mAnimCanResize;
+
 // Operations
 public:
 
@@ -65,6 +106,7 @@ public:
 public:
 	virtual BOOL PreCreateWindow(CREATESTRUCT& cs);
 	virtual void OnUpdateFrameTitle(BOOL bAddToTitle);
+	virtual BOOL OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext);
 
 // Implementation
 public:
@@ -85,6 +127,10 @@ public:
 	bool IsSyncInputEnabled() const { return mSyncInput; }
 	void ToggleSyncInput();
 	void BroadcastSyncInput(const ViewerSyncInputState &input);
+	// Width (incl. splitter bar) the drawer reserves in the frame client area.
+	int  GetDrawerReservedWidth() const;
+	// Called by the document when the active file changes, to sync the drawer.
+	void OnDocPathChanged(LPCTSTR lpszPath);
 
 // Generated message map functions
 protected:
@@ -98,10 +144,19 @@ public:
 	afx_msg void OnResolutionChange(UINT nID);
 	afx_msg void OnCsChange(UINT nID);
 	afx_msg void OnFpsChange(UINT nID);
+	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg void OnDestroy();
+	afx_msg void OnToggleDrawer();
+	afx_msg void OnUpdateToggleDrawer(CCmdUI *pCmdUI);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 
 private:
 	BOOL ResolveComparatorPath(CString &cmperPath);
 	BOOL LaunchComparator(const CString &cmperPath, const CString &quotedArgs);
+	void PinDrawerColumn();
+	void StartDrawerAnimation(bool opening);
+	void ApplyDrawerReserved(int reserved);
+	void FinalizeDrawerAnimation();
 	afx_msg LRESULT Reload(WPARAM wParam, LPARAM lParam);
 	afx_msg BOOL OnCopyData(CWnd *pWnd, COPYDATASTRUCT *pCopyDataStruct);
 	afx_msg LRESULT OnApplySyncInput(WPARAM wParam, LPARAM lParam);
