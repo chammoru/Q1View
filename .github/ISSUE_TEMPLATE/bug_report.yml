@@ -1,0 +1,87 @@
+name: Bug report
+description: Something is not working correctly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report! Please fill out the
+        fields below so we can reproduce and fix the issue quickly.
+
+  - type: input
+    id: version
+    attributes:
+      label: Q1View version
+      description: Which version of Q1View are you running? (See Help → About)
+      placeholder: e.g. 2.1.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      description: Which application is experiencing the issue?
+      options:
+        - Viewer
+        - Comparator
+        - Both
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS version
+      options:
+        - Windows 11
+        - Windows 10
+        - Other (specify in steps)
+    validations:
+      required: true
+
+  - type: input
+    id: format
+    attributes:
+      label: Image/Video format & resolution
+      description: Format and resolution of the buffer/file you were loading, if relevant.
+      placeholder: e.g. NV12 YUV 1920x1080, AVIF, HEIC, PNG
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the exact steps that trigger the problem.
+      placeholder: |
+        1. Open ...
+        2. Load ...
+        3. Click ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened instead?
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Additional logs / context
+      description: Paste any stack traces, error dumps, or screenshots here.
+      render: shell
+    validations:
+      required: false
