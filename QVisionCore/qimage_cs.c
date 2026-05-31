@@ -1,5 +1,6 @@
 
 #include <limits.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "qimage_cs.h"

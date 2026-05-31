@@ -1,6 +1,8 @@
 #ifndef __QPORT__
 #define __QPORT__
 
+#include <stddef.h>
+
 #if defined(ANDROID) || defined(__GNUC__)
 #include <unistd.h>
 #define QMSleep(x) (usleep((x) * 1000))
