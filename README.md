@@ -12,6 +12,9 @@
 pixels — raw frame buffers, codec output, decoded images, and the small
 visual differences that ordinary media players gloss over.
 
+*The media player codec, video, and CV engineers keep open for frame-level work —
+built to inspect, not just play.*
+
 [Download from Microsoft Store](https://apps.microsoft.com/detail/9NQR51WLBTHF)
 | [Download latest release](https://github.com/chammoru/Q1View/releases/latest)
 | [User guide](docs/USER_GUIDE.md)
@@ -41,14 +44,38 @@ like and how two outputs differ — not for browsing a photo library.
   overlaid and a pink pixel-diff highlight showing exactly where they disagree.
 - Step through an **image sequence** in a folder (`frame_001.png` … `frame_100.png`)
   or a video, with synchronized navigation across two to four sources.
+- **Play a video** like any player, then stop on any frame with frame-accurate
+  seek and step, and read source-native pixel values at the cursor on the exact
+  frame you stopped on.
 - Pull a **clipboard screenshot** in and check pixel coordinates, hex values,
   and small color drifts.
 - Drive **two Viewer windows in sync** to compare different decodes of the
   same source while panning and zooming as one.
 
-Q1View is not intended to manage photo libraries or replace a consumer video
-player. It is focused on codec development, imaging validation, and quick
-frame-level investigation.
+Q1View is not intended to manage photo libraries or win the consumer media-player
+race — subtitles, playlists, streaming, and skins are not the goal. It is focused
+on codec development, imaging validation, and quick frame-level investigation.
+
+## An inspectable media player
+
+Most players are built to make video disappear into smooth playback. Q1View does
+the opposite: it keeps every frame addressable, so you can stop, scrub to an exact
+frame, and read what is actually there.
+
+It is the player codec, video, and CV engineers open *instead of* a consumer one —
+not because it plays more formats, but because it lets you **inspect what plays**:
+
+- Frame-accurate **seek and step**, with the current frame counter (N / M) on the
+  timeline.
+- Source-native **YUV / RGB values** under the cursor, read in the **source color
+  space** you select rather than the display approximation.
+- **Save a frame** or **capture a range** straight from playback.
+- Hand two clips to **synchronized playback** and jump to **PSNR / SSIM and a
+  pixel diff** without leaving the app.
+- **Raw dumps, image sequences, and decoded video** all open in the same UX, so
+  the clip you are debugging and the reference you check it against behave the same.
+
+In short, it is not a playback app — it is a **player you can inspect**.
 
 ## Applications
 
