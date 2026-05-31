@@ -16,6 +16,7 @@ differences that ordinary media players gloss over.
 ## Developer documentation
 
 - [Development Guide](DEVELOPMENT.md): dependencies, build, packaging, release
+- [Cross-Platform Roadmap](CROSS_PLATFORM.md): plan for Linux/macOS support
 
 ## Maintainer / release
 
