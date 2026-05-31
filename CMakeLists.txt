@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(Q1ViewCore LANGUAGES C CXX)
 
 option(Q1VIEW_BUILD_SMOKE_TEST "Build the cross-platform core smoke-test executable" ON)
+option(Q1VIEW_BUILD_QT_VIEWER "Build the experimental cross-platform Qt viewer" OFF)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -62,4 +63,39 @@ if(Q1VIEW_BUILD_SMOKE_TEST)
     )
 
     add_test(NAME q1view_core_smoke COMMAND q1view_core_smoke)
+endif()
+
+if(Q1VIEW_BUILD_QT_VIEWER)
+    find_package(Qt6 QUIET COMPONENTS Widgets)
+
+    if(NOT Qt6_FOUND)
+        find_package(Qt5 REQUIRED COMPONENTS Widgets)
+        set(Q1VIEW_QT_LIB Qt5::Widgets)
+    else()
+        set(Q1VIEW_QT_LIB Qt6::Widgets)
+    endif()
+
+    add_executable(q1view_viewer_qt
+        ViewerQt/main.cpp
+        ViewerQt/MainWindow.cpp
+        ViewerQt/MainWindow.h
+        ViewerQt/RawOpenDialog.cpp
+        ViewerQt/RawOpenDialog.h
+    )
+
+    set_target_properties(q1view_viewer_qt PROPERTIES
+        MACOSX_BUNDLE TRUE
+        WIN32_EXECUTABLE TRUE
+    )
+
+    target_link_libraries(q1view_viewer_qt
+        PRIVATE
+            ${Q1VIEW_QT_LIB}
+            q1view_image_core
+    )
+
+    install(TARGETS q1view_viewer_qt
+        BUNDLE DESTINATION .
+        RUNTIME DESTINATION bin
+    )
 endif()

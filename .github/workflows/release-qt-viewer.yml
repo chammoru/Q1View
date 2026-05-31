@@ -1,0 +1,206 @@
+name: Release Qt Viewer
+
+on:
+  push:
+    tags:
+      - "qt-viewer-v*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag name, for example qt-viewer-v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset_name: q1view-viewer-qt-linux-x86_64
+          - os: macos-latest
+            asset_name: q1view-viewer-qt-macos
+          - os: windows-2022
+            asset_name: q1view-viewer-qt-windows-x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.5.3"
+          cache: true
+
+      - name: Configure
+        run: cmake -S . -B build -DQ1VIEW_BUILD_SMOKE_TEST=OFF -DQ1VIEW_BUILD_QT_VIEWER=ON
+
+      - name: Build
+        run: cmake --build build --config Release --target q1view_viewer_qt --parallel
+
+      - name: Package viewer (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $package = "package/${{ matrix.asset_name }}"
+          New-Item -ItemType Directory -Force $package | Out-Null
+
+          $exe = Get-ChildItem build -Recurse -Filter q1view_viewer_qt.exe | Select-Object -First 1
+          if (-not $exe) {
+            throw "q1view_viewer_qt.exe was not found"
+          }
+
+          Copy-Item $exe.FullName $package
+          windeployqt --release --no-translations "$package/q1view_viewer_qt.exe"
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path "$package/*" -DestinationPath "dist/${{ matrix.asset_name }}.zip" -Force
+
+      - name: Package viewer (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          package="package/${{ matrix.asset_name }}"
+          mkdir -p "${package}"
+
+          app_path="$(find build -type d -name q1view_viewer_qt.app | head -n 1)"
+          if [[ -z "${app_path}" ]]; then
+            echo "q1view_viewer_qt.app was not found"
+            exit 1
+          fi
+
+          macdeployqt "${app_path}" -verbose=1
+          cp -R "${app_path}" "${package}/"
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent "${package}/q1view_viewer_qt.app" "dist/${{ matrix.asset_name }}.zip"
+
+      - name: Package viewer (Linux AppImage)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          package="package/${{ matrix.asset_name }}"
+          appdir="${package}/AppDir"
+          mkdir -p "${appdir}/usr/bin"
+          mkdir -p "${appdir}/usr/share/applications"
+          mkdir -p "${appdir}/usr/share/icons/hicolor/scalable/apps"
+
+          exe_path="$(find build -type f -name q1view_viewer_qt -perm -111 | head -n 1)"
+          if [[ -z "${exe_path}" ]]; then
+            echo "Files under build:"
+            find build -maxdepth 5 -type f -print
+            exit 1
+          fi
+
+          cp "${exe_path}" "${appdir}/usr/bin/q1view_viewer_qt"
+          cp packaging/linux/q1view-viewer-qt.desktop "${appdir}/usr/share/applications/"
+          cp packaging/linux/q1view-viewer-qt.svg "${appdir}/usr/share/icons/hicolor/scalable/apps/"
+
+          qmake_path="$(command -v qmake6 || command -v qmake || true)"
+          if [[ -z "${qmake_path}" ]]; then
+            echo "qmake was not found in PATH"
+            exit 1
+          fi
+
+          curl --fail --location --retry 3 --output linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl --fail --location --retry 3 --output linuxdeploy-plugin-qt-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+
+          mkdir -p dist
+          export QMAKE="${qmake_path}"
+          export OUTPUT="${PWD}/dist/${{ matrix.asset_name }}.AppImage"
+          APPIMAGE_EXTRACT_AND_RUN=1 ./linuxdeploy-x86_64.AppImage \
+            --appdir "${appdir}" \
+            --plugin qt \
+            --output appimage
+
+          chmod +x "dist/${{ matrix.asset_name }}.AppImage"
+
+      - name: Upload release asset artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: dist/*
+
+  release:
+    name: Create prerelease
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: release_info
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+          else
+            release_tag="${{ inputs.tag_name }}"
+          fi
+
+          echo "release_tag=${release_tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Generate release notes
+        shell: bash
+        run: |
+          tag="${{ steps.release_info.outputs.release_tag }}"
+          previous_tag="$(git tag --list 'qt-viewer-v*' --sort=-creatordate | grep -v "^${tag}$" | head -n 1 || true)"
+
+          {
+            echo "# Q1View Qt Viewer ${tag}"
+            echo
+            echo "Experimental cross-platform Qt Viewer build."
+            echo
+            echo "## Downloads"
+            echo
+            echo "- Windows: q1view-viewer-qt-windows-x64.zip"
+            echo "- macOS: q1view-viewer-qt-macos.zip"
+            echo "- Linux: q1view-viewer-qt-linux-x86_64.AppImage"
+            echo
+            echo "## Notes"
+            echo
+            echo "- This is separate from the existing Windows MFC Viewer/Comparer release line."
+            echo "- The Qt Viewer is still experimental and does not yet have full MFC Viewer feature parity."
+            echo
+            echo "## Git history"
+            echo
+            if [[ -n "${previous_tag}" ]]; then
+              git log --pretty=format:"- %h %s (%an, %ad)" --date=short "${previous_tag}..HEAD"
+            else
+              git log --pretty=format:"- %h %s (%an, %ad)" --date=short -20
+            fi
+          } > RELEASE_NOTES.md
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_info.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          name: Q1View Qt Viewer ${{ steps.release_info.outputs.release_tag }}
+          body_path: RELEASE_NOTES.md
+          prerelease: true
+          files: release-assets/*

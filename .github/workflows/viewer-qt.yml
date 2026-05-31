@@ -1,0 +1,116 @@
+name: Viewer Qt
+
+on:
+  push:
+    branches:
+      - cross-platform-core
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.5.3"
+          cache: true
+
+      - name: Configure
+        run: cmake -S . -B build -DQ1VIEW_BUILD_SMOKE_TEST=OFF -DQ1VIEW_BUILD_QT_VIEWER=ON
+
+      - name: Build
+        run: cmake --build build --config Release --target q1view_viewer_qt --parallel
+
+      - name: Package viewer (Windows/macOS)
+        if: runner.os != 'Linux'
+        shell: pwsh
+        run: |
+          $package = "package/q1view-viewer-qt-${{ runner.os }}"
+          New-Item -ItemType Directory -Force $package | Out-Null
+
+          if ($env:RUNNER_OS -eq "Windows") {
+            $exe = Get-ChildItem build -Recurse -Filter q1view_viewer_qt.exe | Select-Object -First 1
+            if (-not $exe) {
+              throw "q1view_viewer_qt.exe was not found"
+            }
+
+            Copy-Item $exe.FullName $package
+            windeployqt --release --no-translations "$package/q1view_viewer_qt.exe"
+          } elseif ($env:RUNNER_OS -eq "macOS") {
+            $app = Get-ChildItem build -Recurse -Directory -Filter q1view_viewer_qt.app | Select-Object -First 1
+            if (-not $app) {
+              throw "q1view_viewer_qt.app was not found"
+            }
+
+            macdeployqt $app.FullName -verbose=1
+            Copy-Item $app.FullName $package -Recurse
+          }
+
+      - name: Package viewer (Linux AppImage)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          package="package/q1view-viewer-qt-${RUNNER_OS}"
+          appdir="${package}/AppDir"
+          mkdir -p "${appdir}/usr/bin"
+          mkdir -p "${appdir}/usr/share/applications"
+          mkdir -p "${appdir}/usr/share/icons/hicolor/scalable/apps"
+
+          exe_path="$(find build -type f -name q1view_viewer_qt -perm -111 | head -n 1)"
+          if [[ -z "${exe_path}" ]]; then
+            echo "Files under build:"
+            find build -maxdepth 5 -type f -print
+            exit 1
+          fi
+
+          cp "${exe_path}" "${appdir}/usr/bin/q1view_viewer_qt"
+          cp packaging/linux/q1view-viewer-qt.desktop "${appdir}/usr/share/applications/"
+          cp packaging/linux/q1view-viewer-qt.svg "${appdir}/usr/share/icons/hicolor/scalable/apps/"
+
+          qmake_path="$(command -v qmake6 || command -v qmake || true)"
+          if [[ -z "${qmake_path}" ]]; then
+            echo "qmake was not found in PATH"
+            exit 1
+          fi
+
+          curl --fail --location --retry 3 --output linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl --fail --location --retry 3 --output linuxdeploy-plugin-qt-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+
+          export QMAKE="${qmake_path}"
+          export OUTPUT="${PWD}/${package}/q1view-viewer-qt-linux-x86_64.AppImage"
+          APPIMAGE_EXTRACT_AND_RUN=1 ./linuxdeploy-x86_64.AppImage \
+            --appdir "${appdir}" \
+            --plugin qt \
+            --output appimage
+
+          chmod +x "${package}/q1view-viewer-qt-linux-x86_64.AppImage"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: q1view-viewer-qt-${{ matrix.os }}
+          path: package/**
