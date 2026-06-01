@@ -1,0 +1,13 @@
+# Dependencies for export_lpips_onnx.py (one-time model generation, not a build step).
+# Install into a virtualenv:  python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt
+#
+# torch is a large download (~200MB CPU wheel). A CPU-only build is sufficient;
+# no GPU is needed to export the model.
+torch>=1.10
+torchvision>=0.11      # provides the AlexNet/SqueezeNet/VGG backbones lpips wraps
+lpips>=0.1.4           # the reference perceptual-distance package + pretrained linear heads
+onnx>=1.10             # ONNX export support in torch.onnx
+numpy>=1.19
+
+# Optional: enables the numerical verification step (torch vs ONNX Runtime).
+onnxruntime>=1.10
