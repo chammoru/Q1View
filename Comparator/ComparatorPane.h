@@ -32,6 +32,7 @@ struct SQPane
 
 	std::vector<FrmSrc*> frmSrcs;
 	FrmSrc* frmSrc;
+	bool disableImageSequence;
 
 	inline SQPane()
 	: origSceneSize(0)
@@ -47,6 +48,7 @@ struct SQPane
 	, csc2rgb888(qcsc_info_table[QIMG_DEF_CS_IDX].csc2rgb888)
 	, curFrameID(-1L)
 	, frmSrc(NULL)
+	, disableImageSequence(false)
 	{
 		// Try structured sources first. Keep RawFrmSrc last as the fallback
 		// for readable byte streams.
@@ -176,6 +178,7 @@ struct ComparatorPane : public SQPane
 	{
 		closeFrmSrcs();
 		frames = 0;
+		disableImageSequence = false;
 		pathName.Empty();
 	}
 

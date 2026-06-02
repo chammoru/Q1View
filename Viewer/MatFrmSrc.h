@@ -38,6 +38,7 @@ public:
 		pDoc->mCsc2Rgb888 = qimage_bgr888_to_bgr888;
 		pDoc->mCsLoadInfo = qimage_rgb888_load_info;
 		pDoc->mSampleNativePixel = nullptr;
+		pDoc->mHasTimingFps = false;
 	}
 
 	virtual inline bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)

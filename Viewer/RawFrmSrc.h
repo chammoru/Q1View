@@ -5,6 +5,8 @@
 #include "CscThread.h"
 #include "QHeifUtil.h"
 
+#include <cmath>
+
 class RawFrmSrc : public FrmSrc {
 public:
 	RawFrmSrc(CViewerDoc *pDoc)
@@ -71,7 +73,14 @@ public:
 			pDoc->mSampleNativePixel = ci->sample_native_pixel;
 		}
 
-		q1::image_parse_arg(szFileName, &pDoc->mFps, "fps");
+		double fps = -1.0;
+		if (q1::image_parse_arg(szFileName, &fps, "fps") == 0 &&
+				fps > 0.0 && std::isfinite(fps)) {
+			pDoc->mFps = fps;
+			pDoc->mHasTimingFps = true;
+		} else {
+			pDoc->mHasTimingFps = false;
+		}
 	}
 
 	virtual inline bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)

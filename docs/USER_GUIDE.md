@@ -7,7 +7,8 @@ single source and **Comparator** for measuring differences between sources.
 
 Viewer opens regular images, raw frame dumps, image sequences, videos, and
 clipboard images. The top bar reports resolution, interpreted color space, and
-frame rate; high zoom reveals per-pixel component values.
+frame rate; high zoom reveals per-pixel component values. For timed sources,
+the bottom progress bar shows both the frame counter and playback time.
 
 ![Viewer zoomed into a real-world image with pixel grid](images/viewer-pixel-inspection.png)
 
@@ -19,9 +20,12 @@ frame rate; high zoom reveals per-pixel component values.
 4. For video, use `Space`, arrow keys, the timeline, and the FPS menu.
 5. Select **Compare** to move a source into comparison work.
 
-Video playback follows the source FPS or the FPS chosen in the menu. If display
-or decode work briefly falls behind, Viewer drops late presentation frames to
-return to the media timeline.
+Video playback follows the source FPS or the FPS chosen in the menu. When FPS
+timing is known, the progress bar shows current time and total duration in a
+compact one-decimal format such as `00:01.2 / 00:10.0`; if timing is missing or
+invalid, Viewer keeps the frame-only readout. If display or decode work briefly
+falls behind, Viewer drops late presentation frames to return to the media
+timeline.
 
 When a raw YUV source is zoomed far enough to show pixel values, Viewer shows
 source-native `Y`, `U`, and `V` values by default. They are sampled from the
@@ -93,6 +97,10 @@ and options.
 5. Enable **Allow Different Resolution** from **OPTIONS** when required.
 
 The same reference and encoded image can also be reviewed with SSIM selected.
+When multiple selected files are members of the same discovered image sequence,
+Comparator treats those selections as explicit single-image panes, so `0.jpg`
+versus `1.jpg` compares the two chosen files instead of seeking two offsets in
+one sequence.
 
 ### Pixel-Level Diff Overlay
 

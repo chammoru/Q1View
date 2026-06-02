@@ -18,6 +18,8 @@
 #include "FrmSrc.h"
 #include "Q1ViewVersion.h"
 
+#include <cmath>
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -304,6 +306,44 @@ void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool pr
 	mNewRgbBufferInfoQ->init();
 }
 
+static CString FormatPlaybackTime(double seconds)
+{
+	if (seconds < 0.0 || !std::isfinite(seconds))
+		seconds = 0.0;
+
+	long long deciseconds = static_cast<long long>(seconds * 10.0 + 0.5);
+	long long totalSeconds = deciseconds / 10;
+	int ds = static_cast<int>(deciseconds % 10);
+	int h = static_cast<int>(totalSeconds / 3600);
+	int m = static_cast<int>((totalSeconds / 60) % 60);
+	int s = static_cast<int>(totalSeconds % 60);
+
+	CString text;
+	if (h > 0)
+		text.Format(_T("%d:%02d:%02d.%d"), h, m, s, ds);
+	else
+		text.Format(_T("%02d:%02d.%d"), m, s, ds);
+
+	return text;
+}
+
+static CString FormatProgressText(const CViewerDoc* pDoc, int frameID)
+{
+	int frameMax = pDoc->mFrames - 1;
+
+	CString text;
+	text.Format(_T("%d / %d"), frameID, frameMax);
+
+	if (pDoc->mHasTimingFps && pDoc->mFps > 0.0 && std::isfinite(pDoc->mFps)) {
+		CString currentTime = FormatPlaybackTime(double(frameID) / pDoc->mFps);
+		CString duration = FormatPlaybackTime(double(pDoc->mFrames) / pDoc->mFps);
+		text.AppendFormat(_T("  %s / %s"),
+			currentTime.GetString(), duration.GetString());
+	}
+
+	return text;
+}
+
 void CViewerView::ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID)
 {
 	const int barMargin = MARGIN_PROGESS_BAR;
@@ -314,8 +354,7 @@ void CViewerView::ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID)
 
 	int frameMax = pDoc->mFrames - 1;
 
-	CString str;
-	str.Format(_T("%d / %d"), frameID, frameMax);
+	CString str = FormatProgressText(pDoc, frameID);
 
 	CRect progressBand(0, mHCanvas, mWClient, mHClient);
 	pDC->FillSolidRect(progressBand, Q1UI_COLOR_SURFACE_ALT);
@@ -327,8 +366,7 @@ void CViewerView::ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID)
 	// Reserve a stable slot on the right based on the maximum frame number
 	// (not the current one) so the volume/mute layout does not shift as the
 	// counter advances during playback.
-	CString maxStr;
-	maxStr.Format(_T("%d / %d"), frameMax, frameMax);
+	CString maxStr = FormatProgressText(pDoc, frameMax);
 	int  textW    = pDC->GetTextExtent(maxStr).cx;
 	int  rightEnd = mWClient - barMargin;
 	int  textLeft = rightEnd - textW;

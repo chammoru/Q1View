@@ -7,6 +7,7 @@
 #include "QCvUtil.h"
 #include "VidCapThread.h"
 
+#include <cmath>
 #include <string>
 
 class VidCapFrmSrc : public FrmSrc {
@@ -47,6 +48,7 @@ public:
 		pDoc->mSampleNativePixel = nullptr;
 
 		pDoc->mFps = mVidCap.get(cv::CAP_PROP_FPS);
+		pDoc->mHasTimingFps = pDoc->mFps > 0.0 && std::isfinite(pDoc->mFps);
 	}
 
 	virtual inline bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)

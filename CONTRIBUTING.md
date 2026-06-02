@@ -29,8 +29,8 @@ limiting is more useful than describing a specific implementation.
 
 ## Build
 
-Requirements: Windows x64, Visual Studio 2019 or newer with the C++ desktop
-workload, and PowerShell.
+Requirements: Windows x64, Visual Studio 2022 with the C++ desktop workload,
+the MSVC v143 toolset, the MFC component, and PowerShell.
 
 ```powershell
 msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64

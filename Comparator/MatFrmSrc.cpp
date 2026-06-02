@@ -30,45 +30,34 @@ static bool IsLikelyImageFile(const CString& path)
 		|| ext == _T("exr") || ext == _T("hdr") || ext == _T("pic");
 }
 
-MatFrmSrc::MatFrmSrc(SQPane *pane)
-: FrmSrc(pane, true)
-, mCurFrameID(0)
-, mDstW(0)
-, mDstH(0)
-{}
-
-MatFrmSrc::~MatFrmSrc()
+static bool GetImageResolution(const CString& pathName, int* w, int* h)
 {
-	Release();
-}
-
-bool MatFrmSrc::Open(const CString& filePath, const struct qcsc_info* sortedCscInfo,
-	int srcW, int srcH, int dstW, int dstH)
-{
-	UNREFERENCED_PARAMETER(sortedCscInfo);
-
-	mOcvMat = q1::imreadW(filePath.GetString());
-	if (mOcvMat.data == NULL)
+	Mat ocvMat = q1::imreadW(pathName.GetString());
+	if (ocvMat.data == NULL)
 		return false;
 
-	mDstW = dstW;
-	mDstH = dstH;
-	if (mOcvMat.cols != dstW || mOcvMat.rows != dstH)
-		resize(mOcvMat, mOcvMat, Size(dstW, dstH));
-
-	// Treat the rest of the folder as part of the sequence so the timeline
-	// and Left/Right shortcuts work like they do for video sources. Anchor
-	// mCurFrameID to the file the user actually opened — not index 0 — so
-	// navigation feels relative to "where I am" instead of jumping home.
-	BuildFileList(filePath, srcW, srcH);
+	*w = ocvMat.cols;
+	*h = ocvMat.rows;
+	ocvMat.release();
 
 	return true;
 }
 
-void MatFrmSrc::BuildFileList(const CString& filePath, int srcW, int srcH)
+static bool ContainsPath(const std::vector<CString>& paths, const CString& path)
 {
-	mFileList.clear();
-	mCurFrameID = 0;
+	for (const auto& candidate : paths) {
+		if (candidate.CompareNoCase(path) == 0)
+			return true;
+	}
+
+	return false;
+}
+
+static void BuildImageSequenceList(const CString& filePath, int srcW, int srcH,
+	std::vector<CString>& fileList, long* curFrameID)
+{
+	fileList.clear();
+	*curFrameID = 0;
 
 	// Take whichever separator appears later — drag-drop and some shell APIs
 	// hand us mixed `C:\foo/bar/baz.png`, where only checking '\\' first would
@@ -76,7 +65,7 @@ void MatFrmSrc::BuildFileList(const CString& filePath, int srcW, int srcH)
 	int slash = std::max(filePath.ReverseFind(_T('\\')),
 	                     filePath.ReverseFind(_T('/')));
 	if (slash < 0) {
-		mFileList.push_back(filePath);
+		fileList.push_back(filePath);
 		return;
 	}
 
@@ -98,8 +87,8 @@ void MatFrmSrc::BuildFileList(const CString& filePath, int srcW, int srcH)
 		// data on anything imread can't handle, so this also drops files
 		// whose extension we guessed wrong about.
 		int w = 0, h = 0;
-		if (GetResolution(candidatePath, &w, &h) && w == srcW && h == srcH)
-			mFileList.push_back(candidatePath);
+		if (GetImageResolution(candidatePath, &w, &h) && w == srcW && h == srcH)
+			fileList.push_back(candidatePath);
 	}
 	finder.Close();
 
@@ -107,12 +96,12 @@ void MatFrmSrc::BuildFileList(const CString& filePath, int srcW, int srcH)
 	// like frame_001.png .. frame_100.png line up naturally. Mixed-pad
 	// names (frame_2 / frame_10) won't sort numerically; that's a known
 	// limitation users can avoid by zero-padding their output.
-	std::sort(mFileList.begin(), mFileList.end(),
+	std::sort(fileList.begin(), fileList.end(),
 		[](const CString& a, const CString& b) { return a.CompareNoCase(b) < 0; });
 
-	for (size_t i = 0; i < mFileList.size(); i++) {
-		if (mFileList[i].CompareNoCase(filePath) == 0) {
-			mCurFrameID = (long)i;
+	for (size_t i = 0; i < fileList.size(); i++) {
+		if (fileList[i].CompareNoCase(filePath) == 0) {
+			*curFrameID = (long)i;
 			return;
 		}
 	}
@@ -120,8 +109,69 @@ void MatFrmSrc::BuildFileList(const CString& filePath, int srcW, int srcH)
 	// Shouldn't happen — we just imread'd filePath successfully — but if the
 	// opened file somehow isn't in the scan results, fall back to inserting
 	// it at the front so the sequence still has the right starting frame.
-	mFileList.insert(mFileList.begin(), filePath);
-	mCurFrameID = 0;
+	fileList.insert(fileList.begin(), filePath);
+	*curFrameID = 0;
+}
+
+MatFrmSrc::MatFrmSrc(SQPane *pane)
+: FrmSrc(pane, true)
+, mCurFrameID(0)
+, mDstW(0)
+, mDstH(0)
+{}
+
+MatFrmSrc::~MatFrmSrc()
+{
+	Release();
+}
+
+bool MatFrmSrc::AreInSameImageSequence(const CString& filePathA, int srcWA, int srcHA,
+	const CString& filePathB, int srcWB, int srcHB)
+{
+	if (srcWA != srcWB || srcHA != srcHB)
+		return false;
+
+	std::vector<CString> fileListA;
+	std::vector<CString> fileListB;
+	long curFrameID = 0;
+	BuildImageSequenceList(filePathA, srcWA, srcHA, fileListA, &curFrameID);
+	BuildImageSequenceList(filePathB, srcWB, srcHB, fileListB, &curFrameID);
+
+	return ContainsPath(fileListA, filePathB) && ContainsPath(fileListB, filePathA);
+}
+
+bool MatFrmSrc::Open(const CString& filePath, const struct qcsc_info* sortedCscInfo,
+	int srcW, int srcH, int dstW, int dstH)
+{
+	UNREFERENCED_PARAMETER(sortedCscInfo);
+
+	mOcvMat = q1::imreadW(filePath.GetString());
+	if (mOcvMat.data == NULL)
+		return false;
+
+	mDstW = dstW;
+	mDstH = dstH;
+	if (mOcvMat.cols != dstW || mOcvMat.rows != dstH)
+		resize(mOcvMat, mOcvMat, Size(dstW, dstH));
+
+	if (mPane->disableImageSequence) {
+		mFileList.clear();
+		mFileList.push_back(filePath);
+		mCurFrameID = 0;
+	} else {
+		// Treat the rest of the folder as part of the sequence so the timeline
+		// and Left/Right shortcuts work like they do for video sources. Anchor
+		// mCurFrameID to the file the user actually opened — not index 0 — so
+		// navigation feels relative to "where I am" instead of jumping home.
+		BuildFileList(filePath, srcW, srcH);
+	}
+
+	return true;
+}
+
+void MatFrmSrc::BuildFileList(const CString& filePath, int srcW, int srcH)
+{
+	BuildImageSequenceList(filePath, srcW, srcH, mFileList, &mCurFrameID);
 }
 
 bool MatFrmSrc::LoadFrame(long id)
@@ -155,15 +205,7 @@ void MatFrmSrc::Release()
 
 bool MatFrmSrc::GetResolution(CString &pathName, int* w, int* h)
 {
-	Mat ocvMat = q1::imreadW(pathName.GetString());
-	if (ocvMat.data == NULL)
-		return false;
-
-	*w = ocvMat.cols;
-	*h = ocvMat.rows;
-	ocvMat.release();
-
-	return true;
+	return GetImageResolution(pathName, w, h);
 }
 
 const struct qcsc_info* MatFrmSrc::GetColorSpace(const CString &pathName,

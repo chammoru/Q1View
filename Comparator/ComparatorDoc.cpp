@@ -520,11 +520,15 @@ BOOL CComparatorDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 
 	// Check all resolutions
 	vector<ImageProperty> imageProperties;
+	vector<int> srcWidths(numOfFiles);
+	vector<int> srcHeights(numOfFiles);
+	vector<bool> disableImageSequences(numOfFiles, false);
 	int prevSrcW = 0, prevSrcH = 0;
 	bool isDiffRes = false;
 	for (int i = 0; i < numOfFiles; i++) {
 		ComparatorPane* pane = mPane + IMG_VIEW_1 + i;
 		pane->pathName = filenames[i];
+		pane->disableImageSequence = false;
 		AfxGetApp()->AddToRecentFileList(filenames[i]);
 		int srcW = 0, srcH = 0;
 		bool success = pane->GetResolution(pane->pathName, &srcW, &srcH);
@@ -532,12 +536,24 @@ BOOL CComparatorDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 			LOGWRN("FrmSrc failed to get resolution info for file idx %d", i);
 			return FALSE;
 		}
+		srcWidths[i] = srcW;
+		srcHeights[i] = srcH;
 		imageProperties.emplace_back(srcW, srcH, i);
 		if (prevSrcW == 0 && prevSrcH == 0) {
 			prevSrcW = srcW;
 			prevSrcH = srcH;
 		} else if (prevSrcW != srcW || prevSrcH != srcH) {
 			isDiffRes = true;
+		}
+	}
+
+	for (int i = 0; i < numOfFiles; i++) {
+		for (int j = i + 1; j < numOfFiles; j++) {
+			if (MatFrmSrc::AreInSameImageSequence(filenames[i], srcWidths[i], srcHeights[i],
+					filenames[j], srcWidths[j], srcHeights[j])) {
+				disableImageSequences[i] = true;
+				disableImageSequences[j] = true;
+			}
 		}
 	}
 	stable_sort(imageProperties.begin(), imageProperties.end(), ImagePropertyCompare());
@@ -555,6 +571,7 @@ BOOL CComparatorDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 		int index = imageProperty.index;
 		ComparatorPane* pane = mPane + IMG_VIEW_1 + index;
 		pane->pathName = filenames[index];
+		pane->disableImageSequence = disableImageSequences[index];
 		ProcessDocument(pane);
 	}
 

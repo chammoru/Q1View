@@ -14,10 +14,10 @@ From the repository root:
 
 ```powershell
 .\build\Write-Q1ViewVersion.ps1
-msbuild Tests\CoreRegressionTests.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+msbuild Tests\CoreRegressionTests.vcxproj /m /p:Configuration=Release /p:Platform=x64
 .\Tests\bin\x64\Release\CoreRegressionTests.exe
-msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
-msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64
+msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64
 ```
 
 To stage the portable package in `dist\Q1View-windows-x64`, run:
@@ -48,15 +48,16 @@ To test a release-version build locally:
 
 ```powershell
 .\build\Write-Q1ViewVersion.ps1 -Version 2.2.0
-msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
-msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64
+msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64
 ```
 
 Normal builds restore prebuilt OpenCV and libheif dependency archives into
-`.deps`. The OpenCV archive is built with the VS2019 `v142` toolset so its
-static libraries link with VS2019 and newer MSVC toolsets. Dedicated GitHub
-Actions workflows create updated dependency archives when dependency versions
-or toolsets change.
+`.deps`. The project files target MSVC v143. The bundled OpenCV archive name
+still includes `v142` because that is the prebuilt dependency package currently
+published for Q1View; it remains ABI-compatible with the VS2022 toolset used by
+the app projects. Dedicated GitHub Actions workflows create updated dependency
+archives when dependency versions or toolsets change.
 
 ## Core Regression Tests
 

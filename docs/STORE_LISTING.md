@@ -30,7 +30,7 @@ Q1View is a Windows toolkit for engineers who need to look at image and video da
 It ships as two focused applications:
 
 VIEWER
-Open an image, raw frame dump, frame sequence, or video file. Zoom down to individual pixels, read exact component values (Y/U/V for raw YUV sources, R/G/B for decoded images), step through video frames one at a time, and inspect coordinates and selection regions. Video playback follows the source FPS or a user-selected rate and recovers from stalls without drifting.
+Open an image, raw frame dump, frame sequence, or video file. Zoom down to individual pixels, read exact component values (Y/U/V for raw YUV sources, R/G/B for decoded images), step through video frames one at a time, and inspect coordinates and selection regions. Video playback follows the source FPS or a user-selected rate, shows frame and time progress when timing is available, and recovers from stalls without drifting.
 
 Open multiple Viewer windows and enable Sync Input to keep navigation, zoom, pan, rotation, playback, and display settings synchronized across all of them — useful for side-by-side review of related sources without using Comparator.
 
@@ -69,7 +69,7 @@ TECHNICAL NOTES
 2. Raw YUV format support: NV12, NV21, P010, I420, YUY2, and more
 3. Side-by-side comparison of 2–4 sources with PSNR and SSIM measurement
 4. Per-frame metric graph to quickly locate the worst-quality frames
-5. Video playback aligned to source or user-selected FPS with stall recovery
+5. Video playback aligned to source or user-selected FPS with frame/time progress and stall recovery
 6. Sync Input: link multiple Viewer windows for synchronized navigation
 7. HEIF, HEIC, HIF, and AVIF still image support
 8. Frame sequence navigation through same-folder images

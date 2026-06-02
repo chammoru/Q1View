@@ -752,6 +752,7 @@ void CMainFrame::OnFpsChange(UINT nID)
 	CheckFpsRadio(fps);
 
 	pDoc->mFps = fps;
+	pDoc->mHasTimingFps = fps > 0.0;
 
 	DrawMenuBar();
 
@@ -879,6 +880,7 @@ LRESULT CMainFrame::OnApplySyncInput(WPARAM wParam, LPARAM lParam)
 				pView->KillPlayTimerSafe();
 
 			pDoc->mFps = input->scalar;
+			pDoc->mHasTimingFps = input->scalar > 0.0;
 			UpdateFpsLabel(pDoc->mFps);
 			CheckFpsRadio(pDoc->mFps);
 			DrawMenuBar();

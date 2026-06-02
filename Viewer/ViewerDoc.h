@@ -81,6 +81,7 @@ public:
 	SBufferPool *mBufferPool;
 	SSafeCQ<BufferInfo> *mBufferQueue;
 	double mFps;
+	bool mHasTimingFps;
 
 	// Active color-space conversion settings.
 	QIMAGE_CS mColorSpace;

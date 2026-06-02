@@ -831,6 +831,7 @@ void CComparatorView::OnDropFiles(HDROP hDropInfo)
 		const int previousH = pDoc->mH;
 
 		pane->pathName = filenames[0];
+		pane->disableImageSequence = false;
 		pDoc->ProcessDocument(mPane);
 
 		CPosInfoView* posInfoView = pDoc->mPosInfoView;

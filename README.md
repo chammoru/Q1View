@@ -45,8 +45,8 @@ like and how two outputs differ — not for browsing a photo library.
 - Step through an **image sequence** in a folder (`frame_001.png` … `frame_100.png`)
   or a video, with synchronized navigation across two to four sources.
 - **Play a video** like any player, then stop on any frame with frame-accurate
-  seek and step, and read source-native pixel values at the cursor on the exact
-  frame you stopped on.
+  seek and step, a frame/time progress readout, and source-native pixel values
+  at the cursor on the exact frame you stopped on.
 - Pull a **clipboard screenshot** in and check pixel coordinates, hex values,
   and small color drifts.
 - Drive **two Viewer windows in sync** to compare different decodes of the
@@ -65,8 +65,8 @@ frame, and read what is actually there.
 It is the player codec, video, and CV engineers open *instead of* a consumer one —
 not because it plays more formats, but because it lets you **inspect what plays**:
 
-- Frame-accurate **seek and step**, with the current frame counter (N / M) on the
-  timeline.
+- Frame-accurate **seek and step**, with the current frame counter and
+  video-style time/duration on the timeline when source timing is known.
 - Source-native **YUV / RGB values** under the cursor, read in the **source color
   space** you select rather than the display approximation.
 - **Save a frame** or **capture a range** straight from playback.
@@ -82,7 +82,8 @@ In short, it is not a playback app — it is a **player you can inspect**.
 ### Viewer
 
 Open an image, raw dump, sequence, or video; zoom down to pixels, inspect
-coordinates and values, step through frames, or link multiple Viewer windows.
+coordinates and values, step through frames with frame/time progress, or link
+multiple Viewer windows.
 
 ![Viewer zoomed into a real-world image with pixel grid](docs/images/viewer-pixel-inspection.png)
 
@@ -123,7 +124,7 @@ The installer registers separate Start Menu entries for **Q1View Viewer** and
 
 ## Build
 
-Q1View builds with Visual Studio 2019 or newer on Windows x64.
+Q1View builds with Visual Studio 2022 and the MSVC v143 toolset on Windows x64.
 
 ```powershell
 msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64

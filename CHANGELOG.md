@@ -8,6 +8,20 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ## [Unreleased]
 
+### Added
+- Viewer: the bottom progress bar now shows playback time alongside the frame
+  counter when a valid timing FPS is available. The readout uses a compact
+  one-decimal format such as `00:01.2 / 00:10.0` and falls back to the existing
+  frame-only display when timing would be misleading.
+
+### Fixed
+- Comparator: opening two files from the same image sequence in a single
+  multi-file operation now treats them as explicit single-image panes instead
+  of comparing different offsets of the same discovered sequence.
+
+### Developer
+- Visual Studio project files now target the MSVC v143 toolset by default.
+
 ---
 
 ## [2.2.0] — 2026-06-02
