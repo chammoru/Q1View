@@ -7,9 +7,9 @@ single source and **Comparator** for measuring differences between sources.
 
 Viewer opens regular images, raw frame dumps, image sequences, videos, and
 clipboard images. The top bar reports resolution, interpreted color space, and
-frame rate; videos add a seek timeline at the bottom.
+frame rate; high zoom reveals per-pixel component values.
 
-![Viewer displaying a video and seek timeline](images/viewer-video.webp)
+![Viewer zoomed into a real-world image with pixel grid](images/viewer-pixel-inspection.png)
 
 ### Typical Workflow
 
@@ -35,8 +35,6 @@ Decoded images and video show RGB values only.
 ### Controls
 
 Viewer includes a built-in control panel, opened with `?`.
-
-![Viewer built-in shortcut panel](images/viewer-controls.webp)
 
 | Action | Control |
 | --- | --- |
@@ -78,15 +76,13 @@ right-click each image area, and enable **Sync Input**. Navigation, zoom, pan,
 rotation, playback, FPS, and display mode changes are relayed between enabled
 Viewer windows.
 
-![Viewer context menu with Sync Input enabled](images/viewer-sync-menu.webp)
-
 ## Comparator
 
 Comparator opens two to four images, raw dumps, or video/frame sources in aligned
 panes. The header controls the interpreted resolution, metric, FPS, view count,
 and options.
 
-![Comparator showing PSNR for a reference and an encoded result](images/comparer-psnr.webp)
+![Comparator showing synchronized PNG quality analysis with PSNR](images/comparator-quality-analysis.png)
 
 ### Typical Workflow
 
@@ -96,9 +92,7 @@ and options.
 4. Use the bottom graph and channel values to find meaningful differences.
 5. Enable **Allow Different Resolution** from **OPTIONS** when required.
 
-The same reference and encoded image below are shown with SSIM selected:
-
-![Comparator showing SSIM for the same sources](images/comparer-ssim.webp)
+The same reference and encoded image can also be reviewed with SSIM selected.
 
 ### Pixel-Level Diff Overlay
 

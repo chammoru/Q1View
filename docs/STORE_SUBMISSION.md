@@ -115,13 +115,14 @@ Recommended set:
 
 | Screenshot | Resolution | Content |
 | --- | --- | --- |
+| Viewer — pixel inspection | 1366 × 768 | `docs/images/viewer-pixel-inspection.png` — high-zoom view showing the pixel grid |
+| Comparator — quality analysis | 1366 × 768 | `docs/images/comparator-quality-analysis.png` — side-by-side PNG comparison with PSNR and localized diff grid |
 | Viewer — video frame | 1920 × 1080 | Video playback with seek bar visible |
-| Viewer — pixel inspection | 1920 × 1080 | High-zoom view showing pixel values |
 | Viewer — Sync Input | 1920 × 1080 | Two Viewer windows synchronized |
-| Comparator — PSNR | 1920 × 1080 | Side-by-side with PSNR graph |
 | Comparator — SSIM | 1920 × 1080 | Side-by-side with SSIM graph |
 
 Accepted sizes: 1366×768 minimum, 3840×2160 maximum. PNG or JPEG.
+For source media and redistribution notes, see `docs/IMAGE_SOURCES.md`.
 
 ### 6. Packages
 

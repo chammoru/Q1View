@@ -6,7 +6,7 @@
 [![HEIF](https://img.shields.io/badge/HEIF%2FHEIC-supported-2EA44F)](#supported-inputs)
 [![AVIF](https://img.shields.io/badge/AVIF%2FAV1-supported-2EA44F)](#supported-inputs)
 
-![Q1View overview](docs/images/q1view-overview.webp)
+![Q1View overview](docs/images/q1view-overview.png)
 
 **Q1View** is a Windows toolkit for engineers who need to look at the actual
 pixels — raw frame buffers, codec output, decoded images, and the small
@@ -84,14 +84,14 @@ In short, it is not a playback app — it is a **player you can inspect**.
 Open an image, raw dump, sequence, or video; zoom down to pixels, inspect
 coordinates and values, step through frames, or link multiple Viewer windows.
 
-![Viewer displaying a video frame and timeline](docs/images/viewer-video.webp)
+![Viewer zoomed into a real-world image with pixel grid](docs/images/viewer-pixel-inspection.png)
 
 ### Comparator
 
 Open two to four sources side by side and see a visual difference together with
 objective similarity measurements.
 
-![Comparator showing PSNR for a reference image and encoded result](docs/images/comparer-psnr.webp)
+![Comparator showing synchronized PNG quality analysis with PSNR](docs/images/comparator-quality-analysis.png)
 
 ## Download
 

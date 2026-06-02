@@ -96,14 +96,9 @@ jobs:
       - name: Prepare screenshot input images
         shell: pwsh
         run: |
-          choco install imagemagick.app --no-progress --yes
           New-Item -ItemType Directory -Force "artifacts\screenshots\input" | Out-Null
-          $magick = (Get-Command magick.exe -ErrorAction Stop).Source
-          & $magick "docs\images\viewer-video.webp" -crop "960x540+100+108" +repage "artifacts\screenshots\input\reference.png"
-          & $magick "artifacts\screenshots\input\reference.png" -quality 72 "artifacts\screenshots\input\encoded.jpg"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to make screenshot input images."
-          }
+          Copy-Item "docs\images\sample-colored-pencils-reference.png" "artifacts\screenshots\input\reference.png" -Force
+          Copy-Item "docs\images\sample-colored-pencils-changed-region.png" "artifacts\screenshots\input\changed.png" -Force
 
       - name: Capture packaged-build application windows
         shell: powershell
@@ -128,7 +123,7 @@ jobs:
           "@
 
           $reference = (Resolve-Path "artifacts\screenshots\input\reference.png").Path
-          $encoded = (Resolve-Path "artifacts\screenshots\input\encoded.jpg").Path
+          $changed = (Resolve-Path "artifacts\screenshots\input\changed.png").Path
 
           function Capture-AppWindow([string]$appId, [string]$arguments, [string]$destination) {
             $exePath = Join-Path $env:DIST_DIR "$appId.exe"
@@ -185,7 +180,7 @@ jobs:
           }
 
           Capture-AppWindow "Viewer" "`"$reference`"" "artifacts\screenshots\viewer.png"
-          Capture-AppWindow "Comparator" "`"$reference`" `"$encoded`"" "artifacts\screenshots\comparer.png"
+          Capture-AppWindow "Comparator" "`"$reference`" `"$changed`"" "artifacts\screenshots\comparer.png"
 
           $viewerPath = (Resolve-Path (Join-Path $env:DIST_DIR "Viewer.exe")).Path
           $viewerProcess = Start-Process -FilePath $viewerPath `

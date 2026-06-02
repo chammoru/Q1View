@@ -27,4 +27,5 @@ differences that ordinary media players gloss over.
 
 Current product screenshots and README artwork live in [`images/`](images/).
 When the UI changes, replace these screenshots with captures from the current
-release build rather than adding source-tree layout diagrams.
+release build rather than adding source-tree layout diagrams. Source media and
+license notes are tracked in [Image Sources](IMAGE_SOURCES.md).
