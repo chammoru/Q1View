@@ -45,23 +45,6 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v3
 
-      - name: Build and run core regression tests
-        run: |
-          msbuild Tests\CoreRegressionTests.vcxproj /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
-          & ".\Tests\bin\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\CoreRegressionTests.exe"
-
-      - name: Build Viewer
-        run: msbuild Viewer\Viewer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
-
-      - name: Build Comparator
-        run: msbuild Comparator\Comparator.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
-
-      - name: Stage package files
-        shell: pwsh
-        run: |
-          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-          .\build\Package-Q1View.ps1 -Configuration $env:BUILD_CONFIGURATION -Platform $env:BUILD_PLATFORM -OutputDir $env:DIST_DIR
-
       - name: Resolve release metadata
         id: release_info
         shell: pwsh
@@ -78,12 +61,41 @@ jobs:
           if ($appVersion.StartsWith("v")) {
             $appVersion = $appVersion.Substring(1)
           }
-          if ($appVersion -notmatch '^\d+(\.\d+){0,3}$') {
+          if ($appVersion -match '^(\d+)\.(\d+)\.(\d+)(?:\.\d+)?$') {
+            $appVersion = "$($Matches[1]).$($Matches[2]).$($Matches[3])"
+            $displayVersion = $appVersion
+          } elseif ($appVersion -match '^(\d+)\.(\d+)$') {
+            $appVersion = "$($Matches[1]).$($Matches[2]).0"
+            $displayVersion = $appVersion
+          } else {
             $appVersion = "0.0.0"
+            $displayVersion = "0.0.0-dev"
           }
 
           "release_tag=$releaseTag" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "app_version=$appVersion" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "display_version=$displayVersion" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Generate application version header
+        shell: pwsh
+        run: .\build\Write-Q1ViewVersion.ps1 -Version "${{ steps.release_info.outputs.display_version }}"
+
+      - name: Build and run core regression tests
+        run: |
+          msbuild Tests\CoreRegressionTests.vcxproj /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
+          & ".\Tests\bin\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\CoreRegressionTests.exe"
+
+      - name: Build Viewer
+        run: msbuild Viewer\Viewer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
+
+      - name: Build Comparator
+        run: msbuild Comparator\Comparator.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
+
+      - name: Stage package files
+        shell: pwsh
+        run: |
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          .\build\Package-Q1View.ps1 -Configuration $env:BUILD_CONFIGURATION -Platform $env:BUILD_PLATFORM -OutputDir $env:DIST_DIR
 
       - name: Prepare release notes
         shell: pwsh

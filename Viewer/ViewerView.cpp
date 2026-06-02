@@ -16,6 +16,7 @@
 #include "qimage_util.h"
 
 #include "FrmSrc.h"
+#include "Q1ViewVersion.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -850,8 +851,10 @@ void CViewerView::DrawHelpMenu(CDC *pDC)
 	manualFont.CreateFontIndirect(&lf);
 	pDC->SelectObject(&manualFont);
 	pDC->SetTextColor(Q1UI_COLOR_TEXT);
-	CString manual(
-		"Viewer shortcuts\n"
+	CString manual = _T("Viewer shortcuts\nVersion ");
+	manual += Q1ViewGetProductVersion();
+	manual += _T(
+		"\n"
 		"\n"
 		"?              Show or hide this panel\n"
 		"E              Toggle thumbnail browser (drawer)\n"

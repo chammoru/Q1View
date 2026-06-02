@@ -2,7 +2,6 @@
 // Microsoft Visual C++ generated include file.
 // Used by Viewer.rc
 //
-#define IDD_ABOUTBOX                    100
 #define IDD_CUSTOM_SIZE                 101
 #define IDR_MAINFRAME                   128
 #define IDB_PROGRESS                    138

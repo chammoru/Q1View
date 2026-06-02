@@ -8,6 +8,7 @@
 #include "MainFrm.h"
 
 #include "ComparatorDoc.h"
+#include "Q1ViewVersion.h"
 
 #include <gdiplus.h>
 #pragma comment(lib, "gdiplus.lib")
@@ -133,6 +134,7 @@ public:
 	enum { IDD = IDD_ABOUTBOX };
 
 protected:
+	virtual BOOL OnInitDialog();
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
 // Implementation
@@ -142,6 +144,17 @@ protected:
 
 CAboutDlg::CAboutDlg() : CDialog(CAboutDlg::IDD)
 {
+}
+
+BOOL CAboutDlg::OnInitDialog()
+{
+	CDialog::OnInitDialog();
+
+	CString versionText;
+	versionText.Format(_T("Comparator, Version %s"), Q1ViewGetProductVersion().GetString());
+	SetDlgItemText(IDC_ABOUT_VERSION, versionText);
+
+	return TRUE;
 }
 
 void CAboutDlg::DoDataExchange(CDataExchange* pDX)

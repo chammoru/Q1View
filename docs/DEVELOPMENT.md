@@ -3,7 +3,8 @@
 ## Build Requirements
 
 - Windows x64
-- Visual Studio 2019 or newer with MSBuild and the C++ desktop workload
+- Visual Studio 2022 with MSBuild, the C++ desktop workload, the MSVC v143
+  toolset, and the Visual C++ MFC component
 - PowerShell for dependency and packaging scripts
 - Inno Setup 6 when creating the installer locally
 
@@ -12,8 +13,43 @@
 From the repository root:
 
 ```powershell
-msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64
-msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64
+.\build\Write-Q1ViewVersion.ps1
+msbuild Tests\CoreRegressionTests.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+.\Tests\bin\x64\Release\CoreRegressionTests.exe
+msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+```
+
+To stage the portable package in `dist\Q1View-windows-x64`, run:
+
+```powershell
+.\build\Package-Q1View.ps1 -Configuration Release -Platform x64
+```
+
+Install Visual Studio 2022 first if it is not already present. If Visual Studio
+2022 is installed but the C++ workload or MFC component is missing, add them
+once from an elevated PowerShell:
+
+```powershell
+& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" modify --installPath "C:\Program Files\Microsoft Visual Studio\2022\Community" --add Microsoft.VisualStudio.Workload.NativeDesktop --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.ATLMFC --passive --norestart
+```
+
+## Application Version
+
+Viewer and Comparator compile their Windows file version resources from
+`QCommon/inc/Q1ViewVersion.h`. At runtime, the visible Help/About version is
+read back from the current executable's `VS_VERSION_INFO` `ProductVersion`
+value with the Windows version APIs. Local builds use `0.0.0-dev` by default.
+Release CI derives `X.Y.Z` from the release tag `vX.Y.Z`, regenerates
+`QCommon/inc/Q1ViewVersion.h` before compiling, and passes `X.Y.Z.0` to the
+MSIX packager.
+
+To test a release-version build locally:
+
+```powershell
+.\build\Write-Q1ViewVersion.ps1 -Version 2.2.0
+msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
 ```
 
 Normal builds restore prebuilt OpenCV and libheif dependency archives into

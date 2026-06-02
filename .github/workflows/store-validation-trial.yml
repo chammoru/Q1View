@@ -32,6 +32,7 @@ jobs:
       - name: Build applications
         shell: pwsh
         run: |
+          .\build\Write-Q1ViewVersion.ps1 -Version $env:STORE_VERSION
           msbuild Viewer\Viewer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
           msbuild Comparator\Comparator.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
           .\build\Package-Q1View.ps1 `

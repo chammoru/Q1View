@@ -1,6 +1,7 @@
 // Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
+#include "Q1ViewVersion.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -134,16 +135,6 @@ END
 // Dialog
 //
 
-IDD_ABOUTBOX DIALOGEX 0, 0, 168, 63
-STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_SYSMENU
-FONT 8, "MS Shell Dlg", 0, 0, 0x1
-BEGIN
-    ICON            IDR_MAINFRAME,IDC_STATIC,14,14,21,20
-    LTEXT           "Viewer, Version 1.0",IDC_STATIC,42,14,114,8,SS_NOPREFIX
-    LTEXT           "Copyright (C) 2018 by Kyuwon Kim",IDC_STATIC,42,26,115,8
-    DEFPUSHBUTTON   "OK",IDOK,111,42,50,14,WS_GROUP
-END
-
 IDD_CUSTOM_SIZE DIALOGEX 0, 0, 106, 41
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_TOPMOST
@@ -173,8 +164,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,1
- PRODUCTVERSION 1,0,0,1
+ FILEVERSION Q1VIEW_VERSION_MAJOR,Q1VIEW_VERSION_MINOR,Q1VIEW_VERSION_PATCH,Q1VIEW_VERSION_BUILD
+ PRODUCTVERSION Q1VIEW_VERSION_MAJOR,Q1VIEW_VERSION_MINOR,Q1VIEW_VERSION_PATCH,Q1VIEW_VERSION_BUILD
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -191,12 +182,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Chammoru"
             VALUE "FileDescription", "Viewer for all image formats"
-            VALUE "FileVersion", "1.0.0.1"
+            VALUE "FileVersion", Q1VIEW_VERSION_STRING
             VALUE "InternalName", "Viewer.exe"
             VALUE "LegalCopyright", "(c) Kyuwon Kim.  All rights reserved."
             VALUE "OriginalFilename", "Viewer.exe"
             VALUE "ProductName", "Viewer"
-            VALUE "ProductVersion", "1.0.0.1"
+            VALUE "ProductVersion", Q1VIEW_VERSION_STRING
         END
     END
     BLOCK "VarFileInfo"
@@ -214,14 +205,6 @@ END
 #ifdef APSTUDIO_INVOKED
 GUIDELINES DESIGNINFO
 BEGIN
-    IDD_ABOUTBOX, DIALOG
-    BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 161
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 56
-    END
-
     IDD_CUSTOM_SIZE, DIALOG
     BEGIN
         LEFTMARGIN, 7
