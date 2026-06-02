@@ -8,6 +8,10 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ## [Unreleased]
 
+---
+
+## [2.2.0] — 2026-06-02
+
 ### Added
 - Viewer: thumbnail explorer drawer. Hidden by default, so a fresh launch looks
   and sizes exactly like before. Open it with File ▸ Thumbnail Browser or the E
@@ -19,6 +23,17 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
   (.yuv/.rgb) show an extension badge. Double-click (or Enter) opens an image in
   the main view; the active file is highlighted and hovering a row shows its full
   name as a tooltip. Its visibility is remembered between sessions.
+- Viewer: Microsoft Store builds check for available Store updates in the
+  background and expose an Update command when a new package is available.
+
+### Fixed
+- Viewer and Comparator: smoother mouse-wheel zooming.
+
+### Developer
+- Added LPIPS ONNX export tooling.
+- Added cross-platform planning notes for Linux and macOS.
+- Release tags now submit the Store MSIX to Microsoft Partner Center
+  automatically after the GitHub release build succeeds.
 
 ---
 
@@ -241,7 +256,11 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v1.0.16...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/chammoru/Q1View/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/chammoru/Q1View/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/chammoru/Q1View/compare/v1.0.18...v2.0.0
+[1.0.18]: https://github.com/chammoru/Q1View/compare/v1.0.16...v1.0.18
 [1.0.16]: https://github.com/chammoru/Q1View/compare/v1.0.15...v1.0.16
 [1.0.15]: https://github.com/chammoru/Q1View/compare/v1.0.14...v1.0.15
 [1.0.14]: https://github.com/chammoru/Q1View/compare/v1.0.13...v1.0.14
