@@ -69,7 +69,7 @@ CComparatorDoc::CComparatorDoc()
 , mFps(COMPARER_DEF_FPS)
 , mInterpol(false)
 , mDiffRes(false)
-, mDiffOverlay(true)
+, mDiffOverlay(false)
 , mShowCursorCoord(false)
 , mCursorView(NULL)
 , mCursorX(0)
@@ -827,16 +827,29 @@ void CComparatorDoc::UpdateCurrentMetricState(int metricIdx)
 		return;
 	}
 
-	// Lazy/whole-image metric: never run inference on the UI thread. Read the
-	// cached value the worker produced; otherwise report progress / unavailable.
+	// Lazy/whole-image metric: the scan cache is keyed by a single frame index,
+	// so it is valid only for frame-aligned pairs. If the user seeks one pane
+	// independently, calculate the currently displayed pair directly once the
+	// LPIPS engine is ready.
 	const CString metricName = CA2W(qminfo->name);
 	double metrics[QPLANES];
-	if (mFileScanThread && mFileScanThread->copyMetrics(pane->curFrameID, metricIdx, metrics)) {
+	bool frameAligned = pane->curFrameID == opposite->curFrameID;
+	if (frameAligned && mFileScanThread && mFileScanThread->copyMetrics(pane->curFrameID, metricIdx, metrics)) {
 		if (qminfo->plane_count == 1)
 			mFrmState.Format(_T("%s(%.4f)"), (const TCHAR*)metricName, metrics[0]);
 		else
 			mFrmState.Format(_T("%s(%.4f %.4f %.4f)"), (const TCHAR*)metricName,
 				metrics[0], metrics[1], metrics[2]);
+	} else if (pane->rgbBuf && opposite->rgbBuf) {
+		if (LpipsEngine::getInstance().available()) {
+			double dist = LpipsEngine::getInstance().distance(pane->rgbBuf, opposite->rgbBuf,
+				mW, mH, ROUNDUP_DWORD(mW) * QIMG_DST_RGB_BYTES);
+			mFrmState.Format(_T("%s(%.4f)"), (const TCHAR*)metricName, dist);
+		} else if (IsLpipsScanRunning()) {
+			mFrmState.Format(_T("%s(computing...)"), (const TCHAR*)metricName);
+		} else {
+			mFrmState.Format(_T("%s(N/A)"), (const TCHAR*)metricName);
+		}
 	} else if (IsLpipsScanRunning()) {
 		mFrmState.Format(_T("%s(computing...)"), (const TCHAR*)metricName);
 	} else if (!LpipsEngine::getInstance().available()) {
