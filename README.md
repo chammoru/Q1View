@@ -97,7 +97,7 @@ objective similarity measurements.
 
 Get Q1View from the **[Microsoft Store](https://apps.microsoft.com/detail/9NQR51WLBTHF)** for automatic background updates and simple installation:
 
-[![Get it from the Microsoft Store](https://get.microsoft.com/images/en-us-dark.svg)](https://apps.microsoft.com/detail/9NQR51WLBTHF)
+[![Get it from the Microsoft Store](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9NQR51WLBTHF)
 
 Alternatively, get the latest Windows x64 build from the [GitHub Releases page](https://github.com/chammoru/Q1View/releases/latest).
 
