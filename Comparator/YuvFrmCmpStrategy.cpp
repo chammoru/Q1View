@@ -49,6 +49,9 @@ void YuvFrmCmpStrategy::RecordMetrics(BYTE *a, BYTE *b,
 		double *metric = metrics[i];
 		const qmetric_info *qminfo = &qmetric_info_table[i];
 
+		if (qminfo->lazy || qminfo->measure == NULL)
+			continue;
+
 		metric[0] = qminfo->measure(a, b, mW, mH, mW, 1);
 		metric[1] = qminfo->measure(a + bufOffset2, b + bufOffset2, chroma_w, chroma_h, chroma_w, 1);
 		metric[2] = qminfo->measure(a + bufOffset3, b + bufOffset3, chroma_w, chroma_h, chroma_w, 1);
@@ -67,6 +70,9 @@ void YuvFrmCmpStrategy::RecordMetrics(BYTE* a, BYTE* b, int metricIdx,
 	CString score;
 	const qmetric_info* qminfo = &qmetric_info_table[metricIdx];
 	const CString metricName = CA2W(qminfo->name);
+
+	if (qminfo->lazy || qminfo->measure == NULL)
+		return;
 
 	double metric0 = qminfo->measure(a, b, mW, mH, mW, 1);
 	double metric1 = qminfo->measure(a + bufOffset2, b + bufOffset2, chroma_w, chroma_h, chroma_w, 1);

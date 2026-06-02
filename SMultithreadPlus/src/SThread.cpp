@@ -381,3 +381,10 @@ bool SThread::exitPending() const
 	return mExitPending;
 }
 
+bool SThread::isRunning() const
+{
+	SMutex::Autolock _l(mLock);
+
+	return mRunning;
+}
+

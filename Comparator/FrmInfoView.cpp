@@ -30,9 +30,20 @@ CFrmInfoView::~CFrmInfoView()
 }
 
 BEGIN_MESSAGE_MAP(CFrmInfoView, CView)
+	ON_WM_CREATE()
 	ON_WM_ERASEBKGND()
 	ON_WM_SIZE()
 END_MESSAGE_MAP()
+
+int CFrmInfoView::OnCreate(LPCREATESTRUCT lpCreateStruct)
+{
+	if (CView::OnCreate(lpCreateStruct) == -1)
+		return -1;
+
+	GetDocument()->mFrmInfoView = this;
+
+	return 0;
+}
 
 
 void CFrmInfoView::OnDraw(CDC* pDC)

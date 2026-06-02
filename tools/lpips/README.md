@@ -13,20 +13,27 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
-python export_lpips_onnx.py            # -> models\lpips_alex.onnx (tracked)
-# python export_lpips_onnx.py --net squeeze
+python export_lpips_onnx.py --fp16      # -> models\lpips_alex.onnx (shipped artifact)
+# python export_lpips_onnx.py           # fp32 (no quantization)
+# python export_lpips_onnx.py --net squeeze --fp16
 ```
 
 `torch` is a large download (~200 MB, CPU-only wheel is fine — no GPU needed).
+`--fp16` additionally needs `onnxconverter-common` (`pip install onnxconverter-common`).
+
+The script prints `SHA256(lpips_alex.onnx) = …` at the end — paste that into the
+provisioning manifest (the model is a **runtime download**, pinned by SHA-256).
 
 ## Output
 
-`models\lpips_<net>.onnx` (default `lpips_alex.onnx`, ~5–15 MB for the `alex`
-backbone). This is a **git-tracked** location (unlike `.deps\`, which is
-gitignored): commit the generated `.onnx`. The planned LPIPS integration will have
-the packaging scripts (`build/Package-Q1View.ps1`, `build/Package-Q1ViewMsix.ps1`)
-copy `models\*.onnx` into the build output and MSIX package, with a post-build step
-placing it next to `Comparator.exe` for local runs. (Not wired up yet.)
+`models\lpips_<net>.onnx` (default `lpips_alex.onnx`; **`alex` + `--fp16` ≈ 4.74 MB**,
+fp32 ≈ 9.44 MB). float16 halves the file with negligible accuracy loss
+(`max |Δdist| ~6e-06`; I/O stay fp32 so the C++ contract is unchanged).
+
+Distribution (Path B — see `docs/LPIPS_distribution_design.md`): the **model is not
+bundled**. The Comparator downloads it on first LPIPS use, verifies the pinned
+SHA-256, and caches it under `%LOCALAPPDATA%\Q1View\ml\`. Only `onnxruntime.dll`
+(the shared runtime) is bundled in the installer/MSIX.
 
 ## Model contract (must match the C++ inference code)
 

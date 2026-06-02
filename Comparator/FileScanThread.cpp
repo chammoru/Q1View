@@ -13,6 +13,7 @@ FileScanThread::FileScanThread(const CComparatorDoc *pDoc)
 , mFrmCmpInfo(new FrmCmpInfo[mFrmCmpInfoSize])
 , mCurFrames(0)
 , mFrmCmpStrategy(NULL)
+, mScanGeneration(0)
 {
 }
 
@@ -25,6 +26,7 @@ void FileScanThread::setup()
 {
 	// NOTE: this delete should be here in the same thread of a caller
 	SMutex::Autolock lock(mFrmCmpInfoLock);
+	mScanGeneration++;
 
 	mCurFrames = mDoc->mMinFrames;
 	if (mCurFrames > mFrmCmpInfoSize) {
@@ -94,6 +96,11 @@ bool FileScanThread::threadLoop()
 
 	{
 		SMutex::Autolock lock(mFrmCmpInfoLock);
+		for (int i = 0; i < METRIC_COUNT; i++) {
+			if (!qmetric_info_table[i].lazy) {
+				frmCmpInfo.mMetricDone[i] = true;
+			}
+		}
 		mFrmCmpInfo[mCurFrameID] = frmCmpInfo;
 	}
 	++mCurFrameID;
@@ -106,6 +113,7 @@ bool FileScanThread::threadLoop()
 void FileScanThread::deinit()
 {
 	SMutex::Autolock lock(mFrmCmpInfoLock);
+	mScanGeneration++;
 
 	for (int i = 0; i < mCurFrames; i++) {
 		mFrmCmpInfo[i].mParseDone = false;
@@ -153,8 +161,28 @@ bool FileScanThread::copyMetrics(int frameID, int metricIdx, double metrics[QPLA
 	if (frameID < 0 || frameID >= mCurFrames || !mFrmCmpInfo[frameID].mParseDone)
 		return false;
 
+	const qmetric_info *qminfo = &qmetric_info_table[metricIdx];
+	if (qminfo->lazy && !mFrmCmpInfo[frameID].mMetricDone[metricIdx])
+		return false;
+
 	for (int i = 0; i < QPLANES; i++)
 		metrics[i] = mFrmCmpInfo[frameID].mMetrics[metricIdx][i];
+
+	return true;
+}
+
+bool FileScanThread::setLazyMetric(int frameID, int metricIdx, double v, unsigned gen)
+{
+	SMutex::Autolock lock(mFrmCmpInfoLock);
+
+	if (gen != mScanGeneration)
+		return false;
+
+	if (frameID < 0 || frameID >= mCurFrames || !mFrmCmpInfo[frameID].mParseDone)
+		return false;
+
+	mFrmCmpInfo[frameID].mMetrics[metricIdx][0] = v;
+	mFrmCmpInfo[frameID].mMetricDone[metricIdx] = true;
 
 	return true;
 }

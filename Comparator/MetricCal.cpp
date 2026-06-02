@@ -105,6 +105,8 @@ void MetricCal::Setup(CRect *graphRect, int metricIdx)
 	mStepW = max(mStepW, MIN_X_AXIS_STEP_W);
 
 	mShowID.clear();
+	// Clear every plane, not just the current metric's plane_count: switching
+	// from a 3-plane metric to a 1-plane one (or back) must not leave stale lines.
 	for (int i = 0; i < QPLANES; i++)
 		mShowVal[i].clear();
 
@@ -128,7 +130,7 @@ void MetricCal::Init()
 
 	mFrameIdx = 0;
 
-	for (int i = 0; i < QPLANES; i++)
+	for (int i = 0; i < qmi->plane_count; i++)
 		mAccum[i] = 0.0f;
 }
 
@@ -228,9 +230,10 @@ void MetricCal::CalMinMaxAccum()
 		if (!mFileScanThread->copyMetrics(int(i), mMetricIdx, metrics))
 			break;
 
+		const qmetric_info *qmi = qmetric_info_table + mMetricIdx;
 		double metric;
-		for (int j = 0; j < QPLANES; j++) {
-			metric = min(metrics[j], mMaxVal);
+		for (int j = 0; j < qmi->plane_count; j++) {
+			metric = qmi->clamp_to_max ? min(metrics[j], mMaxVal) : metrics[j];
 
 			mAccum[j] += metric;
 			minVal = min(minVal, metric);
@@ -241,11 +244,11 @@ void MetricCal::CalMinMaxAccum()
 	mMaxValReal = maxVal;
 	mMinValReal = minVal;
 
-	const double cSameThreadhold = 0.01f;
-	if (mMaxValReal - mMinValReal < cSameThreadhold) {
+	const qmetric_info *qmi = qmetric_info_table + mMetricIdx;
+	if (mMaxValReal - mMinValReal < qmi->same_epsilon) {
 		// to prevent divide by zero
-		mMaxValUser = mMaxValReal + cSameThreadhold;
-		mMinValUser = mMinValReal - cSameThreadhold;
+		mMaxValUser = mMaxValReal + qmi->same_epsilon;
+		mMinValUser = mMinValReal - qmi->same_epsilon;
 	} else {
 		mMaxValUser = mMaxValReal;
 		mMinValUser = mMinValReal;
@@ -283,9 +286,10 @@ size_t MetricCal::CalculateCoords(CRect *graphRect, int metricIdx)
 		if (!mFileScanThread->copyMetrics(int(frameID), mMetricIdx, metrics))
 			break;
 
+		const qmetric_info *qmi = qmetric_info_table + mMetricIdx;
 		double metric;
-		for (int j = 0; j < QPLANES; j++) {
-			metric = min(metrics[j], mMaxVal);
+		for (int j = 0; j < qmi->plane_count; j++) {
+			metric = qmi->clamp_to_max ? min(metrics[j], mMaxVal) : metrics[j];
 			mShowVal[j].push_back(metric);
 		}
 	}
@@ -299,7 +303,15 @@ void MetricCal::DrawCmpResult(CDC* pDC, CFont *font) const
 
 	pDC->SelectObject(font);
 
-	if (mMinValReal == mMaxVal) {
+	// "All same" means the worst-case frame is still at the identity value:
+	// for higher-is-better metrics that is the minimum, for lower-is-better
+	// (LPIPS) the maximum. same_epsilon absorbs tiny non-zero distances.
+	const qmetric_info *qmi = qmetric_info_table + mMetricIdx;
+	double sameProbe = qmi->higher_is_better ? mMinValReal : mMaxValReal;
+	bool allSame = qmi->higher_is_better
+		? (sameProbe >= qmi->same_value - qmi->same_epsilon)
+		: (sameProbe <= qmi->same_value + qmi->same_epsilon);
+	if (allSame) {
 		if (mFrameIdx == mStepCount)
 			str.Format(_T("All frames are same"));
 		else
@@ -356,13 +368,15 @@ void MetricCal::DrawLines(Graphics *graphics) const
 {
 	double ratio = mGraphRect.Height() / getVRange();
 
-	for (int i = 0; i < QPLANES; i++)
+	const qmetric_info *qmi = qmetric_info_table + mMetricIdx;
+	for (int i = 0; i < qmi->plane_count; i++)
 		DrawOneLine(graphics, ratio, i);
 }
 
 void MetricCal::DrawAverages(Graphics *graphics, CRect *rect, const char **labels) const
 {
-	int hUnit = rect->Height() / QPLANES;
+	const qmetric_info *qmi = qmetric_info_table + mMetricIdx;
+	int hUnit = rect->Height() / qmi->plane_count;
 	int wText = rect->Width();
 	int hLine = DOT_DIAMETER;
 	int hText = hUnit - hLine;
@@ -381,7 +395,7 @@ void MetricCal::DrawAverages(Graphics *graphics, CRect *rect, const char **label
 
 	CString average, label;
 
-	for (int i = 0; i < QPLANES; i++) {
+	for (int i = 0; i < qmi->plane_count; i++) {
 		R.Y = REAL(top);
 		label = labels[i];
 

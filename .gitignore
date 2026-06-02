@@ -38,6 +38,14 @@ dist/
 opencv-4.3.0/
 opencv-4.3.0-build/
 
+# LPIPS model is a runtime download / GitHub release asset, not committed
+# (Path B, see docs/LPIPS_distribution_design.md). The local copy under models/
+# is only a dev-path convenience for MlModelProvisioner.
+models/*.onnx
+
+# Python virtualenv used to generate the LPIPS ONNX (tools/lpips/export_lpips_onnx.py)
+tools/lpips/.venv/
+
 # Visual Studio Code workspace settings
 .vscode/
 

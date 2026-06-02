@@ -20,6 +20,7 @@ class FileScanThread : public SThread
 	int mCurFrames;
 	SQPane mScanInfo[COMPARING_VIEWS_NUM];
 	IFrmCmpStrategy *mFrmCmpStrategy;
+	unsigned mScanGeneration;
 
 public:
 
@@ -31,6 +32,10 @@ public:
 	void deinit();
 	bool isFrameParsed(int frameID) const;
 	bool isScanComplete() const;
+	bool isScanRunning() const { return isRunning(); }
 	bool copyDiffRLC(int frameID, list<RLC> diffRLC[QPLANES]) const;
 	bool copyMetrics(int frameID, int metricIdx, double metrics[QPLANES]) const;
+
+	inline unsigned getScanGeneration() const { return mScanGeneration; }
+	bool setLazyMetric(int frameID, int metricIdx, double v, unsigned gen);
 };

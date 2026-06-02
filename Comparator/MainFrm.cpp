@@ -227,9 +227,23 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 		pPosInfoView->Invalidate(FALSE);
 		pFrmsInfoView->Invalidate(FALSE);
 
+		// A lazy metric (e.g. LPIPS) is filled by a background worker after the
+		// base scan, so refresh its current-frame label live and keep the timer
+		// running until that worker also finishes.
+		if (pDoc->IsLpipsScanRunning()) {
+			pDoc->UpdateCurrentMetricState(mMetricIdx);
+			if (pDoc->mFrmInfoView)
+				pDoc->mFrmInfoView->Invalidate(FALSE);
+		}
+
 		fileScanThread = pDoc->mFileScanThread;
-		if (fileScanThread->isScanComplete())
+		if (fileScanThread->isScanComplete() && !pDoc->IsLpipsScanRunning()) {
 			KillTimer(CTI_ID_POS_INVALIDATE);
+			// One last label refresh so a value/"N/A" replaces "computing...".
+			pDoc->UpdateCurrentMetricState(mMetricIdx);
+			if (pDoc->mFrmInfoView)
+				pDoc->mFrmInfoView->Invalidate(FALSE);
+		}
 
 		break;
 	case CTI_ID_PLAY:
@@ -530,7 +544,15 @@ void CMainFrame::OnMetricChange(UINT nID)
 	CheckMetricRadio();
 
 	DrawMenuBar();
-	RefreshAllViews(); // RefreshFrmsInfoView was used before 2021.01.03
+
+	// A metric switch is metric-only: all per-plane metrics are already cached
+	// and a lazy metric (LPIPS) is started by SelectMetric, which also handles
+	// view invalidation. Do NOT call RefreshAllViews() here -- it reloads the
+	// images and restarts the base scan, which would also kill the LPIPS worker.
+	CComparatorDoc *pDoc = static_cast<CComparatorDoc *>(GetActiveDocument());
+	if (pDoc) {
+		pDoc->SelectMetric(mMetricIdx);
+	}
 }
 
 int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)

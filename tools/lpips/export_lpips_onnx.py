@@ -18,7 +18,7 @@ Input/output contract baked into the exported graph (the C++ side must match):
 
 Usage:
   pip install -r requirements.txt
-  python export_lpips_onnx.py                 # -> <repo>/models/lpips_alex.onnx (tracked)
+  python export_lpips_onnx.py                 # -> <repo>/models/lpips_alex.onnx (runtime download asset)
   python export_lpips_onnx.py --net squeeze
   python export_lpips_onnx.py --out C:/path/lpips.onnx --opset 12
 
@@ -28,6 +28,7 @@ difference (should be ~1e-5 or smaller).
 """
 
 import argparse
+import hashlib
 import os
 import sys
 
@@ -39,8 +40,11 @@ def repo_root():
 
 
 def default_out(net):
-    # NOTE: tracked location (NOT .deps, which is gitignored) so the generated
-    # model can be committed and picked up by the packaging scripts.
+    # Output under <repo>/models/. This is NOT committed (models/*.onnx is
+    # gitignored): the model is a runtime download / GitHub release asset
+    # (Path B, docs/LPIPS_distribution_design.md). The local copy is the
+    # dev-path fallback MlModelProvisioner reads. Paste the printed SHA256
+    # into the provisioning manifest and upload the file as the release asset.
     return os.path.join(repo_root(), "models", "lpips_%s.onnx" % net)
 
 
@@ -104,6 +108,33 @@ def export(net, out_path, opset):
     return model, dummy0, dummy1
 
 
+def convert_to_fp16(out_path):
+    """Quantize the exported graph to float16 in place.
+
+    keep_io_types=True leaves the graph inputs/outputs as float32, so the C++
+    caller's contract (feed fp32 NCHW RGB in [-1, 1], read fp32 distance) is
+    unchanged; only the internal weights become fp16. This ~halves the file size
+    (the model is a runtime download in Q1View). On the CPU EP fp16 weights are
+    up-cast at compute time, so this is a size optimization, not a speed one.
+    Accuracy impact is negligible for a perceptual distance (max |Δ| ~6e-06).
+    """
+    import onnx
+    from onnxconverter_common import float16
+
+    model = onnx.load(out_path)
+    model16 = float16.convert_float_to_float16(model, keep_io_types=True)
+    onnx.save(model16, out_path)
+    print("Quantized to float16 (keep_io_types) -> %s" % out_path)
+
+
+def sha256_of(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def verify(out_path, model, dummy0, dummy1):
     try:
         import numpy as np
@@ -147,18 +178,25 @@ def main(argv=None):
                         help="output .onnx path (default: <repo>/models/lpips_<net>.onnx, tracked)")
     parser.add_argument("--opset", type=int, default=12,
                         help="ONNX opset version (default: 12)")
+    parser.add_argument("--fp16", action="store_true",
+                        help="float16-quantize weights (halves size; recommended for the "
+                             "shipped/downloadable artifact). I/O stay float32.")
     args = parser.parse_args(argv)
 
     out_path = args.out or default_out(args.net)
 
     try:
         model, d0, d1 = export(args.net, out_path, args.opset)
+        if args.fp16:
+            convert_to_fp16(out_path)
     except ImportError as e:
         print("Missing dependency: %s\nRun: pip install -r requirements.txt" % e,
               file=sys.stderr)
         return 2
 
+    # verify() runs the *final* artifact (fp16 if converted) against torch.
     ok = verify(out_path, model, d0, d1)
+    print("SHA256(%s) = %s" % (os.path.basename(out_path), sha256_of(out_path)))
     return 0 if ok else 1
 
 

@@ -40,6 +40,9 @@ void RgbFrmCmpStrategy::RecordMetrics(BYTE *a, BYTE *b,
 		double *metric = metrics[i];
 		const qmetric_info *qminfo = &qmetric_info_table[i];
 
+		if (qminfo->lazy || qminfo->measure == NULL)
+			continue;
+
 		metric[0] = qminfo->measure(a, b, mW, mH, stride, 3);
 		metric[1] = qminfo->measure(a + 1, b + 1, mW, mH, stride, 3);
 		metric[2] = qminfo->measure(a + 2, b + 2, mW, mH, stride, 3);
@@ -54,6 +57,9 @@ void RgbFrmCmpStrategy::RecordMetrics(BYTE* a, BYTE* b, int metricIdx,
 	CString score;
 	const qmetric_info* qminfo = &qmetric_info_table[metricIdx];
 	const CString metricName = CA2W(qminfo->name);
+
+	if (qminfo->lazy || qminfo->measure == NULL)
+		return;
 
 	// Calculate similarity metrics as if each pixel channel is an independent pixel.
 	// This is the scheme that OpenCV and TensorFlow adopt for their PSNR APIs.

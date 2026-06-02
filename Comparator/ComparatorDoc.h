@@ -22,6 +22,7 @@
 
 class CComparatorDoc;
 class FileScanThread;
+class LpipsScanThread;
 struct IFrmCmpStrategy;
 class YuvFrmCmpStrategy;
 class RgbFrmCmpStrategy;
@@ -29,6 +30,7 @@ struct SQPane;
 class CComparatorView;
 class CPosInfoView;
 class CFrmsInfoView;
+class CFrmInfoView;
 
 class CComparatorDoc : public CDocument
 {
@@ -61,8 +63,10 @@ public:
 	CString mFrmState;
 	CPosInfoView *mPosInfoView;
 	CFrmsInfoView *mFrmsInfoView;
+	CFrmInfoView *mFrmInfoView;
 	int mMaxFrames, mMinFrames;
 	FileScanThread *mFileScanThread;
+	LpipsScanThread *mLpipsScanThread;
 	class FileChangeNotiThread *mFileChangeNotiThreads[IMG_VIEW_MAX];
 	IFrmCmpStrategy *mFrmCmpStrategy;
 	YuvFrmCmpStrategy *mYuvCompare;
@@ -116,6 +120,9 @@ public:
 	void ResetViewToFit();
 	bool isFixedResolution();
 	BOOL OpenMultiFiles(const std::vector<CString>& filenames);
+	void SelectMetric(int metricIdx);
+	void UpdateCurrentMetricState(int metricIdx);
+	bool IsLpipsScanRunning() const;
 
 // Overrides
 public:

@@ -325,7 +325,7 @@ void CPosInfoView::OnLButtonDown(UINT nFlags, CPoint point)
 	IFrmCmpStrategy *compareStrategy = pDoc->mFrmCmpStrategy;
 	if (compareStrategy) {
 		CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
-		compareStrategy->CalMetrics(paneL, paneR, pMainFrm->mMetricIdx, pDoc->mFrmState);
+		pDoc->UpdateCurrentMetricState(pMainFrm->mMetricIdx);
 	}
 
 	pDoc->UpdateAllViews(NULL);

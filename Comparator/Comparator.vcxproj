@@ -60,6 +60,7 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\OpenCV4Release.props" />
     <Import Project="..\Q1ViewHeif.props" />
+    <Import Project="..\OnnxRuntime.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -68,6 +69,7 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\OpenCV4Debug.props" />
     <Import Project="..\Q1ViewHeif.props" />
+    <Import Project="..\OnnxRuntime.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
@@ -216,6 +218,9 @@
     <ClCompile Include="CustomSizeDlg.cpp" />
     <ClCompile Include="FileChangeNotiThread.cpp" />
     <ClCompile Include="FileScanThread.cpp" />
+    <ClCompile Include="LpipsEngine.cpp" />
+    <ClCompile Include="LpipsScanThread.cpp" />
+    <ClCompile Include="MlModelProvisioner.cpp" />
     <ClCompile Include="FrmCmpStrategy.cpp" />
     <ClCompile Include="FrmInfoView.cpp" />
     <ClCompile Include="FrmsInfoView.cpp" />
@@ -249,6 +254,9 @@
     <ClInclude Include="CustomSizeDlg.h" />
     <ClInclude Include="FileChangeNotiThread.h" />
     <ClInclude Include="FileScanThread.h" />
+    <ClInclude Include="LpipsEngine.h" />
+    <ClInclude Include="LpipsScanThread.h" />
+    <ClInclude Include="MlModelProvisioner.h" />
     <ClInclude Include="FrmCmpInfo.h" />
     <ClInclude Include="FrmCmpStrategy.h" />
     <ClInclude Include="FrmInfoView.h" />

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    Provisions and links the ONNX Runtime CPU package for the Comparator.
+    Path B (see docs/LPIPS_distribution_design.md): the *runtime* (onnxruntime.dll)
+    is bundled; LPIPS *models* are downloaded by the app at runtime. The C-API is
+    reached via dynamic loading (OrtGetApiBase), so only the header is needed at
+    compile time — there is no import lib. Modeled on OpenCV4Release.props.
+  -->
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <Q1ViewOnnxRuntimeVersion Condition="'$(Q1ViewOnnxRuntimeVersion)' == ''">1.26.0</Q1ViewOnnxRuntimeVersion>
+    <Q1ViewOnnxRuntimeAssetName Condition="'$(Q1ViewOnnxRuntimeAssetName)' == ''">onnxruntime-win-x64-$(Q1ViewOnnxRuntimeVersion).zip</Q1ViewOnnxRuntimeAssetName>
+    <Q1ViewOnnxRuntimeArchiveUrl Condition="'$(Q1VIEW_ONNXRUNTIME_URL)' != ''">$(Q1VIEW_ONNXRUNTIME_URL)</Q1ViewOnnxRuntimeArchiveUrl>
+    <Q1ViewOnnxRuntimeArchiveUrl Condition="'$(Q1ViewOnnxRuntimeArchiveUrl)' == ''">https://github.com/microsoft/onnxruntime/releases/download/v$(Q1ViewOnnxRuntimeVersion)/$(Q1ViewOnnxRuntimeAssetName)</Q1ViewOnnxRuntimeArchiveUrl>
+    <Q1ViewOnnxRuntimeArchivePath Condition="'$(Q1VIEW_ONNXRUNTIME_ARCHIVE)' != ''">$(Q1VIEW_ONNXRUNTIME_ARCHIVE)</Q1ViewOnnxRuntimeArchivePath>
+    <Q1ViewOnnxRuntimeSha256 Condition="'$(Q1ViewOnnxRuntimeSha256)' == ''">6EBE99B5564BF4D029B6E93EAC9FF423682B6212EADE769E9CA3F685EAF500B4</Q1ViewOnnxRuntimeSha256>
+    <Q1ViewOnnxRuntimeSha256 Condition="'$(Q1VIEW_ONNXRUNTIME_SHA256)' != ''">$(Q1VIEW_ONNXRUNTIME_SHA256)</Q1ViewOnnxRuntimeSha256>
+    <Q1ViewOnnxRuntimeInstallRoot Condition="'$(Q1VIEW_ONNXRUNTIME_ROOT)' != ''">$(Q1VIEW_ONNXRUNTIME_ROOT)</Q1ViewOnnxRuntimeInstallRoot>
+    <Q1ViewOnnxRuntimeInstallRoot Condition="'$(Q1ViewOnnxRuntimeInstallRoot)' == ''">$(MSBuildThisFileDirectory).deps\onnxruntime-win-x64-$(Q1ViewOnnxRuntimeVersion)</Q1ViewOnnxRuntimeInstallRoot>
+    <Q1ViewOnnxRuntimeIncludeDir>$(Q1ViewOnnxRuntimeInstallRoot)\include</Q1ViewOnnxRuntimeIncludeDir>
+    <Q1ViewOnnxRuntimeLibDir>$(Q1ViewOnnxRuntimeInstallRoot)\lib</Q1ViewOnnxRuntimeLibDir>
+    <Q1ViewOnnxRuntimeDll>$(Q1ViewOnnxRuntimeLibDir)\onnxruntime.dll</Q1ViewOnnxRuntimeDll>
+    <Q1ViewOnnxRuntimeStamp>$(Q1ViewOnnxRuntimeInstallRoot)\q1view-onnxruntime.stamp</Q1ViewOnnxRuntimeStamp>
+  </PropertyGroup>
+  <Target Name="Q1ViewEnsureOnnxRuntimeDependency"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(Platform)' == 'x64' and (!Exists('$(Q1ViewOnnxRuntimeIncludeDir)\onnxruntime_c_api.h') or !Exists('$(Q1ViewOnnxRuntimeDll)') or !Exists('$(Q1ViewOnnxRuntimeStamp)'))">
+    <Message Text="Preparing ONNX Runtime $(Q1ViewOnnxRuntimeVersion) dependency at $(Q1ViewOnnxRuntimeInstallRoot)" Importance="High" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)build\Ensure-OnnxRuntimeDependency.ps1&quot; -Version &quot;$(Q1ViewOnnxRuntimeVersion)&quot; -InstallRoot &quot;$(Q1ViewOnnxRuntimeInstallRoot)&quot; -ArchiveUrl &quot;$(Q1ViewOnnxRuntimeArchiveUrl)&quot; -ArchivePath &quot;$(Q1ViewOnnxRuntimeArchivePath)&quot; -Sha256 &quot;$(Q1ViewOnnxRuntimeSha256)&quot; -Platform &quot;$(Platform)&quot;" />
+  </Target>
+  <Target Name="Q1ViewCopyOnnxRuntimeDll"
+          AfterTargets="Build"
+          Condition="'$(Platform)' == 'x64' and Exists('$(Q1ViewOnnxRuntimeDll)')">
+    <!-- Only onnxruntime.dll is shipped. The built-in CPU EP lives inside it;
+         onnxruntime_providers_shared.dll is only needed for separate EP DLLs
+         (CUDA/TensorRT/...) and is intentionally not copied. -->
+    <Copy SourceFiles="$(Q1ViewOnnxRuntimeDll)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(Q1ViewOnnxRuntimeIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup />
+</Project>

@@ -6,15 +6,19 @@
 
 class FrmCmpInfo
 {
-	inline void init() { memset(mMetrics, 0, sizeof(mMetrics)); }
-
 public:
+	inline void init() {
+		memset(mMetrics, 0, sizeof(mMetrics));
+		memset(mMetricDone, 0, sizeof(mMetricDone));
+	}
+
 	bool mParseDone;
 	double mMetrics[METRIC_COUNT][QPLANES];
+	bool mMetricDone[METRIC_COUNT];
 
 	list<RLC> diffRLC[QPLANES];
 
-	inline FrmCmpInfo() : mParseDone(false) {}
+	inline FrmCmpInfo() : mParseDone(false) { init(); }
 	inline ~FrmCmpInfo()
 	{
 		deinit();

@@ -77,6 +77,7 @@ public:
 protected:
 	// exitPending() returns true if requestExit() has been called.
 	bool exitPending() const;
+	bool isRunning() const;
 
 private:
 	// Derived class must implement threadLoop(). The thread starts its life

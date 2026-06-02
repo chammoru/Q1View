@@ -126,7 +126,12 @@ void CFrmsInfoView::OnDraw(CDC* pDC)
 	graphics.SetTextRenderingHint(TextRenderingHintAntiAlias);
 
 	IFrmCmpStrategy *frmCmpStrategy = pDoc->mFrmCmpStrategy;
-	const char **planeLabels = frmCmpStrategy->GetPlaneLabels();
+	// Per-plane metrics (PSNR/SSIM) label each R/G/B (or Y/U/V) line; a
+	// whole-image metric (LPIPS) is a single line labelled by the metric name.
+	const qmetric_info *qmi = &qmetric_info_table[pMainFrm->mMetricIdx];
+	const char *wholeImageLabel[1] = { qmi->name };
+	const char **planeLabels = (qmi->kind == QMETRIC_WHOLE_IMAGE)
+		? wholeImageLabel : frmCmpStrategy->GetPlaneLabels();
 
 	mPsnrCal->DrawLines(&graphics);
 	mPsnrCal->DrawAverages(&graphics, &mAverageRect, planeLabels);
@@ -243,9 +248,7 @@ void CFrmsInfoView::OnLButtonDown(UINT nFlags, CPoint point)
 	if (compareStrategy) {
 		CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 		ComparatorPane *paneL = &pDoc->mPane[CComparatorDoc::IMG_VIEW_1];
-		ComparatorPane *paneR = &pDoc->mPane[CComparatorDoc::IMG_VIEW_2];
-		compareStrategy->CalMetrics(paneL, paneR,
-			pMainFrm->mMetricIdx, pDoc->mFrmState);
+		pDoc->UpdateCurrentMetricState(pMainFrm->mMetricIdx);
 	}
 
 	pDoc->UpdateAllViews(NULL);

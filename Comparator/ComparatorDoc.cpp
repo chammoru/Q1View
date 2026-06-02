@@ -16,6 +16,8 @@
 #include "QViewerCmn.h"
 #include "ComparatorUtil.h"
 #include "FileChangeNotiThread.h"
+#include "LpipsScanThread.h"
+#include "LpipsEngine.h"
 
 #include "QImageStr.h"
 
@@ -46,8 +48,10 @@ CComparatorDoc::CComparatorDoc()
 , mFrmState("")
 , mPosInfoView(NULL)
 , mFrmsInfoView(NULL)
+, mFrmInfoView(NULL)
 , mMaxFrames(0)
 , mMinFrames(0)
+, mLpipsScanThread(nullptr)
 , mFrmCmpStrategy(NULL)
 , mYuvCompare(new YuvFrmCmpStrategy())
 , mRgbCompare(new RgbFrmCmpStrategy())
@@ -93,6 +97,12 @@ CComparatorDoc::CComparatorDoc()
 
 CComparatorDoc::~CComparatorDoc()
 {
+	if (mLpipsScanThread) {
+		mLpipsScanThread->requestExitAndWait();
+		delete mLpipsScanThread;
+		mLpipsScanThread = nullptr;
+	}
+
 	mFileScanThread->requestExitAndWait();
 
 	for (int i = 0; i < IMG_VIEW_MAX; i++) {
@@ -321,6 +331,12 @@ void CComparatorDoc::RefleshPaneImages(ComparatorPane *pane, bool settingChanged
 
 		mFrmCmpStrategy->Setup(mW, mH);
 		mFrmCmpStrategy->CalMetrics(pane, opposite, pMainFrm->mMetricIdx, mFrmState);
+
+		if (mLpipsScanThread) {
+			mLpipsScanThread->requestExitAndWait();
+			delete mLpipsScanThread;
+			mLpipsScanThread = nullptr;
+		}
 
 		mFileScanThread->requestExitAndWait();
 		mFileScanThread->setup(); // uses mMinFrames and frmCmpInfo is updated
@@ -743,4 +759,91 @@ bool CComparatorDoc::isFixedResolution()
 	}
 
 	return false;
+}
+
+bool CComparatorDoc::IsLpipsScanRunning() const
+{
+	return mLpipsScanThread != nullptr && mLpipsScanThread->isRunning();
+}
+
+void CComparatorDoc::SelectMetric(int metricIdx)
+{
+	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
+	if (pMainFrm)
+		pMainFrm->mMetricIdx = metricIdx;
+
+	// Stop any existing background lazy-metric evaluation. This must happen
+	// before any FileScanThread realloc; here only the metric changes so the
+	// base cache stays intact (no image reload, no base rescan).
+	if (mLpipsScanThread) {
+		mLpipsScanThread->requestExitAndWait();
+		delete mLpipsScanThread;
+		mLpipsScanThread = nullptr;
+	}
+
+	ComparatorPane* pane = mPane + IMG_VIEW_1;
+	ComparatorPane* opposite = mPane + IMG_VIEW_2;
+
+	if (!pane->isAvail() || !opposite->isAvail() || mMinFrames <= 0) {
+		mFrmState.Empty();
+		UpdateAllViews(NULL);
+		return;
+	}
+
+	const qmetric_info* qminfo = &qmetric_info_table[metricIdx];
+	if (qminfo->lazy) {
+		// Start the worker regardless of whether the base scan is still running:
+		// it trails the base scanner, waiting per-frame for the eager parse, and
+		// fills every frame in order. Run() sets the running flag synchronously.
+		mLpipsScanThread = new LpipsScanThread(this, mFileScanThread, metricIdx);
+		mLpipsScanThread->run();
+
+		// The base scan's periodic refresh timer may already have stopped (or
+		// never started for the lazy metric). Restart it so the graph and label
+		// update as the worker fills frames; OnTimer stops it once both the base
+		// scan and the lazy scan are done.
+		if (pMainFrm)
+			pMainFrm->SetTimer(CTI_ID_POS_INVALIDATE, VIT_INVALIDATE_DUR, NULL);
+	}
+
+	UpdateCurrentMetricState(metricIdx);
+
+	if (mFrmsInfoView)
+		mFrmsInfoView->Invalidate();
+	UpdateAllViews(NULL);
+}
+
+void CComparatorDoc::UpdateCurrentMetricState(int metricIdx)
+{
+	mFrmState.Empty();
+	ComparatorPane *pane = mPane + IMG_VIEW_1;
+	ComparatorPane *opposite = mPane + IMG_VIEW_2;
+
+	if (!pane->isAvail() || !opposite->isAvail())
+		return;
+
+	const qmetric_info *qminfo = &qmetric_info_table[metricIdx];
+	if (!qminfo->lazy) {
+		if (mFrmCmpStrategy)
+			mFrmCmpStrategy->CalMetrics(pane, opposite, metricIdx, mFrmState);
+		return;
+	}
+
+	// Lazy/whole-image metric: never run inference on the UI thread. Read the
+	// cached value the worker produced; otherwise report progress / unavailable.
+	const CString metricName = CA2W(qminfo->name);
+	double metrics[QPLANES];
+	if (mFileScanThread && mFileScanThread->copyMetrics(pane->curFrameID, metricIdx, metrics)) {
+		if (qminfo->plane_count == 1)
+			mFrmState.Format(_T("%s(%.4f)"), (const TCHAR*)metricName, metrics[0]);
+		else
+			mFrmState.Format(_T("%s(%.4f %.4f %.4f)"), (const TCHAR*)metricName,
+				metrics[0], metrics[1], metrics[2]);
+	} else if (IsLpipsScanRunning()) {
+		mFrmState.Format(_T("%s(computing...)"), (const TCHAR*)metricName);
+	} else if (!LpipsEngine::getInstance().available()) {
+		mFrmState.Format(_T("%s(N/A)"), (const TCHAR*)metricName);
+	} else {
+		mFrmState.Format(_T("%s(...)"), (const TCHAR*)metricName);
+	}
 }
