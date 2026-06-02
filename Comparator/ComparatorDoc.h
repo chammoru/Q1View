@@ -123,6 +123,7 @@ public:
 	void SelectMetric(int metricIdx);
 	void UpdateCurrentMetricState(int metricIdx);
 	bool IsLpipsScanRunning() const;
+	void StopLpipsScanThread();
 
 // Overrides
 public:

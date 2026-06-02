@@ -36,6 +36,6 @@ public:
 	bool copyDiffRLC(int frameID, list<RLC> diffRLC[QPLANES]) const;
 	bool copyMetrics(int frameID, int metricIdx, double metrics[QPLANES]) const;
 
-	inline unsigned getScanGeneration() const { return mScanGeneration; }
+	unsigned getScanGeneration() const;
 	bool setLazyMetric(int frameID, int metricIdx, double v, unsigned gen);
 };

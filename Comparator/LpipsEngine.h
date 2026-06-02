@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <vector>
 #include <string>
 
@@ -13,7 +14,7 @@ public:
 	// Takes the path to the model file.
 	bool init(const std::wstring& modelPath);
 
-	bool available() const { return m_available; }
+	bool available() const { return m_available.load(); }
 
 	// Computes LPIPS distance between two RGB888 frames.
 	// rgbA and rgbB are assumed to have the same dimensions.
@@ -23,8 +24,8 @@ private:
 	LpipsEngine();
 	~LpipsEngine();
 
-	bool m_available;
-	bool m_initialized;
+	std::atomic<bool> m_available;
+	std::atomic<bool> m_initialized;
 
 	void* m_hDll;
 #ifdef _WIN64

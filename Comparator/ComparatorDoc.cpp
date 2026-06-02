@@ -97,11 +97,7 @@ CComparatorDoc::CComparatorDoc()
 
 CComparatorDoc::~CComparatorDoc()
 {
-	if (mLpipsScanThread) {
-		mLpipsScanThread->requestExitAndWait();
-		delete mLpipsScanThread;
-		mLpipsScanThread = nullptr;
-	}
+	StopLpipsScanThread();
 
 	mFileScanThread->requestExitAndWait();
 
@@ -306,6 +302,7 @@ void CComparatorDoc::RefleshPaneImages(ComparatorPane *pane, bool settingChanged
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	pMainFrm->KillTimer(CTI_ID_POS_INVALIDATE);
 	KillPlayTimer();
+	StopLpipsScanThread();
 
 	LoadSourceImage(pane);
 
@@ -332,12 +329,6 @@ void CComparatorDoc::RefleshPaneImages(ComparatorPane *pane, bool settingChanged
 		mFrmCmpStrategy->Setup(mW, mH);
 		mFrmCmpStrategy->CalMetrics(pane, opposite, pMainFrm->mMetricIdx, mFrmState);
 
-		if (mLpipsScanThread) {
-			mLpipsScanThread->requestExitAndWait();
-			delete mLpipsScanThread;
-			mLpipsScanThread = nullptr;
-		}
-
 		mFileScanThread->requestExitAndWait();
 		mFileScanThread->setup(); // uses mMinFrames and frmCmpInfo is updated
 
@@ -355,6 +346,8 @@ void CComparatorDoc::RefleshPaneImages(ComparatorPane *pane, bool settingChanged
 
 void CComparatorDoc::ProcessDocument(ComparatorPane *pane)
 {
+	StopLpipsScanThread();
+
 	pane->pathName.Replace(_T('/'), _T('\\'));
 
 	int srcW = 0, srcH = 0;
@@ -766,6 +759,15 @@ bool CComparatorDoc::IsLpipsScanRunning() const
 	return mLpipsScanThread != nullptr && mLpipsScanThread->isRunning();
 }
 
+void CComparatorDoc::StopLpipsScanThread()
+{
+	if (mLpipsScanThread) {
+		mLpipsScanThread->requestExitAndWait();
+		delete mLpipsScanThread;
+		mLpipsScanThread = nullptr;
+	}
+}
+
 void CComparatorDoc::SelectMetric(int metricIdx)
 {
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
@@ -775,11 +777,7 @@ void CComparatorDoc::SelectMetric(int metricIdx)
 	// Stop any existing background lazy-metric evaluation. This must happen
 	// before any FileScanThread realloc; here only the metric changes so the
 	// base cache stays intact (no image reload, no base rescan).
-	if (mLpipsScanThread) {
-		mLpipsScanThread->requestExitAndWait();
-		delete mLpipsScanThread;
-		mLpipsScanThread = nullptr;
-	}
+	StopLpipsScanThread();
 
 	ComparatorPane* pane = mPane + IMG_VIEW_1;
 	ComparatorPane* opposite = mPane + IMG_VIEW_2;

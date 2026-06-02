@@ -8,10 +8,27 @@
 #include "MainFrm.h"
 
 LpipsScanThread::LpipsScanThread(CComparatorDoc* doc, FileScanThread* baseScanner, int metricIdx)
-	: m_doc(doc), m_baseScanner(baseScanner), m_metricIdx(metricIdx)
+	: m_doc(doc)
+	, m_baseScanner(baseScanner)
+	, m_metricIdx(metricIdx)
+	, m_w(doc->mW)
+	, m_h(doc->mH)
+	, m_frames(doc->mMinFrames)
 {
 	CWnd* pMainWnd = AfxGetMainWnd();
 	m_hMainWnd = pMainWnd ? pMainWnd->GetSafeHwnd() : NULL;
+
+	for (int i = 0; i < 2; i++) {
+		const ComparatorPane *pane = &m_doc->mPane[i];
+		m_pane[i].pathName = pane->pathName;
+		m_pane[i].srcW = pane->srcW;
+		m_pane[i].srcH = pane->srcH;
+		m_pane[i].origSceneSize = pane->origSceneSize;
+		m_pane[i].colorSpace = pane->colorSpace;
+		m_pane[i].csLoadInfo = pane->csLoadInfo;
+		m_pane[i].csc2yuv420 = pane->csc2yuv420;
+		m_pane[i].csc2rgb888 = pane->csc2rgb888;
+	}
 }
 
 LpipsScanThread::~LpipsScanThread()
@@ -32,7 +49,7 @@ bool LpipsScanThread::threadLoop()
 
 	SQPane scanInfo[2];
 	for (int i = 0; i < 2; i++) {
-		const ComparatorPane *pane = &m_doc->mPane[i];
+		const PaneSnapshot *pane = &m_pane[i];
 		scanInfo[i].origSceneSize = pane->origSceneSize;
 		scanInfo[i].origBuf = new BYTE[pane->origSceneSize];
 		scanInfo[i].origBufSize = pane->origSceneSize;
@@ -41,15 +58,14 @@ bool LpipsScanThread::threadLoop()
 		scanInfo[i].csc2rgb888 = pane->csc2rgb888;
 		scanInfo[i].csLoadInfo = pane->csLoadInfo;
 		scanInfo[i].OpenFrmSrc(pane->pathName, m_doc->mSortedCscInfo,
-			pane->srcW, pane->srcH, m_doc->mW, m_doc->mH);
-		
-		int stride = ROUNDUP_DWORD(m_doc->mW);
-		scanInfo[i].rgbBufSize = stride * m_doc->mH * QIMG_DST_RGB_BYTES;
+			pane->srcW, pane->srcH, m_w, m_h);
+
+		int stride = ROUNDUP_DWORD(m_w);
+		scanInfo[i].rgbBufSize = stride * m_h * QIMG_DST_RGB_BYTES;
 		scanInfo[i].rgbBuf = new BYTE[scanInfo[i].rgbBufSize];
 	}
 
-	int frames = m_doc->mMinFrames;
-	for (int frameID = 0; frameID < frames; frameID++)
+	for (int frameID = 0; frameID < m_frames; frameID++)
 	{
 		if (exitPending() || m_baseScanner->getScanGeneration() != gen)
 			break;
@@ -74,11 +90,11 @@ bool LpipsScanThread::threadLoop()
 		for (int i = 0; i < 2; i++) {
 			scanInfo[i].FillSceneBuf(scanInfo[i].origBuf);
 			int bufOff2 = 0, bufOff3 = 0;
-			scanInfo[i].csLoadInfo(m_doc->mW, m_doc->mH, &bufOff2, &bufOff3);
-			scanInfo[i].csc2rgb888(scanInfo[i].rgbBuf, scanInfo[i].origBuf, scanInfo[i].origBuf + bufOff2, scanInfo[i].origBuf + bufOff3, ROUNDUP_DWORD(m_doc->mW), m_doc->mW, m_doc->mH);
+			scanInfo[i].csLoadInfo(m_w, m_h, &bufOff2, &bufOff3);
+			scanInfo[i].csc2rgb888(scanInfo[i].rgbBuf, scanInfo[i].origBuf, scanInfo[i].origBuf + bufOff2, scanInfo[i].origBuf + bufOff3, ROUNDUP_DWORD(m_w), m_w, m_h);
 		}
 
-		double dist = LpipsEngine::getInstance().distance(scanInfo[0].rgbBuf, scanInfo[1].rgbBuf, m_doc->mW, m_doc->mH, ROUNDUP_DWORD(m_doc->mW) * QIMG_DST_RGB_BYTES);
+		double dist = LpipsEngine::getInstance().distance(scanInfo[0].rgbBuf, scanInfo[1].rgbBuf, m_w, m_h, ROUNDUP_DWORD(m_w) * QIMG_DST_RGB_BYTES);
 
 		m_baseScanner->setLazyMetric(frameID, m_metricIdx, dist, gen);
 	}

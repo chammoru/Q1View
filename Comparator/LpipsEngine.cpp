@@ -58,8 +58,8 @@ bool LpipsEngine::init(const std::wstring& modelPath)
 	// A previous attempt already settled the outcome. Only a *successful* init
 	// flips m_initialized, so a transient failure (e.g. the model had not been
 	// downloaded yet) can be retried the next time LPIPS is selected.
-	if (m_initialized)
-		return m_available;
+	if (m_initialized.load())
+		return m_available.load();
 
 	// Load onnxruntime.dll from the executable's directory (bundled runtime).
 	wchar_t exePath[MAX_PATH];
@@ -122,8 +122,8 @@ bool LpipsEngine::init(const std::wstring& modelPath)
 
 	m_ortApi->CreateCpuMemoryInfo(OrtArenaAllocator, OrtMemTypeDefault, &m_memoryInfo);
 
-	m_available = true;
-	m_initialized = true;
+	m_available.store(true);
+	m_initialized.store(true);
 	return true;
 }
 
@@ -165,7 +165,7 @@ static void PreprocessImage(const unsigned char* bgr, int w, int h, int stride, 
 
 double LpipsEngine::distance(const unsigned char* rgbA, const unsigned char* rgbB, int w, int h, int stride)
 {
-	if (!m_available || !m_session)
+	if (!m_available.load() || !m_session)
 		return 0.0;
 
 	int targetW = 0, targetH = 0;

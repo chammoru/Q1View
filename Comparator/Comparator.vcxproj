@@ -218,7 +218,10 @@
     <ClCompile Include="CustomSizeDlg.cpp" />
     <ClCompile Include="FileChangeNotiThread.cpp" />
     <ClCompile Include="FileScanThread.cpp" />
-    <ClCompile Include="LpipsEngine.cpp" />
+    <ClCompile Include="LpipsEngine.cpp">
+      <LanguageStandard Condition="'$(Platform)'=='x64'">stdcpp17</LanguageStandard>
+      <PrecompiledHeader Condition="'$(Platform)'=='x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="LpipsScanThread.cpp" />
     <ClCompile Include="MlModelProvisioner.cpp" />
     <ClCompile Include="FrmCmpStrategy.cpp" />

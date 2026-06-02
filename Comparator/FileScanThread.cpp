@@ -171,6 +171,13 @@ bool FileScanThread::copyMetrics(int frameID, int metricIdx, double metrics[QPLA
 	return true;
 }
 
+unsigned FileScanThread::getScanGeneration() const
+{
+	SMutex::Autolock lock(mFrmCmpInfoLock);
+
+	return mScanGeneration;
+}
+
 bool FileScanThread::setLazyMetric(int frameID, int metricIdx, double v, unsigned gen)
 {
 	SMutex::Autolock lock(mFrmCmpInfoLock);

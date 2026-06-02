@@ -41,7 +41,26 @@ function Assert-Sha256 {
         return
     }
 
-    $actualHash = (Get-FileHash -LiteralPath $FilePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $fileHashCmd = Get-Command Get-FileHash -ErrorAction SilentlyContinue
+    if ($fileHashCmd) {
+        $actualHash = (Get-FileHash -LiteralPath $FilePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    } else {
+        $stream = [System.IO.File]::OpenRead($FilePath)
+        try {
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try {
+                $bytes = $sha.ComputeHash($stream)
+                $actualHash = [System.BitConverter]::ToString($bytes).Replace("-", "").ToLowerInvariant()
+            }
+            finally {
+                $sha.Dispose()
+            }
+        }
+        finally {
+            $stream.Dispose()
+        }
+    }
+
     $normalizedExpected = $ExpectedHash.Trim().ToLowerInvariant()
     if ($actualHash -ne $normalizedExpected) {
         throw "ONNX Runtime archive SHA256 mismatch. Expected $normalizedExpected, got $actualHash."
