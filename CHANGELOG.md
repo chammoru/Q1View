@@ -8,7 +8,17 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ## [Unreleased]
 
+No changes yet.
+
+---
+
+## [2.3.0] — 2026-06-03
+
 ### Added
+- Comparator: added LPIPS as a perceptual image-quality metric backed by an
+  ONNX Runtime model. The LPIPS model is downloaded on demand, verified with
+  SHA-256, cached under the user's local Q1View data directory, and computed
+  lazily so metric switching stays responsive.
 - Viewer: the bottom progress bar now shows playback time alongside the frame
   counter when a valid timing FPS is available. The readout uses a compact
   one-decimal format such as `00:01.2 / 00:10.0` and falls back to the existing
@@ -21,6 +31,7 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ### Developer
 - Visual Studio project files now target the MSVC v143 toolset by default.
+- Added ONNX Runtime dependency provisioning for LPIPS builds.
 
 ---
 
@@ -82,11 +93,10 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 ### Added
 - Comparator: pixel-level pink diff overlay. A translucent pink grid plus a
   center dot highlights every cell that contains at least one pixel that
-  differs from the reference pane. Cell size is fixed in display pixels, so
-  zooming implicitly subdivides each cell — at maximum zoom every dot
-  resolves to a single differing source pixel. The overlay hides
-  automatically once zoom is high enough that the per-pixel value labels
-  already convey the diff. Toggle with `D`.
+  differs from the reference pane. Cell size is fixed in display pixels; zooming
+  implicitly subdivides each cell until each dot resolves to a single differing
+  source pixel at maximum zoom. The overlay hides automatically once zoom is high
+  enough that the per-pixel value labels already convey the diff. Toggle with `D`.
 - Comparator: per-pane cursor coordinate readout (`C` to toggle). The hovered
   pane reports its own source-pixel coordinate; in "Allow Different
   Resolutions" mode the other panes report the corresponding source-pixel
@@ -270,7 +280,8 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/chammoru/Q1View/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/chammoru/Q1View/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/chammoru/Q1View/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/chammoru/Q1View/compare/v1.0.18...v2.0.0
