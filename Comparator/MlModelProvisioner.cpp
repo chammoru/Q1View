@@ -72,6 +72,82 @@ Cleanup:
 	return hashResult;
 }
 
+static void FreeIeProxyConfig(WINHTTP_CURRENT_USER_IE_PROXY_CONFIG* config)
+{
+	if (!config) return;
+	if (config->lpszAutoConfigUrl) GlobalFree(config->lpszAutoConfigUrl);
+	if (config->lpszProxy) GlobalFree(config->lpszProxy);
+	if (config->lpszProxyBypass) GlobalFree(config->lpszProxyBypass);
+	ZeroMemory(config, sizeof(*config));
+}
+
+static void FreeProxyInfo(WINHTTP_PROXY_INFO* proxyInfo)
+{
+	if (!proxyInfo) return;
+	if (proxyInfo->lpszProxy) GlobalFree(proxyInfo->lpszProxy);
+	if (proxyInfo->lpszProxyBypass) GlobalFree(proxyInfo->lpszProxyBypass);
+	ZeroMemory(proxyInfo, sizeof(*proxyInfo));
+}
+
+static bool HasText(LPCWSTR value)
+{
+	return value && value[0] != L'\0';
+}
+
+static bool SetRequestProxy(HINTERNET hRequest, DWORD accessType, LPCWSTR proxy, LPCWSTR proxyBypass)
+{
+	WINHTTP_PROXY_INFO proxyInfo = { 0 };
+	proxyInfo.dwAccessType = accessType;
+	proxyInfo.lpszProxy = const_cast<LPWSTR>(proxy);
+	proxyInfo.lpszProxyBypass = const_cast<LPWSTR>(proxyBypass);
+	return WinHttpSetOption(hRequest, WINHTTP_OPTION_PROXY, &proxyInfo, sizeof(proxyInfo)) != FALSE;
+}
+
+static void ApplyCurrentUserProxySettings(HINTERNET hSession, HINTERNET hRequest, const std::wstring& url)
+{
+	WINHTTP_CURRENT_USER_IE_PROXY_CONFIG ieProxyConfig = { 0 };
+	WINHTTP_AUTOPROXY_OPTIONS autoProxyOptions = { 0 };
+	WINHTTP_PROXY_INFO proxyInfo = { 0 };
+	bool proxyApplied = false;
+
+	if (!WinHttpGetIEProxyConfigForCurrentUser(&ieProxyConfig))
+	{
+		FreeIeProxyConfig(&ieProxyConfig);
+		return;
+	}
+
+	if (HasText(ieProxyConfig.lpszAutoConfigUrl) || ieProxyConfig.fAutoDetect)
+	{
+		if (HasText(ieProxyConfig.lpszAutoConfigUrl))
+		{
+			autoProxyOptions.dwFlags |= WINHTTP_AUTOPROXY_CONFIG_URL;
+			autoProxyOptions.lpszAutoConfigUrl = ieProxyConfig.lpszAutoConfigUrl;
+		}
+		if (ieProxyConfig.fAutoDetect)
+		{
+			autoProxyOptions.dwFlags |= WINHTTP_AUTOPROXY_AUTO_DETECT;
+			autoProxyOptions.dwAutoDetectFlags =
+				WINHTTP_AUTO_DETECT_TYPE_DHCP | WINHTTP_AUTO_DETECT_TYPE_DNS_A;
+		}
+		autoProxyOptions.fAutoLogonIfChallenged = TRUE;
+
+		if (WinHttpGetProxyForUrl(hSession, url.c_str(), &autoProxyOptions, &proxyInfo))
+		{
+			proxyApplied = SetRequestProxy(hRequest, proxyInfo.dwAccessType,
+				proxyInfo.lpszProxy, proxyInfo.lpszProxyBypass);
+			FreeProxyInfo(&proxyInfo);
+		}
+	}
+
+	if (!proxyApplied && HasText(ieProxyConfig.lpszProxy))
+	{
+		SetRequestProxy(hRequest, WINHTTP_ACCESS_TYPE_NAMED_PROXY,
+			ieProxyConfig.lpszProxy, ieProxyConfig.lpszProxyBypass);
+	}
+
+	FreeIeProxyConfig(&ieProxyConfig);
+}
+
 // Downloads |url| to |destPath|. If |ppd| is non-null, drives its progress bar
 // from the Content-Length and honors the dialog's Cancel button. Sets *cancelled
 // to true if the user cancelled (so the caller can degrade silently).
@@ -114,6 +190,8 @@ static bool DownloadFileWinHttp(const std::wstring& url, const std::wstring& des
 	hRequest = WinHttpOpenRequest(hConnect, L"GET", urlPath, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
 		(urlComp.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0);
 	if (!hRequest) goto Cleanup;
+
+	ApplyCurrentUserProxySettings(hSession, hRequest, url);
 
 	if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0)) goto Cleanup;
 	if (!WinHttpReceiveResponse(hRequest, NULL)) goto Cleanup;

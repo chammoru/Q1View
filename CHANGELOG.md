@@ -8,7 +8,9 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ## [Unreleased]
 
-No changes yet.
+### Fixed
+- Comparator: LPIPS model downloads now honor the current user's Windows proxy,
+  PAC, and auto-detect settings in addition to the WinHTTP default proxy.
 
 ---
 
