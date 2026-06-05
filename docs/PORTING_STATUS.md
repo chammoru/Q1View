@@ -21,7 +21,7 @@ This file captures the current cross-platform porting state so future Codex sess
 
 ### Windows CI/CD Release
 
-On `master`, GitHub Actions builds the existing MFC Viewer/Comparer on `windows-2022` and creates releases for `v*` tags.
+On `master`, GitHub Actions builds the existing MFC Viewer/Comparator on `windows-2022` and creates releases for `v*` tags.
 
 Release `v1.0.7` was created successfully:
 
@@ -106,7 +106,7 @@ Current capabilities:
 It does not yet implement:
 
 - Video playback.
-- Comparer features.
+- Comparator features.
 
 Successful Qt viewer CI runs:
 
@@ -127,9 +127,11 @@ Latest artifact notes:
 - Windows and macOS artifacts include Qt deployment output from `windeployqt`/`macdeployqt`.
 - Linux now uploads an AppImage/AppDir package built with `linuxdeploy` and `linuxdeploy-plugin-qt`.
 - The experimental Qt Viewer can be published as a GitHub prerelease with tags named `qt-viewer-v*`.
-- First Qt Viewer prerelease: https://github.com/chammoru/Q1View/releases/tag/qt-viewer-v0.1.0
-- Latest Qt Viewer prerelease: https://github.com/chammoru/Q1View/releases/tag/qt-viewer-v0.2.0
-- Next Qt Viewer prerelease should be `qt-viewer-v0.2.1` for mac interaction fixes.
+- No Qt Viewer prerelease is currently published. The earlier experimental
+  `qt-viewer-v0.1.0` / `v0.2.0` prereleases and their tags were dropped when the
+  branch was rebased, so those release links no longer exist. Cut a fresh one
+  from `master` when ready by pushing a `qt-viewer-v*` tag (or running the
+  "Release Qt Viewer" workflow).
 
 Relevant files:
 
@@ -163,7 +165,7 @@ cmake -S . -B build -DQ1VIEW_BUILD_SMOKE_TEST=OFF -DQ1VIEW_BUILD_QT_VIEWER=ON
 cmake --build build --config Release --target q1view_viewer_qt --parallel
 ```
 
-Local machine note: this Windows machine did not have `cmake`, `cl`, `gcc`, or `clang` available during the session, so validation was done through GitHub Actions.
+Local build note: GitHub Actions remains the cross-platform source of truth (Linux/macOS/Windows). This Windows machine now has VS2022 (MSBuild + CMake) and Qt 6.5.3, so the core and the Qt viewer can also be built and run locally.
 
 ## Next Suggested Steps
 
@@ -184,5 +186,5 @@ Local machine note: this Windows machine did not have `cmake`, `cl`, `gcc`, or `
 
 ## Important Cautions
 
-- The existing `Viewer` and `Comparer` apps are MFC/Win32 projects. Native macOS/Linux support requires a new UI layer rather than small compile fixes.
+- The existing `Viewer` and `Comparator` apps are MFC/Win32 projects. Native macOS/Linux support requires a new UI layer rather than small compile fixes.
 - The current Qt viewer is not yet at feature parity with the Windows Viewer/Comparator (tracked in #63); it should not be presented as feature-complete.

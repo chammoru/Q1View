@@ -4,7 +4,7 @@ This document is the forward-looking companion to
 [PORTING_STATUS.md](PORTING_STATUS.md). `PORTING_STATUS.md` records *what
 already works* on `master`; this file describes *what is planned
 next, in what order, and why* — the path from the current minimal Qt viewer to
-parity with the Windows-only `Viewer` and `Comparer` apps on master.
+parity with the Windows-only `Viewer` and `Comparator` apps on master.
 
 > This is a planning document, not a contract. Phases can be reordered when
 > evidence supports it, but the dependencies called out under each phase
@@ -34,11 +34,11 @@ covers the feature set of:
 
 - The MFC [Viewer/](../Viewer/) app on master (image / raw / sequence / video
   inspection with sync between windows).
-- The MFC [Comparer/](../Comparer/) app on this branch — renamed to
-  `Comparator/` on master in
+- The MFC [Comparator/](../Comparator/) app on master — renamed from
+  `Comparer/` in
   [#43](https://github.com/chammoru/Q1View/pull/43). Both names refer to the
   same product; this document calls the Qt port **ComparatorQt** to match
-  the post-rebase name.
+  the post-rename name.
 
 The MFC apps on `master` remain the Windows production reference until the
 Qt port reaches parity *and* its distribution channels are equally trusted.
@@ -67,7 +67,7 @@ Qt port reaches parity *and* its distribution channels are equally trusted.
   makes regressions traceable to a specific phase.
 - **Master is the source of truth for behavior.** When porting a feature,
   read the corresponding code under [Viewer/](../Viewer/) or
-  [Comparer/](../Comparer/) and the matching section of
+  [Comparator/](../Comparator/) and the matching section of
   [USER_GUIDE.md](USER_GUIDE.md) before designing the Qt version.
 - **Avoid premature widget abstractions.** The first port should be a
   direct translation. Only extract into `viewer_qt_common` after the second
@@ -110,11 +110,11 @@ The remaining gap, grouped:
   ([FileChangeNotiThread](../Viewer/FileChangeNotiThread.cpp)).
 - Multi-window **Sync Input**.
 
-**Comparer entirely unported**
+**Comparator entirely unported**
 
 - 2–4 pane comparison.
-- PSNR and SSIM metrics ([MetricCal](../Comparer/MetricCal.cpp)).
-- Pink-dot pixel diff overlay ([QImageDiff](../Comparer/QImageDiff.cpp)).
+- PSNR and SSIM metrics ([MetricCal](../Comparator/MetricCal.cpp)).
+- Pink-dot pixel diff overlay ([QImageDiff](../Comparator/QImageDiff.cpp)).
 - Position timeline pane.
 - Per-frame metric label.
 - Metric-over-time graph.
@@ -596,18 +596,18 @@ abstractions twice.
 
 **Outcome:** ComparatorQt can open 2–4 sources, report PSNR / SSIM per
 frame and over time, draw the pink-dot pixel diff overlay, and let the
-user click the timeline or graph to seek — matching master's Comparer
+user click the timeline or graph to seek — matching master's Comparator
 behavior.
 
 ### Workstreams, in implementation order
 
 #### 5.1 Extract `q1view_metrics` static lib
 
-Pull metric implementations out of [Comparer/MetricCal.cpp](../Comparer/MetricCal.cpp)
+Pull metric implementations out of [Comparator/MetricCal.cpp](../Comparator/MetricCal.cpp)
 and the per-format strategies
-([RgbFrmCmpStrategy.cpp](../Comparer/RgbFrmCmpStrategy.cpp),
-[YuvFrmCmpStrategy.cpp](../Comparer/YuvFrmCmpStrategy.cpp),
-[FrmCmpStrategy.cpp](../Comparer/FrmCmpStrategy.cpp)) into a
+([RgbFrmCmpStrategy.cpp](../Comparator/RgbFrmCmpStrategy.cpp),
+[YuvFrmCmpStrategy.cpp](../Comparator/YuvFrmCmpStrategy.cpp),
+[FrmCmpStrategy.cpp](../Comparator/FrmCmpStrategy.cpp)) into a
 UI-free static library.
 
 **Keep the SSE2 + integral-image fast path** that master added in commit
@@ -635,7 +635,7 @@ SSIM is verified once against the master MFC build.
 
 #### 5.3 Pixel-level diff overlay
 
-Port [QImageDiff.cpp](../Comparer/QImageDiff.cpp):
+Port [QImageDiff.cpp](../Comparator/QImageDiff.cpp):
 
 - Fixed-size grid of display-pixel cells.
 - Cell highlighted with a translucent pink rectangle + center dot if any
@@ -673,8 +673,8 @@ configuring QtCharts.
 
 #### 5.7 3- and 4-pane layouts
 
-Port [ComparerPane.h](../Comparer/ComparerPane.h) and
-[QSplitterWnd.cpp](../Comparer/QSplitterWnd.cpp) layout logic. Use a
+Port [ComparatorPane.h](../Comparator/ComparatorPane.h) and
+[QSplitterWnd.cpp](../Comparator/QSplitterWnd.cpp) layout logic. Use a
 single horizontal `QSplitter` for 3-pane and a 2×2 grid (`QSplitter`
 containing two horizontal `QSplitter`s) for 4-pane. Per-pane close button
 ports from master's
@@ -690,7 +690,7 @@ in independent canvases; cursor coordinates are mapped per pane (master's
 ### Test plan
 
 - Numerical: PSNR and SSIM on a fixed reference pair must agree with
-  master's Windows Comparer within `1e-6` (relative tolerance — same
+  master's Windows Comparator within `1e-6` (relative tolerance — same
   algorithm, same SSE2 path).
 - Visual: side-by-side pink-dot overlay against Windows at zoom levels
   100 %, 200 %, 800 %.

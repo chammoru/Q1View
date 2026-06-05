@@ -177,7 +177,7 @@ jobs:
             echo
             echo "## Notes"
             echo
-            echo "- This is separate from the existing Windows MFC Viewer/Comparer release line."
+            echo "- This is separate from the existing Windows MFC Viewer/Comparator release line."
             echo "- The Qt Viewer is still experimental and does not yet have full MFC Viewer feature parity."
             echo
             echo "## Git history"
