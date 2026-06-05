@@ -26,6 +26,11 @@
 #include <QPinchGesture>
 #include <QPointF>
 #include <QPixmap>
+#include <QColor>
+#include <QFont>
+#include <QFontMetrics>
+#include <QPainter>
+#include <QRect>
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QScrollArea>
@@ -41,6 +46,17 @@
 #include <cmath>
 
 #include "qimage_cs.h"
+
+namespace {
+
+// Per-pixel value overlay. It only appears once the zoom makes each pixel cell
+// big enough to read; below this the labels are illegible. The cell cap keeps
+// zooming responsive: past it the user is panning a large image rather than
+// inspecting individual pixels, so the (per-cell) text is skipped entirely.
+constexpr double kPixelOverlayMinScale = 16.0;
+constexpr qint64 kPixelOverlayMaxCells = 250000;
+
+} // namespace
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent),
@@ -572,6 +588,7 @@ void MainWindow::showHelp()
 		   "R: rotate 90 degrees clockwise\n"
 		   "Y: toggle Y-only view\n"
 		   "C: toggle cursor coordinates\n"
+		   "Zoom in past 16x: per-pixel value overlay\n"
 		   "Left/Right: previous or next raw frame\n"
 		   "Page Up/Down: previous or next file\n"
 		   "Home/End: first or last frame/file\n"
@@ -755,14 +772,89 @@ void MainWindow::updateView()
 	const QSize scaledSize(
 		std::max(1, static_cast<int>(shownImage.width() * mScaleFactor + 0.5)),
 		std::max(1, static_cast<int>(shownImage.height() * mScaleFactor + 0.5)));
-	const QPixmap pixmap = QPixmap::fromImage(shownImage).scaled(
+	QPixmap pixmap = QPixmap::fromImage(shownImage).scaled(
 		scaledSize,
 		Qt::KeepAspectRatio,
 		mScaleFactor >= 1.0 ? Qt::FastTransformation : Qt::SmoothTransformation);
 
+	drawPixelValueOverlay(pixmap, shownImage);
+
 	mImageLabel->setPixmap(pixmap);
 	mImageLabel->resize(pixmap.size());
 	updateZoomStatus();
+}
+
+void MainWindow::drawPixelValueOverlay(QPixmap &pixmap, const QImage &shownImage) const
+{
+	if (pixmap.isNull() || shownImage.isNull() || mScaleFactor < kPixelOverlayMinScale) {
+		return;
+	}
+
+	const int cols = shownImage.width();
+	const int rows = shownImage.height();
+	if (cols <= 0 || rows <= 0
+		|| static_cast<qint64>(cols) * rows > kPixelOverlayMaxCells) {
+		return;
+	}
+
+	const double cellW = static_cast<double>(pixmap.width()) / cols;
+	const double cellH = static_cast<double>(pixmap.height()) / rows;
+	if (cellW < kPixelOverlayMinScale || cellH < kPixelOverlayMinScale) {
+		return;
+	}
+
+	const QImage rgb = shownImage.convertToFormat(QImage::Format_RGB32);
+
+	QPainter painter(&pixmap);
+	painter.setRenderHint(QPainter::Antialiasing, false);
+	painter.setRenderHint(QPainter::TextAntialiasing, false);
+
+	// Faint grid delineating each pixel cell.
+	painter.setPen(QColor(0, 0, 0, 64));
+	for (int c = 0; c <= cols; ++c) {
+		const int x = static_cast<int>(std::lround(c * cellW));
+		painter.drawLine(x, 0, x, pixmap.height());
+	}
+	for (int r = 0; r <= rows; ++r) {
+		const int y = static_cast<int>(std::lround(r * cellH));
+		painter.drawLine(0, y, pixmap.width(), y);
+	}
+
+	// Pick a font that fits the configured number of value lines inside a cell.
+	// If even that does not fit, leave the grid alone (no text).
+	const int lineCount = mYOnly ? 1 : 3;
+	QFont font = painter.font();
+	const int pixelSize = static_cast<int>(std::min(cellH / (lineCount + 0.5), cellW / 2.5));
+	if (pixelSize < 6) {
+		return;
+	}
+	font.setPixelSize(pixelSize);
+	painter.setFont(font);
+
+	const QFontMetrics metrics(font);
+	if (metrics.height() * lineCount > cellH
+		|| metrics.horizontalAdvance(QStringLiteral("FF")) > cellW) {
+		return;
+	}
+
+	for (int r = 0; r < rows; ++r) {
+		const QRgb *line = reinterpret_cast<const QRgb *>(rgb.constScanLine(r));
+		const int top = static_cast<int>(std::lround(r * cellH));
+		const int bottom = static_cast<int>(std::lround((r + 1) * cellH));
+		for (int c = 0; c < cols; ++c) {
+			const QRgb value = line[c];
+			const int left = static_cast<int>(std::lround(c * cellW));
+			const int right = static_cast<int>(std::lround((c + 1) * cellW));
+			const QRect cellRect(left, top, right - left, bottom - top);
+
+			const QString text = mYOnly
+				? QString::asprintf("%02X", qRed(value))
+				: QString::asprintf("%02X\n%02X\n%02X", qRed(value), qGreen(value), qBlue(value));
+
+			painter.setPen(qGray(value) < 128 ? Qt::white : Qt::black);
+			painter.drawText(cellRect, Qt::AlignCenter, text);
+		}
+	}
 }
 
 void MainWindow::updateZoomStatus()

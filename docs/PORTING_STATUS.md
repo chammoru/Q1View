@@ -92,12 +92,12 @@ Current capabilities:
   - copy, paste, close, and save-as actions
   - previous/next file navigation
   - raw multi-frame navigation and timer playback
+  - high-zoom per-pixel value overlay (RGB hex per cell, with a pixel grid)
 
 It does not yet implement:
 
 - Video playback.
 - Selection-region capture.
-- High-zoom per-pixel text overlay.
 - Comparer features.
 
 Successful Qt viewer CI runs:

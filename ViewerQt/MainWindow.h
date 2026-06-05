@@ -15,6 +15,7 @@ class QAction;
 class QEvent;
 class QKeyEvent;
 class QMouseEvent;
+class QPixmap;
 class QResizeEvent;
 class QScrollBar;
 class QScrollArea;
@@ -35,6 +36,7 @@ private:
 	void applyZoom(double factor, const QPoint *anchor = nullptr);
 	void closeCurrentFile();
 	QImage displayImage() const;
+	void drawPixelValueOverlay(QPixmap &pixmap, const QImage &shownImage) const;
 	QStringList imageNameFilters() const;
 	bool loadRawFrame(int frameIndex);
 	void openAdjacentFile(int direction, bool boundaryOnly = false);
