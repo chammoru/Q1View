@@ -79,6 +79,8 @@ if(Q1VIEW_BUILD_QT_VIEWER)
         ViewerQt/main.cpp
         ViewerQt/MainWindow.cpp
         ViewerQt/MainWindow.h
+        ViewerQt/ImageView.cpp
+        ViewerQt/ImageView.h
         ViewerQt/RawOpenDialog.cpp
         ViewerQt/RawOpenDialog.h
     )

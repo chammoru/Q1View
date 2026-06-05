@@ -9,14 +9,13 @@
 #include <QRect>
 #include <QStringList>
 
+class ImageView;
 class QDragEnterEvent;
 class QDropEvent;
-class QLabel;
 class QAction;
 class QEvent;
 class QKeyEvent;
 class QMouseEvent;
-class QPixmap;
 class QResizeEvent;
 class QRubberBand;
 class QScrollBar;
@@ -38,8 +37,6 @@ private:
 	void applyZoom(double factor, const QPoint *anchor = nullptr);
 	void closeCurrentFile();
 	QImage displayImage() const;
-	void drawPixelValueOverlay(QPixmap &pixmap, const QImage &shownImage) const;
-	void drawSelectionRect(QPixmap &pixmap, const QImage &shownImage) const;
 	void toggleSelectionMode();
 	void clearSelection();
 	QImage selectedImage() const;
@@ -81,7 +78,7 @@ protected:
 	void resizeEvent(QResizeEvent *event) override;
 
 private:
-	QLabel *mImageLabel;
+	ImageView *mImageView;
 	QScrollArea *mScrollArea;
 	QTimer *mPlayTimer;
 	QAction *mSaveAsAction;

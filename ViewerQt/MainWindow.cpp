@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 
+#include "ImageView.h"
 #include "RawOpenDialog.h"
 
 #include <QAction>
@@ -17,7 +18,6 @@
 #include <QImageReader>
 #include <QIODevice>
 #include <QKeyEvent>
-#include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -25,12 +25,6 @@
 #include <QMouseEvent>
 #include <QPinchGesture>
 #include <QPointF>
-#include <QPixmap>
-#include <QColor>
-#include <QFont>
-#include <QFontMetrics>
-#include <QPainter>
-#include <QPen>
 #include <QRect>
 #include <QResizeEvent>
 #include <QRubberBand>
@@ -49,20 +43,9 @@
 
 #include "qimage_cs.h"
 
-namespace {
-
-// Per-pixel value overlay. It only appears once the zoom makes each pixel cell
-// big enough to read; below this the labels are illegible. The cell cap keeps
-// zooming responsive: past it the user is panning a large image rather than
-// inspecting individual pixels, so the (per-cell) text is skipped entirely.
-constexpr double kPixelOverlayMinScale = 16.0;
-constexpr qint64 kPixelOverlayMaxCells = 250000;
-
-} // namespace
-
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent),
-	  mImageLabel(new QLabel),
+	  mImageView(new ImageView),
 	  mScrollArea(new QScrollArea),
 	  mPlayTimer(new QTimer(this)),
 	  mSaveAsAction(nullptr),
@@ -94,15 +77,11 @@ MainWindow::MainWindow(QWidget *parent)
 	  mSelectionMode(false),
 	  mIsSelecting(false)
 {
-	mImageLabel->setAlignment(Qt::AlignCenter);
-	mImageLabel->setBackgroundRole(QPalette::Base);
-	mImageLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-	mImageLabel->setScaledContents(false);
-	mImageLabel->setAcceptDrops(false);
-	mImageLabel->setMouseTracking(true);
+	mImageView->setAcceptDrops(false);
+	mImageView->setMouseTracking(true);
 
 	mScrollArea->setBackgroundRole(QPalette::Dark);
-	mScrollArea->setWidget(mImageLabel);
+	mScrollArea->setWidget(mImageView);
 	mScrollArea->setWidgetResizable(false);
 	mScrollArea->setAlignment(Qt::AlignCenter);
 	mScrollArea->setAcceptDrops(false);
@@ -322,7 +301,7 @@ void MainWindow::applyZoom(double factor, const QPoint *anchor)
 
 	QPointF imagePoint;
 	if (anchor) {
-		const QPoint labelPoint = mImageLabel->mapFrom(mScrollArea->viewport(), *anchor);
+		const QPoint labelPoint = mImageView->mapFrom(mScrollArea->viewport(), *anchor);
 		imagePoint = QPointF(labelPoint.x() / oldScaleFactor, labelPoint.y() / oldScaleFactor);
 	}
 	updateView();
@@ -776,8 +755,7 @@ void MainWindow::updateView()
 {
 	const QImage shownImage = displayImage();
 	if (shownImage.isNull()) {
-		mImageLabel->clear();
-		mImageLabel->resize(0, 0);
+		mImageView->setImage(QImage(), 1.0);
 		updateZoomStatus();
 		return;
 	}
@@ -789,117 +767,10 @@ void MainWindow::updateView()
 		mScaleFactor = std::max(0.02, std::min(widthScale, heightScale));
 	}
 
-	const QSize scaledSize(
-		std::max(1, static_cast<int>(shownImage.width() * mScaleFactor + 0.5)),
-		std::max(1, static_cast<int>(shownImage.height() * mScaleFactor + 0.5)));
-	QPixmap pixmap = QPixmap::fromImage(shownImage).scaled(
-		scaledSize,
-		Qt::KeepAspectRatio,
-		mScaleFactor >= 1.0 ? Qt::FastTransformation : Qt::SmoothTransformation);
-
-	drawPixelValueOverlay(pixmap, shownImage);
-	drawSelectionRect(pixmap, shownImage);
-
-	mImageLabel->setPixmap(pixmap);
-	mImageLabel->resize(pixmap.size());
+	mImageView->setYOnly(mYOnly);
+	mImageView->setSelection(mSelectionRect);
+	mImageView->setImage(shownImage, mScaleFactor);
 	updateZoomStatus();
-}
-
-void MainWindow::drawPixelValueOverlay(QPixmap &pixmap, const QImage &shownImage) const
-{
-	if (pixmap.isNull() || shownImage.isNull() || mScaleFactor < kPixelOverlayMinScale) {
-		return;
-	}
-
-	const int cols = shownImage.width();
-	const int rows = shownImage.height();
-	if (cols <= 0 || rows <= 0
-		|| static_cast<qint64>(cols) * rows > kPixelOverlayMaxCells) {
-		return;
-	}
-
-	const double cellW = static_cast<double>(pixmap.width()) / cols;
-	const double cellH = static_cast<double>(pixmap.height()) / rows;
-	if (cellW < kPixelOverlayMinScale || cellH < kPixelOverlayMinScale) {
-		return;
-	}
-
-	const QImage rgb = shownImage.convertToFormat(QImage::Format_RGB32);
-
-	QPainter painter(&pixmap);
-	painter.setRenderHint(QPainter::Antialiasing, false);
-	painter.setRenderHint(QPainter::TextAntialiasing, false);
-
-	// Faint grid delineating each pixel cell.
-	painter.setPen(QColor(0, 0, 0, 64));
-	for (int c = 0; c <= cols; ++c) {
-		const int x = static_cast<int>(std::lround(c * cellW));
-		painter.drawLine(x, 0, x, pixmap.height());
-	}
-	for (int r = 0; r <= rows; ++r) {
-		const int y = static_cast<int>(std::lround(r * cellH));
-		painter.drawLine(0, y, pixmap.width(), y);
-	}
-
-	// Pick a font that fits the configured number of value lines inside a cell.
-	// If even that does not fit, leave the grid alone (no text).
-	const int lineCount = mYOnly ? 1 : 3;
-	QFont font = painter.font();
-	const int pixelSize = static_cast<int>(std::min(cellH / (lineCount + 0.5), cellW / 2.5));
-	if (pixelSize < 6) {
-		return;
-	}
-	font.setPixelSize(pixelSize);
-	painter.setFont(font);
-
-	const QFontMetrics metrics(font);
-	if (metrics.height() * lineCount > cellH
-		|| metrics.horizontalAdvance(QStringLiteral("FF")) > cellW) {
-		return;
-	}
-
-	for (int r = 0; r < rows; ++r) {
-		const QRgb *line = reinterpret_cast<const QRgb *>(rgb.constScanLine(r));
-		const int top = static_cast<int>(std::lround(r * cellH));
-		const int bottom = static_cast<int>(std::lround((r + 1) * cellH));
-		for (int c = 0; c < cols; ++c) {
-			const QRgb value = line[c];
-			const int left = static_cast<int>(std::lround(c * cellW));
-			const int right = static_cast<int>(std::lround((c + 1) * cellW));
-			const QRect cellRect(left, top, right - left, bottom - top);
-
-			const QString text = mYOnly
-				? QString::asprintf("%02X", qRed(value))
-				: QString::asprintf("%02X\n%02X\n%02X", qRed(value), qGreen(value), qBlue(value));
-
-			painter.setPen(qGray(value) < 128 ? Qt::white : Qt::black);
-			painter.drawText(cellRect, Qt::AlignCenter, text);
-		}
-	}
-}
-
-void MainWindow::drawSelectionRect(QPixmap &pixmap, const QImage &shownImage) const
-{
-	if (pixmap.isNull() || shownImage.isNull()
-		|| !mSelectionRect.isValid() || mSelectionRect.isEmpty()) {
-		return;
-	}
-
-	const double sx = static_cast<double>(pixmap.width()) / shownImage.width();
-	const double sy = static_cast<double>(pixmap.height()) / shownImage.height();
-	const QRect r(
-		static_cast<int>(std::lround(mSelectionRect.x() * sx)),
-		static_cast<int>(std::lround(mSelectionRect.y() * sy)),
-		std::max(1, static_cast<int>(std::lround(mSelectionRect.width() * sx))),
-		std::max(1, static_cast<int>(std::lround(mSelectionRect.height() * sy))));
-
-	QPainter painter(&pixmap);
-	QPen pen(Qt::red);
-	pen.setStyle(Qt::DashLine);
-	pen.setCosmetic(true);
-	painter.setPen(pen);
-	painter.setBrush(Qt::NoBrush);
-	painter.drawRect(r.adjusted(0, 0, -1, -1));
 }
 
 void MainWindow::toggleSelectionMode()
@@ -954,8 +825,8 @@ QRect MainWindow::imageRectFromViewport(const QPoint &a, const QPoint &b) const
 	}
 
 	QWidget *viewport = mScrollArea->viewport();
-	const QPoint la = mImageLabel->mapFrom(viewport, a);
-	const QPoint lb = mImageLabel->mapFrom(viewport, b);
+	const QPoint la = mImageView->mapFrom(viewport, a);
+	const QPoint lb = mImageView->mapFrom(viewport, b);
 
 	const int ax = static_cast<int>(la.x() / mScaleFactor);
 	const int ay = static_cast<int>(la.y() / mScaleFactor);
@@ -1180,7 +1051,7 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 
 	if (event->type() == QEvent::MouseMove && !mImage.isNull()) {
 		QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-		const QPoint labelPoint = mImageLabel->mapFrom(mScrollArea->viewport(), mouseEvent->pos());
+		const QPoint labelPoint = mImageView->mapFrom(mScrollArea->viewport(), mouseEvent->pos());
 		const QPoint displayPoint(
 			static_cast<int>(labelPoint.x() / mScaleFactor),
 			static_cast<int>(labelPoint.y() / mScaleFactor));

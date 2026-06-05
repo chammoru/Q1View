@@ -94,6 +94,8 @@ Current capabilities:
   - raw multi-frame navigation and timer playback
   - high-zoom per-pixel value overlay (RGB hex per cell, with a pixel grid)
   - selection-region capture ('S' mode rubber-band; Copy/Save As act on the crop)
+  - viewport-painted image surface (`ImageView`): only the exposed region is
+    scaled/drawn, so large images zoom to high factors without a giant pixmap
 
 It does not yet implement:
 
@@ -128,6 +130,8 @@ Relevant files:
 - `ViewerQt/main.cpp`
 - `ViewerQt/MainWindow.h`
 - `ViewerQt/MainWindow.cpp`
+- `ViewerQt/ImageView.h`
+- `ViewerQt/ImageView.cpp`
 - `ViewerQt/RawOpenDialog.h`
 - `ViewerQt/RawOpenDialog.cpp`
 - `.github/workflows/viewer-qt.yml`
