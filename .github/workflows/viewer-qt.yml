@@ -3,7 +3,7 @@ name: Viewer Qt
 on:
   push:
     branches:
-      - cross-platform-core
+      - master
   pull_request:
     branches:
       - master
