@@ -93,11 +93,11 @@ Current capabilities:
   - previous/next file navigation
   - raw multi-frame navigation and timer playback
   - high-zoom per-pixel value overlay (RGB hex per cell, with a pixel grid)
+  - selection-region capture ('S' mode rubber-band; Copy/Save As act on the crop)
 
 It does not yet implement:
 
 - Video playback.
-- Selection-region capture.
 - Comparer features.
 
 Successful Qt viewer CI runs:

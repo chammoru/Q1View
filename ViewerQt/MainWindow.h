@@ -6,6 +6,7 @@
 #include <QImage>
 #include <QMainWindow>
 #include <QPoint>
+#include <QRect>
 #include <QStringList>
 
 class QDragEnterEvent;
@@ -17,6 +18,7 @@ class QKeyEvent;
 class QMouseEvent;
 class QPixmap;
 class QResizeEvent;
+class QRubberBand;
 class QScrollBar;
 class QScrollArea;
 class QTimer;
@@ -37,6 +39,11 @@ private:
 	void closeCurrentFile();
 	QImage displayImage() const;
 	void drawPixelValueOverlay(QPixmap &pixmap, const QImage &shownImage) const;
+	void drawSelectionRect(QPixmap &pixmap, const QImage &shownImage) const;
+	void toggleSelectionMode();
+	void clearSelection();
+	QImage selectedImage() const;
+	QRect imageRectFromViewport(const QPoint &a, const QPoint &b) const;
 	QStringList imageNameFilters() const;
 	bool loadRawFrame(int frameIndex);
 	void openAdjacentFile(int direction, bool boundaryOnly = false);
@@ -106,6 +113,12 @@ private:
 	int mRotationQuarterTurns;
 	QPoint mLastPanPoint;
 	QPoint mCursorImagePoint;
+	QRubberBand *mRubberBand;
+	QAction *mSelectModeAction;
+	bool mSelectionMode;
+	bool mIsSelecting;
+	QPoint mSelectionOrigin;
+	QRect mSelectionRect;
 };
 
 #endif

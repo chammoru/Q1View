@@ -30,8 +30,10 @@
 #include <QFont>
 #include <QFontMetrics>
 #include <QPainter>
+#include <QPen>
 #include <QRect>
 #include <QResizeEvent>
+#include <QRubberBand>
 #include <QScrollBar>
 #include <QScrollArea>
 #include <QSettings>
@@ -86,7 +88,11 @@ MainWindow::MainWindow(QWidget *parent)
 	  mShowCoordinates(false),
 	  mYOnly(false),
 	  mRotationQuarterTurns(0),
-	  mCursorImagePoint(-1, -1)
+	  mCursorImagePoint(-1, -1),
+	  mRubberBand(nullptr),
+	  mSelectModeAction(nullptr),
+	  mSelectionMode(false),
+	  mIsSelecting(false)
 {
 	mImageLabel->setAlignment(Qt::AlignCenter);
 	mImageLabel->setBackgroundRole(QPalette::Base);
@@ -140,6 +146,7 @@ bool MainWindow::openFile(const QString &fileName)
 	mCurrentFrame = 0;
 	mRotationQuarterTurns = 0;
 	mCursorImagePoint = QPoint(-1, -1);
+	clearSelection();
 	mFitToWindow = true;
 	updateImage();
 	return true;
@@ -240,6 +247,11 @@ void MainWindow::createActions()
 	mCoordinatesAction->setCheckable(true);
 	connect(mCoordinatesAction, &QAction::triggered, this, &MainWindow::toggleShowCoordinates);
 
+	mSelectModeAction = viewMenu->addAction(tr("&Selection Mode"));
+	mSelectModeAction->setShortcut(QKeySequence(tr("S")));
+	mSelectModeAction->setCheckable(true);
+	connect(mSelectModeAction, &QAction::triggered, this, &MainWindow::toggleSelectionMode);
+
 	viewMenu->addSeparator();
 
 	QAction *fullScreenAction = viewMenu->addAction(tr("&Full Screen"));
@@ -335,6 +347,7 @@ void MainWindow::closeCurrentFile()
 	mCurrentFrame = 0;
 	mRotationQuarterTurns = 0;
 	mCursorImagePoint = QPoint(-1, -1);
+	clearSelection();
 	setWindowTitle(tr("Q1View Qt"));
 	updateView();
 }
@@ -492,6 +505,7 @@ void MainWindow::openClipboardImage()
 	}
 
 	resetPlayback();
+	clearSelection();
 	mImage = image;
 	mCurrentFile = tr("Clipboard");
 	mCurrentFileIsRaw = false;
@@ -571,7 +585,7 @@ void MainWindow::saveImageAs()
 		return;
 	}
 
-	if (!displayImage().save(fileName)) {
+	if (!selectedImage().save(fileName)) {
 		QMessageBox::warning(this, tr("Save image as"), tr("Could not save %1.").arg(QFileInfo(fileName).fileName()));
 	}
 }
@@ -583,11 +597,13 @@ void MainWindow::showHelp()
 		   "Left drag: pan image\n"
 		   "Ctrl+O: open image\n"
 		   "Ctrl+V: paste image from clipboard\n"
-		   "Ctrl+C: copy image to clipboard\n"
-		   "Ctrl+Alt+S: save current image\n"
+		   "Ctrl+C: copy image or selection to clipboard\n"
+		   "Ctrl+Alt+S: save current image or selection\n"
 		   "R: rotate 90 degrees clockwise\n"
 		   "Y: toggle Y-only view\n"
 		   "C: toggle cursor coordinates\n"
+		   "S: selection mode (drag to select a region)\n"
+		   "Esc: clear selection\n"
 		   "Zoom in past 16x: per-pixel value overlay\n"
 		   "Left/Right: previous or next raw frame\n"
 		   "Page Up/Down: previous or next file\n"
@@ -638,8 +654,11 @@ void MainWindow::openDroppedFile(const QString &fileName)
 void MainWindow::copyImageToClipboard()
 {
 	if (!mImage.isNull()) {
-		QApplication::clipboard()->setImage(displayImage());
-		statusBar()->showMessage(tr("Copied image to clipboard"), 2000);
+		const bool hasSelection = mSelectionRect.isValid() && !mSelectionRect.isEmpty();
+		QApplication::clipboard()->setImage(selectedImage());
+		statusBar()->showMessage(hasSelection
+			? tr("Copied selection to clipboard")
+			: tr("Copied image to clipboard"), 2000);
 	}
 }
 
@@ -690,6 +709,7 @@ void MainWindow::rotateClockwise()
 	}
 
 	mRotationQuarterTurns = (mRotationQuarterTurns + 1) % 4;
+	clearSelection();
 	mCursorImagePoint = QPoint(-1, -1);
 	mFitToWindow = true;
 	updateImage();
@@ -778,6 +798,7 @@ void MainWindow::updateView()
 		mScaleFactor >= 1.0 ? Qt::FastTransformation : Qt::SmoothTransformation);
 
 	drawPixelValueOverlay(pixmap, shownImage);
+	drawSelectionRect(pixmap, shownImage);
 
 	mImageLabel->setPixmap(pixmap);
 	mImageLabel->resize(pixmap.size());
@@ -857,6 +878,97 @@ void MainWindow::drawPixelValueOverlay(QPixmap &pixmap, const QImage &shownImage
 	}
 }
 
+void MainWindow::drawSelectionRect(QPixmap &pixmap, const QImage &shownImage) const
+{
+	if (pixmap.isNull() || shownImage.isNull()
+		|| !mSelectionRect.isValid() || mSelectionRect.isEmpty()) {
+		return;
+	}
+
+	const double sx = static_cast<double>(pixmap.width()) / shownImage.width();
+	const double sy = static_cast<double>(pixmap.height()) / shownImage.height();
+	const QRect r(
+		static_cast<int>(std::lround(mSelectionRect.x() * sx)),
+		static_cast<int>(std::lround(mSelectionRect.y() * sy)),
+		std::max(1, static_cast<int>(std::lround(mSelectionRect.width() * sx))),
+		std::max(1, static_cast<int>(std::lround(mSelectionRect.height() * sy))));
+
+	QPainter painter(&pixmap);
+	QPen pen(Qt::red);
+	pen.setStyle(Qt::DashLine);
+	pen.setCosmetic(true);
+	painter.setPen(pen);
+	painter.setBrush(Qt::NoBrush);
+	painter.drawRect(r.adjusted(0, 0, -1, -1));
+}
+
+void MainWindow::toggleSelectionMode()
+{
+	mSelectionMode = !mSelectionMode;
+	if (mSelectModeAction) {
+		mSelectModeAction->setChecked(mSelectionMode);
+	}
+
+	if (mSelectionMode) {
+		mScrollArea->viewport()->setCursor(Qt::CrossCursor);
+		statusBar()->showMessage(
+			tr("Selection mode on: drag to select a region; Copy/Save As then act on it"), 4000);
+	} else {
+		mIsSelecting = false;
+		if (mRubberBand) {
+			mRubberBand->hide();
+		}
+		mScrollArea->viewport()->unsetCursor();
+		statusBar()->showMessage(tr("Selection mode off"), 2000);
+	}
+}
+
+void MainWindow::clearSelection()
+{
+	mIsSelecting = false;
+	mSelectionRect = QRect();
+	if (mRubberBand) {
+		mRubberBand->hide();
+	}
+}
+
+QImage MainWindow::selectedImage() const
+{
+	const QImage shown = displayImage();
+	if (shown.isNull() || !mSelectionRect.isValid() || mSelectionRect.isEmpty()) {
+		return shown;
+	}
+
+	const QRect r = mSelectionRect.intersected(QRect(QPoint(0, 0), shown.size()));
+	if (r.isEmpty()) {
+		return shown;
+	}
+	return shown.copy(r);
+}
+
+QRect MainWindow::imageRectFromViewport(const QPoint &a, const QPoint &b) const
+{
+	const QImage shown = displayImage();
+	if (shown.isNull() || mScaleFactor <= 0.0) {
+		return QRect();
+	}
+
+	QWidget *viewport = mScrollArea->viewport();
+	const QPoint la = mImageLabel->mapFrom(viewport, a);
+	const QPoint lb = mImageLabel->mapFrom(viewport, b);
+
+	const int ax = static_cast<int>(la.x() / mScaleFactor);
+	const int ay = static_cast<int>(la.y() / mScaleFactor);
+	const int bx = static_cast<int>(lb.x() / mScaleFactor);
+	const int by = static_cast<int>(lb.y() / mScaleFactor);
+
+	const int x0 = std::clamp(std::min(ax, bx), 0, shown.width());
+	const int y0 = std::clamp(std::min(ay, by), 0, shown.height());
+	const int x1 = std::clamp(std::max(ax, bx), 0, shown.width());
+	const int y1 = std::clamp(std::max(ay, by), 0, shown.height());
+	return QRect(x0, y0, x1 - x0, y1 - y0);
+}
+
 void MainWindow::updateZoomStatus()
 {
 	const bool hasImage = !mImage.isNull();
@@ -889,6 +1001,10 @@ void MainWindow::updateZoomStatus()
 	if (mCoordinatesAction) {
 		mCoordinatesAction->setEnabled(hasImage);
 		mCoordinatesAction->setChecked(mShowCoordinates);
+	}
+	if (mSelectModeAction) {
+		mSelectModeAction->setEnabled(hasImage);
+		mSelectModeAction->setChecked(mSelectionMode);
 	}
 	if (mPlayAction) {
 		mPlayAction->setEnabled(mCurrentFileIsRaw && mRawFrameCount > 1);
@@ -985,6 +1101,7 @@ bool MainWindow::openRawFile(const QString &fileName, int width, int height, con
 	mCurrentFrame = 0;
 	mRotationQuarterTurns = 0;
 	mCursorImagePoint = QPoint(-1, -1);
+	clearSelection();
 	mFitToWindow = true;
 	return loadRawFrame(0);
 }
@@ -1042,6 +1159,17 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 	if (event->type() == QEvent::MouseButtonPress && !mImage.isNull()) {
 		QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
 		if (mouseEvent->button() == Qt::LeftButton) {
+			if (mSelectionMode) {
+				mIsSelecting = true;
+				mSelectionOrigin = mouseEvent->pos();
+				if (!mRubberBand) {
+					mRubberBand = new QRubberBand(QRubberBand::Rectangle, mScrollArea->viewport());
+				}
+				mRubberBand->setGeometry(QRect(mSelectionOrigin, QSize()));
+				mRubberBand->show();
+				mouseEvent->accept();
+				return true;
+			}
 			mIsPanning = true;
 			mLastPanPoint = mouseEvent->pos();
 			mScrollArea->viewport()->setCursor(Qt::ClosedHandCursor);
@@ -1066,6 +1194,15 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 			mCursorImagePoint = QPoint(-1, -1);
 		}
 
+		if (mIsSelecting && mRubberBand) {
+			mRubberBand->setGeometry(QRect(mSelectionOrigin, mouseEvent->pos()).normalized());
+			const QRect sel = imageRectFromViewport(mSelectionOrigin, mouseEvent->pos());
+			statusBar()->showMessage(tr("Selection  %1 x %2  at (%3, %4)")
+				.arg(sel.width()).arg(sel.height()).arg(sel.x()).arg(sel.y()));
+			mouseEvent->accept();
+			return true;
+		}
+
 		if (mIsPanning) {
 			const QPoint delta = mouseEvent->pos() - mLastPanPoint;
 			mScrollArea->horizontalScrollBar()->setValue(mScrollArea->horizontalScrollBar()->value() - delta.x());
@@ -1085,6 +1222,17 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 
 	if (event->type() == QEvent::MouseButtonRelease) {
 		QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
+		if (mouseEvent->button() == Qt::LeftButton && mIsSelecting) {
+			mIsSelecting = false;
+			if (mRubberBand) {
+				mRubberBand->hide();
+			}
+			mSelectionRect = imageRectFromViewport(mSelectionOrigin, mouseEvent->pos());
+			updateView();
+			updateZoomStatus();
+			mouseEvent->accept();
+			return true;
+		}
 		if (mouseEvent->button() == Qt::LeftButton && mIsPanning) {
 			mIsPanning = false;
 			mScrollArea->viewport()->unsetCursor();
@@ -1104,6 +1252,7 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 		menu.addAction(mRotateAction);
 		menu.addAction(mYOnlyAction);
 		menu.addAction(mCoordinatesAction);
+		menu.addAction(mSelectModeAction);
 		menu.addSeparator();
 		menu.addAction(mCopyAction);
 		menu.addAction(mSaveAsAction);
@@ -1156,6 +1305,15 @@ void MainWindow::keyPressEvent(QKeyEvent *event)
 		togglePlayback();
 		event->accept();
 		return;
+	case Qt::Key_Escape:
+		if (mSelectionRect.isValid() && !mSelectionRect.isEmpty()) {
+			clearSelection();
+			updateView();
+			updateZoomStatus();
+			event->accept();
+			return;
+		}
+		break;
 	default:
 		break;
 	}
