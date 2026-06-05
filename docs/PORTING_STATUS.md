@@ -4,12 +4,18 @@ This file captures the current cross-platform porting state so future Codex sess
 
 ## Branches
 
-- `master` must stay on the Windows release workflow baseline unless explicitly asked otherwise.
-- `master` currently points to `f6b9b8c9a91c3cee6b2f77214ad831893a1a5626` (`Use VS2022 toolset in CI`).
-- Native macOS/Linux porting work is on `cross-platform-core`.
-- `cross-platform-core` has continued past the initial note with Qt packaging and raw image loading work.
-
-Do not push experimental porting commits directly to `master`.
+- The cross-platform work has **landed on `master`**: Tier 1 (CMake core build,
+  portability fixes, core smoke test and CI) and Tier 2 (experimental Qt viewer,
+  Linux packaging, Qt CI) are both upstream. #54 tracked the merge gate that was
+  crossed.
+- The short-lived `cross-platform-core` branch has been **merged and deleted** —
+  it no longer exists. All further work lands directly on `master`.
+- Remaining Qt viewer feature-parity work (HEIF/compressed, video, Comparator,
+  AppImage verification, automated Qt smoke check, raw fixtures) is tracked in
+  #63.
+- The Qt viewer stays additive: it builds behind the `Q1VIEW_BUILD_QT_VIEWER`
+  CMake option (default OFF) and only *links* the shared core, so the MFC
+  Windows product (`Viewer.sln` / `Comparator.sln`) is unaffected.
 
 ## Completed
 
@@ -29,7 +35,7 @@ Release `v1.0.7` was created successfully:
 
 ### Cross-platform Core
 
-On `cross-platform-core`, a CMake build now exists for the portable core subset.
+On `master`, a CMake build exists for the portable core subset.
 
 Targets:
 
@@ -60,7 +66,7 @@ Relevant files:
 
 ### Experimental Qt Viewer
 
-On `cross-platform-core`, a minimal Qt-based viewer app was added.
+On `master`, a Qt-based viewer app was added.
 
 Target:
 
@@ -161,7 +167,7 @@ Local machine note: this Windows machine did not have `cmake`, `cl`, `gcc`, or `
 
 ## Next Suggested Steps
 
-1. Keep working on `cross-platform-core`.
+1. Track and land the remaining Qt viewer parity work via #63 (HEIF/compressed, video, Comparator).
 2. Improve packaging for `q1view_viewer_qt`:
    - Windows packaging uses `windeployqt`.
    - macOS packaging uses `macdeployqt`.
@@ -174,10 +180,9 @@ Local machine note: this Windows machine did not have `cmake`, `cl`, `gcc`, or `
    - Add validation/test fixtures for representative raw formats.
 5. Add a minimal automated Qt smoke check if practical:
    - For now CI only compiles and uploads artifacts.
-6. Only after the branch is stable, open a PR from `cross-platform-core` to `master`.
+6. Keep follow-up porting changes additive on `master` — each must only *link* the shared core, never fork the MFC product's pixel logic.
 
 ## Important Cautions
 
 - The existing `Viewer` and `Comparer` apps are MFC/Win32 projects. Native macOS/Linux support requires a new UI layer rather than small compile fixes.
-- The current Qt viewer is intentionally minimal and should not be presented as feature-complete.
-- Do not move `master` ahead with porting commits unless explicitly requested.
+- The current Qt viewer is not yet at feature parity with the Windows Viewer/Comparator (tracked in #63); it should not be presented as feature-complete.

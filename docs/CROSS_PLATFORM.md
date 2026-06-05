@@ -1,6 +1,6 @@
 # Cross-Platform Roadmap (Linux / macOS)
 
-Status: **Planning** · Owner: @chammoru · Last updated: 2026-06-01
+Status: **In progress** — Phases 1 & 3 landed on `master` (#54); remaining parity tracked in #63 · Owner: @chammoru · Last updated: 2026-06-06
 
 This document is the single source of truth for bringing Q1View to Linux and
 macOS. Individual phases are promoted into GitHub issues when work on them
@@ -9,9 +9,10 @@ actually begins; this file holds the overall plan and rationale.
 ## Decision
 
 Develop cross-platform support **inside this repository (monorepo)**, behind a
-working branch (e.g. `cross-platform-core`) that is **merged back into
-`master`** — not kept as a long-lived fork, and not split into a separate
-project.
+short-lived working branch that is **merged back into `master`** — not kept as a
+long-lived fork, and not split into a separate project. (This is what happened:
+the `cross-platform-core` branch landed Tier 1·2 on `master` via #54 and was
+then deleted.)
 
 ### Why not a long-lived branch
 
@@ -50,11 +51,11 @@ So the non-portable part is essentially **only the MFC UI**. The core work is
 
 ### Phase 1 — Build system: CMake for the core (low risk)
 
-- [ ] Add a top-level CMake build for `QCommon`, `QVisionCore`,
+- [x] Add a top-level CMake build for `QCommon`, `QVisionCore`,
       `SMultithreadPlus` that builds on Windows, Linux, and macOS.
-- [ ] Do **not** touch the MFC apps yet — they keep their `.vcxproj` /
+- [x] Do **not** touch the MFC apps yet — they keep their `.vcxproj` /
       `.sln`. CMake produces the core libraries they (and the future UI) link.
-- [ ] Verify the core compiles with gcc/clang on Linux (WSL is fine) and macOS.
+- [x] Verify the core compiles with gcc/clang on Linux (WSL is fine) and macOS.
       The existing `QVisionCore/Makefile` already proves the gcc path.
 
 ### Phase 2 — Core commonization (pays off regardless of platform)
@@ -74,16 +75,16 @@ So the non-portable part is essentially **only the MFC UI**. The core work is
 
 ### Phase 3 — Cross-platform UI as a sibling app
 
-- [ ] Pick the UI toolkit. **Recommendation: Qt (C++)** — the de-facto MFC
-      replacement for pixel/imaging tools, links the existing C++ core with
-      minimal binding cost, and covers Linux/macOS/Windows from one codebase.
-      (Electron/Tauri are a poor fit for pixel-precise inspection.)
-- [ ] Add the new app as a sibling directory (e.g. `QtViewer/`) in this repo,
-      linking the shared core libraries from Phase 1.
+- [x] Pick the UI toolkit. **Chose Qt (C++)** — the de-facto MFC replacement for
+      pixel/imaging tools, links the existing C++ core with minimal binding cost,
+      and covers Linux/macOS/Windows from one codebase. (Electron/Tauri are a
+      poor fit for pixel-precise inspection.)
+- [x] Add the new app as a sibling directory (`ViewerQt/`) in this repo, linking
+      the shared core libraries from Phase 1.
 
 ### Phase 4 — Converge
 
-- [ ] Merge `cross-platform-core` into `master` once Phases 1–2 are stable.
+- [x] Merged `cross-platform-core` into `master` and retired the branch (Tier 1·2 landed via #54).
 - [ ] Keep the MFC apps as the mature Windows product; grow the Qt app
       alongside. Unifying all platforms on Qt is a later, larger bet.
 

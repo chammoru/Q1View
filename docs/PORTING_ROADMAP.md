@@ -2,7 +2,7 @@
 
 This document is the forward-looking companion to
 [PORTING_STATUS.md](PORTING_STATUS.md). `PORTING_STATUS.md` records *what
-already works* on `cross-platform-core`; this file describes *what is planned
+already works* on `master`; this file describes *what is planned
 next, in what order, and why* — the path from the current minimal Qt viewer to
 parity with the Windows-only `Viewer` and `Comparer` apps on master.
 
@@ -778,6 +778,10 @@ everything else is mature; the failure mode of starting it too early is
 duplicated effort that gets thrown away when the abstractions land.
 
 ## Tracking master changes
+
+> **Historical.** `cross-platform-core` has since been merged into `master` and
+> retired (#54); porting work now lands directly on `master`, so there is no
+> branch left to rebase. The checklist below is kept for reference only.
 
 Master keeps moving while this branch progresses. At the time of writing
 this branch is 42 commits ahead and 85 commits behind master, including
