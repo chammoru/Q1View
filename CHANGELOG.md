@@ -8,6 +8,11 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ## [Unreleased]
 
+### Added
+- Viewer: press `D` to cycle through the preset resolutions for raw input,
+  mirroring how `N` advances the color space. The shortcut is ignored for
+  sources with an intrinsic size (decoded images and video).
+
 ---
 
 ## [2.3.1] — 2026-06-05

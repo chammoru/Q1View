@@ -59,6 +59,7 @@ Viewer includes a built-in control panel, opened with `?`.
 | Toggle box info display | `B` |
 | Toggle pixel interpolation | `I` |
 | Next color space | `N` |
+| Next preset resolution (raw input) | `D` |
 | Mute or unmute video audio | `M` |
 | Toggle selection mode | `S` |
 | Capture view or selected region | `Ctrl+C` |

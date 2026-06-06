@@ -124,6 +124,8 @@ public:
 #endif
 	void UpdateResolutionLabel(int w, int h);
 	void CheckResolutionRadio(int w, int h);
+	void NextResolution();
+	void ApplyResolution(int w, int h);
 	void UpdateCsLabel(const TCHAR *csLabel);
 	void CheckCsRadio(int cs);
 	void UpdateMagnication(float n, int wDst, int hDst);

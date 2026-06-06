@@ -675,6 +675,29 @@ void CMainFrame::OnResolutionChange(UINT nID)
 			return;
 	}
 
+	ApplyResolution(w, h);
+}
+
+void CMainFrame::NextResolution()
+{
+	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
+
+	// Sources with an intrinsic size (decoded images, video) own their
+	// resolution; only raw input can be reinterpreted at a different size.
+	FrmSrc *frmSrc = pDoc->mFrmSrc;
+	if (frmSrc && frmSrc->isFixed())
+		return;
+
+	int w = 0, h = 0;
+	q1::image_next_resolution(pDoc->mW, pDoc->mH, &w, &h);
+
+	ApplyResolution(w, h);
+}
+
+void CMainFrame::ApplyResolution(int w, int h)
+{
+	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
+
 	if (pDoc->mW == w && pDoc->mH == h) // Do nothing, if same
 		return;
 

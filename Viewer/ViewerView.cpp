@@ -915,6 +915,7 @@ void CViewerView::DrawHelpMenu(CDC *pDC)
 		"B              Selected box size\n"
 		"I              Interpolate pixels\n"
 		"N              Next color space\n"
+		"D              Next preset resolution (raw input)\n"
 		"M              Mute or unmute video audio\n"
 		);
 	pDC->DrawText(manual, &manualRect, DT_LEFT | DT_TOP);
@@ -2112,6 +2113,9 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			input.first = pDoc->mColorSpace;
 			pMainFrm->BroadcastSyncInput(input);
 		}
+		break;
+	case 'D': // Cycle to the next preset resolution (raw input only).
+		pMainFrm->NextResolution();
 		break;
 	}
 

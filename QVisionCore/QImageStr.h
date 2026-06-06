@@ -17,5 +17,6 @@ void image_sort_cs(struct qcsc_info* ci);
 const char* image_find_cs_name(struct qcsc_info* ci, int cs);
 
 int image_resolution_idx(int w_ref, int h_ref);
+int image_next_resolution(int w_ref, int h_ref, int *w, int *h);
 
 } // namespace q1

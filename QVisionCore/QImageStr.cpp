@@ -236,4 +236,18 @@ int image_resolution_idx(int w_ref, int h_ref)
 	return -1;
 }
 
+int image_next_resolution(int w_ref, int h_ref, int *w, int *h)
+{
+	// The trailing "Custom..." entry is not a real resolution, so cycle only
+	// through the numeric presets that precede it.
+	const int presets = ARRAY_SIZE(resolution_info_table) - 1;
+
+	int cur = image_resolution_idx(w_ref, h_ref);
+	// If the current size is not one of the presets, start from the first one.
+	int idx = (cur < 0) ? 0 : (cur + 1) % presets;
+
+	image_parse_w_h(resolution_info_table[idx], w, h);
+	return idx;
+}
+
 } // namespace q1
