@@ -30,6 +30,7 @@ public:
 
 	bool openFile(const QString &fileName);
 	bool openRawFile(const QString &fileName, int width, int height, const QString &colorSpaceName);
+	bool openY4mFile(const QString &fileName);
 
 private:
 	void createActions();
@@ -101,6 +102,12 @@ private:
 	int mRawHeight;
 	int mRawFrameCount;
 	int mCurrentFrame;
+	// YUV4MPEG2 (.y4m) layout. When mIsY4m is true the raw frames are not packed
+	// back to back: each is preceded by a "FRAME...\n" marker and the file opens
+	// with a text header, so loadRawFrame seeks past both.
+	bool mIsY4m;
+	qint64 mY4mHeaderLen;
+	int mY4mFrameMarkerLen;
 	double mScaleFactor;
 	bool mFitToWindow;
 	bool mCurrentFileIsRaw;

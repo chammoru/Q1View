@@ -1,7 +1,9 @@
 #include "MainWindow.h"
 
+#include "HeifReader.h"
 #include "ImageView.h"
 #include "RawOpenDialog.h"
+#include "Y4mReader.h"
 
 #include <QAction>
 #include <QApplication>
@@ -64,6 +66,9 @@ MainWindow::MainWindow(QWidget *parent)
 	  mRawHeight(0),
 	  mRawFrameCount(0),
 	  mCurrentFrame(0),
+	  mIsY4m(false),
+	  mY4mHeaderLen(0),
+	  mY4mFrameMarkerLen(0),
 	  mScaleFactor(1.0),
 	  mFitToWindow(true),
 	  mCurrentFileIsRaw(false),
@@ -106,13 +111,35 @@ MainWindow::MainWindow(QWidget *parent)
 
 bool MainWindow::openFile(const QString &fileName)
 {
+	// A .y4m/.yuv may be a YUV4MPEG2 container rather than a still image; route
+	// it to the Y4M loader, which parses the header and frame markers.
+	if (q1y4m::isY4mFile(fileName)) {
+		return openY4mFile(fileName);
+	}
+
 	QImageReader reader(fileName);
 	reader.setAutoTransform(true);
 
-	const QImage image = reader.read();
+	// QImageReader covers the formats Qt was built with. HEIF/HEIC/AVIF are not
+	// among them, so fall back to libheif when Qt can't read a HEIF-family file.
+	QImage image = reader.read();
+	const bool isHeif = q1qt::isHeifFile(fileName);
+	if (image.isNull() && isHeif) {
+		image = q1qt::readHeif(fileName);
+	}
 	if (image.isNull()) {
+		// Qt's "unsupported format" string is misleading for the libheif path,
+		// so spell out why a HEIF-family file failed instead.
+		QString detail;
+		if (isHeif && !q1qt::heifSupported()) {
+			detail = tr("HEIF/HEIC/AVIF support is not available in this build.");
+		} else if (isHeif) {
+			detail = tr("The HEIF/HEIC/AVIF file could not be decoded.");
+		} else {
+			detail = reader.errorString();
+		}
 		QMessageBox::warning(this, tr("Open image"),
-			tr("Could not read %1:\n%2").arg(QFileInfo(fileName).fileName(), reader.errorString()));
+			tr("Could not read %1:\n%2").arg(QFileInfo(fileName).fileName(), detail));
 		return false;
 	}
 
@@ -120,6 +147,7 @@ bool MainWindow::openFile(const QString &fileName)
 	mImage = image;
 	mCurrentFile = fileName;
 	mCurrentFileIsRaw = false;
+	mIsY4m = false;
 	mRawFrameSize = 0;
 	mRawFrameCount = 1;
 	mCurrentFrame = 0;
@@ -138,11 +166,14 @@ void MainWindow::createActions()
 	QAction *openAction = fileMenu->addAction(tr("&Open..."));
 	openAction->setShortcut(QKeySequence::Open);
 	connect(openAction, &QAction::triggered, this, [this]() {
+		const QString heifExtensions = q1qt::heifSupported()
+			? QStringLiteral(" *.heic *.heif *.hif *.avif") : QString();
 		const QString fileName = QFileDialog::getOpenFileName(
 			this,
 			tr("Open image"),
 			QString(),
-			tr("Images (*.bmp *.gif *.jpeg *.jpg *.png *.ppm *.pgm *.pbm *.xbm *.xpm);;All files (*)"));
+			tr("Images (*.bmp *.gif *.jpeg *.jpg *.png *.ppm *.pgm *.pbm *.xbm *.xpm%1);;All files (*)")
+				.arg(heifExtensions));
 
 		if (!fileName.isEmpty()) {
 			openFile(fileName);
@@ -351,7 +382,8 @@ QImage MainWindow::displayImage() const
 
 QStringList MainWindow::imageNameFilters() const
 {
-	return QStringList()
+	QStringList filters;
+	filters
 		<< QStringLiteral("*.bmp")
 		<< QStringLiteral("*.gif")
 		<< QStringLiteral("*.jpeg")
@@ -368,6 +400,18 @@ QStringList MainWindow::imageNameFilters() const
 		<< QStringLiteral("*.yuv420")
 		<< QStringLiteral("*.nv12")
 		<< QStringLiteral("*.nv21");
+
+	// Only advertise HEIF-family extensions for navigation when this build can
+	// actually decode them; otherwise stepping onto one would just fail.
+	if (q1qt::heifSupported()) {
+		filters
+			<< QStringLiteral("*.heic")
+			<< QStringLiteral("*.heif")
+			<< QStringLiteral("*.hif")
+			<< QStringLiteral("*.avif");
+	}
+
+	return filters;
 }
 
 bool MainWindow::loadRawFrame(int frameIndex)
@@ -395,7 +439,13 @@ bool MainWindow::loadRawFrame(int frameIndex)
 		return false;
 	}
 
-	if (!file.seek(static_cast<qint64>(frameIndex) * mRawFrameSize)) {
+	// Raw files pack frames back to back. Y4M prepends a text header and a
+	// per-frame "FRAME...\n" marker, so each frame's pixels sit at
+	// header + index*(marker + data) + marker.
+	const qint64 framePos = mIsY4m
+		? mY4mHeaderLen + static_cast<qint64>(frameIndex) * (mY4mFrameMarkerLen + mRawFrameSize) + mY4mFrameMarkerLen
+		: static_cast<qint64>(frameIndex) * mRawFrameSize;
+	if (!file.seek(framePos)) {
 		return false;
 	}
 
@@ -416,7 +466,10 @@ bool MainWindow::loadRawFrame(int frameIndex)
 	qu8 *base = reinterpret_cast<qu8 *>(raw.data());
 	qu8 *plane2 = offset2 > 0 ? base + offset2 : nullptr;
 	qu8 *plane3 = offset3 > 0 ? base + offset3 : nullptr;
-	colorSpace->csc2rgb888(reinterpret_cast<qu8 *>(bgr.data()), base, plane2, plane3, strideBytes, mRawWidth, mRawHeight);
+	// csc2rgb888 takes the destination stride in *pixels* (it multiplies the
+	// row gap by the byte depth itself), so pass stridePixels, not strideBytes.
+	// Passing bytes overruns the bgr buffer threefold and corrupts the heap.
+	colorSpace->csc2rgb888(reinterpret_cast<qu8 *>(bgr.data()), base, plane2, plane3, stridePixels, mRawWidth, mRawHeight);
 
 	mImage = QImage(
 		reinterpret_cast<const uchar *>(bgr.constData()),
@@ -463,7 +516,7 @@ void MainWindow::openAdjacentFile(int direction, bool boundaryOnly)
 
 	const QString nextFile = files[nextIndex].absoluteFilePath();
 	QImageReader reader(nextFile);
-	if (reader.canRead()) {
+	if (reader.canRead() || (q1qt::heifSupported() && q1qt::isHeifFile(nextFile))) {
 		openFile(nextFile);
 		return;
 	}
@@ -613,7 +666,7 @@ QPoint MainWindow::sourcePointFromDisplayPoint(const QPoint &point) const
 void MainWindow::openDroppedFile(const QString &fileName)
 {
 	QImageReader reader(fileName);
-	if (reader.canRead()) {
+	if (reader.canRead() || (q1qt::heifSupported() && q1qt::isHeifFile(fileName))) {
 		openFile(fileName);
 		return;
 	}
@@ -964,11 +1017,40 @@ bool MainWindow::openRawFile(const QString &fileName, int width, int height, con
 	resetPlayback();
 	mCurrentFile = fileName;
 	mCurrentFileIsRaw = true;
+	mIsY4m = false;
 	mRawColorSpaceName = colorSpaceName;
 	mRawFrameSize = frameSize;
 	mRawWidth = width;
 	mRawHeight = height;
 	mRawFrameCount = static_cast<int>(fileSize / frameSize);
+	mCurrentFrame = 0;
+	mRotationQuarterTurns = 0;
+	mCursorImagePoint = QPoint(-1, -1);
+	clearSelection();
+	mFitToWindow = true;
+	return loadRawFrame(0);
+}
+
+bool MainWindow::openY4mFile(const QString &fileName)
+{
+	q1y4m::Y4mInfo info;
+	if (!q1y4m::parseY4m(fileName, &info)) {
+		QMessageBox::warning(this, tr("Open Y4M"),
+			tr("%1 is not a supported YUV4MPEG2 file.").arg(QFileInfo(fileName).fileName()));
+		return false;
+	}
+
+	resetPlayback();
+	mCurrentFile = fileName;
+	mCurrentFileIsRaw = true;
+	mIsY4m = true;
+	mY4mHeaderLen = info.headerLength;
+	mY4mFrameMarkerLen = info.frameMarkerLength;
+	mRawColorSpaceName = info.colorSpaceName;
+	mRawFrameSize = info.frameDataSize;
+	mRawWidth = info.width;
+	mRawHeight = info.height;
+	mRawFrameCount = info.frameCount;
 	mCurrentFrame = 0;
 	mRotationQuarterTurns = 0;
 	mCursorImagePoint = QPoint(-1, -1);

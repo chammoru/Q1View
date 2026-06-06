@@ -83,6 +83,10 @@ if(Q1VIEW_BUILD_QT_VIEWER)
         ViewerQt/ImageView.h
         ViewerQt/RawOpenDialog.cpp
         ViewerQt/RawOpenDialog.h
+        ViewerQt/HeifReader.cpp
+        ViewerQt/HeifReader.h
+        ViewerQt/Y4mReader.cpp
+        ViewerQt/Y4mReader.h
     )
 
     set_target_properties(q1view_viewer_qt PROPERTIES
@@ -95,6 +99,72 @@ if(Q1VIEW_BUILD_QT_VIEWER)
             ${Q1VIEW_QT_LIB}
             q1view_image_core
     )
+
+    # --- Optional HEIF/HEIC/AVIF support via libheif -----------------------
+    # When found, the viewer decodes HEIF-family images directly (see
+    # ViewerQt/HeifReader.cpp). When not, HEIF support silently turns off and
+    # the rest of the viewer builds unchanged.
+    #
+    # Windows: default to the same prebuilt "decode-av1" root the MSBuild
+    # product restores under .deps (see Q1ViewHeif.props). It ships an
+    # include/lib/bin layout, so it is consumed directly rather than via its
+    # vcpkg CMake package. Unix: discover libheif through pkg-config
+    # (apt/brew install libheif).
+    if(NOT DEFINED Q1VIEW_HEIF_ROOT AND DEFINED ENV{Q1VIEW_HEIF_ROOT})
+        set(Q1VIEW_HEIF_ROOT "$ENV{Q1VIEW_HEIF_ROOT}")
+    endif()
+    if(WIN32 AND NOT Q1VIEW_HEIF_ROOT)
+        set(_q1_heif_vendored
+            "${CMAKE_CURRENT_SOURCE_DIR}/.deps/libheif-decode-av1-x64-windows")
+        if(EXISTS "${_q1_heif_vendored}/include/libheif/heif.h")
+            set(Q1VIEW_HEIF_ROOT "${_q1_heif_vendored}")
+        endif()
+    endif()
+
+    set(_q1_heif_enabled OFF)
+    if(Q1VIEW_HEIF_ROOT AND EXISTS "${Q1VIEW_HEIF_ROOT}/include/libheif/heif.h")
+        find_library(Q1VIEW_HEIF_LIB
+            NAMES heif libheif
+            PATHS "${Q1VIEW_HEIF_ROOT}/lib"
+            NO_DEFAULT_PATH)
+        if(Q1VIEW_HEIF_LIB)
+            target_include_directories(q1view_viewer_qt
+                PRIVATE "${Q1VIEW_HEIF_ROOT}/include")
+            target_link_libraries(q1view_viewer_qt PRIVATE "${Q1VIEW_HEIF_LIB}")
+            set(_q1_heif_enabled ON)
+            set(_q1_heif_bin "${Q1VIEW_HEIF_ROOT}/bin")
+        endif()
+    else()
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(Q1VIEW_HEIF IMPORTED_TARGET libheif)
+            if(Q1VIEW_HEIF_FOUND)
+                target_link_libraries(q1view_viewer_qt
+                    PRIVATE PkgConfig::Q1VIEW_HEIF)
+                set(_q1_heif_enabled ON)
+            endif()
+        endif()
+    endif()
+
+    if(_q1_heif_enabled)
+        target_compile_definitions(q1view_viewer_qt PRIVATE Q1VIEW_ENABLE_LIBHEIF)
+        message(STATUS "Q1View Qt viewer: HEIF/HEIC/AVIF support enabled")
+
+        # Windows prebuilt roots ship heif.dll and its codec DLLs (libde265,
+        # aom). Copy them next to the exe so the viewer runs from the build tree.
+        if(WIN32 AND _q1_heif_bin AND EXISTS "${_q1_heif_bin}")
+            file(GLOB _q1_heif_dlls "${_q1_heif_bin}/*.dll")
+            if(_q1_heif_dlls)
+                add_custom_command(TARGET q1view_viewer_qt POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        ${_q1_heif_dlls} "$<TARGET_FILE_DIR:q1view_viewer_qt>"
+                    COMMAND_EXPAND_LISTS
+                    VERBATIM)
+            endif()
+        endif()
+    else()
+        message(STATUS "Q1View Qt viewer: HEIF support disabled (libheif not found)")
+    endif()
 
     install(TARGETS q1view_viewer_qt
         BUNDLE DESTINATION .

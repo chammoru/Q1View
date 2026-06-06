@@ -44,6 +44,31 @@ jobs:
           version: "6.5.3"
           cache: true
 
+      # HEIF/HEIC/AVIF decode needs libheif. install-qt-action does not ship it,
+      # so each runner provides it: apt/brew on Unix, and the prebuilt
+      # "decode-av1" root the Windows product already publishes (see
+      # Q1ViewHeif.props / heif-dependency.yml).
+      - name: Install libheif (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libheif-dev
+
+      - name: Install libheif (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libheif
+          echo "PKG_CONFIG_PATH=$(brew --prefix)/lib/pkgconfig" >> "$GITHUB_ENV"
+
+      - name: Restore libheif (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./build/Ensure-HeifDependency.ps1 `
+            -InstallRoot ".deps/libheif-decode-av1-x64-windows" `
+            -ArchiveUrl "https://github.com/chammoru/Q1View/releases/download/deps-libheif-decode-av1-x64-windows/Q1View-libheif-decode-av1-x64-windows.zip" `
+            -Triplet "x64-windows"
+
       - name: Configure
         run: cmake -S . -B build -DQ1VIEW_BUILD_SMOKE_TEST=OFF -DQ1VIEW_BUILD_QT_VIEWER=ON
 
@@ -64,6 +89,14 @@ jobs:
             }
 
             Copy-Item $exe.FullName $package
+
+            # Ship the libheif runtime (heif.dll + its codec DLLs) alongside the
+            # exe. windeployqt only handles Qt's own libraries.
+            $heifBin = ".deps/libheif-decode-av1-x64-windows/bin"
+            if (Test-Path $heifBin) {
+              Copy-Item "$heifBin/*.dll" $package
+            }
+
             windeployqt --release --no-translations "$package/q1view_viewer_qt.exe"
           } elseif ($env:RUNNER_OS -eq "macOS") {
             $app = Get-ChildItem build -Recurse -Directory -Filter q1view_viewer_qt.app | Select-Object -First 1

@@ -77,6 +77,11 @@ Current capabilities:
 - Opens a Qt main window.
 - Has `File > Open...`.
 - Loads common image formats supported by `QImageReader`, such as PNG/JPG/BMP.
+- Decodes HEIF/HEIC/AVIF through libheif when the build finds it (see
+  `ViewerQt/HeifReader.cpp`). Optional: builds without libheif simply omit the
+  feature. Windows reuses the prebuilt root the MSBuild product restores under
+  `.deps`; Unix discovers it via pkg-config. CI runners are not yet wired, so
+  the cross-platform `viewer-qt.yml` builds still ship without HEIF for now.
 - Accepts an image path as the first command-line argument.
 - Has `File > Open Raw...`.
 - Loads raw frames by asking for file, width, height, and color space.
