@@ -6,8 +6,8 @@
 // overlay) so both render the same keys and descriptions from one place.
 //
 // Plain ASCII so it can feed both a CString (GDI DrawText) and a QString
-// (QLabel). The visual style — white surface, soft border, dark text, Cascadia
-// Mono at 14 px — is shared through the Q1UI_COLOR_SURFACE / Q1UI_COLOR_BORDER /
+// (QLabel). The visual style - white surface, soft border, dark text, Cascadia
+// Mono at 14 px - is shared through the Q1UI_COLOR_SURFACE / Q1UI_COLOR_BORDER /
 // Q1UI_COLOR_TEXT / Q1UI_FONT_MONO constants in QViewerCmn.h (the Qt side, which
 // can't include that Windows-only header, mirrors the same hex values).
 
