@@ -12,8 +12,8 @@ This file captures the current cross-platform porting state so future Codex sess
   it no longer exists. All further work lands directly on `master`.
 - Qt viewer feature-parity work is tracked in #63. Video playback, file-change
   auto-refresh, and multi-window Sync Input have landed; remaining items are the
-  Comparator features, capture-device (camera) preview, clean-desktop AppImage
-  verification, automated Qt smoke checks, and raw fixtures.
+  Comparator features, clean-desktop AppImage verification, automated Qt smoke
+  checks, and raw fixtures.
 - The Qt viewer stays additive: it builds behind the `Q1VIEW_BUILD_QT_VIEWER`
   CMake option (default OFF) and only *links* the shared core, so the MFC
   Windows product (`Viewer.sln` / `Comparator.sln`) is unaffected.
@@ -117,8 +117,9 @@ Current capabilities:
     scaled/drawn, so large images zoom to high factors without a giant pixmap
   - video-file playback (`VideoView`, QMediaPlayer/QVideoWidget) on an optional
     Qt6::Multimedia page, with transport bar (play/pause, seek, volume/mute);
-    builds gracefully disabled when the module is absent. Scope is file
-    playback; capture-device preview (Windows VidCapThread) is still TODO.
+    builds gracefully disabled when the module is absent. This covers the
+    existing MFC/OpenCV video-file path (`VidCapFrmSrc`/`VidCapThread`); the MFC
+    Viewer does not expose a separate webcam/capture-card preview feature.
   - file-change auto-refresh: a `QFileSystemWatcher` reloads the active frame in
     place when the source changes on disk, preserving zoom, pan, selection,
     rotation, and frame index (View ▸ Auto-Reload on Change; the cross-platform
@@ -133,7 +134,6 @@ Current capabilities:
 It does not yet implement:
 
 - Comparator features.
-- Capture-device (camera) preview for the video page.
 
 Successful Qt viewer CI runs:
 
@@ -198,9 +198,8 @@ Local build note: GitHub Actions remains the cross-platform source of truth (Lin
 
 ## Next Suggested Steps
 
-1. Track and land the remaining Qt viewer parity work via #63 (video playback,
-   Comparator, file-change auto-refresh, multi-window Sync Input, Qt smoke
-   checks, and raw fixtures).
+1. Track and land the remaining Qt viewer parity work via #63 (Comparator, Qt
+   smoke checks, and raw fixtures).
 2. Improve packaging for `q1view_viewer_qt`:
    - Windows packaging uses `windeployqt`.
    - macOS packaging uses `macdeployqt`.
