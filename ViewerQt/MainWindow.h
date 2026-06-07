@@ -2,6 +2,7 @@
 #define Q1VIEW_VIEWERQT_MAINWINDOW_H
 
 #include "RawOpenDialog.h"
+#include "SyncChannel.h"
 
 #include <QImage>
 #include <QMainWindow>
@@ -10,11 +11,13 @@
 #include <QStringList>
 
 class ImageView;
+class VideoView;
 class QDragEnterEvent;
 class QDropEvent;
 class QAction;
 class QActionGroup;
 class QEvent;
+class QFileSystemWatcher;
 class QKeyEvent;
 class QLabel;
 class QMenu;
@@ -22,6 +25,7 @@ class QMouseEvent;
 class QResizeEvent;
 class QScrollBar;
 class QScrollArea;
+class QStackedWidget;
 class QTimer;
 class QWheelEvent;
 
@@ -120,6 +124,32 @@ private:
 	void zoomIn();
 	void zoomOut();
 
+	// --- Video playback (Qt6::Multimedia) ---------------------------------
+	// openVideoFile swaps the central area to the video page and starts the
+	// clip; showImagePage swaps back and stops any playing video. Both are
+	// no-ops in a build without Qt6::Multimedia (mVideoView stays null).
+	bool openVideoFile(const QString &fileName);
+	void showImagePage();
+
+	// --- File-change auto-refresh -----------------------------------------
+	// Watch mCurrentFile (and its directory, so atomic saves are caught) and
+	// reload the active frame in place when the bytes on disk change, keeping
+	// zoom, pan, selection, rotation, and frame index. Mirrors the Windows
+	// FileChangeNotiThread -> WM_RELOAD path.
+	void watchCurrentFile();
+	void onWatchedPathChanged(const QString &path);
+	void reloadCurrentSource();
+	void toggleAutoReload();
+
+	// --- Multi-window Sync Input ------------------------------------------
+	// Cross-platform replacement for the WM_COPYDATA broadcast: mirror the
+	// listed actions to sibling ViewerQt instances and apply theirs.
+	void toggleSyncInput();
+	void broadcastSync(const SyncMessage &message);
+	void broadcastViewState(bool force = false);
+	quint32 displayOptionBits() const;
+	void applySyncMessage(const SyncMessage &message);
+
 protected:
 	void dragEnterEvent(QDragEnterEvent *event) override;
 	void dropEvent(QDropEvent *event) override;
@@ -130,6 +160,34 @@ protected:
 private:
 	ImageView *mImageView;
 	QScrollArea *mScrollArea;
+	// Hosts the image scroll area and (when built with Qt6::Multimedia) the
+	// video page; the active page swaps as image/raw vs. video files open.
+	QStackedWidget *mCentralStack;
+	VideoView *mVideoView;
+	bool mShowingVideo;
+	// File-change auto-refresh state.
+	QFileSystemWatcher *mFileWatcher;
+	QTimer *mReloadTimer;
+	QAction *mAutoReloadAction;
+	bool mAutoReload;
+	// Size/mtime snapshot of the watched file, so a directoryChanged signal from
+	// an unrelated sibling file doesn't trigger a needless reload (mirrors the
+	// Windows watcher, which compares the changed file name to the watched one).
+	qint64 mWatchedSize;
+	qint64 mWatchedMtimeMs;
+	// True when the current source is a real on-disk file (not the synthetic
+	// "Clipboard" source). Lets watchCurrentFile() keep the *directory* watch
+	// alive even while the file is briefly absent during an atomic save, without
+	// accidentally watching the working directory for a pasted image.
+	bool mCurrentSourceOnDisk;
+	// Multi-window Sync Input state.
+	SyncChannel *mSyncChannel;
+	QAction *mSyncInputAction;
+	// True while applying an incoming sync message, so the resulting local
+	// actions don't echo straight back out and loop between instances.
+	bool mApplyingSync;
+	// Tick of the last view-state broadcast, to throttle pan/zoom mirroring.
+	qint64 mLastViewStateBroadcastMs;
 	QTimer *mPlayTimer;
 	QAction *mSaveAsAction;
 	QAction *mCopyAction;

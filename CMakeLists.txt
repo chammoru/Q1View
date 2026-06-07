@@ -76,13 +76,19 @@ if(Q1VIEW_BUILD_SMOKE_TEST)
 endif()
 
 if(Q1VIEW_BUILD_QT_VIEWER)
-    find_package(Qt6 QUIET COMPONENTS Widgets)
+    # Network backs the cross-platform multi-window Sync Input bus (ViewerQt/
+    # SyncChannel.cpp); it ships in qtbase, so it is a hard requirement.
+    find_package(Qt6 QUIET COMPONENTS Widgets Network)
 
     if(NOT Qt6_FOUND)
-        find_package(Qt5 REQUIRED COMPONENTS Widgets)
-        set(Q1VIEW_QT_LIB Qt5::Widgets)
+        # 5.15 is the floor: the viewer uses C++17 (Qt 5.15 supports it) and
+        # SyncChannel pins QDataStream::Qt_5_15, an enumerator that doesn't exist
+        # in older Qt5. Pinning the minimum fails clearly at configure time
+        # instead of obscurely at compile time on an older Qt5.
+        find_package(Qt5 5.15 REQUIRED COMPONENTS Widgets Network)
+        set(Q1VIEW_QT_LIB Qt5::Widgets Qt5::Network)
     else()
-        set(Q1VIEW_QT_LIB Qt6::Widgets)
+        set(Q1VIEW_QT_LIB Qt6::Widgets Qt6::Network)
     endif()
 
     add_executable(q1view_viewer_qt
@@ -97,15 +103,21 @@ if(Q1VIEW_BUILD_QT_VIEWER)
         ViewerQt/HeifReader.h
         ViewerQt/Y4mReader.cpp
         ViewerQt/Y4mReader.h
+        # Multi-window Sync Input over loopback UDP multicast (replaces the
+        # Windows WM_COPYDATA broadcast).
+        ViewerQt/SyncChannel.cpp
+        ViewerQt/SyncChannel.h
         # Qt resource bundle: ships the window/taskbar icon (see main.cpp).
         ViewerQt/q1view.qrc
     )
 
     # The .qrc above is compiled by rcc; on Windows the .rc also stamps the icon
     # onto the executable file itself (shown by Explorer and the taskbar).
+    # AUTOMOC drives SyncChannel/VideoView's Q_OBJECT signals.
     set_target_properties(q1view_viewer_qt PROPERTIES
         MACOSX_BUNDLE TRUE
         WIN32_EXECUTABLE TRUE
+        AUTOMOC ON
         AUTORCC ON
     )
 
@@ -118,6 +130,36 @@ if(Q1VIEW_BUILD_QT_VIEWER)
             ${Q1VIEW_QT_LIB}
             q1view_image_core
     )
+
+    # The viewer sources use C++17 (std::clamp, digit separators in
+    # SyncChannel). Qt6 already requires C++17 and propagates it, but the global
+    # CMAKE_CXX_STANDARD is 11 for the C core, so the Qt5 fallback would build at
+    # C++11 and fail. Require C++17 on this target explicitly (Qt 5.15 supports
+    # it) so both the Qt6 and Qt5 paths compile.
+    target_compile_features(q1view_viewer_qt PRIVATE cxx_std_17)
+
+    # --- Optional video playback via Qt6::Multimedia -----------------------
+    # When the Multimedia / MultimediaWidgets modules are present, the viewer
+    # plays video files on a QMediaPlayer/QVideoWidget page (ViewerQt/
+    # VideoView.cpp). When absent (e.g. a Widgets-only Qt), video support
+    # silently turns off and the rest of the viewer builds unchanged.
+    # windeployqt/macdeployqt/linuxdeploy bundle the multimedia plugins when the
+    # module is linked, so no extra packaging step is needed here.
+    if(Qt6_FOUND)
+        find_package(Qt6 QUIET COMPONENTS Multimedia MultimediaWidgets)
+        if(Qt6Multimedia_FOUND AND Qt6MultimediaWidgets_FOUND)
+            target_sources(q1view_viewer_qt PRIVATE
+                ViewerQt/VideoView.cpp
+                ViewerQt/VideoView.h)
+            target_link_libraries(q1view_viewer_qt PRIVATE
+                Qt6::Multimedia Qt6::MultimediaWidgets)
+            target_compile_definitions(q1view_viewer_qt PRIVATE
+                Q1VIEW_ENABLE_QT_MULTIMEDIA)
+            message(STATUS "Q1View Qt viewer: video playback enabled (Qt6::Multimedia)")
+        else()
+            message(STATUS "Q1View Qt viewer: video playback disabled (Qt6::Multimedia not found)")
+        endif()
+    endif()
 
     # --- Optional HEIF/HEIC/AVIF support via libheif -----------------------
     # When found, the viewer decodes HEIF-family images directly (see

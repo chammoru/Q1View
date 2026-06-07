@@ -10,9 +10,10 @@ This file captures the current cross-platform porting state so future Codex sess
   crossed.
 - The short-lived `cross-platform-core` branch has been **merged and deleted** —
   it no longer exists. All further work lands directly on `master`.
-- Remaining Qt viewer feature-parity work (video playback, Comparator,
-  file-change auto-refresh, multi-window sync input, clean-desktop AppImage
-  verification, automated Qt smoke checks, and raw fixtures) is tracked in #63.
+- Qt viewer feature-parity work is tracked in #63. Video playback, file-change
+  auto-refresh, and multi-window Sync Input have landed; remaining items are the
+  Comparator features, capture-device (camera) preview, clean-desktop AppImage
+  verification, automated Qt smoke checks, and raw fixtures.
 - The Qt viewer stays additive: it builds behind the `Q1VIEW_BUILD_QT_VIEWER`
   CMake option (default OFF) and only *links* the shared core, so the MFC
   Windows product (`Viewer.sln` / `Comparator.sln`) is unaffected.
@@ -114,13 +115,25 @@ Current capabilities:
   - selection-region capture ('S' mode rubber-band; Copy/Save As act on the crop)
   - viewport-painted image surface (`ImageView`): only the exposed region is
     scaled/drawn, so large images zoom to high factors without a giant pixmap
+  - video-file playback (`VideoView`, QMediaPlayer/QVideoWidget) on an optional
+    Qt6::Multimedia page, with transport bar (play/pause, seek, volume/mute);
+    builds gracefully disabled when the module is absent. Scope is file
+    playback; capture-device preview (Windows VidCapThread) is still TODO.
+  - file-change auto-refresh: a `QFileSystemWatcher` reloads the active frame in
+    place when the source changes on disk, preserving zoom, pan, selection,
+    rotation, and frame index (View ▸ Auto-Reload on Change; the cross-platform
+    analogue of `FileChangeNotiThread` / `WM_RELOAD`)
+  - multi-window Sync Input over a loopback UDP-multicast bus (`SyncChannel`,
+    replacing the Windows `WM_COPYDATA` broadcast): mirrors frame/file
+    navigation, zoom/pan, rotation, display options, colour space, resolution,
+    FPS, and playback state to sibling instances (Navigate ▸ Sync Input).
+    Playback sync covers raw-sequence play/stop and video play/pause; the video
+    clock/position itself is not mirrored (each window plays on its own clock)
 
 It does not yet implement:
 
-- Video playback.
 - Comparator features.
-- File-change auto-refresh.
-- Multi-window Sync Input.
+- Capture-device (camera) preview for the video page.
 
 Successful Qt viewer CI runs:
 
@@ -156,6 +169,8 @@ Relevant files:
 - `ViewerQt/ImageView.cpp`
 - `ViewerQt/RawOpenDialog.h`
 - `ViewerQt/RawOpenDialog.cpp`
+- `ViewerQt/VideoView.h` / `ViewerQt/VideoView.cpp` (optional Qt6::Multimedia video page)
+- `ViewerQt/SyncChannel.h` / `ViewerQt/SyncChannel.cpp` (multi-window Sync Input bus)
 - `.github/workflows/viewer-qt.yml`
 - `.github/workflows/release-qt-viewer.yml`
 - `packaging/linux/q1view-viewer-qt.desktop`

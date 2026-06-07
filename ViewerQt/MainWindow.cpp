@@ -4,6 +4,9 @@
 #include "ImageView.h"
 #include "RawOpenDialog.h"
 #include "Y4mReader.h"
+#ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
+#include "VideoView.h"
+#endif
 
 #include <QAction>
 #include <QActionGroup>
@@ -11,11 +14,13 @@
 #include <QByteArray>
 #include <QClipboard>
 #include <QContextMenuEvent>
+#include <QDateTime>
 #include <QDir>
 #include <QDragEnterEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QGesture>
 #include <QGestureEvent>
 #include <QImageReader>
@@ -37,6 +42,7 @@
 #include <QScrollArea>
 #include <QSettings>
 #include <QSize>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QTimer>
 #include <QTransform>
@@ -68,6 +74,20 @@ MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent),
 	  mImageView(new ImageView),
 	  mScrollArea(new QScrollArea),
+	  mCentralStack(new QStackedWidget),
+	  mVideoView(nullptr),
+	  mShowingVideo(false),
+	  mFileWatcher(nullptr),
+	  mReloadTimer(new QTimer(this)),
+	  mAutoReloadAction(nullptr),
+	  mAutoReload(true),
+	  mWatchedSize(-1),
+	  mWatchedMtimeMs(-1),
+	  mCurrentSourceOnDisk(false),
+	  mSyncChannel(new SyncChannel(this)),
+	  mSyncInputAction(nullptr),
+	  mApplyingSync(false),
+	  mLastViewStateBroadcastMs(0),
 	  mPlayTimer(new QTimer(this)),
 	  mSaveAsAction(nullptr),
 	  mCopyAction(nullptr),
@@ -125,12 +145,27 @@ MainWindow::MainWindow(QWidget *parent)
 	mScrollArea->viewport()->setFocusPolicy(Qt::StrongFocus);
 	mScrollArea->viewport()->grabGesture(Qt::PinchGesture);
 	mScrollArea->viewport()->installEventFilter(this);
-	setCentralWidget(mScrollArea);
+	// The image scroll area is page 0 of the central stack; the optional video
+	// page is added lazily the first time a clip opens (see openVideoFile).
+	mCentralStack->addWidget(mScrollArea);
+	setCentralWidget(mCentralStack);
 	setAcceptDrops(true);
 	setFocusPolicy(Qt::StrongFocus);
 
 	mPlayTimer->setInterval(static_cast<int>(1000.0 / mFps + 0.5));
 	connect(mPlayTimer, &QTimer::timeout, this, &MainWindow::nextFrameOrFile);
+
+	// File-change auto-refresh: coalesce the watcher's rapid-fire signals (editors
+	// often write a file in several steps) into a single in-place reload.
+	mFileWatcher = new QFileSystemWatcher(this);
+	connect(mFileWatcher, &QFileSystemWatcher::fileChanged, this, &MainWindow::onWatchedPathChanged);
+	connect(mFileWatcher, &QFileSystemWatcher::directoryChanged, this, &MainWindow::onWatchedPathChanged);
+	mReloadTimer->setSingleShot(true);
+	mReloadTimer->setInterval(180);
+	connect(mReloadTimer, &QTimer::timeout, this, &MainWindow::reloadCurrentSource);
+
+	// Multi-window Sync Input: apply mirrored actions from sibling instances.
+	connect(mSyncChannel, &SyncChannel::received, this, &MainWindow::applySyncMessage);
 
 	// Translucent shortcut overlay. Parented to the viewport so it stays pinned to
 	// the visible area instead of scrolling with the image, mirroring the MFC
@@ -169,12 +204,21 @@ MainWindow::MainWindow(QWidget *parent)
 
 bool MainWindow::openFile(const QString &fileName)
 {
+	// A playable video container goes to the Multimedia page rather than the
+	// image decoders (only recognised when built with Qt6::Multimedia).
+#ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
+	if (VideoView::isVideoFile(fileName)) {
+		return openVideoFile(fileName);
+	}
+#endif
+
 	// A .y4m/.yuv may be a YUV4MPEG2 container rather than a still image; route
 	// it to the Y4M loader, which parses the header and frame markers.
 	if (q1y4m::isY4mFile(fileName)) {
 		return openY4mFile(fileName);
 	}
 
+	showImagePage();
 	QImageReader reader(fileName);
 	reader.setAutoTransform(true);
 
@@ -213,9 +257,11 @@ bool MainWindow::openFile(const QString &fileName)
 	mCursorImagePoint = QPoint(-1, -1);
 	clearSelection();
 	mFitToWindow = true;
+	mCurrentSourceOnDisk = true;
 	updateImage();
 	resizeToImage();
 	addToRecentFiles(mCurrentFile);
+	watchCurrentFile();
 	return true;
 }
 
@@ -228,12 +274,18 @@ void MainWindow::createActions()
 	connect(openAction, &QAction::triggered, this, [this]() {
 		const QString heifExtensions = q1qt::heifSupported()
 			? QStringLiteral(" *.heic *.heif *.hif *.avif") : QString();
+#ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
+		const QString videoFilter = QStringLiteral(";;Videos (%1)")
+			.arg(VideoView::nameFilters().join(QLatin1Char(' ')));
+#else
+		const QString videoFilter;
+#endif
 		const QString fileName = QFileDialog::getOpenFileName(
 			this,
 			tr("Open image"),
 			QString(),
-			tr("Images (*.bmp *.gif *.jpeg *.jpg *.png *.ppm *.pgm *.pbm *.xbm *.xpm%1);;All files (*)")
-				.arg(heifExtensions));
+			tr("Images (*.bmp *.gif *.jpeg *.jpg *.png *.ppm *.pgm *.pbm *.xbm *.xpm%1)%2;;All files (*)")
+				.arg(heifExtensions, videoFilter));
 
 		if (!fileName.isEmpty()) {
 			openFile(fileName);
@@ -339,6 +391,13 @@ void MainWindow::createActions()
 
 	viewMenu->addSeparator();
 
+	mAutoReloadAction = viewMenu->addAction(tr("&Auto-Reload on Change"));
+	mAutoReloadAction->setCheckable(true);
+	mAutoReloadAction->setChecked(mAutoReload);
+	connect(mAutoReloadAction, &QAction::triggered, this, &MainWindow::toggleAutoReload);
+
+	viewMenu->addSeparator();
+
 	QAction *fullScreenAction = viewMenu->addAction(tr("&Full Screen"));
 	fullScreenAction->setShortcut(QKeySequence(tr("Return")));
 	connect(fullScreenAction, &QAction::triggered, this, &MainWindow::toggleFullScreen);
@@ -375,6 +434,12 @@ void MainWindow::createActions()
 	mPlayAction->setShortcut(QKeySequence(tr("Space")));
 	mPlayAction->setCheckable(true);
 	connect(mPlayAction, &QAction::triggered, this, &MainWindow::togglePlayback);
+
+	navigateMenu->addSeparator();
+
+	mSyncInputAction = navigateMenu->addAction(tr("&Sync Input (multi-window)"));
+	mSyncInputAction->setCheckable(true);
+	connect(mSyncInputAction, &QAction::triggered, this, &MainWindow::toggleSyncInput);
 
 	QMenu *helpMenu = menuBar()->addMenu(tr("&Help"));
 
@@ -583,6 +648,12 @@ void MainWindow::applyResolution(int width, int height)
 		}
 	}
 	refreshControlMenus();
+
+	SyncMessage message;
+	message.command = SyncMessage::Resolution;
+	message.first = width;
+	message.second = height;
+	broadcastSync(message);
 }
 
 void MainWindow::applyColorSpace(const QString &colorSpaceName)
@@ -595,6 +666,11 @@ void MainWindow::applyColorSpace(const QString &colorSpaceName)
 		}
 	}
 	refreshControlMenus();
+
+	SyncMessage message;
+	message.command = SyncMessage::ColorSpace;
+	message.text = colorSpaceName;
+	broadcastSync(message);
 }
 
 void MainWindow::applyFps(double fps)
@@ -604,6 +680,11 @@ void MainWindow::applyFps(double fps)
 		mPlayTimer->setInterval(static_cast<int>(1000.0 / mFps + 0.5));
 	}
 	refreshControlMenus();
+
+	SyncMessage message;
+	message.command = SyncMessage::Fps;
+	message.scalar = fps;
+	broadcastSync(message);
 }
 
 void MainWindow::promptCustomResolution()
@@ -731,14 +812,18 @@ void MainWindow::applyZoom(double factor, const QPoint *anchor)
 		adjustScrollBar(mScrollArea->horizontalScrollBar(), actualFactor);
 		adjustScrollBar(mScrollArea->verticalScrollBar(), actualFactor);
 	}
+
+	broadcastViewState(true);
 }
 
 void MainWindow::closeCurrentFile()
 {
 	resetPlayback();
+	showImagePage();
 	mImage = QImage();
 	mCurrentFile.clear();
 	mCurrentFileIsRaw = false;
+	mCurrentSourceOnDisk = false;
 	mRawFrameSize = 0;
 	mRawFrameCount = 0;
 	mCurrentFrame = 0;
@@ -748,6 +833,7 @@ void MainWindow::closeCurrentFile()
 	setWindowTitle(tr("Q1View Qt"));
 	updateView();
 	refreshControlMenus();
+	watchCurrentFile();
 }
 
 QImage MainWindow::displayImage() const
@@ -799,6 +885,11 @@ QStringList MainWindow::imageNameFilters() const
 			<< QStringLiteral("*.hif")
 			<< QStringLiteral("*.avif");
 	}
+
+	// Likewise, only step onto video files when this build can play them.
+#ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
+	filters << VideoView::nameFilters();
+#endif
 
 	return filters;
 }
@@ -904,6 +995,12 @@ void MainWindow::openAdjacentFile(int direction, bool boundaryOnly)
 	}
 
 	const QString nextFile = files[nextIndex].absoluteFilePath();
+#ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
+	if (VideoView::isVideoFile(nextFile)) {
+		openFile(nextFile);
+		return;
+	}
+#endif
 	QImageReader reader(nextFile);
 	// Y4M containers go through openFile() (which sniffs and routes them to the
 	// Y4M loader); decoding them as packed raw would fold the header into pixels.
@@ -929,10 +1026,12 @@ void MainWindow::openClipboardImage()
 	}
 
 	resetPlayback();
+	showImagePage();
 	clearSelection();
 	mImage = image;
 	mCurrentFile = tr("Clipboard");
 	mCurrentFileIsRaw = false;
+	mCurrentSourceOnDisk = false;
 	mRawFrameCount = 1;
 	mCurrentFrame = 0;
 	mRotationQuarterTurns = 0;
@@ -940,6 +1039,8 @@ void MainWindow::openClipboardImage()
 	mFitToWindow = true;
 	updateImage();
 	resizeToImage();
+	// A pasted image has no file on disk to watch.
+	watchCurrentFile();
 }
 
 void MainWindow::fitImageToWindow()
@@ -953,6 +1054,7 @@ void MainWindow::fitImageToWindow()
 		mFitToWindowAction->setChecked(true);
 	}
 	updateView();
+	broadcastViewState(true);
 }
 
 void MainWindow::setActualSize()
@@ -967,6 +1069,7 @@ void MainWindow::setActualSize()
 		mFitToWindowAction->setChecked(false);
 	}
 	updateView();
+	broadcastViewState(true);
 }
 
 void MainWindow::loadSettings()
@@ -978,6 +1081,7 @@ void MainWindow::loadSettings()
 	mRawOptions.height = settings.value(QStringLiteral("raw/height"), mRawOptions.height).toInt();
 	mRawOptions.colorSpaceName = settings.value(QStringLiteral("raw/colorSpace"), mRawOptions.colorSpaceName).toString();
 	mRawOptions.fileName = settings.value(QStringLiteral("raw/fileName")).toString();
+	mAutoReload = settings.value(QStringLiteral("autoReload"), true).toBool();
 
 	loadRecentFiles();
 }
@@ -1045,6 +1149,14 @@ QPoint MainWindow::sourcePointFromDisplayPoint(const QPoint &point) const
 
 void MainWindow::openDroppedFile(const QString &fileName)
 {
+	// A dropped video plays on the Multimedia page (openFile routes it there).
+#ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
+	if (VideoView::isVideoFile(fileName)) {
+		openFile(fileName);
+		return;
+	}
+#endif
+
 	// A dropped .y4m is a YUV4MPEG2 container, not headerless raw; parse it via the
 	// Y4M loader instead of prompting with the raw dialog.
 	if (q1y4m::isY4mFile(fileName)) {
@@ -1085,8 +1197,15 @@ void MainWindow::firstFrameOrFile()
 {
 	if (mCurrentFileIsRaw && mRawFrameCount > 1) {
 		loadRawFrame(0);
+		SyncMessage message;
+		message.command = SyncMessage::SeekFrame;
+		message.first = mCurrentFrame;
+		broadcastSync(message);
 	} else {
 		openAdjacentFile(-1, true);
+		SyncMessage message;
+		message.command = SyncMessage::FirstFile;
+		broadcastSync(message);
 	}
 }
 
@@ -1094,21 +1213,40 @@ void MainWindow::lastFrameOrFile()
 {
 	if (mCurrentFileIsRaw && mRawFrameCount > 1) {
 		loadRawFrame(mRawFrameCount - 1);
+		SyncMessage message;
+		message.command = SyncMessage::SeekFrame;
+		message.first = mCurrentFrame;
+		broadcastSync(message);
 	} else {
 		openAdjacentFile(1, true);
+		SyncMessage message;
+		message.command = SyncMessage::LastFile;
+		broadcastSync(message);
 	}
 }
 
 void MainWindow::nextFrameOrFile()
 {
+	// nextFrameOrFile is also the playback-timer slot; while the timer drives it
+	// each instance advances on its own clock, so don't mirror per-frame steps.
+	const bool fromTimer = mPlayTimer->isActive();
 	if (mCurrentFileIsRaw && mRawFrameCount > 1) {
 		if (mCurrentFrame >= mRawFrameCount - 1) {
 			resetPlayback();
 			return;
 		}
 		loadRawFrame(mCurrentFrame + 1);
+		if (!fromTimer) {
+			SyncMessage message;
+			message.command = SyncMessage::SeekFrame;
+			message.first = mCurrentFrame;
+			broadcastSync(message);
+		}
 	} else {
 		openAdjacentFile(1);
+		SyncMessage message;
+		message.command = SyncMessage::NextFile;
+		broadcastSync(message);
 	}
 }
 
@@ -1116,8 +1254,15 @@ void MainWindow::previousFrameOrFile()
 {
 	if (mCurrentFileIsRaw && mRawFrameCount > 1) {
 		loadRawFrame(std::max(0, mCurrentFrame - 1));
+		SyncMessage message;
+		message.command = SyncMessage::SeekFrame;
+		message.first = mCurrentFrame;
+		broadcastSync(message);
 	} else {
 		openAdjacentFile(-1);
+		SyncMessage message;
+		message.command = SyncMessage::PreviousFile;
+		broadcastSync(message);
 	}
 }
 
@@ -1132,6 +1277,10 @@ void MainWindow::rotateClockwise()
 	mCursorImagePoint = QPoint(-1, -1);
 	mFitToWindow = true;
 	updateImage();
+
+	SyncMessage message;
+	message.command = SyncMessage::Rotate;
+	broadcastSync(message);
 }
 
 void MainWindow::toggleFullScreen()
@@ -1145,6 +1294,16 @@ void MainWindow::toggleFullScreen()
 
 void MainWindow::togglePlayback()
 {
+#ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
+	// On the video page, Space / Play-Stop drive the media player through the
+	// same path as the transport button; its playbackToggled() signal mirrors
+	// the play/pause *state* to sibling windows (video position is not synced).
+	if (mShowingVideo && mVideoView) {
+		mVideoView->togglePlay();
+		return;
+	}
+#endif
+
 	if (!mCurrentFileIsRaw || mRawFrameCount <= 1) {
 		resetPlayback();
 		return;
@@ -1152,6 +1311,10 @@ void MainWindow::togglePlayback()
 
 	if (mPlayTimer->isActive()) {
 		resetPlayback();
+		SyncMessage stop;
+		stop.command = SyncMessage::Playback;
+		stop.first = 0;
+		broadcastSync(stop);
 		return;
 	}
 
@@ -1162,6 +1325,11 @@ void MainWindow::togglePlayback()
 		mPlayAction->setChecked(true);
 	}
 	mPlayTimer->start();
+
+	SyncMessage play;
+	play.command = SyncMessage::Playback;
+	play.first = 1;
+	broadcastSync(play);
 }
 
 void MainWindow::toggleShowCoordinates()
@@ -1171,6 +1339,11 @@ void MainWindow::toggleShowCoordinates()
 		mCoordinatesAction->setChecked(mShowCoordinates);
 	}
 	updateZoomStatus();
+
+	SyncMessage message;
+	message.command = SyncMessage::DisplayOptions;
+	message.first = static_cast<qint32>(displayOptionBits());
+	broadcastSync(message);
 }
 
 void MainWindow::toggleYOnly()
@@ -1180,6 +1353,11 @@ void MainWindow::toggleYOnly()
 		mYOnlyAction->setChecked(mYOnly);
 	}
 	updateView();
+
+	SyncMessage message;
+	message.command = SyncMessage::DisplayOptions;
+	message.first = static_cast<qint32>(displayOptionBits());
+	broadcastSync(message);
 }
 
 void MainWindow::toggleInterpolate()
@@ -1191,6 +1369,11 @@ void MainWindow::toggleInterpolate()
 	updateView();
 	statusBar()->showMessage(
 		mInterpolate ? tr("Interpolation on") : tr("Interpolation off"), 1500);
+
+	SyncMessage message;
+	message.command = SyncMessage::DisplayOptions;
+	message.first = static_cast<qint32>(displayOptionBits());
+	broadcastSync(message);
 }
 
 void MainWindow::showAbout()
@@ -1646,8 +1829,10 @@ bool MainWindow::openRawFile(const QString &fileName, int width, int height, con
 	}
 
 	resetPlayback();
+	showImagePage();
 	mCurrentFile = fileName;
 	mCurrentFileIsRaw = true;
+	mCurrentSourceOnDisk = true;
 	mIsY4m = false;
 	mRawColorSpaceName = colorSpaceName;
 	mRawFrameSize = frameSize;
@@ -1662,6 +1847,7 @@ bool MainWindow::openRawFile(const QString &fileName, int width, int height, con
 	const bool ok = loadRawFrame(0);
 	if (ok) {
 		resizeToImage();
+		watchCurrentFile();
 	}
 	return ok;
 }
@@ -1676,8 +1862,10 @@ bool MainWindow::openY4mFile(const QString &fileName)
 	}
 
 	resetPlayback();
+	showImagePage();
 	mCurrentFile = fileName;
 	mCurrentFileIsRaw = true;
+	mCurrentSourceOnDisk = true;
 	mIsY4m = true;
 	mY4mHeaderLen = info.headerLength;
 	mY4mFrameMarkerLen = info.frameMarkerLength;
@@ -1701,8 +1889,421 @@ bool MainWindow::openY4mFile(const QString &fileName)
 	if (ok) {
 		resizeToImage();
 		addToRecentFiles(mCurrentFile);
+		watchCurrentFile();
 	}
 	return ok;
+}
+
+bool MainWindow::openVideoFile(const QString &fileName)
+{
+#ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
+	if (!mVideoView) {
+		mVideoView = new VideoView;
+		mCentralStack->addWidget(mVideoView);
+		// Media loads asynchronously, so the success/failure of a clip is only
+		// known later: add it to the recent list once it really loads, and on an
+		// error surface the message and don't leave a dud in the recents.
+		connect(mVideoView, &VideoView::loaded, this, [this]() {
+			if (mShowingVideo) {
+				addToRecentFiles(mCurrentFile);
+			}
+		});
+		// The transport bar's own play/pause button toggles the player directly;
+		// mirror that press to sibling windows too (Space/menu broadcast via
+		// togglePlayback()).
+		connect(mVideoView, &VideoView::playbackToggled, this, [this](bool playing) {
+			SyncMessage message;
+			message.command = SyncMessage::Playback;
+			message.first = playing ? 1 : 0;
+			broadcastSync(message);
+		});
+		connect(mVideoView, &VideoView::errorOccurred, this, [this](const QString &message) {
+			if (!mShowingVideo) {
+				return;
+			}
+			const QString shown = QFileInfo(mCurrentFile).fileName();
+			QMessageBox::warning(this, tr("Open video"),
+				tr("Could not play %1:\n%2").arg(shown, message));
+			// A hard decode/resource error means the clip didn't really open
+			// (it was never added to recents). Reset to a clean empty view rather
+			// than leaving the dud as the current/watched source on a blank page.
+			closeCurrentFile();
+		});
+	}
+
+	resetPlayback();
+	// Clearing the image state disables the image-only actions while the video
+	// page is showing, and lets refreshControlMenus()/updateZoomStatus() treat
+	// "no still image" correctly.
+	mImage = QImage();
+	mCurrentFile = fileName;
+	mCurrentFileIsRaw = false;
+	mCurrentSourceOnDisk = true;
+	mIsY4m = false;
+	mRawFrameSize = 0;
+	mRawFrameCount = 0;
+	mCurrentFrame = 0;
+	mRotationQuarterTurns = 0;
+	mCursorImagePoint = QPoint(-1, -1);
+	clearSelection();
+
+	mShowingVideo = true;
+	mCentralStack->setCurrentWidget(mVideoView);
+	// The synchronous return is best-effort; real decode errors arrive later via
+	// errorOccurred, and recent-files is gated on the async loaded signal above.
+	const bool ok = mVideoView->open(fileName);
+
+	setWindowTitle(tr("%1 - Q1View Qt").arg(QFileInfo(fileName).fileName()));
+	watchCurrentFile();
+	refreshControlMenus();
+	updateZoomStatus();
+	return ok;
+#else
+	Q_UNUSED(fileName);
+	return false;
+#endif
+}
+
+void MainWindow::showImagePage()
+{
+#ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
+	if (mShowingVideo && mVideoView) {
+		mVideoView->stop();
+	}
+#endif
+	mShowingVideo = false;
+	mCentralStack->setCurrentWidget(mScrollArea);
+}
+
+void MainWindow::watchCurrentFile()
+{
+	if (!mFileWatcher) {
+		return;
+	}
+
+	// Drop the previous watch first; QFileSystemWatcher keeps paths until removed.
+	const QStringList watchedFiles = mFileWatcher->files();
+	if (!watchedFiles.isEmpty()) {
+		mFileWatcher->removePaths(watchedFiles);
+	}
+	const QStringList watchedDirs = mFileWatcher->directories();
+	if (!watchedDirs.isEmpty()) {
+		mFileWatcher->removePaths(watchedDirs);
+	}
+
+	mWatchedSize = -1;
+	mWatchedMtimeMs = -1;
+	// Skip non-file sources (the synthetic "Clipboard") so we never watch the
+	// working directory by accident.
+	if (!mAutoReload || !mCurrentSourceOnDisk || mCurrentFile.isEmpty()) {
+		return;
+	}
+
+	const QFileInfo info(mCurrentFile);
+	// Always watch the directory when it exists, even if the file is momentarily
+	// gone mid-save: an atomic "write temp + rename" briefly deletes the target,
+	// and the directory watch is what catches it reappearing (the Windows
+	// FileChangeNotiThread likewise watches the containing directory handle).
+	const QString dir = info.absolutePath();
+	if (!dir.isEmpty() && QFileInfo::exists(dir)) {
+		mFileWatcher->addPath(dir);
+	}
+
+	if (info.exists() && info.isFile()) {
+		mFileWatcher->addPath(info.absoluteFilePath());
+		mWatchedSize = info.size();
+		mWatchedMtimeMs = info.lastModified().toMSecsSinceEpoch();
+	}
+}
+
+void MainWindow::onWatchedPathChanged(const QString &path)
+{
+	Q_UNUSED(path);
+	if (!mAutoReload || mCurrentFile.isEmpty()) {
+		return;
+	}
+
+	const QFileInfo info(mCurrentFile);
+	if (!info.exists() || !info.isFile()) {
+		// Vanished mid-save (atomic replace); let reloadCurrentSource() re-arm.
+		mReloadTimer->start();
+		return;
+	}
+
+	// Ignore directoryChanged noise from unrelated siblings: only react when our
+	// file's own bytes actually changed.
+	const qint64 size = info.size();
+	const qint64 mtime = info.lastModified().toMSecsSinceEpoch();
+	if (size == mWatchedSize && mtime == mWatchedMtimeMs) {
+		return;
+	}
+	mWatchedSize = size;
+	mWatchedMtimeMs = mtime;
+
+	// Coalesce the burst of signals a single save produces; reloadCurrentSource()
+	// re-arms the watch afterwards (the file may have been replaced).
+	mReloadTimer->start();
+}
+
+void MainWindow::reloadCurrentSource()
+{
+	if (mCurrentFile.isEmpty()) {
+		return;
+	}
+	const QFileInfo info(mCurrentFile);
+	if (!info.exists() || !info.isFile()) {
+		// Missing mid-save (atomic replace); stay armed for the recreated file.
+		watchCurrentFile();
+		return;
+	}
+
+#ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
+	if (mShowingVideo) {
+		if (mVideoView) {
+			mVideoView->open(mCurrentFile);
+		}
+		watchCurrentFile();
+		return;
+	}
+#endif
+
+	// Preserve the on-screen view so an in-place edit does not jump the image.
+	const double savedScale = mScaleFactor;
+	const bool savedFit = mFitToWindow;
+	const int savedH = mScrollArea->horizontalScrollBar()->value();
+	const int savedV = mScrollArea->verticalScrollBar()->value();
+	const QRect savedSelection = mSelectionRect;
+	const int savedRotation = mRotationQuarterTurns;
+	const int savedFrame = mCurrentFrame;
+
+	bool ok = false;
+	if (mCurrentFileIsRaw && mIsY4m) {
+		q1y4m::Y4mInfo y4m;
+		if (q1y4m::parseY4m(mCurrentFile, &y4m)) {
+			mY4mHeaderLen = y4m.headerLength;
+			mY4mFrameMarkerLen = y4m.frameMarkerLength;
+			mRawColorSpaceName = y4m.colorSpaceName;
+			mRawFrameSize = y4m.frameDataSize;
+			mRawWidth = y4m.width;
+			mRawHeight = y4m.height;
+			mRawFrameCount = y4m.frameCount;
+			ok = loadRawFrame(std::clamp(savedFrame, 0, std::max(0, mRawFrameCount - 1)));
+		}
+	} else if (mCurrentFileIsRaw) {
+		const qint64 fileSize = info.size();
+		if (mRawFrameSize > 0 && fileSize >= mRawFrameSize) {
+			mRawFrameCount = static_cast<int>(fileSize / mRawFrameSize);
+			ok = loadRawFrame(std::clamp(savedFrame, 0, std::max(0, mRawFrameCount - 1)));
+		}
+	} else {
+		QImageReader reader(mCurrentFile);
+		reader.setAutoTransform(true);
+		QImage image = reader.read();
+		if (image.isNull() && q1qt::isHeifFile(mCurrentFile)) {
+			image = q1qt::readHeif(mCurrentFile);
+		}
+		if (!image.isNull()) {
+			mImage = image;
+			ok = true;
+		}
+	}
+
+	if (!ok) {
+		// A partial write can momentarily fail to decode; keep the current image
+		// and stay armed for the next change.
+		watchCurrentFile();
+		return;
+	}
+
+	// Restore the saved view over whatever the loaders reset.
+	mRotationQuarterTurns = savedRotation;
+	mSelectionRect = savedSelection;
+	mFitToWindow = savedFit;
+	if (!savedFit) {
+		mScaleFactor = savedScale;
+	}
+	updateView();
+	if (!savedFit) {
+		mScrollArea->horizontalScrollBar()->setValue(savedH);
+		mScrollArea->verticalScrollBar()->setValue(savedV);
+	}
+	refreshControlMenus();
+	updateZoomStatus();
+	statusBar()->showMessage(tr("Reloaded %1").arg(info.fileName()), 1500);
+	watchCurrentFile();
+}
+
+void MainWindow::toggleAutoReload()
+{
+	mAutoReload = !mAutoReload;
+	if (mAutoReloadAction) {
+		mAutoReloadAction->setChecked(mAutoReload);
+	}
+	QSettings settings;
+	settings.setValue(QStringLiteral("autoReload"), mAutoReload);
+
+	if (mAutoReload) {
+		watchCurrentFile();
+		statusBar()->showMessage(tr("Auto-reload on change: on"), 1500);
+	} else {
+		mReloadTimer->stop();
+		watchCurrentFile(); // with mAutoReload false this clears the watch
+		statusBar()->showMessage(tr("Auto-reload on change: off"), 1500);
+	}
+}
+
+void MainWindow::toggleSyncInput()
+{
+	const bool enable = !mSyncChannel->isEnabled();
+	if (enable && !mSyncChannel->setEnabled(true)) {
+		QMessageBox::warning(this, tr("Sync Input"),
+			tr("Could not set up the cross-window sync channel."));
+		if (mSyncInputAction) {
+			mSyncInputAction->setChecked(false);
+		}
+		return;
+	}
+	if (!enable) {
+		mSyncChannel->setEnabled(false);
+	}
+	if (mSyncInputAction) {
+		mSyncInputAction->setChecked(mSyncChannel->isEnabled());
+	}
+	statusBar()->showMessage(mSyncChannel->isEnabled()
+		? tr("Sync Input: on (mirroring to other Q1View Qt windows)")
+		: tr("Sync Input: off"), 2000);
+}
+
+void MainWindow::broadcastSync(const SyncMessage &message)
+{
+	if (mApplyingSync || !mSyncChannel->isEnabled()) {
+		return;
+	}
+	mSyncChannel->send(message);
+}
+
+void MainWindow::broadcastViewState(bool force)
+{
+	if (mApplyingSync || !mSyncChannel->isEnabled() || mImage.isNull()) {
+		return;
+	}
+	// Throttle continuous pan/zoom so a drag doesn't flood the channel, matching
+	// the MFC viewer's ~16 ms guard on VIEWER_SYNC_VIEW_STATE.
+	const qint64 now = QDateTime::currentMSecsSinceEpoch();
+	if (!force && now - mLastViewStateBroadcastMs < 30) {
+		return;
+	}
+	mLastViewStateBroadcastMs = now;
+
+	SyncMessage message;
+	message.command = SyncMessage::ViewState;
+	message.scalar = mScaleFactor;
+	message.x = mScrollArea->horizontalScrollBar()->value();
+	message.y = mScrollArea->verticalScrollBar()->value();
+	mSyncChannel->send(message);
+}
+
+quint32 MainWindow::displayOptionBits() const
+{
+	quint32 bits = 0;
+	if (mYOnly) {
+		bits |= SyncMessage::YOnly;
+	}
+	if (mInterpolate) {
+		bits |= SyncMessage::Interpolate;
+	}
+	if (mShowCoordinates) {
+		bits |= SyncMessage::Coordinates;
+	}
+	return bits;
+}
+
+void MainWindow::applySyncMessage(const SyncMessage &message)
+{
+	if (!mSyncChannel->isEnabled()) {
+		return;
+	}
+
+	// Re-entrancy guard: the local actions invoked below would otherwise call
+	// broadcastSync() again and ping-pong between instances.
+	mApplyingSync = true;
+	switch (message.command) {
+	case SyncMessage::SeekFrame:
+		if (mCurrentFileIsRaw && mRawFrameCount > 1) {
+			loadRawFrame(std::clamp(message.first, 0, mRawFrameCount - 1));
+		}
+		break;
+	case SyncMessage::FirstFile:
+		firstFrameOrFile();
+		break;
+	case SyncMessage::LastFile:
+		lastFrameOrFile();
+		break;
+	case SyncMessage::PreviousFile:
+		previousFrameOrFile();
+		break;
+	case SyncMessage::NextFile:
+		nextFrameOrFile();
+		break;
+	case SyncMessage::ViewState:
+		if (!mImage.isNull()) {
+			mFitToWindow = false;
+			if (mFitToWindowAction) {
+				mFitToWindowAction->setChecked(false);
+			}
+			mScaleFactor = std::max(0.02, std::min(64.0, message.scalar));
+			updateView();
+			mScrollArea->horizontalScrollBar()->setValue(static_cast<int>(message.x));
+			mScrollArea->verticalScrollBar()->setValue(static_cast<int>(message.y));
+			updateZoomStatus();
+		}
+		break;
+	case SyncMessage::Rotate:
+		rotateClockwise();
+		break;
+	case SyncMessage::Playback:
+#ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
+		if (mShowingVideo && mVideoView) {
+			if ((message.first != 0) != mVideoView->isPlaying()) {
+				if (message.first != 0) {
+					mVideoView->play();
+				} else {
+					mVideoView->pause();
+				}
+			}
+			break;
+		}
+#endif
+		if ((message.first != 0) != mPlayTimer->isActive()) {
+			togglePlayback();
+		}
+		break;
+	case SyncMessage::DisplayOptions: {
+		const quint32 bits = static_cast<quint32>(message.first);
+		if (((bits & SyncMessage::YOnly) != 0) != mYOnly) {
+			toggleYOnly();
+		}
+		if (((bits & SyncMessage::Interpolate) != 0) != mInterpolate) {
+			toggleInterpolate();
+		}
+		if (((bits & SyncMessage::Coordinates) != 0) != mShowCoordinates) {
+			toggleShowCoordinates();
+		}
+		break;
+	}
+	case SyncMessage::ColorSpace:
+		applyColorSpace(message.text);
+		break;
+	case SyncMessage::Resolution:
+		applyResolution(message.first, message.second);
+		break;
+	case SyncMessage::Fps:
+		applyFps(message.scalar);
+		break;
+	default:
+		break;
+	}
+	mApplyingSync = false;
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent *event)
@@ -1830,6 +2431,7 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 			mScrollArea->horizontalScrollBar()->setValue(mScrollArea->horizontalScrollBar()->value() - delta.x());
 			mScrollArea->verticalScrollBar()->setValue(mScrollArea->verticalScrollBar()->value() - delta.y());
 			mLastPanPoint = mouseEvent->pos();
+			broadcastViewState(false);
 			mouseEvent->accept();
 			return true;
 		}
@@ -1865,6 +2467,7 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 		if (mouseEvent->button() == Qt::LeftButton && mIsPanning) {
 			mIsPanning = false;
 			mScrollArea->viewport()->unsetCursor();
+			broadcastViewState(true);
 			mouseEvent->accept();
 			return true;
 		}
@@ -1885,6 +2488,9 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 		menu.addSeparator();
 		menu.addAction(mCopyAction);
 		menu.addAction(mSaveAsAction);
+		menu.addSeparator();
+		menu.addAction(mAutoReloadAction);
+		menu.addAction(mSyncInputAction);
 		menu.exec(contextEvent->globalPos());
 		contextEvent->accept();
 		return true;

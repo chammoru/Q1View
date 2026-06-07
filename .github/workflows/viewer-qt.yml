@@ -42,6 +42,10 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: "6.5.3"
+          # qtmultimedia adds Qt6::Multimedia / MultimediaWidgets so the viewer
+          # builds its video-playback page; windeployqt / linuxdeploy bundle the
+          # multimedia plugins from it.
+          modules: qtmultimedia
           cache: true
 
       # HEIF/HEIC/AVIF decode needs libheif. install-qt-action does not ship it,
