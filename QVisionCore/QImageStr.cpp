@@ -1,12 +1,19 @@
 #include <stdlib.h>
 #include <errno.h>
+#include <limits.h>
 #include <string.h>
 #include <ctype.h>
+
+#include <string>
 
 #include "QCommon.h"
 #include "QDebug.h"
 
-#include "QViewerCmn.h"
+// QImageStr only needs the shared preset tables, not the OpenCV-heavy viewer
+// common header, so it depends on the dependency-free qimage_presets.h directly.
+// This keeps the translation unit portable enough to compile into the
+// cross-platform core library consumed by the Qt viewer.
+#include "qimage_presets.h"
 #include "qimage_cs.h"
 
 namespace q1 {

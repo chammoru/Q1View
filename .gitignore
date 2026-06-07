@@ -37,6 +37,7 @@ bld/
 dist/
 opencv-4.3.0/
 opencv-4.3.0-build/
+build-qt/
 
 # LPIPS model is a runtime download / GitHub release asset, not committed
 # (Path B, see docs/LPIPS_distribution_design.md). The local copy under models/

@@ -6,6 +6,7 @@
 #include "Y4mReader.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QByteArray>
 #include <QClipboard>
@@ -18,8 +19,10 @@
 #include <QGesture>
 #include <QGestureEvent>
 #include <QImageReader>
+#include <QInputDialog>
 #include <QIODevice>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -38,12 +41,18 @@
 #include <QTimer>
 #include <QTransform>
 #include <QUrl>
+#include <QVariant>
 #include <QWheelEvent>
 
 #include <algorithm>
 #include <cmath>
 
 #include "qimage_cs.h"
+#include "qimage_presets.h"
+#include "qimage_util.h"
+// Shared "WxH" / numeric label parsing, reused from the cross-platform core so
+// the Qt viewer and the MFC front-ends interpret the preset tables identically.
+#include "QImageStr.h"
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent),
@@ -61,6 +70,15 @@ MainWindow::MainWindow(QWidget *parent)
 	  mYOnlyAction(nullptr),
 	  mCoordinatesAction(nullptr),
 	  mPlayAction(nullptr),
+	  mResolutionMenu(nullptr),
+	  mColorSpaceMenu(nullptr),
+	  mFpsMenu(nullptr),
+	  mResolutionGroup(nullptr),
+	  mColorSpaceGroup(nullptr),
+	  mFpsGroup(nullptr),
+	  mMagnifyLabel(nullptr),
+	  mHelpOverlay(nullptr),
+	  mFps(30.0),
 	  mRawFrameSize(0),
 	  mRawWidth(0),
 	  mRawHeight(0),
@@ -98,11 +116,33 @@ MainWindow::MainWindow(QWidget *parent)
 	setAcceptDrops(true);
 	setFocusPolicy(Qt::StrongFocus);
 
-	mPlayTimer->setInterval(33);
+	mPlayTimer->setInterval(static_cast<int>(1000.0 / mFps + 0.5));
 	connect(mPlayTimer, &QTimer::timeout, this, &MainWindow::nextFrameOrFile);
+
+	// Translucent shortcut overlay. Parented to the viewport so it stays pinned to
+	// the visible area instead of scrolling with the image, mirroring the MFC
+	// viewer's in-canvas help rather than a modal dialog.
+	mHelpOverlay = new QLabel(mScrollArea->viewport());
+	mHelpOverlay->setText(helpText());
+	mHelpOverlay->setTextFormat(Qt::PlainText);
+	mHelpOverlay->setMargin(16);
+	{
+		QFont overlayFont(QStringLiteral("Cascadia Mono"));
+		overlayFont.setStyleHint(QFont::Monospace);
+		overlayFont.setPointSize(10);
+		mHelpOverlay->setFont(overlayFont);
+	}
+	// Colors mirror Q1UI_COLOR_OVERLAY / Q1UI_COLOR_OVERLAY_TEXT in QViewerCmn.h.
+	mHelpOverlay->setStyleSheet(QStringLiteral(
+		"background-color: rgba(32, 42, 54, 235);"
+		"color: #f8fafc;"
+		"border-radius: 8px;"));
+	mHelpOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+	mHelpOverlay->hide();
 
 	loadSettings();
 	createActions();
+	refreshControlMenus();
 	updateZoomStatus();
 	statusBar()->showMessage(tr("Ready"));
 	setWindowTitle(tr("Q1View Qt"));
@@ -211,6 +251,10 @@ void MainWindow::createActions()
 	exitAction->setShortcut(QKeySequence::Quit);
 	connect(exitAction, &QAction::triggered, this, &QWidget::close);
 
+	// Resolution / color space / FPS dropdowns sit right after File, matching the
+	// MFC viewer's menu bar layout.
+	createControlMenus();
+
 	QMenu *editMenu = menuBar()->addMenu(tr("&Edit"));
 
 	mCopyAction = editMenu->addAction(tr("&Copy"));
@@ -304,6 +348,266 @@ void MainWindow::createActions()
 	mPlayAction->setShortcut(QKeySequence(tr("Space")));
 	mPlayAction->setCheckable(true);
 	connect(mPlayAction, &QAction::triggered, this, &MainWindow::togglePlayback);
+
+	// Live magnification readout pinned to the menu bar's right corner, mirroring
+	// the MFC viewer's right-justified "WxH (n.nnx)" item.
+	mMagnifyLabel = new QLabel(menuBar());
+	mMagnifyLabel->setContentsMargins(0, 0, 12, 0);
+	menuBar()->setCornerWidget(mMagnifyLabel, Qt::TopRightCorner);
+}
+
+void MainWindow::createControlMenus()
+{
+	mResolutionMenu = menuBar()->addMenu(QStringLiteral("1920x1080"));
+	mResolutionGroup = new QActionGroup(this);
+	mResolutionGroup->setExclusive(true);
+	for (size_t i = 0; i < ARRAY_SIZE(q1::resolution_info_table); ++i) {
+		const char *entry = q1::resolution_info_table[i];
+		const QString label = QString::fromLatin1(entry);
+		int w = 0;
+		int h = 0;
+		// image_parse_w_h() returns 0 when it pulls a "WxH" out of the label.
+		if (q1::image_parse_w_h(entry, &w, &h) != 0) {
+			// The trailing "C&ustom..." sentinel.
+			mResolutionMenu->addSeparator();
+			QAction *customResolution = mResolutionMenu->addAction(label);
+			connect(customResolution, &QAction::triggered, this, &MainWindow::promptCustomResolution);
+			continue;
+		}
+		QAction *action = mResolutionMenu->addAction(label);
+		action->setCheckable(true);
+		action->setData(QSize(w, h));
+		mResolutionGroup->addAction(action);
+		connect(action, &QAction::triggered, this, [this, w, h]() { applyResolution(w, h); });
+	}
+
+	mColorSpaceMenu = menuBar()->addMenu(QStringLiteral("YUV420"));
+	mColorSpaceGroup = new QActionGroup(this);
+	mColorSpaceGroup->setExclusive(true);
+	for (size_t i = 0; i < ARRAY_SIZE(qcsc_info_table); ++i) {
+		// Only color spaces with a raw loader/converter can be applied to a file,
+		// matching the formats offered by the Open Raw dialog.
+		if (!qcsc_info_table[i].cs_load_info || !qcsc_info_table[i].csc2rgb888) {
+			continue;
+		}
+		const QString name = QString::fromLatin1(qcsc_info_table[i].name);
+		QAction *action = mColorSpaceMenu->addAction(name.toUpper());
+		action->setCheckable(true);
+		action->setData(name);
+		mColorSpaceGroup->addAction(action);
+		connect(action, &QAction::triggered, this, [this, name]() { applyColorSpace(name); });
+	}
+
+	mFpsMenu = menuBar()->addMenu(QStringLiteral("30.00fps"));
+	mFpsGroup = new QActionGroup(this);
+	mFpsGroup->setExclusive(true);
+	for (size_t i = 0; i < ARRAY_SIZE(qfps_info_table); ++i) {
+		const QString entry = QString::fromLatin1(qfps_info_table[i]);
+		if (!entry.endsWith(QStringLiteral("fps"))) {
+			// The trailing "C&ustom..." sentinel.
+			mFpsMenu->addSeparator();
+			QAction *customFps = mFpsMenu->addAction(entry);
+			connect(customFps, &QAction::triggered, this, &MainWindow::promptCustomFps);
+			continue;
+		}
+		const double fps = entry.left(entry.size() - 3).toDouble();
+		QAction *action = mFpsMenu->addAction(entry);
+		action->setCheckable(true);
+		action->setData(fps);
+		mFpsGroup->addAction(action);
+		connect(action, &QAction::triggered, this, [this, fps]() { applyFps(fps); });
+	}
+}
+
+void MainWindow::refreshControlMenus()
+{
+	// Resolution and color space can only be reinterpreted for our own packed raw
+	// sources; structured images carry their own dimensions, and Y4M defines them
+	// in its container header.
+	const bool rawTweakable = mCurrentFileIsRaw && !mIsY4m;
+	const bool fpsTweakable = mCurrentFileIsRaw && mRawFrameCount > 1;
+
+	if (mResolutionMenu) {
+		mResolutionMenu->menuAction()->setEnabled(rawTweakable);
+		int w = mRawOptions.width;
+		int h = mRawOptions.height;
+		if (rawTweakable) {
+			w = mRawWidth;
+			h = mRawHeight;
+		} else if (!mImage.isNull()) {
+			// Structured images carry their own dimensions; show them (disabled).
+			w = mImage.width();
+			h = mImage.height();
+		}
+		const QString title = QStringLiteral("%1x%2").arg(w).arg(h);
+		if (mResolutionMenu->title() != title) {
+			mResolutionMenu->setTitle(title);
+		}
+		const QSize current(w, h);
+		for (QAction *action : mResolutionGroup->actions()) {
+			action->setChecked(action->data().toSize() == current);
+		}
+	}
+
+	if (mColorSpaceMenu) {
+		mColorSpaceMenu->menuAction()->setEnabled(rawTweakable);
+		const QString name = rawTweakable ? mRawColorSpaceName : mRawOptions.colorSpaceName;
+		const QString title = name.toUpper();
+		if (mColorSpaceMenu->title() != title) {
+			mColorSpaceMenu->setTitle(title);
+		}
+		for (QAction *action : mColorSpaceGroup->actions()) {
+			action->setChecked(action->data().toString() == name);
+		}
+	}
+
+	if (mFpsMenu) {
+		mFpsMenu->menuAction()->setEnabled(fpsTweakable);
+		const QString title = QStringLiteral("%1fps").arg(mFps, 0, 'f', 2);
+		if (mFpsMenu->title() != title) {
+			mFpsMenu->setTitle(title);
+		}
+		for (QAction *action : mFpsGroup->actions()) {
+			action->setChecked(action->data().toDouble() == mFps);
+		}
+	}
+}
+
+void MainWindow::updateMagnifyLabel()
+{
+	if (!mMagnifyLabel) {
+		return;
+	}
+
+	if (mImage.isNull()) {
+		mMagnifyLabel->clear();
+		return;
+	}
+
+	// mImageView is sized to the on-screen (scaled, rotated) pixmap, so its size is
+	// exactly the destination dimensions the MFC readout reports.
+	mMagnifyLabel->setText(QStringLiteral("%1x%2 (%3x)")
+		.arg(mImageView->width())
+		.arg(mImageView->height())
+		.arg(mScaleFactor, 0, 'f', 2));
+}
+
+void MainWindow::applyResolution(int width, int height)
+{
+	if (width <= 0 || height <= 0) {
+		refreshControlMenus();
+		return;
+	}
+
+	if (mCurrentFileIsRaw && !mIsY4m && !mCurrentFile.isEmpty()
+		&& (width != mRawWidth || height != mRawHeight)) {
+		if (openRawFile(mCurrentFile, width, height, mRawColorSpaceName)) {
+			mRawOptions.width = width;
+			mRawOptions.height = height;
+			saveRawSettings();
+		}
+	}
+	refreshControlMenus();
+}
+
+void MainWindow::applyColorSpace(const QString &colorSpaceName)
+{
+	if (mCurrentFileIsRaw && !mIsY4m && !mCurrentFile.isEmpty()
+		&& colorSpaceName != mRawColorSpaceName) {
+		if (openRawFile(mCurrentFile, mRawWidth, mRawHeight, colorSpaceName)) {
+			mRawOptions.colorSpaceName = colorSpaceName;
+			saveRawSettings();
+		}
+	}
+	refreshControlMenus();
+}
+
+void MainWindow::applyFps(double fps)
+{
+	if (fps > 0.0) {
+		mFps = fps;
+		mPlayTimer->setInterval(static_cast<int>(1000.0 / mFps + 0.5));
+	}
+	refreshControlMenus();
+}
+
+void MainWindow::promptCustomResolution()
+{
+	bool ok = false;
+	const int width = QInputDialog::getInt(this, tr("Custom resolution"), tr("Width"),
+		mCurrentFileIsRaw ? mRawWidth : mRawOptions.width, 1, 32768, 1, &ok);
+	if (!ok) {
+		refreshControlMenus();
+		return;
+	}
+	const int height = QInputDialog::getInt(this, tr("Custom resolution"), tr("Height"),
+		mCurrentFileIsRaw ? mRawHeight : mRawOptions.height, 1, 32768, 1, &ok);
+	if (!ok) {
+		refreshControlMenus();
+		return;
+	}
+	applyResolution(width, height);
+}
+
+void MainWindow::promptCustomFps()
+{
+	bool ok = false;
+	const double fps = QInputDialog::getDouble(this, tr("Custom FPS"), tr("Frames per second"),
+		mFps, 0.01, 1000.0, 2, &ok);
+	if (ok) {
+		applyFps(fps);
+	} else {
+		refreshControlMenus();
+	}
+}
+
+QString MainWindow::helpText() const
+{
+	return tr("Mouse wheel / trackpad: zoom\n"
+		"Left drag: pan image\n"
+		"Ctrl+O: open image\n"
+		"Ctrl+V: paste image from clipboard\n"
+		"Ctrl+C: copy image or selection to clipboard\n"
+		"Ctrl+Alt+S: save current image or selection\n"
+		"R: rotate 90 degrees clockwise\n"
+		"Y: toggle Y-only view\n"
+		"C: toggle cursor coordinates\n"
+		"S: selection mode (drag to select a region)\n"
+		"Esc: clear selection\n"
+		"Zoom in past 16x: per-pixel value overlay\n"
+		"Left/Right: previous or next raw frame\n"
+		"Page Up/Down: previous or next file\n"
+		"Home/End: first or last frame/file\n"
+		"Space: play or stop raw sequence\n"
+		"Return: full screen\n"
+		"?: toggle this help");
+}
+
+void MainWindow::toggleHelpOverlay()
+{
+	if (!mHelpOverlay) {
+		return;
+	}
+
+	if (mHelpOverlay->isVisible()) {
+		mHelpOverlay->hide();
+		return;
+	}
+
+	positionHelpOverlay();
+	mHelpOverlay->show();
+	mHelpOverlay->raise();
+}
+
+void MainWindow::positionHelpOverlay()
+{
+	if (!mHelpOverlay) {
+		return;
+	}
+
+	mHelpOverlay->adjustSize();
+	const QRect viewport = mScrollArea->viewport()->rect();
+	mHelpOverlay->move(viewport.center() - mHelpOverlay->rect().center());
 }
 
 void MainWindow::adjustScrollBar(QScrollBar *scrollBar, double factor)
@@ -360,6 +664,7 @@ void MainWindow::closeCurrentFile()
 	clearSelection();
 	setWindowTitle(tr("Q1View Qt"));
 	updateView();
+	refreshControlMenus();
 }
 
 QImage MainWindow::displayImage() const
@@ -624,24 +929,7 @@ void MainWindow::saveImageAs()
 
 void MainWindow::showHelp()
 {
-	QMessageBox::information(this, tr("Viewer shortcuts"),
-		tr("Mouse wheel / trackpad: zoom\n"
-		   "Left drag: pan image\n"
-		   "Ctrl+O: open image\n"
-		   "Ctrl+V: paste image from clipboard\n"
-		   "Ctrl+C: copy image or selection to clipboard\n"
-		   "Ctrl+Alt+S: save current image or selection\n"
-		   "R: rotate 90 degrees clockwise\n"
-		   "Y: toggle Y-only view\n"
-		   "C: toggle cursor coordinates\n"
-		   "S: selection mode (drag to select a region)\n"
-		   "Esc: clear selection\n"
-		   "Zoom in past 16x: per-pixel value overlay\n"
-		   "Left/Right: previous or next raw frame\n"
-		   "Page Up/Down: previous or next file\n"
-		   "Home/End: first or last frame/file\n"
-		   "Space: play or stop raw sequence\n"
-		   "Return: full screen"));
+	toggleHelpOverlay();
 }
 
 QPoint MainWindow::sourcePointFromDisplayPoint(const QPoint &point) const
@@ -801,6 +1089,7 @@ void MainWindow::updateImage()
 
 	const QFileInfo info(mCurrentFile);
 	setWindowTitle(tr("%1 - Q1View Qt").arg(info.fileName()));
+	refreshControlMenus();
 	updateZoomStatus();
 }
 
@@ -896,6 +1185,7 @@ QRect MainWindow::imageRectFromViewport(const QPoint &a, const QPoint &b) const
 void MainWindow::updateZoomStatus()
 {
 	const bool hasImage = !mImage.isNull();
+	updateMagnifyLabel();
 	if (mSaveAsAction) {
 		mSaveAsAction->setEnabled(hasImage);
 	}
@@ -1077,6 +1367,10 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 {
 	if (object != mScrollArea->viewport()) {
 		return QMainWindow::eventFilter(object, event);
+	}
+
+	if (event->type() == QEvent::Resize && mHelpOverlay && mHelpOverlay->isVisible()) {
+		positionHelpOverlay();
 	}
 
 	if (event->type() == QEvent::Wheel && !mImage.isNull()) {

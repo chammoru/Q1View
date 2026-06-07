@@ -13,8 +13,11 @@ class ImageView;
 class QDragEnterEvent;
 class QDropEvent;
 class QAction;
+class QActionGroup;
 class QEvent;
 class QKeyEvent;
+class QLabel;
+class QMenu;
 class QMouseEvent;
 class QResizeEvent;
 class QRubberBand;
@@ -34,6 +37,21 @@ public:
 
 private:
 	void createActions();
+	// Builds the MFC-style "control panel" menus (resolution / color space / FPS)
+	// that sit on the menu bar between File and Edit.
+	void createControlMenus();
+	// Syncs the control menus' titles, radio checks, and enabled state to the
+	// currently loaded image (raw vs. structured, Y4M, frame count).
+	void refreshControlMenus();
+	void updateMagnifyLabel();
+	void applyResolution(int width, int height);
+	void applyColorSpace(const QString &colorSpaceName);
+	void applyFps(double fps);
+	void promptCustomResolution();
+	void promptCustomFps();
+	QString helpText() const;
+	void toggleHelpOverlay();
+	void positionHelpOverlay();
 	void adjustScrollBar(QScrollBar *scrollBar, double factor);
 	void applyZoom(double factor, const QPoint *anchor = nullptr);
 	void closeCurrentFile();
@@ -93,6 +111,18 @@ private:
 	QAction *mYOnlyAction;
 	QAction *mCoordinatesAction;
 	QAction *mPlayAction;
+	// MFC-style control-panel menus shown on the menu bar (raw sources only).
+	QMenu *mResolutionMenu;
+	QMenu *mColorSpaceMenu;
+	QMenu *mFpsMenu;
+	QActionGroup *mResolutionGroup;
+	QActionGroup *mColorSpaceGroup;
+	QActionGroup *mFpsGroup;
+	// Live magnification readout pinned to the menu bar's right corner.
+	QLabel *mMagnifyLabel;
+	// Translucent shortcut overlay drawn over the viewport (replaces the dialog).
+	QLabel *mHelpOverlay;
+	double mFps;
 	QImage mImage;
 	QString mCurrentFile;
 	RawOpenOptions mRawOptions;

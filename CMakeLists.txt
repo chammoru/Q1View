@@ -15,6 +15,10 @@ add_library(q1view_image_core STATIC
     QVisionCore/qimage_cs.c
     QVisionCore/qimage_metrics.c
     QVisionCore/qimage_util.c
+    # Portable image-string helpers (resolution/FPS/colour-space label parsing)
+    # shared by the MFC front-ends and the Qt viewer. QImageStr.cpp no longer
+    # pulls in the OpenCV-heavy QViewerCmn.h, so it compiles cleanly here.
+    QVisionCore/QImageStr.cpp
 )
 
 target_include_directories(q1view_image_core
@@ -25,6 +29,12 @@ target_include_directories(q1view_image_core
 
 if(UNIX AND NOT APPLE)
     target_link_libraries(q1view_image_core PUBLIC m)
+endif()
+
+# QImageStr.cpp uses std::stod, which can throw; make sure C++ unwind semantics
+# are enabled so exceptions propagate correctly (and to silence MSVC C4530).
+if(MSVC)
+    target_compile_options(q1view_image_core PRIVATE /EHsc)
 endif()
 
 add_library(smultithreadplus STATIC

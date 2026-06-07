@@ -4,6 +4,8 @@
 #include <QCommon.h>
 #include <opencv2/core/core.hpp>
 
+#include "qimage_presets.h"
+
 namespace q1 {
 
 #define ZOOM_GAMMA         8.f
@@ -64,25 +66,7 @@ void NearestNeighbor(qu8* src, int h, int w, int hDst, int wDst, int xDst, int y
 void Interpolate(qu8* src, int h, int w, int wCanvas, long xStart, long xEnd,
 	long yStart, long yEnd, qu16* nOffsetBuf, qu8* dst);
 
-// Add new preset resolutions here. Menus in Viewer and Comparator are generated
-// directly from this table.
-static const char *resolution_info_table[] = {
-	"176x144 (QCIF)",
-	"320x240 (QVGA)",
-	"352x288 (CIF)",
-	"640x480 (VGA)",
-	"720x480",
-	"800x600 (SVGA)",
-	"960x540",
-	"1024x600 (WSVGA)",
-	"1024x768 (XGA)",
-	"1280x720 (HD)",
-	"1920x1080 (FHD)",
-	"2560x1600 (WQXGA)",
-	"3840x2160 (4K UHD)",
-	"4096x2160 (Cinema UHD)",
-
-	"C&ustom...",
-};
+// resolution_info_table now lives in the dependency-free qimage_presets.h so the
+// Qt viewer can share it; it is brought into q1 via the include above.
 
 } // namespace q1
