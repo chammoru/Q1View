@@ -80,8 +80,11 @@ Current capabilities:
 - Decodes HEIF/HEIC/AVIF through libheif when the build finds it (see
   `ViewerQt/HeifReader.cpp`). Optional: builds without libheif simply omit the
   feature. Windows reuses the prebuilt root the MSBuild product restores under
-  `.deps`; Unix discovers it via pkg-config. CI runners are not yet wired, so
-  the cross-platform `viewer-qt.yml` builds still ship without HEIF for now.
+  `.deps`; Unix discovers it via pkg-config. The cross-platform `viewer-qt.yml`
+  CI now installs libheif on every matrix platform (apt on Linux, Homebrew on
+  macOS, the prebuilt decode-av1 root via `Ensure-HeifDependency.ps1` on
+  Windows), so those builds enable HEIF and the Windows package ships the
+  libheif runtime DLLs alongside the viewer.
 - Accepts an image path as the first command-line argument.
 - Has `File > Open Raw...`.
 - Loads raw frames by asking for file, width, height, and color space.

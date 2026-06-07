@@ -8,8 +8,10 @@ class QWidget;
 struct RawOpenOptions
 {
 	QString fileName;
-	int width = 1920;
-	int height = 1080;
+	// Default to the viewer's display-area footprint, matching the MFC viewer's
+	// VIEWER_DEF_W x VIEWER_DEF_H rather than a hard-coded 1080p.
+	int width = 500;
+	int height = 392;
 	QString colorSpaceName = QStringLiteral("yuv420");
 };
 

@@ -787,7 +787,8 @@ QStringList MainWindow::imageNameFilters() const
 		<< QStringLiteral("*.rgba8888")
 		<< QStringLiteral("*.yuv420")
 		<< QStringLiteral("*.nv12")
-		<< QStringLiteral("*.nv21");
+		<< QStringLiteral("*.nv21")
+		<< QStringLiteral("*.y4m");
 
 	// Only advertise HEIF-family extensions for navigation when this build can
 	// actually decode them; otherwise stepping onto one would just fail.
@@ -904,7 +905,10 @@ void MainWindow::openAdjacentFile(int direction, bool boundaryOnly)
 
 	const QString nextFile = files[nextIndex].absoluteFilePath();
 	QImageReader reader(nextFile);
-	if (reader.canRead() || (q1qt::heifSupported() && q1qt::isHeifFile(nextFile))) {
+	// Y4M containers go through openFile() (which sniffs and routes them to the
+	// Y4M loader); decoding them as packed raw would fold the header into pixels.
+	if (q1y4m::isY4mFile(nextFile) || reader.canRead()
+		|| (q1qt::heifSupported() && q1qt::isHeifFile(nextFile))) {
 		openFile(nextFile);
 		return;
 	}
@@ -967,18 +971,8 @@ void MainWindow::setActualSize()
 
 void MainWindow::loadSettings()
 {
-	// Default the raw resolution to the actual screen size (not a hard-coded
-	// 1080p) so the first Open Raw guess and the resolution menu reflect this
-	// display, like the MFC viewer; a saved value still takes precedence. Use
-	// physical pixels (logical size x DPR) so HiDPI screens report their true
-	// resolution rather than the scaled-down logical one.
-	if (QScreen *scr = screen()) {
-		const QSize logical = scr->geometry().size();
-		const qreal dpr = scr->devicePixelRatio();
-		mRawOptions.width = qRound(logical.width() * dpr);
-		mRawOptions.height = qRound(logical.height() * dpr);
-	}
-
+	// The default raw resolution comes from RawOpenOptions (the MFC viewer's
+	// 500x392 display-area footprint); a saved value still takes precedence.
 	QSettings settings;
 	mRawOptions.width = settings.value(QStringLiteral("raw/width"), mRawOptions.width).toInt();
 	mRawOptions.height = settings.value(QStringLiteral("raw/height"), mRawOptions.height).toInt();
@@ -1051,6 +1045,13 @@ QPoint MainWindow::sourcePointFromDisplayPoint(const QPoint &point) const
 
 void MainWindow::openDroppedFile(const QString &fileName)
 {
+	// A dropped .y4m is a YUV4MPEG2 container, not headerless raw; parse it via the
+	// Y4M loader instead of prompting with the raw dialog.
+	if (q1y4m::isY4mFile(fileName)) {
+		openY4mFile(fileName);
+		return;
+	}
+
 	QImageReader reader(fileName);
 	if (reader.canRead() || (q1qt::heifSupported() && q1qt::isHeifFile(fileName))) {
 		openFile(fileName);
@@ -1688,6 +1689,12 @@ bool MainWindow::openY4mFile(const QString &fileName)
 	mCurrentFrame = 0;
 	mRotationQuarterTurns = 0;
 	mCursorImagePoint = QPoint(-1, -1);
+	// Honour the Y4M header frame rate (F<num>:<den>); the FPS menu/readout and the
+	// playback timer follow it. A missing/invalid rate keeps the current FPS.
+	if (info.fps > 0.0) {
+		mFps = info.fps;
+		mPlayTimer->setInterval(static_cast<int>(1000.0 / mFps + 0.5));
+	}
 	clearSelection();
 	mFitToWindow = true;
 	const bool ok = loadRawFrame(0);
