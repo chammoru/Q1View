@@ -32,7 +32,7 @@
 #include <QPointF>
 #include <QRect>
 #include <QResizeEvent>
-#include <QRubberBand>
+#include <QScreen>
 #include <QScrollBar>
 #include <QScrollArea>
 #include <QSettings>
@@ -54,6 +54,16 @@
 // the Qt viewer and the MFC front-ends interpret the preset tables identically.
 #include "QImageStr.h"
 
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX // keep std::min/std::max usable alongside <windows.h>
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <QFont>
+#include <QFontMetrics>
+#endif
+
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent),
 	  mImageView(new ImageView),
@@ -69,7 +79,10 @@ MainWindow::MainWindow(QWidget *parent)
 	  mRotateAction(nullptr),
 	  mYOnlyAction(nullptr),
 	  mCoordinatesAction(nullptr),
+	  mInterpolateAction(nullptr),
 	  mPlayAction(nullptr),
+	  mRecentMenu(nullptr),
+	  mInterpolate(false),
 	  mResolutionMenu(nullptr),
 	  mColorSpaceMenu(nullptr),
 	  mFpsMenu(nullptr),
@@ -95,10 +108,10 @@ MainWindow::MainWindow(QWidget *parent)
 	  mYOnly(false),
 	  mRotationQuarterTurns(0),
 	  mCursorImagePoint(-1, -1),
-	  mRubberBand(nullptr),
 	  mSelectModeAction(nullptr),
 	  mSelectionMode(false),
-	  mIsSelecting(false)
+	  mIsSelecting(false),
+	  mActiveHandle(SelHandle::None)
 {
 	mImageView->setAcceptDrops(false);
 	mImageView->setMouseTracking(true);
@@ -129,7 +142,7 @@ MainWindow::MainWindow(QWidget *parent)
 	{
 		QFont overlayFont(QStringLiteral("Cascadia Mono"));
 		overlayFont.setStyleHint(QFont::Monospace);
-		overlayFont.setPointSize(10);
+		overlayFont.setPointSize(9);
 		mHelpOverlay->setFont(overlayFont);
 	}
 	// Colors mirror Q1UI_COLOR_OVERLAY / Q1UI_COLOR_OVERLAY_TEXT in QViewerCmn.h.
@@ -142,11 +155,16 @@ MainWindow::MainWindow(QWidget *parent)
 
 	loadSettings();
 	createActions();
+	applyNativeMenuMetrics();
 	refreshControlMenus();
 	updateZoomStatus();
 	statusBar()->showMessage(tr("Ready"));
 	setWindowTitle(tr("Q1View Qt"));
-	resize(960, 640);
+	// Open at the same footprint as the MFC viewer, whose client area defaults to
+	// VIEWER_DEF_W x VIEWER_DEF_H (500 x 392). The menu bar and status bar live
+	// inside the Qt window, so size the central area to leave the viewport close
+	// to that, keeping the on-screen window the same size as the MFC one.
+	resize(500, 412);
 }
 
 bool MainWindow::openFile(const QString &fileName)
@@ -196,6 +214,8 @@ bool MainWindow::openFile(const QString &fileName)
 	clearSelection();
 	mFitToWindow = true;
 	updateImage();
+	resizeToImage();
+	addToRecentFiles(mCurrentFile);
 	return true;
 }
 
@@ -244,6 +264,11 @@ void MainWindow::createActions()
 			saveRawSettings();
 		}
 	});
+
+	fileMenu->addSeparator();
+
+	mRecentMenu = fileMenu->addMenu(tr("Open &Recent"));
+	updateRecentFilesMenu();
 
 	fileMenu->addSeparator();
 
@@ -301,6 +326,12 @@ void MainWindow::createActions()
 	mCoordinatesAction->setCheckable(true);
 	connect(mCoordinatesAction, &QAction::triggered, this, &MainWindow::toggleShowCoordinates);
 
+	mInterpolateAction = viewMenu->addAction(tr("&Interpolate Pixels"));
+	mInterpolateAction->setShortcut(QKeySequence(tr("I")));
+	mInterpolateAction->setCheckable(true);
+	mInterpolateAction->setChecked(mInterpolate);
+	connect(mInterpolateAction, &QAction::triggered, this, &MainWindow::toggleInterpolate);
+
 	mSelectModeAction = viewMenu->addAction(tr("&Selection Mode"));
 	mSelectModeAction->setShortcut(QKeySequence(tr("S")));
 	mSelectModeAction->setCheckable(true);
@@ -311,10 +342,6 @@ void MainWindow::createActions()
 	QAction *fullScreenAction = viewMenu->addAction(tr("&Full Screen"));
 	fullScreenAction->setShortcut(QKeySequence(tr("Return")));
 	connect(fullScreenAction, &QAction::triggered, this, &MainWindow::toggleFullScreen);
-
-	QAction *helpAction = viewMenu->addAction(tr("&Help"));
-	helpAction->setShortcut(QKeySequence(tr("?")));
-	connect(helpAction, &QAction::triggered, this, &MainWindow::showHelp);
 
 	QMenu *navigateMenu = menuBar()->addMenu(tr("&Navigate"));
 
@@ -348,6 +375,15 @@ void MainWindow::createActions()
 	mPlayAction->setShortcut(QKeySequence(tr("Space")));
 	mPlayAction->setCheckable(true);
 	connect(mPlayAction, &QAction::triggered, this, &MainWindow::togglePlayback);
+
+	QMenu *helpMenu = menuBar()->addMenu(tr("&Help"));
+
+	QAction *shortcutsAction = helpMenu->addAction(tr("&Shortcuts"));
+	shortcutsAction->setShortcut(QKeySequence(tr("?")));
+	connect(shortcutsAction, &QAction::triggered, this, &MainWindow::showHelp);
+
+	QAction *aboutAction = helpMenu->addAction(tr("&About Q1View Qt"));
+	connect(aboutAction, &QAction::triggered, this, &MainWindow::showAbout);
 
 	// Live magnification readout pinned to the menu bar's right corner, mirroring
 	// the MFC viewer's right-justified "WxH (n.nnx)" item.
@@ -417,6 +453,45 @@ void MainWindow::createControlMenus()
 		mFpsGroup->addAction(action);
 		connect(action, &QAction::triggered, this, [this, fps]() { applyFps(fps); });
 	}
+}
+
+void MainWindow::applyNativeMenuMetrics()
+{
+#ifdef Q_OS_WIN
+	// Use the exact font Win32 (and therefore the MFC viewer) draws menus with,
+	// so the two viewers' menu bars use the same family and size.
+	NONCLIENTMETRICSW ncm;
+	ncm.cbSize = sizeof(ncm);
+	if (SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0)) {
+		const LOGFONTW &lf = ncm.lfMenuFont;
+		QFont menuFont(QString::fromWCharArray(lf.lfFaceName));
+		// lfHeight is a device-pixel em height at the system DPI; convert it back
+		// to a DPI-independent point size so Qt's own scaling reproduces the same
+		// physical size as the native menu.
+		HDC hdc = GetDC(nullptr);
+		const int dpi = hdc ? GetDeviceCaps(hdc, LOGPIXELSY) : 96;
+		if (hdc) {
+			ReleaseDC(nullptr, hdc);
+		}
+		if (lf.lfHeight < 0 && dpi > 0) {
+			menuFont.setPointSizeF(-lf.lfHeight * 72.0 / dpi);
+		}
+		menuFont.setBold(lf.lfWeight >= FW_BOLD);
+		menuFont.setItalic(lf.lfItalic != 0);
+
+		menuBar()->setFont(menuFont);
+		if (mMagnifyLabel) {
+			mMagnifyLabel->setFont(menuFont);
+		}
+		// Qt's default menu bar is a few pixels taller than the Win32 menu; trim
+		// the per-item vertical padding so the bar height tracks the font, the way
+		// the MFC menu does. (A fixed height instead collapses items into the
+		// overflow button, so style the padding and let the bar auto-size.)
+		menuBar()->setStyleSheet(QStringLiteral(
+			"QMenuBar { padding: 0px; }"
+			"QMenuBar::item { padding: 2px 7px; }"));
+	}
+#endif
 }
 
 void MainWindow::refreshControlMenus()
@@ -563,24 +638,27 @@ void MainWindow::promptCustomFps()
 
 QString MainWindow::helpText() const
 {
-	return tr("Mouse wheel / trackpad: zoom\n"
-		"Left drag: pan image\n"
-		"Ctrl+O: open image\n"
-		"Ctrl+V: paste image from clipboard\n"
-		"Ctrl+C: copy image or selection to clipboard\n"
-		"Ctrl+Alt+S: save current image or selection\n"
-		"R: rotate 90 degrees clockwise\n"
-		"Y: toggle Y-only view\n"
-		"C: toggle cursor coordinates\n"
-		"S: selection mode (drag to select a region)\n"
-		"Esc: clear selection\n"
-		"Zoom in past 16x: per-pixel value overlay\n"
-		"Left/Right: previous or next raw frame\n"
-		"Page Up/Down: previous or next file\n"
-		"Home/End: first or last frame/file\n"
-		"Space: play or stop raw sequence\n"
-		"Return: full screen\n"
-		"?: toggle this help");
+	// Compact two-column "key  action" layout (like the MFC viewer's in-canvas
+	// help) so the panel stays narrow enough to fit the window.
+	return tr(
+		"?            Show or hide this help\n"
+		"Mouse wheel  Zoom in or out\n"
+		"Left drag    Pan the image\n"
+		"Ctrl+O       Open an image\n"
+		"Ctrl+V       Paste image from clipboard\n"
+		"Ctrl+C       Copy image or selection\n"
+		"Ctrl+Alt+S   Save image or selection\n"
+		"R            Rotate 90 degrees clockwise\n"
+		"Y            Toggle Y-only view\n"
+		"I            Interpolate pixels (smooth)\n"
+		"C            Cursor coordinates\n"
+		"S            Selection (drag edge/corner to resize)\n"
+		"Esc          Clear selection\n"
+		"Left/Right   Previous or next frame\n"
+		"PgUp/PgDn    Previous or next file\n"
+		"Home/End     First or last frame/file\n"
+		"Space        Play or stop sequence\n"
+		"Return       Full screen");
 }
 
 void MainWindow::toggleHelpOverlay()
@@ -607,7 +685,12 @@ void MainWindow::positionHelpOverlay()
 
 	mHelpOverlay->adjustSize();
 	const QRect viewport = mScrollArea->viewport()->rect();
-	mHelpOverlay->move(viewport.center() - mHelpOverlay->rect().center());
+	QPoint topLeft = viewport.center() - mHelpOverlay->rect().center();
+	// In a small window the panel can be wider/taller than the viewport; clamp to
+	// the top-left so its content stays on-screen instead of spilling off the edge.
+	topLeft.setX(std::max(0, topLeft.x()));
+	topLeft.setY(std::max(0, topLeft.y()));
+	mHelpOverlay->move(topLeft);
 }
 
 void MainWindow::adjustScrollBar(QScrollBar *scrollBar, double factor)
@@ -852,6 +935,7 @@ void MainWindow::openClipboardImage()
 	mCursorImagePoint = QPoint(-1, -1);
 	mFitToWindow = true;
 	updateImage();
+	resizeToImage();
 }
 
 void MainWindow::fitImageToWindow()
@@ -883,11 +967,25 @@ void MainWindow::setActualSize()
 
 void MainWindow::loadSettings()
 {
+	// Default the raw resolution to the actual screen size (not a hard-coded
+	// 1080p) so the first Open Raw guess and the resolution menu reflect this
+	// display, like the MFC viewer; a saved value still takes precedence. Use
+	// physical pixels (logical size x DPR) so HiDPI screens report their true
+	// resolution rather than the scaled-down logical one.
+	if (QScreen *scr = screen()) {
+		const QSize logical = scr->geometry().size();
+		const qreal dpr = scr->devicePixelRatio();
+		mRawOptions.width = qRound(logical.width() * dpr);
+		mRawOptions.height = qRound(logical.height() * dpr);
+	}
+
 	QSettings settings;
 	mRawOptions.width = settings.value(QStringLiteral("raw/width"), mRawOptions.width).toInt();
 	mRawOptions.height = settings.value(QStringLiteral("raw/height"), mRawOptions.height).toInt();
 	mRawOptions.colorSpaceName = settings.value(QStringLiteral("raw/colorSpace"), mRawOptions.colorSpaceName).toString();
 	mRawOptions.fileName = settings.value(QStringLiteral("raw/fileName")).toString();
+
+	loadRecentFiles();
 }
 
 void MainWindow::resetPlayback()
@@ -1083,6 +1181,124 @@ void MainWindow::toggleYOnly()
 	updateView();
 }
 
+void MainWindow::toggleInterpolate()
+{
+	mInterpolate = !mInterpolate;
+	if (mInterpolateAction) {
+		mInterpolateAction->setChecked(mInterpolate);
+	}
+	updateView();
+	statusBar()->showMessage(
+		mInterpolate ? tr("Interpolation on") : tr("Interpolation off"), 1500);
+}
+
+void MainWindow::showAbout()
+{
+	QMessageBox::about(this, tr("About Q1View Qt"),
+		tr("<b>Q1View Qt</b><br>Cross-platform image / raw-frame viewer.<br>"
+		   "A Qt port of the Q1View MFC viewer."));
+}
+
+void MainWindow::resizeToImage()
+{
+	const QImage shown = displayImage();
+	if (shown.isNull() || isFullScreen() || isMaximized()) {
+		return;
+	}
+
+	// Grow the window so the viewport shows the image near 1:1, but never smaller
+	// than the default footprint nor larger than the available screen. Mirrors the
+	// MFC viewer, which sizes its frame to max(default, image) around the image.
+	QRect available(0, 0, 1920, 1080);
+	if (QScreen *scr = screen()) {
+		available = scr->availableGeometry();
+	}
+
+	// sizeHint() is valid even before the window is shown (unlike height()).
+	const int chromeH = menuBar()->sizeHint().height() + statusBar()->sizeHint().height();
+	// frameGeometry() includes the OS title bar / borders; the difference from the
+	// widget size is the chrome the screen budget must also leave room for.
+	const int frameExtraW = std::max(0, frameGeometry().width() - width());
+	const int frameExtraH = std::max(0, frameGeometry().height() - height());
+	const int maxContentW = std::max(500, available.width() - frameExtraW);
+	const int maxContentH = std::max(412, available.height() - frameExtraH);
+
+	const int contentW = std::clamp(shown.width(), 500, maxContentW);
+	const int contentH = std::clamp(shown.height() + chromeH, 412, maxContentH);
+	resize(contentW, contentH);
+
+	// Refit once the window has actually been laid out. A queued call runs after
+	// show()/the resize is applied, when the viewport finally reports its real
+	// size; the synchronous value is stale when a file is opened from the command
+	// line before show() (the viewport still holds Qt's default size).
+	if (mFitToWindow) {
+		QTimer::singleShot(0, this, [this]() {
+			if (mFitToWindow && !mImage.isNull()) {
+				updateView();
+			}
+		});
+	}
+}
+
+void MainWindow::loadRecentFiles()
+{
+	QSettings settings;
+	mRecentFiles = settings.value(QStringLiteral("recentFiles")).toStringList();
+}
+
+void MainWindow::saveRecentFiles() const
+{
+	QSettings settings;
+	settings.setValue(QStringLiteral("recentFiles"), mRecentFiles);
+}
+
+void MainWindow::addToRecentFiles(const QString &fileName)
+{
+	if (fileName.isEmpty()) {
+		return;
+	}
+	const QString path = QFileInfo(fileName).absoluteFilePath();
+	mRecentFiles.removeAll(path);
+	mRecentFiles.prepend(path);
+	const int kMaxRecent = 10;
+	while (mRecentFiles.size() > kMaxRecent) {
+		mRecentFiles.removeLast();
+	}
+	saveRecentFiles();
+	updateRecentFilesMenu();
+}
+
+void MainWindow::updateRecentFilesMenu()
+{
+	if (!mRecentMenu) {
+		return;
+	}
+	mRecentMenu->clear();
+
+	if (mRecentFiles.isEmpty()) {
+		QAction *empty = mRecentMenu->addAction(tr("(No recent files)"));
+		empty->setEnabled(false);
+		return;
+	}
+
+	int index = 1;
+	for (const QString &path : mRecentFiles) {
+		// "&1 name" gives Alt-mnemonics for the first nine entries, like MFC's MRU.
+		QAction *action = mRecentMenu->addAction(
+			tr("&%1  %2").arg(index++).arg(QFileInfo(path).fileName()));
+		action->setData(path);
+		action->setToolTip(path);
+		connect(action, &QAction::triggered, this, [this, path]() { openFile(path); });
+	}
+	mRecentMenu->addSeparator();
+	QAction *clear = mRecentMenu->addAction(tr("&Clear Recent Files"));
+	connect(clear, &QAction::triggered, this, [this]() {
+		mRecentFiles.clear();
+		saveRecentFiles();
+		updateRecentFilesMenu();
+	});
+}
+
 void MainWindow::updateImage()
 {
 	updateView();
@@ -1110,6 +1326,7 @@ void MainWindow::updateView()
 	}
 
 	mImageView->setYOnly(mYOnly);
+	mImageView->setInterpolate(mInterpolate);
 	mImageView->setSelection(mSelectionRect);
 	mImageView->setImage(shownImage, mScaleFactor);
 	updateZoomStatus();
@@ -1125,12 +1342,11 @@ void MainWindow::toggleSelectionMode()
 	if (mSelectionMode) {
 		mScrollArea->viewport()->setCursor(Qt::CrossCursor);
 		statusBar()->showMessage(
-			tr("Selection mode on: drag to select a region; Copy/Save As then act on it"), 4000);
+			tr("Selection mode on: drag to select; drag an edge/corner to resize, "
+			   "inside to move; Copy/Save As then act on it"), 5000);
 	} else {
 		mIsSelecting = false;
-		if (mRubberBand) {
-			mRubberBand->hide();
-		}
+		mActiveHandle = SelHandle::None;
 		mScrollArea->viewport()->unsetCursor();
 		statusBar()->showMessage(tr("Selection mode off"), 2000);
 	}
@@ -1139,10 +1355,9 @@ void MainWindow::toggleSelectionMode()
 void MainWindow::clearSelection()
 {
 	mIsSelecting = false;
+	mActiveHandle = SelHandle::None;
 	mSelectionRect = QRect();
-	if (mRubberBand) {
-		mRubberBand->hide();
-	}
+	mImageView->setSelection(QRect());
 }
 
 QImage MainWindow::selectedImage() const
@@ -1180,6 +1395,131 @@ QRect MainWindow::imageRectFromViewport(const QPoint &a, const QPoint &b) const
 	const int x1 = std::clamp(std::max(ax, bx), 0, shown.width());
 	const int y1 = std::clamp(std::max(ay, by), 0, shown.height());
 	return QRect(x0, y0, x1 - x0, y1 - y0);
+}
+
+QRect MainWindow::selectionViewportRect() const
+{
+	if (!mSelectionRect.isValid() || mSelectionRect.isEmpty() || mScaleFactor <= 0.0) {
+		return QRect();
+	}
+
+	// The selection is stored in display-image pixels; the on-screen rectangle
+	// is that scaled by the zoom factor and offset by the scroll position.
+	const int x = static_cast<int>(mSelectionRect.x() * mScaleFactor);
+	const int y = static_cast<int>(mSelectionRect.y() * mScaleFactor);
+	const int w = static_cast<int>(mSelectionRect.width() * mScaleFactor);
+	const int h = static_cast<int>(mSelectionRect.height() * mScaleFactor);
+	const QPoint topLeft = mImageView->mapTo(mScrollArea->viewport(), QPoint(x, y));
+	return QRect(topLeft, QSize(w, h));
+}
+
+MainWindow::SelHandle MainWindow::selectionHandleAt(const QPoint &viewportPos) const
+{
+	const QRect r = selectionViewportRect();
+	if (r.isNull() || r.isEmpty()) {
+		return SelHandle::None;
+	}
+
+	// Grab tolerance, in viewport pixels, around each edge and corner.
+	const int margin = 6;
+	if (!r.adjusted(-margin, -margin, margin, margin).contains(viewportPos)) {
+		return SelHandle::None;
+	}
+
+	const bool nearLeft = qAbs(viewportPos.x() - r.left()) <= margin;
+	const bool nearRight = qAbs(viewportPos.x() - r.right()) <= margin;
+	const bool nearTop = qAbs(viewportPos.y() - r.top()) <= margin;
+	const bool nearBottom = qAbs(viewportPos.y() - r.bottom()) <= margin;
+
+	if (nearTop && nearLeft) return SelHandle::TopLeft;
+	if (nearTop && nearRight) return SelHandle::TopRight;
+	if (nearBottom && nearLeft) return SelHandle::BottomLeft;
+	if (nearBottom && nearRight) return SelHandle::BottomRight;
+	if (nearLeft) return SelHandle::Left;
+	if (nearRight) return SelHandle::Right;
+	if (nearTop) return SelHandle::Top;
+	if (nearBottom) return SelHandle::Bottom;
+	return SelHandle::Move;
+}
+
+QPoint MainWindow::imagePointFromViewport(const QPoint &viewportPos) const
+{
+	if (mScaleFactor <= 0.0) {
+		return QPoint();
+	}
+	const QPoint local = mImageView->mapFrom(mScrollArea->viewport(), viewportPos);
+	return QPoint(static_cast<int>(std::floor(local.x() / mScaleFactor)),
+		static_cast<int>(std::floor(local.y() / mScaleFactor)));
+}
+
+QRect MainWindow::resizedSelection(SelHandle handle, const QPoint &imageDelta) const
+{
+	const QImage shown = displayImage();
+	if (shown.isNull()) {
+		return mDragStartRect;
+	}
+
+	// Half-open [x0, x1) x [y0, y1) image coordinates, so dragging an edge past
+	// its opposite simply flips the rectangle (re-normalized at the end).
+	int x0 = mDragStartRect.left();
+	int y0 = mDragStartRect.top();
+	int x1 = mDragStartRect.left() + mDragStartRect.width();
+	int y1 = mDragStartRect.top() + mDragStartRect.height();
+	const int dx = imageDelta.x();
+	const int dy = imageDelta.y();
+
+	switch (handle) {
+	case SelHandle::Move:
+		// Slide the rectangle but keep it whole and inside the image bounds.
+		x0 += dx; x1 += dx; y0 += dy; y1 += dy;
+		if (x0 < 0) { x1 -= x0; x0 = 0; }
+		if (y0 < 0) { y1 -= y0; y0 = 0; }
+		if (x1 > shown.width()) { x0 -= (x1 - shown.width()); x1 = shown.width(); }
+		if (y1 > shown.height()) { y0 -= (y1 - shown.height()); y1 = shown.height(); }
+		x0 = std::max(0, x0);
+		y0 = std::max(0, y0);
+		break;
+	case SelHandle::Left:        x0 += dx; break;
+	case SelHandle::Right:       x1 += dx; break;
+	case SelHandle::Top:         y0 += dy; break;
+	case SelHandle::Bottom:      y1 += dy; break;
+	case SelHandle::TopLeft:     x0 += dx; y0 += dy; break;
+	case SelHandle::TopRight:    x1 += dx; y0 += dy; break;
+	case SelHandle::BottomLeft:  x0 += dx; y1 += dy; break;
+	case SelHandle::BottomRight: x1 += dx; y1 += dy; break;
+	case SelHandle::None:        return mDragStartRect;
+	}
+
+	x0 = std::clamp(x0, 0, shown.width());
+	x1 = std::clamp(x1, 0, shown.width());
+	y0 = std::clamp(y0, 0, shown.height());
+	y1 = std::clamp(y1, 0, shown.height());
+
+	const int xmin = std::min(x0, x1);
+	const int ymin = std::min(y0, y1);
+	return QRect(xmin, ymin, std::max(x0, x1) - xmin, std::max(y0, y1) - ymin);
+}
+
+void MainWindow::updateSelectionCursor(const QPoint &viewportPos)
+{
+	if (!mSelectionMode) {
+		return;
+	}
+
+	Qt::CursorShape shape = Qt::CrossCursor;
+	switch (selectionHandleAt(viewportPos)) {
+	case SelHandle::Left:
+	case SelHandle::Right:       shape = Qt::SizeHorCursor; break;
+	case SelHandle::Top:
+	case SelHandle::Bottom:      shape = Qt::SizeVerCursor; break;
+	case SelHandle::TopLeft:
+	case SelHandle::BottomRight: shape = Qt::SizeFDiagCursor; break;
+	case SelHandle::TopRight:
+	case SelHandle::BottomLeft:  shape = Qt::SizeBDiagCursor; break;
+	case SelHandle::Move:        shape = Qt::SizeAllCursor; break;
+	case SelHandle::None:        shape = Qt::CrossCursor; break;
+	}
+	mScrollArea->viewport()->setCursor(shape);
 }
 
 void MainWindow::updateZoomStatus()
@@ -1318,7 +1658,11 @@ bool MainWindow::openRawFile(const QString &fileName, int width, int height, con
 	mCursorImagePoint = QPoint(-1, -1);
 	clearSelection();
 	mFitToWindow = true;
-	return loadRawFrame(0);
+	const bool ok = loadRawFrame(0);
+	if (ok) {
+		resizeToImage();
+	}
+	return ok;
 }
 
 bool MainWindow::openY4mFile(const QString &fileName)
@@ -1346,7 +1690,12 @@ bool MainWindow::openY4mFile(const QString &fileName)
 	mCursorImagePoint = QPoint(-1, -1);
 	clearSelection();
 	mFitToWindow = true;
-	return loadRawFrame(0);
+	const bool ok = loadRawFrame(0);
+	if (ok) {
+		resizeToImage();
+		addToRecentFiles(mCurrentFile);
+	}
+	return ok;
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent *event)
@@ -1407,13 +1756,20 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 		QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
 		if (mouseEvent->button() == Qt::LeftButton) {
 			if (mSelectionMode) {
+				const SelHandle handle = selectionHandleAt(mouseEvent->pos());
+				if (handle != SelHandle::None) {
+					// Grab the existing selection to resize (edge/corner) or move
+					// it (interior) rather than starting a fresh rubber band.
+					mActiveHandle = handle;
+					mDragStartRect = mSelectionRect;
+					mDragStartImagePoint = imagePointFromViewport(mouseEvent->pos());
+					mouseEvent->accept();
+					return true;
+				}
 				mIsSelecting = true;
 				mSelectionOrigin = mouseEvent->pos();
-				if (!mRubberBand) {
-					mRubberBand = new QRubberBand(QRubberBand::Rectangle, mScrollArea->viewport());
-				}
-				mRubberBand->setGeometry(QRect(mSelectionOrigin, QSize()));
-				mRubberBand->show();
+				mSelectionRect = QRect();
+				mImageView->setSelection(mSelectionRect, true);
 				mouseEvent->accept();
 				return true;
 			}
@@ -1441,11 +1797,23 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 			mCursorImagePoint = QPoint(-1, -1);
 		}
 
-		if (mIsSelecting && mRubberBand) {
-			mRubberBand->setGeometry(QRect(mSelectionOrigin, mouseEvent->pos()).normalized());
-			const QRect sel = imageRectFromViewport(mSelectionOrigin, mouseEvent->pos());
+		if (mActiveHandle != SelHandle::None) {
+			const QPoint delta = imagePointFromViewport(mouseEvent->pos()) - mDragStartImagePoint;
+			mSelectionRect = resizedSelection(mActiveHandle, delta);
+			mImageView->setSelection(mSelectionRect);
 			statusBar()->showMessage(tr("Selection  %1 x %2  at (%3, %4)")
-				.arg(sel.width()).arg(sel.height()).arg(sel.x()).arg(sel.y()));
+				.arg(mSelectionRect.width()).arg(mSelectionRect.height())
+				.arg(mSelectionRect.x()).arg(mSelectionRect.y()));
+			mouseEvent->accept();
+			return true;
+		}
+
+		if (mIsSelecting) {
+			mSelectionRect = imageRectFromViewport(mSelectionOrigin, mouseEvent->pos());
+			mImageView->setSelection(mSelectionRect, true);
+			statusBar()->showMessage(tr("Selection  %1 x %2  at (%3, %4)")
+				.arg(mSelectionRect.width()).arg(mSelectionRect.height())
+				.arg(mSelectionRect.x()).arg(mSelectionRect.y()));
 			mouseEvent->accept();
 			return true;
 		}
@@ -1459,6 +1827,8 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 			return true;
 		}
 
+		// Not dragging: in selection mode, reflect what a press here would grab.
+		updateSelectionCursor(mouseEvent->pos());
 		updateZoomStatus();
 	}
 
@@ -1469,13 +1839,18 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 
 	if (event->type() == QEvent::MouseButtonRelease) {
 		QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
+		if (mouseEvent->button() == Qt::LeftButton && mActiveHandle != SelHandle::None) {
+			mActiveHandle = SelHandle::None;
+			updateView();
+			updateZoomStatus();
+			updateSelectionCursor(mouseEvent->pos());
+			mouseEvent->accept();
+			return true;
+		}
 		if (mouseEvent->button() == Qt::LeftButton && mIsSelecting) {
 			mIsSelecting = false;
-			if (mRubberBand) {
-				mRubberBand->hide();
-			}
 			mSelectionRect = imageRectFromViewport(mSelectionOrigin, mouseEvent->pos());
-			updateView();
+			updateView();  // redraw the committed selection in the success colour
 			updateZoomStatus();
 			mouseEvent->accept();
 			return true;

@@ -97,12 +97,21 @@ if(Q1VIEW_BUILD_QT_VIEWER)
         ViewerQt/HeifReader.h
         ViewerQt/Y4mReader.cpp
         ViewerQt/Y4mReader.h
+        # Qt resource bundle: ships the window/taskbar icon (see main.cpp).
+        ViewerQt/q1view.qrc
     )
 
+    # The .qrc above is compiled by rcc; on Windows the .rc also stamps the icon
+    # onto the executable file itself (shown by Explorer and the taskbar).
     set_target_properties(q1view_viewer_qt PROPERTIES
         MACOSX_BUNDLE TRUE
         WIN32_EXECUTABLE TRUE
+        AUTORCC ON
     )
+
+    if(WIN32)
+        target_sources(q1view_viewer_qt PRIVATE ViewerQt/q1view.rc)
+    endif()
 
     target_link_libraries(q1view_viewer_qt
         PRIVATE

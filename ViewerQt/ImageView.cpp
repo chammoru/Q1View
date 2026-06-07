@@ -22,7 +22,9 @@ constexpr double kPixelOverlayMinScale = 16.0;
 ImageView::ImageView(QWidget *parent)
 	: QWidget(parent),
 	  mScale(1.0),
-	  mYOnly(false)
+	  mYOnly(false),
+	  mSelectionActive(false),
+	  mInterpolate(false)
 {
 	setMouseTracking(true);
 	setAttribute(Qt::WA_OpaquePaintEvent, true);
@@ -42,12 +44,22 @@ void ImageView::setYOnly(bool yOnly)
 	mYOnly = yOnly;
 }
 
-void ImageView::setSelection(const QRect &selectionInImage)
+void ImageView::setInterpolate(bool on)
 {
-	if (mSelection == selectionInImage) {
+	if (mInterpolate == on) {
+		return;
+	}
+	mInterpolate = on;
+	update();
+}
+
+void ImageView::setSelection(const QRect &selectionInImage, bool active)
+{
+	if (mSelection == selectionInImage && mSelectionActive == active) {
 		return;
 	}
 	mSelection = selectionInImage;
+	mSelectionActive = active;
 	update();
 }
 
@@ -87,18 +99,26 @@ void ImageView::paintEvent(QPaintEvent *event)
 	const QRectF dstRect(sx0 * mScale, sy0 * mScale,
 		srcRect.width() * mScale, srcRect.height() * mScale);
 
-	painter.setRenderHint(QPainter::SmoothPixmapTransform, mScale < 1.0);
+	// Smooth when shrinking, and when the user has turned on interpolation; the
+	// default magnified look is nearest-neighbour (a crisp pixel grid).
+	painter.setRenderHint(QPainter::SmoothPixmapTransform, mInterpolate || mScale < 1.0);
 	painter.drawImage(dstRect, mImage, QRectF(srcRect));
 
-	if (mScale >= kPixelOverlayMinScale) {
+	// The per-pixel value grid is a nearest-neighbour aid; hide it while smoothly
+	// interpolating so the magnified image stays clean.
+	if (!mInterpolate && mScale >= kPixelOverlayMinScale) {
 		paintPixelValues(painter, srcRect);
 	}
 
 	if (mSelection.isValid() && !mSelection.isEmpty()) {
 		const QRectF sel(mSelection.x() * mScale, mSelection.y() * mScale,
 			mSelection.width() * mScale, mSelection.height() * mScale);
-		QPen pen(Qt::red);
-		pen.setStyle(Qt::DashLine);
+		// Solid 1px outline matching the MFC viewer: Q1UI_COLOR_WARNING (amber)
+		// while dragging out a new selection, Q1UI_COLOR_SUCCESS (green) once set.
+		const QColor color = mSelectionActive ? QColor(0xf5, 0x9e, 0x0b)
+			: QColor(0x16, 0x9b, 0x62);
+		QPen pen(color);
+		pen.setStyle(Qt::SolidLine);
 		pen.setCosmetic(true);
 		painter.setRenderHint(QPainter::Antialiasing, false);
 		painter.setPen(pen);

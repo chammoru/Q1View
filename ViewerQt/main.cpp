@@ -4,6 +4,7 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QIcon>
 #include <QStringList>
 
 int main(int argc, char *argv[])
@@ -11,6 +12,8 @@ int main(int argc, char *argv[])
 	QApplication app(argc, argv);
 	QCoreApplication::setOrganizationName(QStringLiteral("Q1View"));
 	QCoreApplication::setApplicationName(QStringLiteral("Q1ViewQt"));
+	// Window / taskbar icon, shared with the MFC viewer (Viewer/res/Viewer.ico).
+	app.setWindowIcon(QIcon(QStringLiteral(":/Viewer.ico")));
 
 	QCommandLineParser parser;
 	parser.setApplicationDescription(QStringLiteral("Experimental cross-platform Q1View Qt viewer"));

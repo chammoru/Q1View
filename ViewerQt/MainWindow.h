@@ -20,7 +20,6 @@ class QLabel;
 class QMenu;
 class QMouseEvent;
 class QResizeEvent;
-class QRubberBand;
 class QScrollBar;
 class QScrollArea;
 class QTimer;
@@ -36,10 +35,22 @@ public:
 	bool openY4mFile(const QString &fileName);
 
 private:
+	// Which part of an existing selection a press or hover lands on, so the
+	// rectangle can be grabbed and resized by an edge/corner or moved by its
+	// interior (mirroring the MFC viewer's resizable selection).
+	enum class SelHandle {
+		None, Move,
+		Left, Right, Top, Bottom,
+		TopLeft, TopRight, BottomLeft, BottomRight
+	};
+
 	void createActions();
 	// Builds the MFC-style "control panel" menus (resolution / color space / FPS)
 	// that sit on the menu bar between File and Edit.
 	void createControlMenus();
+	// Matches the menu bar's font and height to the native Windows menu so the Qt
+	// viewer's menu bar lines up with the MFC viewer's (no-op off Windows).
+	void applyNativeMenuMetrics();
 	// Syncs the control menus' titles, radio checks, and enabled state to the
 	// currently loaded image (raw vs. structured, Y4M, frame count).
 	void refreshControlMenus();
@@ -60,6 +71,14 @@ private:
 	void clearSelection();
 	QImage selectedImage() const;
 	QRect imageRectFromViewport(const QPoint &a, const QPoint &b) const;
+	// Selection resize/move support: map the selection to screen space, hit-test a
+	// viewport point against its edges/corners, convert a viewport point to image
+	// coordinates, and produce the resized rectangle for an in-progress drag.
+	QRect selectionViewportRect() const;
+	SelHandle selectionHandleAt(const QPoint &viewportPos) const;
+	QPoint imagePointFromViewport(const QPoint &viewportPos) const;
+	QRect resizedSelection(SelHandle handle, const QPoint &imageDelta) const;
+	void updateSelectionCursor(const QPoint &viewportPos);
 	QStringList imageNameFilters() const;
 	bool loadRawFrame(int frameIndex);
 	void openAdjacentFile(int direction, bool boundaryOnly = false);
@@ -83,6 +102,18 @@ private:
 	void togglePlayback();
 	void toggleShowCoordinates();
 	void toggleYOnly();
+	void toggleInterpolate();
+	void showAbout();
+	// Recent-files (MRU) list, persisted in QSettings and shown under File, like
+	// the MFC viewer's recent-file menu.
+	void addToRecentFiles(const QString &fileName);
+	void updateRecentFilesMenu();
+	void loadRecentFiles();
+	void saveRecentFiles() const;
+	// Grows the window to show a freshly opened image near its natural size,
+	// clamped between the default footprint and the available screen, mirroring
+	// the MFC viewer which resizes its frame around the image.
+	void resizeToImage();
 	void updateImage();
 	void updateView();
 	void updateZoomStatus();
@@ -110,7 +141,11 @@ private:
 	QAction *mRotateAction;
 	QAction *mYOnlyAction;
 	QAction *mCoordinatesAction;
+	QAction *mInterpolateAction;
 	QAction *mPlayAction;
+	QMenu *mRecentMenu;
+	QStringList mRecentFiles;
+	bool mInterpolate;
 	// MFC-style control-panel menus shown on the menu bar (raw sources only).
 	QMenu *mResolutionMenu;
 	QMenu *mColorSpaceMenu;
@@ -147,12 +182,16 @@ private:
 	int mRotationQuarterTurns;
 	QPoint mLastPanPoint;
 	QPoint mCursorImagePoint;
-	QRubberBand *mRubberBand;
 	QAction *mSelectModeAction;
 	bool mSelectionMode;
 	bool mIsSelecting;
 	QPoint mSelectionOrigin;
 	QRect mSelectionRect;
+	// Active resize/move of an existing selection. SelHandle::None means no such
+	// drag is in progress (a fresh rubber-band drag is tracked by mIsSelecting).
+	SelHandle mActiveHandle;
+	QRect mDragStartRect;
+	QPoint mDragStartImagePoint;
 };
 
 #endif

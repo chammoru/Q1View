@@ -22,7 +22,14 @@ public:
 	// shownImage is already in display orientation (rotation / Y-only applied).
 	void setImage(const QImage &shownImage, double scale);
 	void setYOnly(bool yOnly);
-	void setSelection(const QRect &selectionInImage); // image coords; empty = none
+	// When true, the image is drawn with smooth (bilinear) interpolation even when
+	// magnified, instead of the default nearest-neighbour "pixel grid" look.
+	void setInterpolate(bool on);
+	bool interpolate() const { return mInterpolate; }
+	// image coords; empty = none. active == true while the user is dragging out a
+	// fresh selection (drawn in the "warning" colour, like the MFC viewer); once
+	// committed it is drawn in the "success" colour.
+	void setSelection(const QRect &selectionInImage, bool active = false);
 
 	QSize imageSize() const { return mImage.size(); }
 	double scale() const { return mScale; }
@@ -40,6 +47,8 @@ private:
 	double mScale;
 	bool mYOnly;
 	QRect mSelection;
+	bool mSelectionActive;
+	bool mInterpolate;
 };
 
 #endif
