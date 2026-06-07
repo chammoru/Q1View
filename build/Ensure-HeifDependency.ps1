@@ -64,6 +64,42 @@ function Get-ArchiveFileName {
     return "Q1View-libheif-$Triplet.zip"
 }
 
+function Invoke-DownloadWithRetry {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url,
+
+        [Parameter(Mandatory = $true)]
+        [string]$OutFile,
+
+        [string]$Description = "dependency archive",
+
+        [int]$MaxAttempts = 5
+    )
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        if (Test-Path $OutFile) {
+            Remove-Item -LiteralPath $OutFile -Force
+        }
+
+        try {
+            Write-Host "Downloading $Description from $Url (attempt $attempt/$MaxAttempts)"
+            Invoke-WebRequest -Uri $Url -OutFile $OutFile
+            return
+        }
+        catch {
+            if ($attempt -ge $MaxAttempts) {
+                throw
+            }
+
+            $delaySeconds = [Math]::Min(60, 5 * [Math]::Pow(2, $attempt - 1))
+            Write-Warning "Download failed: $($_.Exception.Message)"
+            Write-Host "Retrying in $delaySeconds seconds..."
+            Start-Sleep -Seconds $delaySeconds
+        }
+    }
+}
+
 function Resolve-Archive {
     param(
         [string]$Url,
@@ -101,8 +137,7 @@ function Resolve-Archive {
         }
     }
 
-    Write-Host "Downloading HEIF dependency from $Url"
-    Invoke-WebRequest -Uri $Url -OutFile $downloadPath
+    Invoke-DownloadWithRetry -Url $Url -OutFile $downloadPath -Description "HEIF dependency"
     Assert-Sha256 -FilePath $downloadPath -ExpectedHash $ExpectedHash
     return $downloadPath
 }
