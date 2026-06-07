@@ -1,6 +1,6 @@
 # Cross-Platform Roadmap (Linux / macOS)
 
-Status: **In progress** — Phases 1 & 3 landed on `master` (#54); remaining parity tracked in #63 · Owner: @chammoru · Last updated: 2026-06-06
+Status: **In progress** — Phases 1 & 3 landed on `master` (#54); remaining Qt viewer/Comparator parity tracked in #63 · Owner: @chammoru · Last updated: 2026-06-07
 
 This document is the single source of truth for bringing Q1View to Linux and
 macOS. Individual phases are promoted into GitHub issues when work on them

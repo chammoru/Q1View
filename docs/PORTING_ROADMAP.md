@@ -81,14 +81,19 @@ Qt port reaches parity *and* its distribution channels are equally trusted.
 From [PORTING_STATUS.md](PORTING_STATUS.md) — the Qt viewer today already
 covers:
 
-- Open common image formats via `QImageReader` (PNG / JPG / BMP).
-- Open raw frames with width / height / color space, with persistence.
-- Drag-and-drop, CLI raw flags.
+- Open common image formats via `QImageReader` (PNG / JPG / BMP) plus
+  HEIF / HEIC / HIF / AVIF through libheif when available.
+- Open raw frames with width / height / color space, with persistence, and
+  parse YUV4MPEG2 (`.y4m`) container headers for dimensions, frame count,
+  color space, and FPS.
+- Drag-and-drop, CLI raw flags, and Y4M-aware sibling-file navigation.
 - Wheel zoom, drag pan, actual-size / fit / fullscreen / rotate clockwise.
 - Y-only toggle, cursor coordinate + RGB display.
-- Copy / paste / save-as / close.
+- Copy / paste / save-as / close, including selection-region capture.
 - Previous / next file navigation.
 - Raw multi-frame navigation and timer playback.
+- High-zoom per-pixel value overlay, interpolation toggle, shortcut help panel,
+  custom FPS dialog, and recent files.
 - Linux AppImage packaging; Windows and macOS Qt deploy artifacts;
   prerelease workflow under `qt-viewer-v*`.
 
@@ -97,14 +102,8 @@ The remaining gap, grouped:
 **Viewer features missing on Qt**
 
 - Video file playback (OpenCV / FFmpeg) with audio.
-- HEIF / HEIC / AVIF still-image decoding.
-- Selection mode (`S`) and `Ctrl+C` capture of the selected region.
-- High-zoom per-pixel text overlay (the "read every pixel value" mode).
 - Source-YUV vs RGB pixel value toggle (`V`), hex / dec toggle (`H`).
-- Color-space cycle (`N`), pixel interpolation toggle (`I`), box info (`B`).
-- Built-in shortcut help panel (`?`).
-- Custom FPS dialog ([CustomFpsDlg](../Viewer/CustomFpsDlg.cpp)).
-- Recent files (MRU).
+- Color-space cycle (`N`), box info (`B`).
 - Volume slider, mute button, seek band.
 - File-change auto-refresh
   ([FileChangeNotiThread](../Viewer/FileChangeNotiThread.cpp)).
@@ -236,6 +235,10 @@ Windows, macOS, and Linux.
 
 Each subsection below corresponds to one focused PR. The ordering is
 *highest user-visible value per LOC first*.
+
+Status note (2026-06-07): §1.1, §1.3, §1.7, §1.8, and §1.10 have landed.
+§1.5 is partially landed (cursor coordinates and interpolation are in; box
+info remains). §1.2, §1.4, §1.6, and §1.9 remain open.
 
 #### 1.1 Built-in shortcut panel (`?`)
 

@@ -10,9 +10,9 @@ This file captures the current cross-platform porting state so future Codex sess
   crossed.
 - The short-lived `cross-platform-core` branch has been **merged and deleted** —
   it no longer exists. All further work lands directly on `master`.
-- Remaining Qt viewer feature-parity work (HEIF/compressed, video, Comparator,
-  AppImage verification, automated Qt smoke check, raw fixtures) is tracked in
-  #63.
+- Remaining Qt viewer feature-parity work (video playback, Comparator,
+  file-change auto-refresh, multi-window sync input, clean-desktop AppImage
+  verification, automated Qt smoke checks, and raw fixtures) is tracked in #63.
 - The Qt viewer stays additive: it builds behind the `Q1VIEW_BUILD_QT_VIEWER`
   CMake option (default OFF) and only *links* the shared core, so the MFC
   Windows product (`Viewer.sln` / `Comparator.sln`) is unaffected.
@@ -88,6 +88,10 @@ Current capabilities:
 - Accepts an image path as the first command-line argument.
 - Has `File > Open Raw...`.
 - Loads raw frames by asking for file, width, height, and color space.
+- Recognizes YUV4MPEG2 (`.y4m`) containers, reads their header dimensions,
+  color space, frame count, and FPS, and routes File/Open, drag/drop, and
+  sibling-file navigation through the Y4M loader rather than the headerless raw
+  path.
 - Supports command-line raw metadata:
   - `q1view_viewer_qt --raw --width 1920 --height 1080 --format yuv420 frame.yuv`
 - Converts raw formats through `q1view_image_core`/`qimage_cs`.
@@ -115,6 +119,8 @@ It does not yet implement:
 
 - Video playback.
 - Comparator features.
+- File-change auto-refresh.
+- Multi-window Sync Input.
 
 Successful Qt viewer CI runs:
 
@@ -177,7 +183,9 @@ Local build note: GitHub Actions remains the cross-platform source of truth (Lin
 
 ## Next Suggested Steps
 
-1. Track and land the remaining Qt viewer parity work via #63 (HEIF/compressed, video, Comparator).
+1. Track and land the remaining Qt viewer parity work via #63 (video playback,
+   Comparator, file-change auto-refresh, multi-window Sync Input, Qt smoke
+   checks, and raw fixtures).
 2. Improve packaging for `q1view_viewer_qt`:
    - Windows packaging uses `windeployqt`.
    - macOS packaging uses `macdeployqt`.
