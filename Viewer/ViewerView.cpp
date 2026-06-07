@@ -12,6 +12,7 @@
 #include "QDebug.h"
 
 #include "QViewerCmn.h"
+#include "QViewerShortcuts.h"
 #include "qimage_cs.h"
 #include "qimage_util.h"
 
@@ -889,36 +890,25 @@ void CViewerView::DrawHelpMenu(CDC *pDC)
 	manualFont.CreateFontIndirect(&lf);
 	pDC->SelectObject(&manualFont);
 	pDC->SetTextColor(Q1UI_COLOR_TEXT);
-	CString manual = _T("Viewer shortcuts\nVersion ");
+	// Build the panel text from the shared shortcut table (QViewerShortcuts.h),
+	// the same source the Qt viewer's help overlay renders from. Rows tagged for
+	// the MFC front-end are shown, in the table's order.
+	CString manual(Q1VIEW_SHORTCUTS_TITLE);
+	manual += _T("\nVersion ");
 	manual += Q1ViewGetProductVersion();
-	manual += _T(
-		"\n"
-		"\n"
-		"?              Show or hide this panel\n"
-		"E              Toggle thumbnail browser (drawer)\n"
-		"Drag && Drop    Open an image\n"
-		"Mouse Wheel    Zoom in or out; high zoom shows pixel values\n"
-		"Return         Full screen\n"
-		"H              Toggle hex pixel values\n"
-		"Y              Toggle Y-only view\n"
-		"V              Toggle RGB/source YUV pixel values\n"
-		"R              Rotate 90 degrees clockwise\n"
-		"Page Up/Down   Previous or next file\n"
-		"S              Selection capture mode\n"
-		"Ctrl + C       Capture view or selected region\n"
-		"Ctrl + V       Paste image from clipboard\n"
-		"Left/Right     Previous or next video frame\n"
-		"Home/End       First or last frame/file\n"
-		"Space          Play or stop video\n"
-		"Click bottom   Seek to a video frame\n"
-		"C              Cursor coordinates\n"
-		"B              Selected box size\n"
-		"I              Interpolate pixels\n"
-		"N              Next color space\n"
-		"D              Next preset resolution (raw input)\n"
-		"M              Mute or unmute video audio\n"
-		);
-	pDC->DrawText(manual, &manualRect, DT_LEFT | DT_TOP);
+	manual += _T("\n\n");
+	for (int i = 0; i < ARRAY_SIZE(Q1VIEW_SHORTCUTS); i++) {
+		const Q1ViewShortcutRow &row = Q1VIEW_SHORTCUTS[i];
+		if (!(row.fe & Q1VIEW_FE_MFC))
+			continue;
+		CString line;
+		line.Format(_T("%-*hs%hs\n"),
+			Q1VIEW_SHORTCUTS_KEY_WIDTH, row.key, row.desc);
+		manual += line;
+	}
+	// DT_NOPREFIX so a literal '&' in a key (e.g. "Drag & Drop") is drawn as-is
+	// rather than treated as a mnemonic underscore.
+	pDC->DrawText(manual, &manualRect, DT_LEFT | DT_TOP | DT_NOPREFIX);
 }
 
 void CViewerView::DrawEmptyState(CDC *pDC)

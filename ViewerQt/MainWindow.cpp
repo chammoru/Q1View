@@ -59,6 +59,9 @@
 // Shared "WxH" / numeric label parsing, reused from the cross-platform core so
 // the Qt viewer and the MFC front-ends interpret the preset tables identically.
 #include "QImageStr.h"
+// Shared shortcut-panel content (keys + descriptions), so this overlay and the
+// MFC viewer's DrawHelpMenu render the same list from one place.
+#include "QViewerShortcuts.h"
 
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX
@@ -171,19 +174,25 @@ MainWindow::MainWindow(QWidget *parent)
 	// the visible area instead of scrolling with the image, mirroring the MFC
 	// viewer's in-canvas help rather than a modal dialog.
 	mHelpOverlay = new QLabel(mScrollArea->viewport());
+	// Rich text so the explicit ink colour in helpText() survives the system
+	// dark-mode palette; the Cascadia Mono family/size is set both on the widget
+	// and inline (helpText) to match the MFC panel's lfHeight = 14.
+	mHelpOverlay->setTextFormat(Qt::RichText);
 	mHelpOverlay->setText(helpText());
-	mHelpOverlay->setTextFormat(Qt::PlainText);
 	mHelpOverlay->setMargin(16);
 	{
 		QFont overlayFont(QStringLiteral("Cascadia Mono"));
 		overlayFont.setStyleHint(QFont::Monospace);
-		overlayFont.setPointSize(9);
+		overlayFont.setPixelSize(14);
 		mHelpOverlay->setFont(overlayFont);
 	}
-	// Colors mirror Q1UI_COLOR_OVERLAY / Q1UI_COLOR_OVERLAY_TEXT in QViewerCmn.h.
+	// Match the MFC shortcuts panel (DrawHelpMenu): a white surface card with a
+	// soft border. Background/border apply cleanly from the stylesheet; the text
+	// colour is carried by the rich text above. Colours mirror
+	// Q1UI_COLOR_SURFACE / Q1UI_COLOR_BORDER / Q1UI_COLOR_TEXT.
 	mHelpOverlay->setStyleSheet(QStringLiteral(
-		"background-color: rgba(32, 42, 54, 235);"
-		"color: #f8fafc;"
+		"background-color: #ffffff;"
+		"border: 1px solid #d8e0ea;"
 		"border-radius: 8px;"));
 	mHelpOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, true);
 	mHelpOverlay->hide();
@@ -719,27 +728,31 @@ void MainWindow::promptCustomFps()
 
 QString MainWindow::helpText() const
 {
-	// Compact two-column "key  action" layout (like the MFC viewer's in-canvas
-	// help) so the panel stays narrow enough to fit the window.
-	return tr(
-		"?            Show or hide this help\n"
-		"Mouse wheel  Zoom in or out\n"
-		"Left drag    Pan the image\n"
-		"Ctrl+O       Open an image\n"
-		"Ctrl+V       Paste image from clipboard\n"
-		"Ctrl+C       Copy image or selection\n"
-		"Ctrl+Alt+S   Save image or selection\n"
-		"R            Rotate 90 degrees clockwise\n"
-		"Y            Toggle Y-only view\n"
-		"I            Interpolate pixels (smooth)\n"
-		"C            Cursor coordinates\n"
-		"S            Selection (drag edge/corner to resize)\n"
-		"Esc          Clear selection\n"
-		"Left/Right   Previous or next frame\n"
-		"PgUp/PgDn    Previous or next file\n"
-		"Home/End     First or last frame/file\n"
-		"Space        Play or stop sequence\n"
-		"Return       Full screen");
+	// Two-column "key  description" layout built from the shared shortcut table
+	// (QViewerShortcuts.h), so this overlay and the MFC viewer's DrawHelpMenu
+	// stay in sync. Rows tagged for the Qt front-end are shown; the monospace
+	// font aligns the descriptions at the fixed key-column width.
+	QString text = QString::fromLatin1(Q1VIEW_SHORTCUTS_TITLE) + QStringLiteral("\n\n");
+	for (size_t i = 0; i < sizeof(Q1VIEW_SHORTCUTS) / sizeof(Q1VIEW_SHORTCUTS[0]); ++i) {
+		const Q1ViewShortcutRow &row = Q1VIEW_SHORTCUTS[i];
+		if (!(row.fe & Q1VIEW_FE_QT)) {
+			continue;
+		}
+		text += QStringLiteral("%1%2\n")
+			.arg(QString::fromLatin1(row.key), -Q1VIEW_SHORTCUTS_KEY_WIDTH)
+			.arg(QString::fromLatin1(row.desc));
+	}
+
+	// Emit it as preformatted rich text with an explicit dark colour and the
+	// Cascadia Mono family/size. A plain QLabel stylesheet `color` was being
+	// overridden by the system dark-mode palette (white text on the white card,
+	// i.e. invisible); an inline rich-text colour is honoured regardless of the
+	// palette. <pre> keeps the monospace columns aligned. Colour mirrors
+	// Q1UI_COLOR_TEXT, the same dark ink the MFC panel draws with.
+	return QStringLiteral(
+		"<pre style=\"margin:0; color:#1f2937; "
+		"font-family:'Cascadia Mono'; font-size:14px;\">%1</pre>")
+		.arg(text.trimmed().toHtmlEscaped());
 }
 
 void MainWindow::toggleHelpOverlay()
