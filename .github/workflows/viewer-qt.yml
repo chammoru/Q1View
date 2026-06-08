@@ -79,6 +79,13 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --target q1view_viewer_qt --parallel
 
+      # Headless smoke check: --selftest opens each committed raw-format fixture
+      # under the offscreen QPA platform and exits 0/1, exercising the shared-core
+      # decode paths through the Qt front-end. Registered as ctest cases in the
+      # Q1VIEW_BUILD_QT_VIEWER block (see CMakeLists.txt).
+      - name: Smoke test (offscreen)
+        run: ctest --test-dir build -C Release --output-on-failure
+
       - name: Package viewer (Windows/macOS)
         if: runner.os != 'Linux'
         shell: pwsh

@@ -35,15 +35,28 @@ int main(int argc, char *argv[])
 		QStringLiteral("Raw image color space, for example yuv420, nv12, bgr888."),
 		QStringLiteral("name"),
 		QStringLiteral("yuv420"));
+	// Headless smoke check: open the positional file, then exit immediately with
+	// 0 on success / 1 on failure instead of entering the event loop. Drives the
+	// automated Qt smoke tests (Tests/run_qt_smoke.sh) under the offscreen QPA
+	// platform; not intended for interactive use.
+	const QCommandLineOption selfTestOption(
+		QStringList() << QStringLiteral("selftest"),
+		QStringLiteral("Open the file, report success/failure as the exit code, and quit."));
 
 	parser.addOption(rawOption);
 	parser.addOption(widthOption);
 	parser.addOption(heightOption);
 	parser.addOption(formatOption);
+	parser.addOption(selfTestOption);
 	parser.addPositionalArgument(QStringLiteral("file"), QStringLiteral("Image or raw frame file to open."));
 	parser.process(app);
 
 	MainWindow window;
+	const bool selfTest = parser.isSet(selfTestOption);
+	// Headless: surface open/decode failures as warnings, not modal dialogs that
+	// would block forever with no one to dismiss them.
+	window.setQuiet(selfTest);
+	bool opened = false;
 	const QStringList positionalArgs = parser.positionalArguments();
 	if (!positionalArgs.isEmpty()) {
 		const QString fileName = positionalArgs.first();
@@ -54,13 +67,21 @@ int main(int argc, char *argv[])
 			const int height = parser.value(heightOption).toInt(&heightOk);
 
 			if (widthOk && heightOk && width > 0 && height > 0) {
-				window.openRawFile(fileName, width, height, parser.value(formatOption));
+				opened = window.openRawFile(fileName, width, height, parser.value(formatOption));
 			} else {
 				parser.showHelp(1);
 			}
 		} else {
-			window.openFile(fileName);
+			opened = window.openFile(fileName);
 		}
+	}
+
+	if (selfTest) {
+		if (positionalArgs.isEmpty()) {
+			qWarning("--selftest requires a file argument");
+			return 1;
+		}
+		return opened ? 0 : 1;
 	}
 
 	window.show();

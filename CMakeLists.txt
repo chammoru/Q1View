@@ -231,4 +231,41 @@ if(Q1VIEW_BUILD_QT_VIEWER)
         BUNDLE DESTINATION .
         RUNTIME DESTINATION bin
     )
+
+    # --- Minimal Qt smoke check --------------------------------------------
+    # Drive the built viewer headlessly (--selftest under the offscreen QPA
+    # platform) over the committed raw-format fixtures, asserting each opens
+    # without crashing. This guards the shared-core decode paths through the Qt
+    # front-end on every CI runner. Regenerate the fixtures with
+    # Tests/fixtures/gen_raw_fixtures.c (see its header comment).
+    enable_testing()
+
+    # "<format> <fixture-extension>" for each representative raw fixture; all are
+    # 16x16. The extension matches the color-space name, following the existing
+    # *.yuv420 / *.rgb888 file-dialog convention.
+    set(_q1_smoke_formats
+        yuv420
+        nv12
+        nv21
+        yuv420p10le
+        p010
+        grayscale
+        rgb888
+        bgr888
+        rgba8888
+        bgr565
+    )
+
+    foreach(_fmt IN LISTS _q1_smoke_formats)
+        set(_fixture
+            "${CMAKE_CURRENT_SOURCE_DIR}/Tests/fixtures/raw/gradient_16x16.${_fmt}")
+        add_test(NAME q1view_qt_smoke_${_fmt}
+            COMMAND q1view_viewer_qt --selftest --raw
+                --width 16 --height 16 --format ${_fmt} "${_fixture}")
+        # Offscreen so it runs without a display server on every CI runner; the
+        # timeout keeps a failure (which can pop a modal warning) from hanging.
+        set_tests_properties(q1view_qt_smoke_${_fmt} PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            TIMEOUT 30)
+    endforeach()
 endif()

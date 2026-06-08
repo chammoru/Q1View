@@ -192,7 +192,15 @@ Qt viewer:
 ```sh
 cmake -S . -B build -DQ1VIEW_BUILD_SMOKE_TEST=OFF -DQ1VIEW_BUILD_QT_VIEWER=ON
 cmake --build build --config Release --target q1view_viewer_qt --parallel
+# Headless raw-format smoke check (offscreen QPA); also runs in viewer-qt.yml.
+ctest --test-dir build --build-config Release --output-on-failure
 ```
+
+The Qt smoke check opens each committed raw fixture
+([tests/fixtures/raw/](../Tests/fixtures/raw/)) through the viewer's
+`--selftest` mode and asserts a clean exit. Regenerate the fixtures with
+[tests/fixtures/gen_raw_fixtures.c](../Tests/fixtures/gen_raw_fixtures.c), or run
+the checks without CMake via [tests/run_qt_smoke.sh](../Tests/run_qt_smoke.sh).
 
 Local build note: GitHub Actions remains the cross-platform source of truth (Linux/macOS/Windows). This Windows machine now has VS2022 (MSBuild + CMake) and Qt 6.5.3, so the core and the Qt viewer can also be built and run locally.
 
@@ -209,9 +217,13 @@ Local build note: GitHub Actions remains the cross-platform source of truth (Lin
    - Download files from https://github.com/chammoru/Q1View/releases after the release workflow finishes.
    - Current direct release page: https://github.com/chammoru/Q1View/releases/tag/qt-viewer-v0.1.0
 4. Improve raw image workflows:
-   - Add validation/test fixtures for representative raw formats.
-5. Add a minimal automated Qt smoke check if practical:
-   - For now CI only compiles and uploads artifacts.
+   - Done: representative raw fixtures live in
+     [tests/fixtures/raw/](../Tests/fixtures/raw/) (yuv420, nv12, nv21,
+     yuv420p10le, p010, grayscale, rgb888, bgr888, rgba8888, bgr565).
+5. Automated Qt smoke check:
+   - Done: `viewer-qt.yml` now runs `ctest` after the build, driving the viewer
+     `--selftest` over the raw fixtures on Linux/macOS/Windows.
+   - Remaining: still verify the Linux AppImage manually on a clean desktop.
 6. Keep follow-up porting changes additive on `master` — each must only *link* the shared core, never fork the MFC product's pixel logic.
 
 ## Important Cautions

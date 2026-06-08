@@ -12,6 +12,11 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 - Viewer: press `D` to cycle through the preset resolutions for raw input,
   mirroring how `N` advances the color space. The shortcut is ignored for
   sources with an intrinsic size (decoded images and video).
+- Qt viewer: a `--selftest` mode plus committed raw-format fixtures and a
+  headless smoke check. `viewer-qt.yml` now runs `ctest` after the build,
+  opening each fixture (yuv420, nv12, nv21, yuv420p10le, p010, grayscale,
+  rgb888, bgr888, rgba8888, bgr565) under the offscreen QPA platform on
+  Linux/macOS/Windows.
 
 ---
 

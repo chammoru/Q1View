@@ -57,6 +57,9 @@
 /Viewer/**/*.inl text eol=crlf
 /Viewer/**/*.rc text eol=crlf
 
+# Raw-format Qt smoke-check fixtures are binary frame data; never EOL-convert.
+/Tests/fixtures/raw/** binary
+
 # Keep binary assets out of end-of-line conversion.
 *.bmp binary
 *.gif binary

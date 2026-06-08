@@ -38,6 +38,12 @@ public:
 	bool openRawFile(const QString &fileName, int width, int height, const QString &colorSpaceName);
 	bool openY4mFile(const QString &fileName);
 
+	// Quiet mode: report open/decode failures via qWarning() instead of a modal
+	// QMessageBox. The headless --selftest smoke check sets this so a failing
+	// fixture exits immediately rather than blocking on a dialog nobody can
+	// dismiss (see ViewerQt/main.cpp).
+	void setQuiet(bool quiet) { mQuiet = quiet; }
+
 private:
 	// Which part of an existing selection a press or hover lands on, so the
 	// rectangle can be grabbed and resized by an edge/corner or moved by its
@@ -47,6 +53,11 @@ private:
 		Left, Right, Top, Bottom,
 		TopLeft, TopRight, BottomLeft, BottomRight
 	};
+
+	// Open/decode failure notice: a modal QMessageBox normally, or a qWarning()
+	// when mQuiet is set (headless --selftest). Keeps the smoke check from
+	// hanging on an undismissable dialog.
+	void warn(const QString &title, const QString &text);
 
 	void createActions();
 	// Builds the MFC-style "control panel" menus (resolution / color space / FPS)
@@ -250,6 +261,9 @@ private:
 	SelHandle mActiveHandle;
 	QRect mDragStartRect;
 	QPoint mDragStartImagePoint;
+	// True under the headless --selftest smoke check: route warn() to qWarning()
+	// instead of a modal dialog.
+	bool mQuiet = false;
 };
 
 #endif

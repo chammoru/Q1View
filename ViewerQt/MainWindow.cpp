@@ -211,6 +211,15 @@ MainWindow::MainWindow(QWidget *parent)
 	resize(500, 412);
 }
 
+void MainWindow::warn(const QString &title, const QString &text)
+{
+	if (mQuiet) {
+		qWarning("%s: %s", qPrintable(title), qPrintable(text));
+		return;
+	}
+	QMessageBox::warning(this, title, text);
+}
+
 bool MainWindow::openFile(const QString &fileName)
 {
 	// A playable video container goes to the Multimedia page rather than the
@@ -249,7 +258,7 @@ bool MainWindow::openFile(const QString &fileName)
 		} else {
 			detail = reader.errorString();
 		}
-		QMessageBox::warning(this, tr("Open image"),
+		warn(tr("Open image"),
 			tr("Could not read %1:\n%2").arg(QFileInfo(fileName).fileName(), detail));
 		return false;
 	}
@@ -922,13 +931,13 @@ bool MainWindow::loadRawFrame(int frameIndex)
 	}
 
 	if (!colorSpace || !colorSpace->cs_load_info || !colorSpace->csc2rgb888) {
-		QMessageBox::warning(this, tr("Open raw image"), tr("Unsupported color space: %1").arg(mRawColorSpaceName));
+		warn(tr("Open raw image"), tr("Unsupported color space: %1").arg(mRawColorSpaceName));
 		return false;
 	}
 
 	QFile file(mCurrentFile);
 	if (!file.open(QIODevice::ReadOnly)) {
-		QMessageBox::warning(this, tr("Open raw image"), tr("Could not open %1").arg(QFileInfo(mCurrentFile).fileName()));
+		warn(tr("Open raw image"), tr("Could not open %1").arg(QFileInfo(mCurrentFile).fileName()));
 		return false;
 	}
 
@@ -1811,7 +1820,7 @@ bool MainWindow::openRawFile(const QString &fileName, int width, int height, con
 	}
 
 	if (!colorSpace || !colorSpace->cs_load_info || !colorSpace->csc2rgb888) {
-		QMessageBox::warning(this, tr("Open raw image"), tr("Unsupported color space: %1").arg(colorSpaceName));
+		warn(tr("Open raw image"), tr("Unsupported color space: %1").arg(colorSpaceName));
 		return false;
 	}
 
@@ -1819,19 +1828,19 @@ bool MainWindow::openRawFile(const QString &fileName, int width, int height, con
 	int offset3 = 0;
 	const int frameSize = colorSpace->cs_load_info(width, height, &offset2, &offset3);
 	if (frameSize <= 0) {
-		QMessageBox::warning(this, tr("Open raw image"), tr("Invalid raw image size."));
+		warn(tr("Open raw image"), tr("Invalid raw image size."));
 		return false;
 	}
 
 	QFile file(fileName);
 	if (!file.open(QIODevice::ReadOnly)) {
-		QMessageBox::warning(this, tr("Open raw image"), tr("Could not open %1").arg(QFileInfo(fileName).fileName()));
+		warn(tr("Open raw image"), tr("Could not open %1").arg(QFileInfo(fileName).fileName()));
 		return false;
 	}
 
 	const qint64 fileSize = file.size();
 	if (fileSize < frameSize) {
-		QMessageBox::warning(this, tr("Open raw image"),
+		warn(tr("Open raw image"),
 			tr("File is too small for %1 %2x%3.\nExpected at least %4 bytes, got %5 bytes.")
 				.arg(colorSpaceName)
 				.arg(width)
@@ -1869,7 +1878,7 @@ bool MainWindow::openY4mFile(const QString &fileName)
 {
 	q1y4m::Y4mInfo info;
 	if (!q1y4m::parseY4m(fileName, &info)) {
-		QMessageBox::warning(this, tr("Open Y4M"),
+		warn(tr("Open Y4M"),
 			tr("%1 is not a supported YUV4MPEG2 file.").arg(QFileInfo(fileName).fileName()));
 		return false;
 	}
