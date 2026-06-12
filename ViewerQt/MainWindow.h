@@ -28,6 +28,7 @@ class QMouseEvent;
 class QResizeEvent;
 class QScrollBar;
 class QScrollArea;
+class QSlider;
 class QStackedWidget;
 class QTimer;
 class QWheelEvent;
@@ -145,6 +146,9 @@ private:
 	void updateImage();
 	void updateView();
 	void updateZoomStatus();
+	// Refresh / act on the multi-frame raw seek bar (visibility, range, readout).
+	void updateSeekBar();
+	void seekToFrame(int frame);
 	void zoomIn();
 	void zoomOut();
 
@@ -184,6 +188,15 @@ protected:
 private:
 	ImageView *mImageView;
 	QScrollArea *mScrollArea;
+	// Image page = scroll area + the raw/sequence seek bar below it. The seek bar
+	// (frame slider + frame/time readout) shows only for multi-frame raw sources,
+	// mirroring the MFC viewer's bottom progress bar; video files use VideoView's
+	// own transport instead.
+	QWidget *mImagePage = nullptr;
+	QWidget *mSeekContainer = nullptr;
+	QSlider *mSeekBar = nullptr;
+	QLabel *mSeekLabel = nullptr;
+	bool mSeekBarUpdating = false;
 	// Hosts the image scroll area and (when built with Qt6::Multimedia) the
 	// video page; the active page swaps as image/raw vs. video files open.
 	QStackedWidget *mCentralStack;
@@ -262,6 +275,11 @@ private:
 	// back to back: each is preceded by a "FRAME...\n" marker and the file opens
 	// with a text header, so loadRawFrame seeks past both.
 	bool mIsY4m;
+	// True when the frame rate is a real timing source (Y4M header, an fps= tag in
+	// a raw filename, or a user-chosen FPS), so the seek bar shows playback time;
+	// a plain raw sequence at the default rate shows only the frame counter, like
+	// the MFC viewer's mHasTimingFps.
+	bool mHasTimingFps = false;
 	qint64 mY4mHeaderLen;
 	int mY4mFrameMarkerLen;
 	double mScaleFactor;

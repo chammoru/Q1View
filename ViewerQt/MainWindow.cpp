@@ -42,6 +42,10 @@
 #include <QScrollBar>
 #include <QScrollArea>
 #include <QSettings>
+#include <QSlider>
+#include <QStyle>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QSize>
 #include <QStackedWidget>
 #include <QStatusBar>
@@ -154,9 +158,34 @@ MainWindow::MainWindow(QWidget *parent)
 	mScrollArea->viewport()->setFocusPolicy(Qt::StrongFocus);
 	mScrollArea->viewport()->grabGesture(Qt::PinchGesture);
 	mScrollArea->viewport()->installEventFilter(this);
-	// The image scroll area is page 0 of the central stack; the optional video
-	// page is added lazily the first time a clip opens (see openVideoFile).
-	mCentralStack->addWidget(mScrollArea);
+	// Image page = scroll area on top of the raw/sequence seek bar. The seek bar
+	// is a frame slider plus a "frame / max  cur / dur" readout; it stays hidden
+	// unless a multi-frame raw source is open (see updateSeekBar). Clicking the
+	// groove jumps to that frame, like the MFC viewer's bottom progress bar.
+	mSeekBar = new QSlider(Qt::Horizontal);
+	mSeekBar->setSingleStep(1);
+	mSeekBar->setPageStep(1);
+	mSeekBar->installEventFilter(this);
+	connect(mSeekBar, &QSlider::valueChanged, this, &MainWindow::seekToFrame);
+	mSeekLabel = new QLabel;
+	mSeekContainer = new QWidget;
+	QHBoxLayout *seekLayout = new QHBoxLayout(mSeekContainer);
+	seekLayout->setContentsMargins(8, 2, 8, 2);
+	seekLayout->setSpacing(10);
+	seekLayout->addWidget(mSeekBar, 1);
+	seekLayout->addWidget(mSeekLabel, 0);
+	mSeekContainer->hide();
+
+	mImagePage = new QWidget;
+	QVBoxLayout *imageLayout = new QVBoxLayout(mImagePage);
+	imageLayout->setContentsMargins(0, 0, 0, 0);
+	imageLayout->setSpacing(0);
+	imageLayout->addWidget(mScrollArea, 1);
+	imageLayout->addWidget(mSeekContainer, 0);
+
+	// The image page is page 0 of the central stack; the optional video page is
+	// added lazily the first time a clip opens (see openVideoFile).
+	mCentralStack->addWidget(mImagePage);
 	setCentralWidget(mCentralStack);
 	setAcceptDrops(true);
 	setFocusPolicy(Qt::StrongFocus);
@@ -276,6 +305,7 @@ bool MainWindow::openFile(const QString &fileName)
 	mRawSource.clear();
 	mRawSampler = nullptr;
 	mIsY4m = false;
+	mHasTimingFps = false;
 	mRawFrameSize = 0;
 	mRawFrameCount = 1;
 	mCurrentFrame = 0;
@@ -732,8 +762,11 @@ void MainWindow::applyFps(double fps)
 	if (fps > 0.0) {
 		mFps = fps;
 		mPlayTimer->setInterval(static_cast<int>(1000.0 / mFps + 0.5));
+		// A chosen frame rate is a real timing source (matches OnFpsChange).
+		mHasTimingFps = true;
 	}
 	refreshControlMenus();
+	updateSeekBar();
 
 	SyncMessage message;
 	message.command = SyncMessage::Fps;
@@ -924,6 +957,8 @@ void MainWindow::closeCurrentFile()
 	mImage = QImage();
 	mCurrentFile.clear();
 	mCurrentFileIsRaw = false;
+	mRawSource.clear();
+	mRawSampler = nullptr;
 	mCurrentSourceOnDisk = false;
 	mRawFrameSize = 0;
 	mRawFrameCount = 0;
@@ -934,6 +969,7 @@ void MainWindow::closeCurrentFile()
 	setWindowTitle(tr("Q1View Qt"));
 	updateView();
 	refreshControlMenus();
+	updateSeekBar();
 	watchCurrentFile();
 }
 
@@ -1668,6 +1704,75 @@ void MainWindow::updateImage()
 	setWindowTitle(tr("%1 - Q1View Qt").arg(info.fileName()));
 	refreshControlMenus();
 	updateZoomStatus();
+	updateSeekBar();
+}
+
+namespace {
+
+// "mm:ss.s" (or "h:mm:ss.s"), matching the MFC viewer's FormatPlaybackTime.
+QString formatPlaybackTime(double seconds)
+{
+	if (seconds < 0.0 || !std::isfinite(seconds)) {
+		seconds = 0.0;
+	}
+	const long long deciseconds = static_cast<long long>(seconds * 10.0 + 0.5);
+	const long long totalSeconds = deciseconds / 10;
+	const int ds = static_cast<int>(deciseconds % 10);
+	const int h = static_cast<int>(totalSeconds / 3600);
+	const int m = static_cast<int>((totalSeconds / 60) % 60);
+	const int s = static_cast<int>(totalSeconds % 60);
+	if (h > 0) {
+		return QString::asprintf("%d:%02d:%02d.%d", h, m, s, ds);
+	}
+	return QString::asprintf("%02d:%02d.%d", m, s, ds);
+}
+
+} // namespace
+
+void MainWindow::updateSeekBar()
+{
+	const bool show = mCurrentFileIsRaw && mRawFrameCount > 1 && !mShowingVideo;
+	if (mSeekContainer) {
+		mSeekContainer->setVisible(show);
+	}
+	if (!show || !mSeekBar) {
+		return;
+	}
+
+	// Programmatic updates must not echo back as a user seek.
+	mSeekBarUpdating = true;
+	mSeekBar->setRange(0, mRawFrameCount - 1);
+	mSeekBar->setValue(mCurrentFrame);
+	mSeekBarUpdating = false;
+
+	QString text = QStringLiteral("%1 / %2").arg(mCurrentFrame).arg(mRawFrameCount - 1);
+	// Show playback time only when the rate is a real timing source, like the MFC
+	// progress readout (FormatProgressText gates on mHasTimingFps).
+	if (mHasTimingFps && mFps > 0.0 && std::isfinite(mFps)) {
+		text += QStringLiteral("   %1 / %2")
+			.arg(formatPlaybackTime(mCurrentFrame / mFps))
+			.arg(formatPlaybackTime(mRawFrameCount / mFps));
+	}
+	mSeekLabel->setText(text);
+}
+
+void MainWindow::seekToFrame(int frame)
+{
+	if (mSeekBarUpdating || !mCurrentFileIsRaw || mRawFrameCount <= 1) {
+		return;
+	}
+	if (frame < 0 || frame >= mRawFrameCount || frame == mCurrentFrame) {
+		return;
+	}
+	if (mPlayTimer->isActive()) {
+		resetPlayback();
+	}
+	if (loadRawFrame(frame)) {
+		SyncMessage message;
+		message.command = SyncMessage::SeekFrame;
+		message.first = mCurrentFrame;
+		broadcastSync(message);
+	}
 }
 
 void MainWindow::updateView()
@@ -2034,6 +2139,19 @@ bool MainWindow::openRawFile(const QString &fileName, int width, int height, con
 	mRotationQuarterTurns = 0;
 	mCursorImagePoint = QPoint(-1, -1);
 	clearSelection();
+	// A raw filename can carry an "fps=" tag (e.g. clip_1920x1080_fps=24.yuv),
+	// which is a real timing source; otherwise a plain raw has no timing fps and
+	// the seek bar shows only the frame counter, like the MFC RawFrmSrc path.
+	double parsedFps = -1.0;
+	QByteArray rawName = QFileInfo(fileName).fileName().toLower().toUtf8();
+	if (q1::image_parse_arg(rawName.data(), &parsedFps, "fps") == 0
+		&& parsedFps > 0.0 && std::isfinite(parsedFps)) {
+		mFps = parsedFps;
+		mPlayTimer->setInterval(static_cast<int>(1000.0 / mFps + 0.5));
+		mHasTimingFps = true;
+	} else {
+		mHasTimingFps = false;
+	}
 	mFitToWindow = true;
 	const bool ok = loadRawFrame(0);
 	if (ok) {
@@ -2073,6 +2191,9 @@ bool MainWindow::openY4mFile(const QString &fileName)
 	if (info.fps > 0.0) {
 		mFps = info.fps;
 		mPlayTimer->setInterval(static_cast<int>(1000.0 / mFps + 0.5));
+		mHasTimingFps = true;
+	} else {
+		mHasTimingFps = false;
 	}
 	clearSelection();
 	mFitToWindow = true;
@@ -2140,6 +2261,7 @@ bool MainWindow::openVideoFile(const QString &fileName)
 
 	mShowingVideo = true;
 	mCentralStack->setCurrentWidget(mVideoView);
+	updateSeekBar();
 	// The synchronous return is best-effort; real decode errors arrive later via
 	// errorOccurred, and recent-files is gated on the async loaded signal above.
 	const bool ok = mVideoView->open(fileName);
@@ -2163,7 +2285,8 @@ void MainWindow::showImagePage()
 	}
 #endif
 	mShowingVideo = false;
-	mCentralStack->setCurrentWidget(mScrollArea);
+	mCentralStack->setCurrentWidget(mImagePage);
+	updateSeekBar();
 }
 
 void MainWindow::watchCurrentFile()
@@ -2525,6 +2648,19 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *event)
 
 bool MainWindow::eventFilter(QObject *object, QEvent *event)
 {
+	// Click anywhere on the seek bar groove to jump to that frame (QSlider only
+	// page-steps by default), matching the MFC viewer's click-to-seek bar.
+	if (object == mSeekBar && event->type() == QEvent::MouseButtonPress) {
+		QMouseEvent *me = static_cast<QMouseEvent *>(event);
+		if (me->button() == Qt::LeftButton && mSeekBar->maximum() > mSeekBar->minimum()) {
+			const int value = QStyle::sliderValueFromPosition(
+				mSeekBar->minimum(), mSeekBar->maximum(),
+				me->position().toPoint().x(), mSeekBar->width());
+			mSeekBar->setValue(value); // emits valueChanged -> seekToFrame
+			return true;
+		}
+	}
+
 	if (object != mScrollArea->viewport()) {
 		return QMainWindow::eventFilter(object, event);
 	}

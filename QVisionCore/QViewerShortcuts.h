@@ -55,7 +55,7 @@ static const Q1ViewShortcutRow Q1VIEW_SHORTCUTS[] = {
 	{ "Left/Right",   "Previous or next video frame",                 Q1VIEW_FE_ALL },
 	{ "Home/End",     "First or last frame/file",                     Q1VIEW_FE_ALL },
 	{ "Space",        "Play or stop video",                           Q1VIEW_FE_ALL },
-	{ "Click bottom", "Seek to a video frame",                        Q1VIEW_FE_MFC },
+	{ "Click bottom", "Seek to a frame",                              Q1VIEW_FE_ALL },
 	{ "C",            "Cursor coordinates",                           Q1VIEW_FE_ALL },
 	{ "B",            "Selected box size",                            Q1VIEW_FE_MFC },
 	{ "I",            "Interpolate pixels",                           Q1VIEW_FE_ALL },
