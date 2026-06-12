@@ -260,6 +260,31 @@ void CViewerView::AdjustWindowSize()
 	}
 }
 
+void CViewerView::FitToWindow()
+{
+	// The frame size is unchanged, so OnSize did not run; refresh the canvas
+	// extent from the current client size in case Initialize() toggled the
+	// per-frame progress bar for the newly loaded source.
+	mWCanvas = mWClient;
+	mHCanvas = mHClient - mHProgress;
+
+	// Scale the freshly loaded image so the whole image is visible in the
+	// current viewport, without touching the frame size. Mirroring common
+	// image viewers, only images larger than the viewport are shrunk to fit;
+	// smaller images stay at 100% so they are not upscaled and blurred.
+	mN = q1::GetFitRatio(1.0f, mW, mH, mWCanvas, mHCanvas);
+	mD = ZOOM_DELTA(mN);
+	mXOff = 0.0f;
+	mYOff = 0.0f;
+
+	SetDstSize();
+	mXDst = q1::DeterminDestPos(mWCanvas, mWDst, mXOff, mN);
+	mYDst = q1::DeterminDestPos(mHCanvas, mHDst, mYOff, mN);
+
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
+}
+
 void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool preserveViewState)
 {
 	float prevD = mD;
@@ -1757,7 +1782,14 @@ bool CViewerView::FindFile(CViewerDoc* pDoc, UINT nChar)
 	finder.Close();
 
 	if (candidate != _T("")) {
-		if (pDoc->OnOpenDocument(candidate)) {
+		// Folder navigation keeps the current window size and fits the next
+		// image into the viewport (issue #69), unlike a fresh open which sizes
+		// the frame to the image.
+		LoadLayout prevLayout = pDoc->mLoadLayout;
+		pDoc->mLoadLayout = LOAD_FIT_TO_WINDOW;
+		BOOL opened = pDoc->OnOpenDocument(candidate);
+		pDoc->mLoadLayout = prevLayout;
+		if (opened) {
 			pDoc->SetPathName(candidate, TRUE);
 			return true;
 		}

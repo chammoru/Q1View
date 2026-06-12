@@ -244,6 +244,11 @@ private:
 	int mY4mFrameMarkerLen;
 	double mScaleFactor;
 	bool mFitToWindow;
+	// True only while folder navigation (next/prev/first/last file) loads an
+	// image: resizeToImage() then keeps the current window size and just fits
+	// the new image into the existing viewport, instead of resizing the frame
+	// around every image (issue #69).
+	bool mKeepWindowOnLoad = false;
 	bool mCurrentFileIsRaw;
 	bool mIsPanning;
 	bool mShowCoordinates;

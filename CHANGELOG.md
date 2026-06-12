@@ -18,6 +18,15 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
   rgb888, bgr888, rgba8888, bgr565) under the offscreen QPA platform on
   Linux/macOS/Windows.
 
+### Fixed
+- Viewer (MFC and Qt): stepping through a folder with PgUp/PgDn (and
+  Home/End) no longer resizes the window around each image. The window keeps
+  its size and the next image is fit into the existing viewport, so browsing
+  mixed-resolution folders stays steady instead of jumping between sizes and
+  in/out of a maximized frame. A fresh open still sizes the window to the
+  image. Fit now shrinks large images to fit but never upscales past 1:1, so
+  small images stay crisp at 100%.
+
 ---
 
 ## [2.3.1] — 2026-06-05

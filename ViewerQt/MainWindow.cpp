@@ -37,6 +37,7 @@
 #include <QPointF>
 #include <QRect>
 #include <QResizeEvent>
+#include <QScopeGuard>
 #include <QScreen>
 #include <QScrollBar>
 #include <QScrollArea>
@@ -1017,6 +1018,15 @@ void MainWindow::openAdjacentFile(int direction, bool boundaryOnly)
 	}
 
 	const QString nextFile = files[nextIndex].absoluteFilePath();
+
+	// Folder navigation must not resize the window around each image (issue
+	// #69): keep the current frame and let the openers fit the new image into
+	// the existing viewport. Restore the flag on every exit path so a later
+	// explicit open still sizes the window to its image.
+	const bool prevKeep = mKeepWindowOnLoad;
+	mKeepWindowOnLoad = true;
+	const auto restoreKeep = qScopeGuard([this, prevKeep]() { mKeepWindowOnLoad = prevKeep; });
+
 #ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
 	if (VideoView::isVideoFile(nextFile)) {
 		openFile(nextFile);
@@ -1412,26 +1422,32 @@ void MainWindow::resizeToImage()
 		return;
 	}
 
-	// Grow the window so the viewport shows the image near 1:1, but never smaller
-	// than the default footprint nor larger than the available screen. Mirrors the
-	// MFC viewer, which sizes its frame to max(default, image) around the image.
-	QRect available(0, 0, 1920, 1080);
-	if (QScreen *scr = screen()) {
-		available = scr->availableGeometry();
+	// Folder navigation keeps the current window size and only refits the new
+	// image into the existing viewport, so the frame no longer jumps around
+	// when stepping through differently sized images (issue #69). A fresh open
+	// still sizes the window to its image below.
+	if (!mKeepWindowOnLoad) {
+		// Grow the window so the viewport shows the image near 1:1, but never smaller
+		// than the default footprint nor larger than the available screen. Mirrors the
+		// MFC viewer, which sizes its frame to max(default, image) around the image.
+		QRect available(0, 0, 1920, 1080);
+		if (QScreen *scr = screen()) {
+			available = scr->availableGeometry();
+		}
+
+		// sizeHint() is valid even before the window is shown (unlike height()).
+		const int chromeH = menuBar()->sizeHint().height() + statusBar()->sizeHint().height();
+		// frameGeometry() includes the OS title bar / borders; the difference from the
+		// widget size is the chrome the screen budget must also leave room for.
+		const int frameExtraW = std::max(0, frameGeometry().width() - width());
+		const int frameExtraH = std::max(0, frameGeometry().height() - height());
+		const int maxContentW = std::max(500, available.width() - frameExtraW);
+		const int maxContentH = std::max(412, available.height() - frameExtraH);
+
+		const int contentW = std::clamp(shown.width(), 500, maxContentW);
+		const int contentH = std::clamp(shown.height() + chromeH, 412, maxContentH);
+		resize(contentW, contentH);
 	}
-
-	// sizeHint() is valid even before the window is shown (unlike height()).
-	const int chromeH = menuBar()->sizeHint().height() + statusBar()->sizeHint().height();
-	// frameGeometry() includes the OS title bar / borders; the difference from the
-	// widget size is the chrome the screen budget must also leave room for.
-	const int frameExtraW = std::max(0, frameGeometry().width() - width());
-	const int frameExtraH = std::max(0, frameGeometry().height() - height());
-	const int maxContentW = std::max(500, available.width() - frameExtraW);
-	const int maxContentH = std::max(412, available.height() - frameExtraH);
-
-	const int contentW = std::clamp(shown.width(), 500, maxContentW);
-	const int contentH = std::clamp(shown.height() + chromeH, 412, maxContentH);
-	resize(contentW, contentH);
 
 	// Refit once the window has actually been laid out. A queued call runs after
 	// show()/the resize is applied, when the viewport finally reports its real
@@ -1528,7 +1544,11 @@ void MainWindow::updateView()
 		const QSize viewportSize = mScrollArea->viewport()->size();
 		const double widthScale = static_cast<double>(viewportSize.width()) / static_cast<double>(shownImage.width());
 		const double heightScale = static_cast<double>(viewportSize.height()) / static_cast<double>(shownImage.height());
-		mScaleFactor = std::max(0.02, std::min(widthScale, heightScale));
+		// Shrink large images to fit, but never upscale past 1:1: small images
+		// stay crisp at 100% rather than being blurrily enlarged to fill the
+		// window. Matches the MFC viewer's fit and common inspection-oriented
+		// viewers, and keeps folder navigation steady (issue #69).
+		mScaleFactor = std::clamp(std::min(widthScale, heightScale), 0.02, 1.0);
 	}
 
 	mImageView->setYOnly(mYOnly);

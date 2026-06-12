@@ -58,7 +58,7 @@ CViewerDoc::CViewerDoc()
 , mFrmSrc(NULL)
 , mBgr888Processor(NULL)
 , mFileChangeNotiThread(new FileChangeNotiThread)
-, mAdjustWindowOnLoad(true)
+, mLoadLayout(LOAD_RESIZE_WINDOW)
 {
 	mSortedCscInfo =
 		static_cast<struct qcsc_info *>(malloc(sizeof(qcsc_info_table)));
@@ -186,7 +186,7 @@ static inline void GetBezelSize(CMainFrame *pMainFrm, int &wBezel, int &hBezel)
 	hBezel = wndRect.Height() - cntRect.Height();
 }
 
-void CViewerDoc::LoadSourceImage(bool adjustWindow)
+void CViewerDoc::LoadSourceImage(LoadLayout layout)
 {
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	CViewerView *pView = static_cast<CViewerView *>(pMainFrm->GetActiveView());
@@ -222,11 +222,14 @@ void CViewerDoc::LoadSourceImage(bool adjustWindow)
 	mBufferPool->setup(rgbBufSize);
 
 	mBufferQueue->init();
-	pView->Initialize(mFrames, ROUNDUP_DWORD(mW), mW, mH, !adjustWindow);
+	// Preserve the prior zoom/pan only when reloading the same file in place;
+	// fresh opens and folder navigation start the view from a clean state.
+	pView->Initialize(mFrames, ROUNDUP_DWORD(mW), mW, mH,
+		layout == LOAD_PRESERVE_VIEW);
 
 	QueueSource2View();
 
-	if (adjustWindow) {
+	if (layout == LOAD_RESIZE_WINDOW) {
 		int wScreen = 0;
 		int hScreen = 0;
 		GetScreenSize(pMainFrm, wScreen, hScreen);
@@ -249,6 +252,11 @@ void CViewerDoc::LoadSourceImage(bool adjustWindow)
 			// Resize after queuing and before OnDraw reads the current client size.
 			pView->AdjustWindowSize();
 		}
+	} else if (layout == LOAD_FIT_TO_WINDOW) {
+		// Folder navigation keeps the current window size and fits the new
+		// image into the existing viewport, so the frame no longer jumps
+		// around when stepping through differently sized images (issue #69).
+		pView->FitToWindow();
 	}
 
 	mDocState = DOC_NEWIMAGE;
@@ -411,7 +419,7 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	mOrigW = mOrigH = -1;
 	mFrmSrc->ConfigureDoc(this);
 
-	LoadSourceImage(mAdjustWindowOnLoad);
+	LoadSourceImage(mLoadLayout);
 
 	UpdateMenu();
 
@@ -420,9 +428,10 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 
 BOOL CViewerDoc::ReloadDocument()
 {
-	mAdjustWindowOnLoad = false;
+	LoadLayout prevLayout = mLoadLayout;
+	mLoadLayout = LOAD_PRESERVE_VIEW;
 	BOOL ok = OnOpenDocument(mPathName);
-	mAdjustWindowOnLoad = true;
+	mLoadLayout = prevLayout;
 
 	return ok;
 }

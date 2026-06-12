@@ -45,6 +45,20 @@ enum QROTATION {
 	QROT_MAX,
 };
 
+// How the frame should react when a source image is (re)loaded.
+enum LoadLayout {
+	// Fresh open (File>Open, drag-drop, command line, resolution/rotate):
+	// size the frame to the image, as before.
+	LOAD_RESIZE_WINDOW,
+	// In-place reload of the same file: keep the frame size and the current
+	// zoom/pan so an on-disk change does not disturb the view.
+	LOAD_PRESERVE_VIEW,
+	// Folder navigation (next/prev/first/last file): keep the current frame
+	// size and fit the new image into the existing viewport instead of
+	// resizing the window around every image (issue #69).
+	LOAD_FIT_TO_WINDOW,
+};
+
 class FrmSrc;
 class ImageProcessor;
 class FileChangeNotiThread;
@@ -97,7 +111,7 @@ public:
 
 	q1::ImageProcessor *mBgr888Processor;
 	FileChangeNotiThread *mFileChangeNotiThread;
-	bool mAdjustWindowOnLoad;
+	LoadLayout mLoadLayout;
 
 // Operations
 public:
@@ -108,7 +122,7 @@ public:
 	int PrevScene();
 	int FirstScene();
 	int LastScene();
-	void LoadSourceImage(bool adjustWindow = true);
+	void LoadSourceImage(LoadLayout layout = LOAD_RESIZE_WINDOW);
 	BOOL ReloadDocument();
 	void UpdateMenu();
 	void Rotate90();

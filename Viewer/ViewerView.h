@@ -181,6 +181,7 @@ public:
 // Operations
 public:
 	void AdjustWindowSize();
+	void FitToWindow();
 	void ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID);
 	void UpdateVolumeFromPoint(CPoint point);
 	void DrawMuteButton(CDC *pDC, const CRect &rect);
