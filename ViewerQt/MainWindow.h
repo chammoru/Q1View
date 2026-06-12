@@ -76,6 +76,10 @@ private:
 	void applyResolution(int width, int height);
 	void applyColorSpace(const QString &colorSpaceName);
 	void applyFps(double fps);
+	// Advance to the next preset resolution / color space for raw input, like the
+	// MFC viewer's 'D' and 'N' shortcuts. No-ops for non-raw (fixed-size) sources.
+	void cycleResolution();
+	void cycleColorSpace();
 	void promptCustomResolution();
 	void promptCustomFps();
 	QString helpText() const;
@@ -233,6 +237,8 @@ private:
 	QActionGroup *mResolutionGroup;
 	QActionGroup *mColorSpaceGroup;
 	QActionGroup *mFpsGroup;
+	QAction *mNextResolutionAction = nullptr;
+	QAction *mNextColorSpaceAction = nullptr;
 	// Live magnification readout pinned to the menu bar's right corner.
 	QLabel *mMagnifyLabel;
 	// Translucent shortcut overlay drawn over the viewport (replaces the dialog).

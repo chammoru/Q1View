@@ -498,6 +498,10 @@ void MainWindow::createActions()
 void MainWindow::createControlMenus()
 {
 	mResolutionMenu = menuBar()->addMenu(QStringLiteral("1920x1080"));
+	mNextResolutionAction = mResolutionMenu->addAction(tr("Next Preset &Resolution"));
+	mNextResolutionAction->setShortcut(QKeySequence(tr("D")));
+	connect(mNextResolutionAction, &QAction::triggered, this, &MainWindow::cycleResolution);
+	mResolutionMenu->addSeparator();
 	mResolutionGroup = new QActionGroup(this);
 	mResolutionGroup->setExclusive(true);
 	for (size_t i = 0; i < ARRAY_SIZE(q1::resolution_info_table); ++i) {
@@ -521,6 +525,10 @@ void MainWindow::createControlMenus()
 	}
 
 	mColorSpaceMenu = menuBar()->addMenu(QStringLiteral("YUV420"));
+	mNextColorSpaceAction = mColorSpaceMenu->addAction(tr("&Next Color Space"));
+	mNextColorSpaceAction->setShortcut(QKeySequence(tr("N")));
+	connect(mNextColorSpaceAction, &QAction::triggered, this, &MainWindow::cycleColorSpace);
+	mColorSpaceMenu->addSeparator();
 	mColorSpaceGroup = new QActionGroup(this);
 	mColorSpaceGroup->setExclusive(true);
 	for (size_t i = 0; i < ARRAY_SIZE(qcsc_info_table); ++i) {
@@ -604,6 +612,14 @@ void MainWindow::refreshControlMenus()
 	// in its container header.
 	const bool rawTweakable = mCurrentFileIsRaw && !mIsY4m;
 	const bool fpsTweakable = mCurrentFileIsRaw && mRawFrameCount > 1;
+
+	// The N / D cycle shortcuts only apply to reinterpretable raw input.
+	if (mNextColorSpaceAction) {
+		mNextColorSpaceAction->setEnabled(rawTweakable);
+	}
+	if (mNextResolutionAction) {
+		mNextResolutionAction->setEnabled(rawTweakable);
+	}
 
 	if (mResolutionMenu) {
 		mResolutionMenu->menuAction()->setEnabled(rawTweakable);
@@ -723,6 +739,49 @@ void MainWindow::applyFps(double fps)
 	message.command = SyncMessage::Fps;
 	message.scalar = fps;
 	broadcastSync(message);
+}
+
+void MainWindow::cycleResolution()
+{
+	// Only packed raw sources can be reinterpreted at another size (Y4M and
+	// decoded images carry their own), mirroring CMainFrame::NextResolution.
+	if (!mCurrentFileIsRaw || mIsY4m) {
+		return;
+	}
+	int w = 0;
+	int h = 0;
+	q1::image_next_resolution(mRawWidth, mRawHeight, &w, &h);
+	if (w > 0 && h > 0) {
+		applyResolution(w, h);
+	}
+}
+
+void MainWindow::cycleColorSpace()
+{
+	if (!mCurrentFileIsRaw || mIsY4m) {
+		return;
+	}
+	const int count = static_cast<int>(ARRAY_SIZE(qcsc_info_table));
+	int current = -1;
+	for (int i = 0; i < count; ++i) {
+		if (QString::fromLatin1(qcsc_info_table[i].name) == mRawColorSpaceName) {
+			current = i;
+			break;
+		}
+	}
+	if (current < 0) {
+		return;
+	}
+	// Advance to the next color space that has a raw loader (the same set the
+	// menu offers), wrapping around; image_next_cs can land on entries without a
+	// loader, so skip those rather than fail the reopen.
+	for (int step = 1; step <= count; ++step) {
+		const qcsc_info &c = qcsc_info_table[(current + step) % count];
+		if (c.cs_load_info && c.csc2rgb888) {
+			applyColorSpace(QString::fromLatin1(c.name));
+			return;
+		}
+	}
 }
 
 void MainWindow::promptCustomResolution()
