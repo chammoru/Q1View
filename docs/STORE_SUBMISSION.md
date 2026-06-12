@@ -115,7 +115,7 @@ Recommended set:
 
 | Screenshot | Resolution | Content |
 | --- | --- | --- |
-| Viewer — pixel inspection | 1366 × 768 | `docs/images/viewer-pixel-inspection.png` — high-zoom view showing the pixel grid |
+| Viewer — image detail | 1366 × 768 | `docs/images/viewer-pixel-inspection.png` — zoomed view of a real-world image with rich color detail |
 | Comparator — quality analysis | 1366 × 768 | `docs/images/comparator-quality-analysis.png` — side-by-side PNG comparison with PSNR and localized diff grid |
 | Viewer — video frame | 1920 × 1080 | Video playback with seek bar visible |
 | Viewer — Sync Input | 1920 × 1080 | Two Viewer windows synchronized |

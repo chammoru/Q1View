@@ -85,7 +85,7 @@ Open an image, raw dump, sequence, or video; zoom down to pixels, inspect
 coordinates and values, step through frames with frame/time progress, or link
 multiple Viewer windows.
 
-![Viewer zoomed into a real-world image with pixel grid](docs/images/viewer-pixel-inspection.png)
+![Viewer zoomed into a color-rich real-world image](docs/images/viewer-pixel-inspection.png)
 
 ### Comparator
 
