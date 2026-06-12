@@ -392,6 +392,12 @@ void MainWindow::createActions()
 	mYOnlyAction->setCheckable(true);
 	connect(mYOnlyAction, &QAction::triggered, this, &MainWindow::toggleYOnly);
 
+	mHexValuesAction = viewMenu->addAction(tr("He&xadecimal Pixel Values"));
+	mHexValuesAction->setShortcut(QKeySequence(tr("H")));
+	mHexValuesAction->setCheckable(true);
+	mHexValuesAction->setChecked(mHexMode);
+	connect(mHexValuesAction, &QAction::triggered, this, &MainWindow::toggleHexValues);
+
 	mCoordinatesAction = viewMenu->addAction(tr("Cursor &Coordinates"));
 	mCoordinatesAction->setShortcut(QKeySequence(tr("C")));
 	mCoordinatesAction->setCheckable(true);
@@ -1392,6 +1398,20 @@ void MainWindow::toggleYOnly()
 	broadcastSync(message);
 }
 
+void MainWindow::toggleHexValues()
+{
+	mHexMode = !mHexMode;
+	if (mHexValuesAction) {
+		mHexValuesAction->setChecked(mHexMode);
+	}
+	updateView();
+
+	SyncMessage message;
+	message.command = SyncMessage::DisplayOptions;
+	message.first = static_cast<qint32>(displayOptionBits());
+	broadcastSync(message);
+}
+
 void MainWindow::toggleInterpolate()
 {
 	mInterpolate = !mInterpolate;
@@ -1552,6 +1572,7 @@ void MainWindow::updateView()
 	}
 
 	mImageView->setYOnly(mYOnly);
+	mImageView->setHexMode(mHexMode);
 	mImageView->setInterpolate(mInterpolate);
 	mImageView->setSelection(mSelectionRect);
 	mImageView->setImage(shownImage, mScaleFactor);
@@ -1777,6 +1798,10 @@ void MainWindow::updateZoomStatus()
 	if (mYOnlyAction) {
 		mYOnlyAction->setEnabled(hasImage);
 		mYOnlyAction->setChecked(mYOnly);
+	}
+	if (mHexValuesAction) {
+		mHexValuesAction->setEnabled(hasImage);
+		mHexValuesAction->setChecked(mHexMode);
 	}
 	if (mCoordinatesAction) {
 		mCoordinatesAction->setEnabled(hasImage);
@@ -2257,6 +2282,9 @@ quint32 MainWindow::displayOptionBits() const
 	if (mShowCoordinates) {
 		bits |= SyncMessage::Coordinates;
 	}
+	if (mHexMode) {
+		bits |= SyncMessage::HexPixel;
+	}
 	return bits;
 }
 
@@ -2330,6 +2358,9 @@ void MainWindow::applySyncMessage(const SyncMessage &message)
 		}
 		if (((bits & SyncMessage::Coordinates) != 0) != mShowCoordinates) {
 			toggleShowCoordinates();
+		}
+		if (((bits & SyncMessage::HexPixel) != 0) != mHexMode) {
+			toggleHexValues();
 		}
 		break;
 	}

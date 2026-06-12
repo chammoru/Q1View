@@ -23,6 +23,7 @@ ImageView::ImageView(QWidget *parent)
 	: QWidget(parent),
 	  mScale(1.0),
 	  mYOnly(false),
+	  mHexMode(false),
 	  mSelectionActive(false),
 	  mInterpolate(false)
 {
@@ -42,6 +43,15 @@ void ImageView::setImage(const QImage &shownImage, double scale)
 void ImageView::setYOnly(bool yOnly)
 {
 	mYOnly = yOnly;
+}
+
+void ImageView::setHexMode(bool hex)
+{
+	if (mHexMode == hex) {
+		return;
+	}
+	mHexMode = hex;
+	update();
 }
 
 void ImageView::setInterpolate(bool on)
@@ -158,12 +168,15 @@ void ImageView::paintPixelValues(QPainter &painter, const QRect &srcRect) const
 	// the cell. Font height/width ratios vary by platform, so measure to be sure
 	// rather than trusting the estimate (otherwise the text can vanish entirely).
 	int pixelSize = static_cast<int>(std::min(cell / (lineCount * 1.35), cell / 2.2));
+	// Decimal cells are one digit wider than the two-digit hex cells, so size the
+	// font against the widest label the current mode will draw.
+	const QString widthRef = mHexMode ? QStringLiteral("FF") : QStringLiteral("000");
 	QFontMetrics metrics(font);
 	while (pixelSize >= 6) {
 		font.setPixelSize(pixelSize);
 		metrics = QFontMetrics(font);
 		if (metrics.height() * lineCount <= cell
-			&& metrics.horizontalAdvance(QStringLiteral("FF")) <= cell) {
+			&& metrics.horizontalAdvance(widthRef) <= cell) {
 			break;
 		}
 		--pixelSize;
@@ -183,9 +196,13 @@ void ImageView::paintPixelValues(QPainter &painter, const QRect &srcRect) const
 			const int right = static_cast<int>(std::lround((x + 1) * cell));
 			const QRect cellRect(left, top, right - left, bottom - top);
 
-			const QString text = mYOnly
-				? QString::asprintf("%02X", qRed(value))
-				: QString::asprintf("%02X\n%02X\n%02X", qRed(value), qGreen(value), qBlue(value));
+			const QString text = mHexMode
+				? (mYOnly
+					? QString::asprintf("%02X", qRed(value))
+					: QString::asprintf("%02X\n%02X\n%02X", qRed(value), qGreen(value), qBlue(value)))
+				: (mYOnly
+					? QString::asprintf("%03d", qRed(value))
+					: QString::asprintf("%03d\n%03d\n%03d", qRed(value), qGreen(value), qBlue(value)));
 
 			painter.setPen(qGray(value) < 128 ? Qt::white : Qt::black);
 			painter.drawText(cellRect, Qt::AlignCenter, text);

@@ -22,6 +22,9 @@ public:
 	// shownImage is already in display orientation (rotation / Y-only applied).
 	void setImage(const QImage &shownImage, double scale);
 	void setYOnly(bool yOnly);
+	// Per-pixel value overlay format: hexadecimal when true, zero-padded decimal
+	// otherwise. Matches the MFC viewer's 'H' toggle (which defaults to decimal).
+	void setHexMode(bool hex);
 	// When true, the image is drawn with smooth (bilinear) interpolation even when
 	// magnified, instead of the default nearest-neighbour "pixel grid" look.
 	void setInterpolate(bool on);
@@ -46,6 +49,7 @@ private:
 	QImage mRgb;     // RGB32 copy for fast per-pixel overlay access
 	double mScale;
 	bool mYOnly;
+	bool mHexMode;
 	QRect mSelection;
 	bool mSelectionActive;
 	bool mInterpolate;

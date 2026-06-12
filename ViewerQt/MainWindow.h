@@ -117,6 +117,7 @@ private:
 	void togglePlayback();
 	void toggleShowCoordinates();
 	void toggleYOnly();
+	void toggleHexValues();
 	void toggleInterpolate();
 	void showAbout();
 	// Recent-files (MRU) list, persisted in QSettings and shown under File, like
@@ -209,6 +210,7 @@ private:
 	QAction *mFitToWindowAction;
 	QAction *mRotateAction;
 	QAction *mYOnlyAction;
+	QAction *mHexValuesAction = nullptr;
 	QAction *mCoordinatesAction;
 	QAction *mInterpolateAction;
 	QAction *mPlayAction;
@@ -253,6 +255,9 @@ private:
 	bool mIsPanning;
 	bool mShowCoordinates;
 	bool mYOnly;
+	// Per-pixel value overlay format. Decimal by default, like the MFC viewer's
+	// 'H' toggle; mirrored to ImageView and over Sync Input.
+	bool mHexMode = false;
 	int mRotationQuarterTurns;
 	QPoint mLastPanPoint;
 	QPoint mCursorImagePoint;
