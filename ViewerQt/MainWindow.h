@@ -4,6 +4,9 @@
 #include "RawOpenDialog.h"
 #include "SyncChannel.h"
 
+#include "qimage_cs.h"
+
+#include <QByteArray>
 #include <QImage>
 #include <QMainWindow>
 #include <QPoint>
@@ -118,8 +121,13 @@ private:
 	void toggleShowCoordinates();
 	void toggleYOnly();
 	void toggleHexValues();
+	void toggleSourceValues();
 	void toggleInterpolate();
 	void showAbout();
+	// Maps a display-space pixel to the raw source sample (handling rotation),
+	// mirroring the MFC viewer's CViewerDoc::GetNativePixelSample. Returns false
+	// for non-raw sources, so the overlay falls back to the converted RGB.
+	bool nativeSampleAtDisplay(int displayX, int displayY, QIMAGE_NATIVE_PIXEL_SAMPLE *sample) const;
 	// Recent-files (MRU) list, persisted in QSettings and shown under File, like
 	// the MFC viewer's recent-file menu.
 	void addToRecentFiles(const QString &fileName);
@@ -211,6 +219,7 @@ private:
 	QAction *mRotateAction;
 	QAction *mYOnlyAction;
 	QAction *mHexValuesAction = nullptr;
+	QAction *mSourceYuvAction = nullptr;
 	QAction *mCoordinatesAction;
 	QAction *mInterpolateAction;
 	QAction *mPlayAction;
@@ -238,6 +247,11 @@ private:
 	int mRawHeight;
 	int mRawFrameCount;
 	int mCurrentFrame;
+	// Retained bytes of the current raw frame plus its color space's native-pixel
+	// sampler, so the overlay can read source Y/U/V values. Empty/null for non-raw
+	// sources (decoded images, clipboard, video).
+	QByteArray mRawSource;
+	QIMAGE_SAMPLE_NATIVE_PIXEL_FN mRawSampler = nullptr;
 	// YUV4MPEG2 (.y4m) layout. When mIsY4m is true the raw frames are not packed
 	// back to back: each is preceded by a "FRAME...\n" marker and the file opens
 	// with a text header, so loadRawFrame seeks past both.
@@ -258,6 +272,10 @@ private:
 	// Per-pixel value overlay format. Decimal by default, like the MFC viewer's
 	// 'H' toggle; mirrored to ImageView and over Sync Input.
 	bool mHexMode = false;
+	// Show the native source components (Y/U/V for raw YUV) in the overlay instead
+	// of the converted RGB. On by default, like the MFC viewer's 'V' toggle; only
+	// affects raw YUV sources (a no-op for RGB/decoded images).
+	bool mShowSourceValues = true;
 	int mRotationQuarterTurns;
 	QPoint mLastPanPoint;
 	QPoint mCursorImagePoint;

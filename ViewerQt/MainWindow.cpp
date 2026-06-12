@@ -139,6 +139,11 @@ MainWindow::MainWindow(QWidget *parent)
 {
 	mImageView->setAcceptDrops(false);
 	mImageView->setMouseTracking(true);
+	// The overlay asks for the native source sample per visible cell; the callback
+	// returns false for non-raw sources, so it falls back to the converted RGB.
+	mImageView->setNativeSampler([this](int x, int y, QIMAGE_NATIVE_PIXEL_SAMPLE *s) {
+		return nativeSampleAtDisplay(x, y, s);
+	});
 
 	mScrollArea->setBackgroundRole(QPalette::Dark);
 	mScrollArea->setWidget(mImageView);
@@ -268,6 +273,8 @@ bool MainWindow::openFile(const QString &fileName)
 	mImage = image;
 	mCurrentFile = fileName;
 	mCurrentFileIsRaw = false;
+	mRawSource.clear();
+	mRawSampler = nullptr;
 	mIsY4m = false;
 	mRawFrameSize = 0;
 	mRawFrameCount = 1;
@@ -397,6 +404,12 @@ void MainWindow::createActions()
 	mHexValuesAction->setCheckable(true);
 	mHexValuesAction->setChecked(mHexMode);
 	connect(mHexValuesAction, &QAction::triggered, this, &MainWindow::toggleHexValues);
+
+	mSourceYuvAction = viewMenu->addAction(tr("Source &YUV Pixel Values"));
+	mSourceYuvAction->setShortcut(QKeySequence(tr("V")));
+	mSourceYuvAction->setCheckable(true);
+	mSourceYuvAction->setChecked(mShowSourceValues);
+	connect(mSourceYuvAction, &QAction::triggered, this, &MainWindow::toggleSourceValues);
 
 	mCoordinatesAction = viewMenu->addAction(tr("Cursor &Coordinates"));
 	mCoordinatesAction->setShortcut(QKeySequence(tr("C")));
@@ -986,6 +999,9 @@ bool MainWindow::loadRawFrame(int frameIndex)
 		mRawHeight,
 		strideBytes,
 		QImage::Format_BGR888).copy();
+	// Retain the source bytes + sampler so the overlay can read native Y/U/V.
+	mRawSource = raw;
+	mRawSampler = colorSpace->sample_native_pixel;
 	mCurrentFrame = frameIndex;
 	updateImage();
 	return true;
@@ -1412,6 +1428,50 @@ void MainWindow::toggleHexValues()
 	broadcastSync(message);
 }
 
+void MainWindow::toggleSourceValues()
+{
+	mShowSourceValues = !mShowSourceValues;
+	if (mSourceYuvAction) {
+		mSourceYuvAction->setChecked(mShowSourceValues);
+	}
+	updateView();
+
+	SyncMessage message;
+	message.command = SyncMessage::DisplayOptions;
+	message.first = static_cast<qint32>(displayOptionBits());
+	broadcastSync(message);
+}
+
+bool MainWindow::nativeSampleAtDisplay(int displayX, int displayY,
+	QIMAGE_NATIVE_PIXEL_SAMPLE *sample) const
+{
+	if (!mCurrentFileIsRaw || !mRawSampler || mRawSource.isEmpty()
+		|| mRawWidth <= 0 || mRawHeight <= 0) {
+		return false;
+	}
+
+	// The displayed image is the source rotated clockwise by `turns` quarter
+	// turns; map the display pixel back to source coordinates, mirroring the MFC
+	// viewer's CViewerDoc::GetNativePixelSample. The sampler always works on the
+	// unrotated source layout (mRawWidth x mRawHeight).
+	const int srcW = mRawWidth;
+	const int srcH = mRawHeight;
+	const int turns = ((mRotationQuarterTurns % 4) + 4) % 4;
+	int sx = displayX;
+	int sy = displayY;
+	switch (turns) {
+	case 1: sx = displayY;             sy = srcH - 1 - displayX; break;
+	case 2: sx = srcW - 1 - displayX;  sy = srcH - 1 - displayY; break;
+	case 3: sx = srcW - 1 - displayY;  sy = displayX;            break;
+	}
+	if (sx < 0 || sy < 0 || sx >= srcW || sy >= srcH) {
+		return false;
+	}
+
+	return mRawSampler(reinterpret_cast<const qu8 *>(mRawSource.constData()),
+		srcW, srcH, sx, sy, sample) != 0;
+}
+
 void MainWindow::toggleInterpolate()
 {
 	mInterpolate = !mInterpolate;
@@ -1573,6 +1633,7 @@ void MainWindow::updateView()
 
 	mImageView->setYOnly(mYOnly);
 	mImageView->setHexMode(mHexMode);
+	mImageView->setShowSourceValues(mShowSourceValues);
 	mImageView->setInterpolate(mInterpolate);
 	mImageView->setSelection(mSelectionRect);
 	mImageView->setImage(shownImage, mScaleFactor);
@@ -1802,6 +1863,10 @@ void MainWindow::updateZoomStatus()
 	if (mHexValuesAction) {
 		mHexValuesAction->setEnabled(hasImage);
 		mHexValuesAction->setChecked(mHexMode);
+	}
+	if (mSourceYuvAction) {
+		mSourceYuvAction->setEnabled(hasImage);
+		mSourceYuvAction->setChecked(mShowSourceValues);
 	}
 	if (mCoordinatesAction) {
 		mCoordinatesAction->setEnabled(hasImage);
@@ -2285,6 +2350,9 @@ quint32 MainWindow::displayOptionBits() const
 	if (mHexMode) {
 		bits |= SyncMessage::HexPixel;
 	}
+	if (mShowSourceValues) {
+		bits |= SyncMessage::SourceYuv;
+	}
 	return bits;
 }
 
@@ -2361,6 +2429,9 @@ void MainWindow::applySyncMessage(const SyncMessage &message)
 		}
 		if (((bits & SyncMessage::HexPixel) != 0) != mHexMode) {
 			toggleHexValues();
+		}
+		if (((bits & SyncMessage::SourceYuv) != 0) != mShowSourceValues) {
+			toggleSourceValues();
 		}
 		break;
 	}

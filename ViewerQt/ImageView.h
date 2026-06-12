@@ -6,6 +6,10 @@
 #include <QSize>
 #include <QWidget>
 
+#include <functional>
+
+#include "qimage_cs.h"
+
 class QPaintEvent;
 
 // Image surface hosted inside the scroll area. Instead of building one full
@@ -25,6 +29,13 @@ public:
 	// Per-pixel value overlay format: hexadecimal when true, zero-padded decimal
 	// otherwise. Matches the MFC viewer's 'H' toggle (which defaults to decimal).
 	void setHexMode(bool hex);
+	// Optional native (source) pixel sampler. Given display-space pixel coords it
+	// fills the original component sample (e.g. source Y/U/V for raw YUV); returns
+	// false to fall back to the converted RGB. With "source values" on, the overlay
+	// shows the native Y/U/V instead of RGB, matching the MFC viewer's 'V' toggle.
+	using NativeSampleFn = std::function<bool(int, int, QIMAGE_NATIVE_PIXEL_SAMPLE *)>;
+	void setNativeSampler(NativeSampleFn sampler);
+	void setShowSourceValues(bool on);
 	// When true, the image is drawn with smooth (bilinear) interpolation even when
 	// magnified, instead of the default nearest-neighbour "pixel grid" look.
 	void setInterpolate(bool on);
@@ -50,6 +61,8 @@ private:
 	double mScale;
 	bool mYOnly;
 	bool mHexMode;
+	bool mShowSourceValues;
+	NativeSampleFn mNativeSampler;
 	QRect mSelection;
 	bool mSelectionActive;
 	bool mInterpolate;

@@ -24,6 +24,7 @@ ImageView::ImageView(QWidget *parent)
 	  mScale(1.0),
 	  mYOnly(false),
 	  mHexMode(false),
+	  mShowSourceValues(false),
 	  mSelectionActive(false),
 	  mInterpolate(false)
 {
@@ -51,6 +52,21 @@ void ImageView::setHexMode(bool hex)
 		return;
 	}
 	mHexMode = hex;
+	update();
+}
+
+void ImageView::setNativeSampler(NativeSampleFn sampler)
+{
+	mNativeSampler = std::move(sampler);
+	update();
+}
+
+void ImageView::setShowSourceValues(bool on)
+{
+	if (mShowSourceValues == on) {
+		return;
+	}
+	mShowSourceValues = on;
 	update();
 }
 
@@ -161,16 +177,31 @@ void ImageView::paintPixelValues(QPainter &painter, const QRect &srcRect) const
 		painter.drawLine(gridLeft, py, gridRight, py);
 	}
 
+	// Decide the overlay mode once: the image has a single source format, so probe
+	// the first visible pixel. With "source values" on and a raw YUV source, show
+	// the native Y/U/V components (matching the MFC viewer's 'V'); otherwise show
+	// the converted RGB. Digit count follows the sample bit depth, like the MFC
+	// overlay (8-bit -> 2 hex / 3 dec, 10-bit -> 3 hex / 4 dec).
+	bool sourceMode = false;
+	int digits = mHexMode ? 2 : 3;
+	if (mShowSourceValues && mNativeSampler) {
+		QIMAGE_NATIVE_PIXEL_SAMPLE probe = {};
+		if (mNativeSampler(srcRect.left(), srcRect.top(), &probe)
+			&& probe.model == QIMAGE_PIXEL_MODEL_YUV) {
+			sourceMode = true;
+			digits = mHexMode ? (probe.bit_depth + 3) / 4 : (probe.bit_depth > 8 ? 4 : 3);
+		}
+	}
+
 	// Value text, sized to fit the configured number of lines inside a cell.
-	const int lineCount = mYOnly ? 1 : 3;
+	const int lineCount = (sourceMode || !mYOnly) ? 3 : 1;
 	QFont font = painter.font();
 	// Start from a height-based estimate, then shrink until the value text fits
 	// the cell. Font height/width ratios vary by platform, so measure to be sure
 	// rather than trusting the estimate (otherwise the text can vanish entirely).
 	int pixelSize = static_cast<int>(std::min(cell / (lineCount * 1.35), cell / 2.2));
-	// Decimal cells are one digit wider than the two-digit hex cells, so size the
-	// font against the widest label the current mode will draw.
-	const QString widthRef = mHexMode ? QStringLiteral("FF") : QStringLiteral("000");
+	// Size the font against the widest label the current mode/depth will draw.
+	const QString widthRef(digits, mHexMode ? QLatin1Char('F') : QLatin1Char('0'));
 	QFontMetrics metrics(font);
 	while (pixelSize >= 6) {
 		font.setPixelSize(pixelSize);
@@ -186,6 +217,7 @@ void ImageView::paintPixelValues(QPainter &painter, const QRect &srcRect) const
 	}
 	painter.setFont(font);
 
+	const char *fmt1 = mHexMode ? "%0*X" : "%0*d";
 	for (int y = srcRect.top(); y <= srcRect.bottom(); ++y) {
 		const QRgb *line = reinterpret_cast<const QRgb *>(mRgb.constScanLine(y));
 		const int top = static_cast<int>(std::lround(y * cell));
@@ -196,14 +228,22 @@ void ImageView::paintPixelValues(QPainter &painter, const QRect &srcRect) const
 			const int right = static_cast<int>(std::lround((x + 1) * cell));
 			const QRect cellRect(left, top, right - left, bottom - top);
 
-			const QString text = mHexMode
-				? (mYOnly
-					? QString::asprintf("%02X", qRed(value))
-					: QString::asprintf("%02X\n%02X\n%02X", qRed(value), qGreen(value), qBlue(value)))
-				: (mYOnly
-					? QString::asprintf("%03d", qRed(value))
-					: QString::asprintf("%03d\n%03d\n%03d", qRed(value), qGreen(value), qBlue(value)));
+			QString text;
+			QIMAGE_NATIVE_PIXEL_SAMPLE s = {};
+			if (sourceMode && mNativeSampler(x, y, &s)
+				&& s.model == QIMAGE_PIXEL_MODEL_YUV) {
+				text = QString::asprintf(fmt1, digits, s.component[0])
+					+ QLatin1Char('\n') + QString::asprintf(fmt1, digits, s.component[1])
+					+ QLatin1Char('\n') + QString::asprintf(fmt1, digits, s.component[2]);
+			} else if (mYOnly) {
+				text = QString::asprintf(fmt1, digits, qRed(value));
+			} else {
+				text = QString::asprintf(fmt1, digits, qRed(value))
+					+ QLatin1Char('\n') + QString::asprintf(fmt1, digits, qGreen(value))
+					+ QLatin1Char('\n') + QString::asprintf(fmt1, digits, qBlue(value));
+			}
 
+			// Contrast against the actual displayed pixel colour.
 			painter.setPen(qGray(value) < 128 ? Qt::white : Qt::black);
 			painter.drawText(cellRect, Qt::AlignCenter, text);
 		}

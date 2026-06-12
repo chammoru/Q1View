@@ -44,7 +44,7 @@ static const Q1ViewShortcutRow Q1VIEW_SHORTCUTS[] = {
 	{ "Return",       "Full screen",                                  Q1VIEW_FE_ALL },
 	{ "H",            "Toggle hex pixel values",                      Q1VIEW_FE_ALL },
 	{ "Y",            "Toggle Y-only view",                           Q1VIEW_FE_ALL },
-	{ "V",            "Toggle RGB/source YUV pixel values",           Q1VIEW_FE_MFC },
+	{ "V",            "Toggle RGB/source YUV pixel values",           Q1VIEW_FE_ALL },
 	{ "R",            "Rotate 90 degrees clockwise",                  Q1VIEW_FE_ALL },
 	{ "Page Up/Down", "Previous or next file",                        Q1VIEW_FE_ALL },
 	{ "S",            "Selection capture mode",                       Q1VIEW_FE_ALL },

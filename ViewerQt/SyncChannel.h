@@ -38,6 +38,7 @@ struct SyncMessage
 		Interpolate = 0x04,
 		Coordinates = 0x08,
 		HexPixel = 0x10,
+		SourceYuv = 0x20,
 	};
 
 	quint32 command = None;
