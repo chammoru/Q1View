@@ -217,6 +217,13 @@ void ImageView::paintPixelValues(QPainter &painter, const QRect &srcRect) const
 	}
 	painter.setFont(font);
 
+	// Match the MFC viewer (CViewerView::DrawPixelText): draw the value on a cell
+	// box dimmed half-way toward grey ((0x80 + channel) / 2) in a fixed light ink
+	// (COLOR_PIXEL_TEXT). The dimmed boxes read consistently over any pixel colour
+	// and tile into the familiar pixel grid, rather than flipping black/white.
+	const QColor textColor(0xe8, 0xee, 0xf7);            // Q1UI COLOR_PIXEL_TEXT
+	const int tw = metrics.horizontalAdvance(widthRef);
+	const int th = metrics.height() * lineCount;
 	const char *fmt1 = mHexMode ? "%0*X" : "%0*d";
 	for (int y = srcRect.top(); y <= srcRect.bottom(); ++y) {
 		const QRgb *line = reinterpret_cast<const QRgb *>(mRgb.constScanLine(y));
@@ -243,8 +250,13 @@ void ImageView::paintPixelValues(QPainter &painter, const QRect &srcRect) const
 					+ QLatin1Char('\n') + QString::asprintf(fmt1, digits, qBlue(value));
 			}
 
-			// Contrast against the actual displayed pixel colour.
-			painter.setPen(qGray(value) < 128 ? Qt::white : Qt::black);
+			// Dimmed backing box behind the value, sized to the text and clamped to
+			// the cell, then the value in the fixed light ink.
+			QRect bg(0, 0, std::min(right - left, tw + 6), std::min(bottom - top, th + 4));
+			bg.moveCenter(cellRect.center());
+			painter.fillRect(bg, QColor((0x80 + qRed(value)) / 2,
+				(0x80 + qGreen(value)) / 2, (0x80 + qBlue(value)) / 2));
+			painter.setPen(textColor);
 			painter.drawText(cellRect, Qt::AlignCenter, text);
 		}
 	}
