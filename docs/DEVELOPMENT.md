@@ -34,6 +34,50 @@ once from an elevated PowerShell:
 & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" modify --installPath "C:\Program Files\Microsoft Visual Studio\2022\Community" --add Microsoft.VisualStudio.Workload.NativeDesktop --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.ATLMFC --passive --norestart
 ```
 
+## Qt Viewer (Experimental, Cross-Platform)
+
+`ViewerQt/` is an experimental Qt 6 port of the viewer that also builds on macOS
+and Linux. It is configured through the top-level `CMakeLists.txt`, separately
+from the MFC Viewer/Comparator MSBuild projects above.
+
+### Prerequisites
+
+- Qt 6.5.3 (on Windows, the `msvc2019_64` kit) **including the `qtmultimedia`
+  module**. Video playback (`ViewerQt/VideoView.cpp`) links `Qt6::Multimedia` /
+  `Qt6::MultimediaWidgets`; when that module is absent, CMake prints
+  `video playback disabled (Qt6::Multimedia not found)` and silently drops the
+  video page while the rest of the viewer still builds. Qt's official binaries
+  ship a self-contained FFmpeg media backend, so the player handles the common
+  container/codec set — MP4/H.264, MKV, WebM, AVI, WMV, … — with no extra
+  runtime DLLs.
+- libheif for HEIF/HEIC/AVIF image decode (optional). On Windows this is the same
+  prebuilt "decode-av1" root the MFC product restores into
+  `.deps/libheif-decode-av1-x64-windows` (run `build/Ensure-HeifDependency.ps1`,
+  as the `viewer-qt` workflow does).
+
+If an existing Qt install is missing `qtmultimedia` — the symptom is video files
+not playing at all — add it without reinstalling Qt, via the Qt Maintenance Tool
+or `aqtinstall` (module archive only, no base re-download):
+
+```powershell
+pip install aqtinstall
+python -m aqt install-qt windows desktop 6.5.3 win64_msvc2019_64 `
+    -m qtmultimedia --archives qtmultimedia --outputdir D:\Qt
+```
+
+### Build
+
+```powershell
+cmake -S . -B build-qt -DQ1VIEW_BUILD_QT_VIEWER=ON -DQ1VIEW_BUILD_SMOKE_TEST=OFF `
+    -DCMAKE_PREFIX_PATH=D:\Qt\6.5.3\msvc2019_64
+cmake --build build-qt --config Release --target q1view_viewer_qt --parallel
+```
+
+`.github/workflows/viewer-qt.yml` builds the same target on Windows, macOS, and
+Linux and is the authoritative reference for packaging (`windeployqt` /
+`macdeployqt` / `linuxdeploy` bundle the Qt multimedia plugins next to the
+executable).
+
 ## Application Version
 
 Viewer and Comparator compile their Windows file version resources from
