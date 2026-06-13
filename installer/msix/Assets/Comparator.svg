@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Q1View Comparator icon (vector master). Same rounded-square family as the
+       Viewer (Q1View.svg) in a teal tint, with a compare glyph: a centre divider
+       bar between two offset side ticks. Render this to Comparator/res/Comparator.ico
+       at each size (16/24/32/48/64/128/256); it is the app/taskbar icon and is not
+       part of the MSIX payload (the package ships Viewer only). -->
+  <!-- Teal rounded-square background -->
+  <rect x="20" y="20" width="216" height="216" rx="54" fill="#14846B"/>
+  <!-- White compare glyph: centre divider + upper-left / lower-right ticks -->
+  <rect x="117" y="61" width="22" height="134" rx="11" fill="#F6F9FE"/>
+  <rect x="65" y="100" width="44" height="15" rx="7.5" fill="#F6F9FE"/>
+  <rect x="147" y="141" width="44" height="15" rx="7.5" fill="#F6F9FE"/>
+</svg>

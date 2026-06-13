@@ -5,17 +5,23 @@ Place the required PNG logo files in this directory before running
 
 ## Source of truth
 
-`Q1View.svg` is the vector master for every logo in this folder. All the PNGs
-below are rendered from it, so edit the SVG and re-render rather than touching
-the PNGs by hand. To regenerate at the correct size with ImageMagick, e.g.:
+`Q1View.svg` is the vector master for the Viewer app icon and every MSIX logo in
+this folder; `Comparator.svg` is the master for the Comparator app icon (teal
+variant). Edit the SVGs and re-render rather than touching the PNGs/`.ico` by
+hand.
 
-```powershell
-# density 576 = 256 (SVG viewBox) * 576 / 72 -> a 2048px master to downscale from
-magick -background none -density 576 Q1View.svg master.png
-magick master.png -filter Lanczos -resize 150x150 -background none Square150x150Logo.png
-# wide tiles center the square icon on a transparent canvas:
-magick master.png -filter Lanczos -resize 150x150 -background none -gravity center -extent 310x150 Wide310x150Logo.png
+Regenerate everything from the masters with:
+
+```sh
+python build/render_icons.py    # needs Pillow
 ```
+
+This rasterises each output **at its own size** (per-size supersample + one
+Lanczos downscale) with clean straight alpha, instead of downscaling a single
+large bitmap, so small sizes stay crisp and transparent edges stay clean. It
+writes the MSIX PNGs here plus `Viewer/res/Viewer.ico`, `ViewerQt/Viewer.ico`
+(from `Q1View.svg`) and `Comparator/res/Comparator.ico` (from `Comparator.svg`),
+each a multi-size PNG-framed icon (16/24/32/48/64/128/256).
 
 ## Required files (scale-100 minimum)
 
