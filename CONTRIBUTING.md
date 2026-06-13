@@ -70,6 +70,16 @@ Fix Comparator launch file handling
 Reduce Sync Input pan latency
 ```
 
+## Changelog
+
+When a change is user-visible, add an entry under `## [Unreleased]` in
+[CHANGELOG.md](CHANGELOG.md). Write each bullet as a **single logical line** —
+do not hard-wrap inside a bullet. The release pipeline turns the matching
+changelog section into the Microsoft Store "What's New" as plain text, where
+manual line breaks render as awkward mid-phrase breaks. See
+[AGENTS.md](AGENTS.md#changelog-and-release-notes) for the full rationale and the
+release checklist.
+
 ## License
 
 By submitting a pull request you agree that your contribution will be licensed

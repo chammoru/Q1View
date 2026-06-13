@@ -390,5 +390,5 @@ ipch/
 *.swp
 .depend
 
-# Claude Code local settings (per-machine, not shared)
-.claude/settings.local.json
+# Claude Code config (per-machine, not shared)
+.claude/

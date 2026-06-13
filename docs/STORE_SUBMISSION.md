@@ -167,3 +167,14 @@ For subsequent releases:
 
 The Microsoft Store requires each submission to have a higher version number than
 the previously certified package.
+
+### Release notes ("What's New")
+
+Release CI fills the Store "What's New" automatically from the matching
+`CHANGELOG.md` section — it is emitted as plain text (`STORE_WHATS_NEW.txt`) and
+sent to Partner Center verbatim. Because the Store renders newlines literally and
+then wraps the text again, every changelog bullet must be a **single logical
+line with no manual hard-wrapping**, or the listing shows ragged mid-phrase
+breaks (the defect issue #71 fixed in the description). This convention is
+documented for contributors and agents in
+[../AGENTS.md](../AGENTS.md#changelog-and-release-notes).
