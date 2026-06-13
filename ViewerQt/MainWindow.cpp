@@ -998,6 +998,7 @@ void MainWindow::closeCurrentFile()
 	mCurrentFileIsRaw = false;
 	mRawSource.clear();
 	mRawSampler = nullptr;
+	mWindowSized = false;   // a fresh session sizes the window to its first image again
 	mCurrentSourceOnDisk = false;
 	mRawFrameSize = 0;
 	mRawFrameCount = 0;
@@ -1660,11 +1661,14 @@ void MainWindow::resizeToImage()
 		return;
 	}
 
-	// Folder navigation keeps the current window size and only refits the new
-	// image into the existing viewport, so the frame no longer jumps around
-	// when stepping through differently sized images (issue #69). A fresh open
-	// still sizes the window to its image below.
-	if (!mKeepWindowOnLoad) {
+	// Size the window to the image only for the first image of a session; after
+	// that, every load (folder navigation, drawer, drag-drop, File > Open) keeps
+	// the current window and just fits the new image into it. This stops the
+	// window from jumping around as differently sized images are loaded
+	// (extends issue #69 from navigation to any new image). The very first image
+	// still establishes a sensible window footprint.
+	if (!mKeepWindowOnLoad && !mWindowSized) {
+		mWindowSized = true;
 		// Grow the window so the viewport shows the image near 1:1, but never smaller
 		// than the default footprint nor larger than the available screen. Mirrors the
 		// MFC viewer, which sizes its frame to max(default, image) around the image.

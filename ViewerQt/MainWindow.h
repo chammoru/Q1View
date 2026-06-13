@@ -298,6 +298,9 @@ private:
 	// the new image into the existing viewport, instead of resizing the frame
 	// around every image (issue #69).
 	bool mKeepWindowOnLoad = false;
+	// True once the window has been sized to an image this session; subsequent
+	// loads then keep the current window instead of resizing to each image.
+	bool mWindowSized = false;
 	bool mCurrentFileIsRaw;
 	bool mIsPanning;
 	bool mShowCoordinates;
