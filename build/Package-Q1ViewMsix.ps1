@@ -125,8 +125,10 @@ foreach ($asset in $requiredAssets) {
               -Destination (Join-Path $stagingDir "Assets") -Force
 }
 
-# Optional scale variants (copy any that exist alongside the required files)
-Get-ChildItem -LiteralPath $AssetsDir -Filter "*.scale-*.png" -ErrorAction SilentlyContinue |
+# All logo PNG variants: .scale-* plus the target-size assets. The taskbar and
+# Start list need the Square44x44Logo.targetsize-*_altform-unplated.png assets,
+# or Windows plates the icon on a square background.
+Get-ChildItem -LiteralPath $AssetsDir -Filter "*.png" -ErrorAction SilentlyContinue |
     ForEach-Object {
         Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $stagingDir "Assets") -Force
     }

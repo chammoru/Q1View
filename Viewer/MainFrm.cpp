@@ -1145,22 +1145,82 @@ void CMainFrame::OnEditCopy()
 void CMainFrame::OnEditPaste()
 {
 	CViewerView *pView = static_cast<CViewerView *>(GetActiveView());
-	pView->OpenClipboard();
-	HBITMAP handle = (HBITMAP)::GetClipboardData(CF_BITMAP);
-	if (handle == NULL) {
+	if (pView == NULL || !pView->OpenClipboard())
+		return;
+
+	// Prefer the device-independent bitmap. Going through CF_BITMAP (a DDB) and
+	// CImage loses or garbles the pixels for many sources; CF_DIB carries the
+	// real header plus bits, which we can write straight out as a .bmp.
+	HANDLE hDib = ::GetClipboardData(CF_DIB);
+	if (hDib == NULL)
+		hDib = ::GetClipboardData(CF_DIBV5);
+	if (hDib == NULL) {
 		::CloseClipboard();
 		return;
 	}
 
-	CImage cimg;
-	cimg.Attach(handle);
-	const LPCTSTR tempClipboardFilename = _T("ViewerClipboard");
-	cimg.Save(tempClipboardFilename, Gdiplus::ImageFormatBMP);
+	const BYTE *dib = static_cast<const BYTE *>(::GlobalLock(hDib));
+	SIZE_T dibSize = ::GlobalSize(hDib);
+	if (dib == NULL || dibSize < sizeof(BITMAPINFOHEADER)) {
+		if (dib != NULL)
+			::GlobalUnlock(hDib);
+		::CloseClipboard();
+		return;
+	}
+
+	// The clipboard DIB has no BITMAPFILEHEADER; synthesize one. bfOffBits must
+	// skip the info header plus any color table / BI_BITFIELDS masks.
+	const BITMAPINFOHEADER *bih = reinterpret_cast<const BITMAPINFOHEADER *>(dib);
+	DWORD colorTableSize = 0;
+	if (bih->biBitCount <= 8) {
+		DWORD colors = bih->biClrUsed ? bih->biClrUsed : (1u << bih->biBitCount);
+		colorTableSize = colors * sizeof(RGBQUAD);
+	} else if (bih->biCompression == BI_BITFIELDS &&
+			bih->biSize == sizeof(BITMAPINFOHEADER)) {
+		colorTableSize = 3 * sizeof(DWORD);
+	}
+
+	BITMAPFILEHEADER bfh = {};
+	bfh.bfType = 0x4D42; // 'BM'
+	bfh.bfOffBits = sizeof(BITMAPFILEHEADER) + bih->biSize + colorTableSize;
+	bfh.bfSize = sizeof(BITMAPFILEHEADER) + static_cast<DWORD>(dibSize);
+
+	// Write to an absolute, writable temp path. The old code used a relative,
+	// extension-less name in the process working directory, which is not
+	// reliably writable for the packaged (Store) app, so a stale/unrelated file
+	// could end up being opened instead of the freshly pasted image.
+	TCHAR tempDir[MAX_PATH];
+	DWORD len = ::GetTempPath(MAX_PATH, tempDir);
+	BOOL ok = FALSE;
+	CString tempFile;
+	if (len > 0 && len <= MAX_PATH) {
+		tempFile.Format(_T("%sQ1ViewClipboard.bmp"), tempDir);
+		CFile file;
+		CFileException e;
+		if (file.Open(tempFile,
+				CFile::modeCreate | CFile::modeWrite | CFile::typeBinary, &e)) {
+			try {
+				file.Write(&bfh, sizeof(bfh));
+				file.Write(dib, static_cast<UINT>(dibSize));
+				ok = TRUE;
+			} catch (CFileException *pe) {
+				pe->Delete();
+			}
+			file.Close();
+		}
+	}
+
+	::GlobalUnlock(hDib);
 	::CloseClipboard();
 
+	if (!ok) {
+		AfxMessageBox(_T("Could not save the clipboard image to a temporary file."));
+		return;
+	}
+
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
-	pDoc->OnOpenDocument(tempClipboardFilename);
-	pDoc->SetPathName(tempClipboardFilename, TRUE);
+	pDoc->OnOpenDocument(tempFile);
+	pDoc->SetPathName(tempFile, TRUE);
 	UpdateMagnication(pView->mN, pView->mWDst, pView->mHDst);
 
 	Invalidate(FALSE);

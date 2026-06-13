@@ -121,6 +121,14 @@ def build_msix():
         canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         canvas.paste(tile, ((w - h) // 2, 0), tile)
         canvas.save(os.path.join(assets, f"Wide310x150Logo{suffix}.png"))
+    # Target-size + unplated variants for the taskbar and the Start "all apps"
+    # list. Without the *_altform-unplated assets Windows draws the icon on a
+    # solid square "plate", so the transparent rounded-corner artwork shows a
+    # square edge on the taskbar. Same artwork serves plated/unplated/light.
+    for px in (16, 24, 32, 48, 256):
+        icon = render(view, shapes, px)
+        for suffix in ("", "_altform-unplated", "_altform-lightunplated"):
+            icon.save(os.path.join(assets, f"Square44x44Logo.targetsize-{px}{suffix}.png"))
     print("wrote installer/msix/Assets/*.png")
 
 
