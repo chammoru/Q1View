@@ -2571,7 +2571,7 @@ void MainWindow::broadcastViewState(bool force)
 	// Throttle continuous pan/zoom so a drag doesn't flood the channel, matching
 	// the MFC viewer's ~16 ms guard on VIEWER_SYNC_VIEW_STATE.
 	const qint64 now = QDateTime::currentMSecsSinceEpoch();
-	if (!force && now - mLastViewStateBroadcastMs < 30) {
+	if (!force && now - mLastViewStateBroadcastMs < 16) {
 		return;
 	}
 	mLastViewStateBroadcastMs = now;
@@ -2579,8 +2579,16 @@ void MainWindow::broadcastViewState(bool force)
 	SyncMessage message;
 	message.command = SyncMessage::ViewState;
 	message.scalar = mScaleFactor;
-	message.x = mScrollArea->horizontalScrollBar()->value();
-	message.y = mScrollArea->verticalScrollBar()->value();
+	// Sync the image-space point currently under the viewport centre, not the raw
+	// top-left scroll-bar pixels. Raw pixels only line up when both windows have
+	// the exact same viewport; the MFC viewer instead syncs a centre-relative
+	// image offset (DeterminDestPos centres the image, then applies mXOff/mYOff),
+	// so a sibling with a different size / open drawer stays anchored on the same
+	// point instead of drifting.
+	const double scale = mScaleFactor > 0.0 ? mScaleFactor : 1.0;
+	const QSize vp = mScrollArea->viewport()->size();
+	message.x = (mScrollArea->horizontalScrollBar()->value() + vp.width() / 2.0) / scale;
+	message.y = (mScrollArea->verticalScrollBar()->value() + vp.height() / 2.0) / scale;
 	mSyncChannel->send(message);
 }
 
@@ -2640,8 +2648,13 @@ void MainWindow::applySyncMessage(const SyncMessage &message)
 			}
 			mScaleFactor = std::max(0.02, std::min(64.0, message.scalar));
 			updateView();
-			mScrollArea->horizontalScrollBar()->setValue(static_cast<int>(message.x));
-			mScrollArea->verticalScrollBar()->setValue(static_cast<int>(message.y));
+			// message.x/y are the image-space point to centre; place it under this
+			// window's own viewport centre (so different sizes stay aligned).
+			const QSize vp = mScrollArea->viewport()->size();
+			mScrollArea->horizontalScrollBar()->setValue(
+				static_cast<int>(std::lround(message.x * mScaleFactor - vp.width() / 2.0)));
+			mScrollArea->verticalScrollBar()->setValue(
+				static_cast<int>(std::lround(message.y * mScaleFactor - vp.height() / 2.0)));
 			updateZoomStatus();
 		}
 		break;
