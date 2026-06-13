@@ -8,6 +8,16 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.4.1] — 2026-06-14
+
+### Fixed
+- Viewer: Ctrl+V now pastes the actual clipboard image. Paste previously routed the clipboard through a device-dependent bitmap and a temporary file written to the working directory, which the packaged Microsoft Store build could not reliably write, so a stale or unrelated image could appear instead; it now reads the clipboard's device-independent bitmap and writes a verified temporary file before opening it.
+
+### Packaging
+- Taskbar and Start icons no longer show a square plate behind the rounded Q1View icon. The Microsoft Store package now ships unplated target-size logo assets, so Windows renders the transparent rounded icon directly instead of compositing it onto a square background.
+
+---
+
 ## [2.4.0] — 2026-06-13
 
 ### Added
@@ -187,7 +197,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.4.1...HEAD
+[2.4.1]: https://github.com/chammoru/Q1View/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/chammoru/Q1View/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/chammoru/Q1View/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/chammoru/Q1View/compare/v2.2.0...v2.3.0
