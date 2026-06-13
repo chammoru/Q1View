@@ -103,6 +103,9 @@ if(Q1VIEW_BUILD_QT_VIEWER)
         ViewerQt/HeifReader.h
         ViewerQt/Y4mReader.cpp
         ViewerQt/Y4mReader.h
+        # Side thumbnail/folder drawer (the cross-platform CThumbnailPane).
+        ViewerQt/ThumbnailPane.cpp
+        ViewerQt/ThumbnailPane.h
         # Multi-window Sync Input over loopback UDP multicast (replaces the
         # Windows WM_COPYDATA broadcast).
         ViewerQt/SyncChannel.cpp

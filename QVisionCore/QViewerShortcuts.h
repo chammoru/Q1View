@@ -36,7 +36,7 @@ struct Q1ViewShortcutRow {
 // order so the MFC panel reads exactly as before.
 static const Q1ViewShortcutRow Q1VIEW_SHORTCUTS[] = {
 	{ "?",            "Show or hide this panel",                      Q1VIEW_FE_ALL },
-	{ "E",            "Toggle thumbnail browser (drawer)",            Q1VIEW_FE_MFC },
+	{ "E",            "Toggle thumbnail browser (drawer)",            Q1VIEW_FE_ALL },
 	{ "Drag & Drop",  "Open an image",                                Q1VIEW_FE_ALL },
 	{ "Ctrl + O",     "Open an image",                                Q1VIEW_FE_QT  },
 	{ "Mouse Wheel",  "Zoom in or out; high zoom shows pixel values", Q1VIEW_FE_ALL },

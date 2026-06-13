@@ -14,7 +14,10 @@
 #include <QStringList>
 
 class ImageView;
+class ThumbnailPane;
 class VideoView;
+class QDockWidget;
+class QCloseEvent;
 class QDragEnterEvent;
 class QDropEvent;
 class QAction;
@@ -184,9 +187,15 @@ protected:
 	bool eventFilter(QObject *object, QEvent *event) override;
 	void keyPressEvent(QKeyEvent *event) override;
 	void resizeEvent(QResizeEvent *event) override;
+	void closeEvent(QCloseEvent *event) override;
 
 private:
 	ImageView *mImageView;
+	// Side thumbnail/folder drawer (toggled with E), persisted across sessions.
+	ThumbnailPane *mThumbPane = nullptr;
+	QDockWidget *mThumbDock = nullptr;
+	QAction *mToggleDrawerAction = nullptr;
+	int mDrawerWidth = 220;
 	QScrollArea *mScrollArea;
 	// Image page = scroll area + the raw/sequence seek bar below it. The seek bar
 	// (frame slider + frame/time readout) shows only for multi-frame raw sources,

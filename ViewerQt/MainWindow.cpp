@@ -4,6 +4,7 @@
 #include "ImageView.h"
 #include "RawOpenDialog.h"
 #include "Y4mReader.h"
+#include "ThumbnailPane.h"
 #ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
 #include "VideoView.h"
 #endif
@@ -47,6 +48,8 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QSize>
+#include <QCloseEvent>
+#include <QDockWidget>
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QTimer>
@@ -189,6 +192,18 @@ MainWindow::MainWindow(QWidget *parent)
 	setCentralWidget(mCentralStack);
 	setAcceptDrops(true);
 	setFocusPolicy(Qt::StrongFocus);
+
+	// Thumbnail/folder drawer (toggled with E). Hidden by default like the MFC
+	// viewer; activating a file row opens it through the normal open routing.
+	mThumbPane = new ThumbnailPane;
+	mThumbPane->setNameFilters(imageNameFilters());
+	connect(mThumbPane, &ThumbnailPane::fileActivated, this, &MainWindow::openDroppedFile);
+	mThumbDock = new QDockWidget(tr("Thumbnail Browser"), this);
+	mThumbDock->setObjectName(QStringLiteral("thumbnailDrawer"));
+	mThumbDock->setWidget(mThumbPane);
+	mThumbDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+	addDockWidget(Qt::RightDockWidgetArea, mThumbDock);
+	mThumbDock->setVisible(false);
 
 	mPlayTimer->setInterval(static_cast<int>(1000.0 / mFps + 0.5));
 	connect(mPlayTimer, &QTimer::timeout, this, &MainWindow::nextFrameOrFile);
@@ -374,6 +389,16 @@ void MainWindow::createActions()
 	});
 
 	fileMenu->addSeparator();
+
+	// Thumbnail/folder drawer toggle (E), mirroring the MFC File > Thumbnail
+	// Browser item. QDockWidget supplies a checkable show/hide action for free.
+	if (mThumbDock) {
+		mToggleDrawerAction = mThumbDock->toggleViewAction();
+		mToggleDrawerAction->setText(tr("Thumbnail &Browser"));
+		mToggleDrawerAction->setShortcut(QKeySequence(tr("E")));
+		fileMenu->addAction(mToggleDrawerAction);
+		fileMenu->addSeparator();
+	}
 
 	mRecentMenu = fileMenu->addMenu(tr("Open &Recent"));
 	updateRecentFilesMenu();
@@ -1232,7 +1257,31 @@ void MainWindow::loadSettings()
 	mRawOptions.fileName = settings.value(QStringLiteral("raw/fileName")).toString();
 	mAutoReload = settings.value(QStringLiteral("autoReload"), true).toBool();
 
+	// Thumbnail drawer: restore last visibility/width (hidden by default).
+	mDrawerWidth = settings.value(QStringLiteral("drawer/width"), mDrawerWidth).toInt();
+	if (mThumbDock) {
+		mThumbDock->setVisible(settings.value(QStringLiteral("drawer/visible"), false).toBool());
+		// resizeDocks only takes effect once the window is laid out.
+		QTimer::singleShot(0, this, [this]() {
+			if (mThumbDock) {
+				resizeDocks({mThumbDock}, {mDrawerWidth}, Qt::Horizontal);
+			}
+		});
+	}
+
 	loadRecentFiles();
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+	QSettings settings;
+	if (mThumbDock) {
+		settings.setValue(QStringLiteral("drawer/visible"), mThumbDock->isVisible());
+		if (mThumbDock->isVisible() && mThumbPane && mThumbPane->width() > 0) {
+			settings.setValue(QStringLiteral("drawer/width"), mThumbPane->width());
+		}
+	}
+	QMainWindow::closeEvent(event);
 }
 
 void MainWindow::resetPlayback()
@@ -1705,6 +1754,10 @@ void MainWindow::updateImage()
 	refreshControlMenus();
 	updateZoomStatus();
 	updateSeekBar();
+	// Keep the drawer pointed at (and highlighting) the current file's folder.
+	if (mThumbPane && mCurrentSourceOnDisk && !mCurrentFile.isEmpty()) {
+		mThumbPane->setCurrentFile(mCurrentFile);
+	}
 }
 
 namespace {
