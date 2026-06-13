@@ -547,6 +547,9 @@ void MainWindow::createActions()
 	// the MFC viewer's right-justified "WxH (n.nnx)" item.
 	mMagnifyLabel = new QLabel(menuBar());
 	mMagnifyLabel->setContentsMargins(0, 0, 12, 0);
+	// Transparent so the corner readout sits on the same menu-bar background as
+	// the items, rather than its own (palette Base) box.
+	mMagnifyLabel->setStyleSheet(QStringLiteral("background: transparent;"));
 	menuBar()->setCornerWidget(mMagnifyLabel, Qt::TopRightCorner);
 }
 
@@ -653,9 +656,20 @@ void MainWindow::applyNativeMenuMetrics()
 		// the per-item vertical padding so the bar height tracks the font, the way
 		// the MFC menu does. (A fixed height instead collapses items into the
 		// overflow button, so style the padding and let the bar auto-size.)
+		//
+		// Spell out every background from the palette: a *partial* QMenuBar
+		// stylesheet drops the native palette-aware drawing, leaving the items'
+		// background a different shade from the bar and the corner widget (the
+		// magnify label) -- the "different colour around the text". Tying bar,
+		// items, and selection to palette roles keeps them uniform in light and
+		// dark themes alike.
 		menuBar()->setStyleSheet(QStringLiteral(
-			"QMenuBar { padding: 0px; }"
-			"QMenuBar::item { padding: 2px 7px; }"));
+			"QMenuBar { background-color: palette(window); padding: 0px; }"
+			"QMenuBar::item { background: transparent; padding: 2px 7px; }"
+			"QMenuBar::item:selected { background-color: palette(highlight);"
+			" color: palette(highlighted-text); }"
+			"QMenuBar::item:pressed { background-color: palette(highlight);"
+			" color: palette(highlighted-text); }"));
 	}
 #endif
 }
