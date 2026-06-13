@@ -224,7 +224,7 @@ jobs:
 
       - name: Create GitHub release
         if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.create_release)
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.release_info.outputs.release_tag }}
           target_commitish: ${{ github.sha }}
@@ -272,9 +272,15 @@ jobs:
       # to Partner Center via the Microsoft Store Developer CLI. Microsoft
       # certification still runs afterwards before the update goes live, so a
       # green run here means "submitted", not "published".
+      # This action only sets up the msstore CLI. v1.3 is the latest, but
+      # Microsoft has not shipped a Node 24 build yet (v1.x still declares
+      # node20). GitHub forces Node 24 from 2026-06-16 and removes Node 20 on
+      # 2026-09-16; if the action then fails, the runner escape hatch is
+      # ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true until an updated action
+      # (or a direct msstore CLI install) is available.
       - name: Set up Microsoft Store Developer CLI
         if: startsWith(github.ref, 'refs/tags/')
-        uses: microsoft/microsoft-store-apppublisher@v1.1
+        uses: microsoft/microsoft-store-apppublisher@v1.3
 
       - name: Configure Store CLI credentials
         if: startsWith(github.ref, 'refs/tags/')
