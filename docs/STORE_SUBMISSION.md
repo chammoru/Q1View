@@ -32,7 +32,7 @@ msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platfo
 # 3. Create and sign MSIX
 #    Publisher must exactly match your Partner Center certificate Subject.
 .\build\Package-Q1ViewMsix.ps1 `
-    -AppVersion 1.0.16.0 `
+    -AppVersion 2.4.0.0 `
     -Publisher "CN=A89D24B3-A271-4AE1-9B9E-BFAE414EB0C6"
 ```
 
@@ -129,7 +129,7 @@ For source media and redistribution notes, see `docs/IMAGE_SOURCES.md`.
 - [ ] Upload `dist\Q1View-windows-x64.msix`
 - [ ] Confirm package details in Partner Center match the manifest:
   - Publisher CN matches certificate
-  - Version matches the release tag (e.g. `1.0.16.0`)
+  - Version matches the release tag (e.g. `2.4.0.0`)
   - Viewer appears as the Store entry point and can launch the included Comparator workflow
 
 ### 7. Final review and submit
@@ -159,8 +159,8 @@ identified issue, rebuild the MSIX, and resubmit.
 
 For subsequent releases:
 
-1. Increment the version in the tag (e.g. `v1.0.17`).
-2. Rebuild and sign the MSIX with the new version (`1.0.17.0`).
+1. Increment the version in the tag (e.g. `v2.4.1`).
+2. Rebuild and sign the MSIX with the new version (`2.4.1.0`).
 3. In Partner Center, open the existing app → **Update** → upload the new package.
 4. Update the Store listing description and release notes.
 5. Submit.

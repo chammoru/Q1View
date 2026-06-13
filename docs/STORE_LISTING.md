@@ -80,6 +80,7 @@ TECHNICAL NOTES
 13. Rotation, luma-only view, interpolation, and hex pixel value modes
 14. Allow Different Resolution mode for cross-resolution comparisons
 15. Portable ZIP available alongside the installer
+16. Cycle raw color space (N) and preset resolutions (D) without reopening the file
 ```
 
 ---
@@ -101,11 +102,14 @@ TECHNICAL NOTES
 ## Release notes template (for each update)
 
 ```
-v1.0.XX
+vX.Y.Z
 
 See the full changelog at:
 https://github.com/chammoru/Q1View/blob/master/CHANGELOG.md
 ```
+
+Release CI fills in the actual "What's New" automatically from the matching
+`CHANGELOG.md` section, so this template is only a manual fallback.
 
 ---
 

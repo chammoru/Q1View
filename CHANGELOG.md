@@ -8,24 +8,36 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ## [Unreleased]
 
+---
+
+## [2.4.0] — 2026-06-13
+
 ### Added
 - Viewer: press `D` to cycle through the preset resolutions for raw input,
   mirroring how `N` advances the color space. The shortcut is ignored for
   sources with an intrinsic size (decoded images and video).
+
+### Fixed
+- Viewer: stepping through a folder with PgUp/PgDn (and Home/End) no longer
+  resizes the window around each image. The window keeps its size and the next
+  image is fit into the existing viewport, so browsing mixed-resolution folders
+  stays steady instead of jumping between sizes and in/out of a maximized frame.
+  A fresh open still sizes the window to the image. Fit now shrinks large images
+  to fit but never upscales past 1:1, so small images stay crisp at 100%.
+
+### Packaging
+- Refreshed the Viewer and Comparator application icons and the Microsoft Store
+  tile and logo assets, regenerated per size from vector masters for sharper,
+  more consistent edges at every scale.
+
+### Developer
 - Qt viewer: a `--selftest` mode plus committed raw-format fixtures and a
   headless smoke check. `viewer-qt.yml` now runs `ctest` after the build,
   opening each fixture (yuv420, nv12, nv21, yuv420p10le, p010, grayscale,
   rgb888, bgr888, rgba8888, bgr565) under the offscreen QPA platform on
   Linux/macOS/Windows.
-
-### Fixed
-- Viewer (MFC and Qt): stepping through a folder with PgUp/PgDn (and
-  Home/End) no longer resizes the window around each image. The window keeps
-  its size and the next image is fit into the existing viewport, so browsing
-  mixed-resolution folders stays steady instead of jumping between sizes and
-  in/out of a maximized frame. A fresh open still sizes the window to the
-  image. Fit now shrinks large images to fit but never upscales past 1:1, so
-  small images stay crisp at 100%.
+- Documented the experimental Qt viewer build and its `qtmultimedia`
+  requirement in the development guide.
 
 ---
 
@@ -305,7 +317,8 @@ the [GitHub Releases page](https://github.com/chammoru/Q1View/releases).
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.3.1...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/chammoru/Q1View/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/chammoru/Q1View/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/chammoru/Q1View/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/chammoru/Q1View/compare/v2.1.0...v2.2.0
