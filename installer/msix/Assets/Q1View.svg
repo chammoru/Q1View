@@ -2,9 +2,9 @@
   <!-- Q1View Viewer icon (vector master). Render this to the PNG tile/logo
        assets in this folder; see README.md for the required sizes. -->
   <!-- Blue rounded-square background -->
-  <rect x="20" y="20" width="216" height="216" rx="54" fill="#2563EB"/>
+  <rect x="12" y="12" width="232" height="232" rx="58" fill="#2563EB"/>
   <!-- White photo-frame glyph: outer plate, blue cut-out, centered dot -->
-  <rect x="61" y="71.5" width="134" height="113" rx="22" fill="#F6F9FE"/>
-  <rect x="82.5" y="93" width="91" height="70" rx="11" fill="#2563EB"/>
-  <circle cx="128" cy="128" r="19.5" fill="#F6F9FE"/>
+  <rect x="56.04" y="67.31" width="143.93" height="121.37" rx="23.63" fill="#F6F9FE"/>
+  <rect x="79.13" y="90.41" width="97.74" height="75.19" rx="11.81" fill="#2563EB"/>
+  <circle cx="128" cy="128" r="20.94" fill="#F6F9FE"/>
 </svg>

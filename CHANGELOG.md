@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Packaging
+- The app, taskbar, and Start menu icons now render larger within their frame. The SVG masters' built-in safe margin was reduced (the rounded square grows from ~84% to ~91% of the icon), so the artwork reads bigger at every size while keeping the same glyph proportions and rounded corners. Regenerated from the `Q1View.svg` / `Comparator.svg` masters.
+
 ---
 
 ## [2.4.4] — 2026-06-14
