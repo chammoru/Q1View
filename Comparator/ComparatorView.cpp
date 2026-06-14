@@ -675,7 +675,7 @@ void CComparatorView::DrawSelection(CDC *pDC, CComparatorDoc *pDoc)
 	CFont *prevFont = pDC->SelectObject(&sizeFont);
 
 	CString label;
-	label.Format(_T("%d x %d"), r - l + 1, b - t + 1);
+	label.Format(_T("%d\x00D7%d"), r - l + 1, b - t + 1);
 
 	CRect textRect;
 	pDC->DrawText(label, -1, textRect, DT_SINGLELINE | DT_CALCRECT);

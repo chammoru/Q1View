@@ -41,7 +41,7 @@ Viewer also supports image-sequence navigation, video playback, frame/time progr
 
 COMPARATOR
 
-Open two to four sources side by side. Comparator aligns them in a synchronized view and calculates objective quality metrics frame by frame, including PSNR, SSIM, and LPIPS. A bottom graph shows metric values across frames, and the timeline helps locate frames that contain differences.
+Open two to four sources side by side. Comparator aligns them in a synchronized view and calculates objective quality metrics frame by frame, including PSNR, SSIM, and LPIPS. A bottom graph shows metric values across frames, the timeline helps locate frames that contain differences, and synchronized region selection can show crop scores next to whole-image scores.
 
 Use Comparator to compare a reference image or video frame against processed outputs, encoded results, or alternative pipelines. Zoom in to inspect the exact pixels that changed, use the visual difference overlay to find small mismatches, and jump through frame sequences or video frames with synchronized controls.
 
@@ -86,18 +86,19 @@ TECHNICAL NOTES
 2. Raw YUV format support: NV12, NV21, P010, I420, YUY2, and more
 3. Side-by-side comparison of 2–4 sources with PSNR, SSIM, and LPIPS measurement
 4. Per-frame metric graph to quickly locate the worst-quality frames
-5. Video playback aligned to source or user-selected FPS with frame/time progress and stall recovery
-6. Sync Input: link multiple Viewer windows for synchronized navigation
-7. HEIF, HEIC, HIF, and AVIF still image support
-8. Frame sequence navigation through same-folder images
-9. Clipboard paste and screen capture support
-10. Unicode and Korean path support
-11. Launch the dedicated Comparator workflow directly from Viewer
-12. Step through video frames one at a time with Left/Right arrow keys
-13. Rotation, luma-only view, interpolation, and hex pixel value modes
-14. Allow Different Resolution mode for cross-resolution comparisons
-15. Portable ZIP available alongside the installer
-16. Cycle raw color space (N) and preset resolutions (D) without reopening the file
+5. Synchronized Comparator region selection with crop PSNR, SSIM, and LPIPS readouts
+6. Video playback aligned to source or user-selected FPS with frame/time progress and stall recovery
+7. Sync Input: link multiple Viewer windows for synchronized navigation
+8. HEIF, HEIC, HIF, and AVIF still image support
+9. Frame sequence navigation through same-folder images
+10. Clipboard paste and screen capture support
+11. Unicode and Korean path support
+12. Launch the dedicated Comparator workflow directly from Viewer
+13. Step through video frames one at a time with Left/Right arrow keys
+14. Rotation, luma-only view, interpolation, and hex pixel value modes
+15. Allow Different Resolution mode for cross-resolution comparisons
+16. Portable ZIP available alongside the installer
+17. Cycle raw color space (N) and preset resolutions (D) without reopening the file
 ```
 
 ---
