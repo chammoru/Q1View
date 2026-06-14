@@ -6,6 +6,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.4.2] — 2026-06-14
+
 ### Packaging
 - Taskbar-sized icon frames now include extra transparent safe padding, so the rounded Q1View corners stay visible at small Windows taskbar sizes instead of reading as a nearly square blue block.
 
@@ -200,7 +204,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.4.1...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.4.2...HEAD
+[2.4.2]: https://github.com/chammoru/Q1View/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/chammoru/Q1View/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/chammoru/Q1View/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/chammoru/Q1View/compare/v2.3.0...v2.3.1
