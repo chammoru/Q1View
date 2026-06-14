@@ -304,36 +304,66 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "msstore publish (staging) failed with exit code $LASTEXITCODE" }
 
           # 2. Inject the curated What's New text (from CHANGELOG, prepared above)
-          #    into the draft's release notes. Best-effort: a failure here must not
-          #    block shipping the package, so it is wrapped in try/catch. The
-          #    metadata layout (per-language listings) is not hard-coded; we walk
-          #    the JSON and set every "releaseNotes" field we find.
+          #    and keep listing copy pinned to docs/STORE_LISTING.md. updateMetadata
+          #    submits the whole listing JSON, so rewrite the canonical text fields
+          #    too; otherwise stale hard-wrapped Partner Center metadata can be
+          #    re-committed while we only meant to update release notes.
           $notes = ""
           if (Test-Path STORE_WHATS_NEW.txt) { $notes = (Get-Content STORE_WHATS_NEW.txt -Raw).Trim() }
           if ($notes) {
             try {
+              function Get-StoreListingBlock($headingPattern) {
+                if (-not (Test-Path docs/STORE_LISTING.md)) { return "" }
+                $lines = Get-Content docs/STORE_LISTING.md -Encoding utf8
+                $inSection = $false
+                $inFence = $false
+                $block = New-Object System.Collections.Generic.List[string]
+                foreach ($line in $lines) {
+                  if (-not $inSection) {
+                    if ($line -match $headingPattern) { $inSection = $true }
+                    continue
+                  }
+                  if ($line -match '^```') {
+                    if ($inFence) { break }
+                    $inFence = $true
+                    continue
+                  }
+                  if ($inFence) { $block.Add($line) }
+                }
+                return (($block -join "`n").Trim())
+              }
+
+              $storeDescription = Get-StoreListingBlock '^## Description '
+              $storeShortDescription = Get-StoreListingBlock '^## Short description '
+
               # msstore can interleave informational lines with the JSON on
               # stdout, so slice from the first '{' to the last '}' before parsing.
               $raw = (msstore submission get $productId | Out-String)
               $open = $raw.IndexOf('{'); $close = $raw.LastIndexOf('}')
               if ($open -lt 0 -or $close -lt $open) { throw "submission get returned no JSON object" }
               $json = $raw.Substring($open, $close - $open + 1) | ConvertFrom-Json
-              $script:updated = 0
-              function Set-ReleaseNotes($node, $value) {
+              $script:releaseNotesUpdated = 0
+              $script:descriptionUpdated = 0
+              $script:shortDescriptionUpdated = 0
+              function Set-ListingText($node, $releaseNotes, $description, $shortDescription) {
                 if ($null -eq $node) { return }
                 if ($node -is [pscustomobject]) {
                   foreach ($p in $node.PSObject.Properties) {
-                    if ($p.Name -eq 'releaseNotes') { $p.Value = $value; $script:updated++ }
-                    else { Set-ReleaseNotes $p.Value $value }
+                    if ($p.Name -eq 'releaseNotes') { $p.Value = $releaseNotes; $script:releaseNotesUpdated++ }
+                    elseif ($description -and $p.Name -eq 'description') { $p.Value = $description; $script:descriptionUpdated++ }
+                    elseif ($shortDescription -and $p.Name -eq 'shortDescription') { $p.Value = $shortDescription; $script:shortDescriptionUpdated++ }
+                    else { Set-ListingText $p.Value $releaseNotes $description $shortDescription }
                   }
                 } elseif ($node -is [System.Collections.IEnumerable] -and $node -isnot [string]) {
-                  foreach ($item in $node) { Set-ReleaseNotes $item $value }
+                  foreach ($item in $node) { Set-ListingText $item $releaseNotes $description $shortDescription }
                 }
               }
-              Set-ReleaseNotes $json $notes
-              if ($script:updated -gt 0) {
+              Set-ListingText $json $notes $storeDescription $storeShortDescription
+              if ($script:releaseNotesUpdated -gt 0) {
                 msstore submission updateMetadata $productId ($json | ConvertTo-Json -Depth 50 -Compress)
-                Write-Host "Updated What's New in $($script:updated) listing(s)."
+                Write-Host "Updated What's New in $($script:releaseNotesUpdated) listing(s)."
+                Write-Host "Updated Store description in $($script:descriptionUpdated) listing(s)."
+                Write-Host "Updated Store short description in $($script:shortDescriptionUpdated) listing(s)."
               } else {
                 Write-Host "::warning::No 'releaseNotes' field found in submission metadata; What's New left unchanged."
               }

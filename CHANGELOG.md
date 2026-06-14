@@ -8,6 +8,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.4.4] — 2026-06-14
+
+### Packaging
+- Microsoft Store submissions now pin the listing description and short description to the curated text in `docs/STORE_LISTING.md` whenever release notes are updated, preventing stale Partner Center metadata with hard-wrapped mid-sentence line breaks from being resubmitted.
+
+---
+
 ## [2.4.3] — 2026-06-14
 
 ### Packaging
@@ -211,7 +218,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.4.2...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.4.4...HEAD
+[2.4.4]: https://github.com/chammoru/Q1View/compare/v2.4.3...v2.4.4
+[2.4.3]: https://github.com/chammoru/Q1View/compare/v2.4.2...v2.4.3
 [2.4.2]: https://github.com/chammoru/Q1View/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/chammoru/Q1View/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/chammoru/Q1View/compare/v2.3.1...v2.4.0
