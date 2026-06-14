@@ -103,6 +103,33 @@ if ([string]::IsNullOrWhiteSpace($makeAppx)) {
 }
 Write-Host "Using makeappx: $makeAppx"
 
+# --- Find makepri.exe -------------------------------------------------------
+
+function Find-MakePri {
+    $cmd = Get-Command "makepri.exe" -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+
+    foreach ($kitRoot in @(
+        "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
+        "$env:ProgramFiles\Windows Kits\10\bin"
+    )) {
+        if ([string]::IsNullOrWhiteSpace($kitRoot) -or -not (Test-Path $kitRoot)) { continue }
+        $found = Get-ChildItem -LiteralPath $kitRoot -Recurse -Filter "makepri.exe" `
+            -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "\\x64\\makepri\.exe$" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+        if ($found) { return $found.FullName }
+    }
+    return ""
+}
+
+$makePri = Find-MakePri
+if ([string]::IsNullOrWhiteSpace($makePri)) {
+    throw "makepri.exe not found. Install the Windows 10 SDK (available via Visual Studio Installer or winget)."
+}
+Write-Host "Using makepri: $makePri"
+
 # --- Build staging layout ---------------------------------------------------
 
 $stagingDir = Join-Path $repoRoot "dist\_msix-staging"
@@ -146,6 +173,36 @@ $settings.Encoding = [System.Text.Encoding]::UTF8
 $writer = [System.Xml.XmlWriter]::Create($manifestDest, $settings)
 $manifest.Save($writer)
 $writer.Close()
+
+# --- Index resources (resources.pri) ----------------------------------------
+# MSIX resolves qualified asset variants (scale-*, targetsize-*, and especially
+# Square44x44Logo.targetsize-*_altform-unplated.png) through the package resource
+# index, not by filename alone. Without resources.pri the shell never sees the
+# unplated taskbar variants and falls back to plating the bare Square44x44Logo.png,
+# so the taskbar shows a solid square block instead of the rounded icon. makeappx
+# does not build the index, so generate it here from the staged layout before packing.
+$priConfig = Join-Path $repoRoot "dist\priconfig.xml"
+& $makePri createconfig /cf $priConfig /dq en-US /o
+if ($LASTEXITCODE -ne 0) {
+    throw "makepri createconfig failed with exit code $LASTEXITCODE"
+}
+
+# A standalone (non-bundle) MSIX loads only resources.pri, so keep every scale
+# variant in that one index instead of letting makepri split them into
+# resources.scale-*.pri side files the shell would ignore. Drop the <packaging>
+# autoMerge block the default config emits.
+[xml]$priCfg = Get-Content -LiteralPath $priConfig -Encoding utf8
+$pkgNode = $priCfg.resources.packaging
+if ($pkgNode) { [void]$priCfg.resources.RemoveChild($pkgNode) }
+$priCfg.Save($priConfig)
+
+& $makePri new /pr $stagingDir /cf $priConfig /mn $manifestDest `
+    /of (Join-Path $stagingDir "resources.pri") /o
+if ($LASTEXITCODE -ne 0) {
+    throw "makepri new failed with exit code $LASTEXITCODE"
+}
+
+Remove-Item -LiteralPath $priConfig -Force -ErrorAction SilentlyContinue
 
 Write-Host "Staging layout:"
 Get-ChildItem -LiteralPath $stagingDir -Recurse -File |

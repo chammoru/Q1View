@@ -26,16 +26,6 @@ VIEWER_SVG = os.path.join(ROOT, "installer", "msix", "Assets", "Q1View.svg")
 COMPARATOR_SVG = os.path.join(ROOT, "installer", "msix", "Assets", "Comparator.svg")
 
 ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
-SMALL_ICON_ART_SIZES = {
-    16: 13,
-    24: 19,
-    32: 25,
-    48: 38,
-}
-TASKBAR_ART_SIZES = {
-    **SMALL_ICON_ART_SIZES,
-    256: 216,
-}
 
 
 def _color(value):
@@ -81,47 +71,6 @@ def render(view, shapes, size):
     return img.resize((size, size), Image.LANCZOS) if ss != 1 else img
 
 
-def outer_art_bounds(shapes):
-    for shape in shapes:
-        if shape[0] == "rr":
-            _, x, y, w, h, _, _ = shape
-            return x, y, w, h
-    raise ValueError("No rounded-square background found in SVG")
-
-
-def render_centered_art(shapes, size, art_size):
-    """Render the outer rounded square at art_size centered on a transparent canvas."""
-    ss = max(1, min(8, 2048 // size))
-    s = size * ss
-    bx, by, bw, bh = outer_art_bounds(shapes)
-    k = art_size * ss / max(bw, bh)
-    dx = (s - bw * k) / 2 - bx * k
-    dy = (s - bh * k) / 2 - by * k
-    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    for shape in shapes:
-        if shape[0] == "rr":
-            _, x, y, w, h, r, fill = shape
-            d.rounded_rectangle([x * k + dx, y * k + dy, (x + w) * k + dx, (y + h) * k + dy],
-                                radius=r * k, fill=fill)
-        else:
-            _, cx, cy, rad, fill = shape
-            d.ellipse([(cx - rad) * k + dx, (cy - rad) * k + dy,
-                       (cx + rad) * k + dx, (cy + rad) * k + dy],
-                      fill=fill)
-    return img.resize((size, size), Image.LANCZOS) if ss != 1 else img
-
-
-def render_app_icon_frame(view, shapes, size):
-    art_size = SMALL_ICON_ART_SIZES.get(size)
-    return render_centered_art(shapes, size, art_size) if art_size else render(view, shapes, size)
-
-
-def render_taskbar_icon(view, shapes, size):
-    art_size = TASKBAR_ART_SIZES.get(size)
-    return render_centered_art(shapes, size, art_size) if art_size else render(view, shapes, size)
-
-
 def write_ico(frames, path):
     """frames: list of (size, PNG bytes). Stores each as a PNG-compressed frame."""
     n = len(frames)
@@ -146,7 +95,7 @@ def png_bytes(img):
 
 def build_app_icon(svg, out_paths):
     view, shapes = parse_svg(svg)
-    frames = [(s, png_bytes(render_app_icon_frame(view, shapes, s))) for s in ICO_SIZES]
+    frames = [(s, png_bytes(render(view, shapes, s))) for s in ICO_SIZES]
     for p in out_paths:
         write_ico(frames, os.path.join(ROOT, p))
         print("wrote", p)
@@ -173,13 +122,11 @@ def build_msix():
         canvas.paste(tile, ((w - h) // 2, 0), tile)
         canvas.save(os.path.join(assets, f"Wide310x150Logo{suffix}.png"))
     # Target-size + unplated variants for the taskbar and the Start "all apps"
-    # list. Small taskbar frames need extra safe padding so rounded corners are
-    # visible at 16/24/32/48 px instead of reading as a near-square blue block.
-    # Without the *_altform-unplated assets Windows draws the icon on a solid
-    # square "plate", so the transparent rounded-corner artwork shows a square
-    # edge on the taskbar. Same artwork serves plated/unplated/light.
+    # list. Without the *_altform-unplated assets Windows draws the icon on a
+    # solid square "plate", so the transparent rounded-corner artwork shows a
+    # square edge on the taskbar. Same artwork serves plated/unplated/light.
     for px in (16, 24, 32, 48, 256):
-        icon = render_taskbar_icon(view, shapes, px)
+        icon = render(view, shapes, px)
         for suffix in ("", "_altform-unplated", "_altform-lightunplated"):
             icon.save(os.path.join(assets, f"Square44x44Logo.targetsize-{px}{suffix}.png"))
     print("wrote installer/msix/Assets/*.png")

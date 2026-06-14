@@ -8,6 +8,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.4.3] — 2026-06-14
+
+### Packaging
+- The taskbar and Start menu now show the rounded Q1View icon directly instead of a square plate behind it. The Microsoft Store package is now built with a resource index (`resources.pri`) so Windows can select the unplated icon assets that shipped in 2.4.1 but were previously never used, and the icon renders at full size again.
+
+---
+
 ## [2.4.2] — 2026-06-14
 
 ### Packaging

@@ -23,11 +23,6 @@ writes the MSIX PNGs here plus `Viewer/res/Viewer.ico`, `ViewerQt/Viewer.ico`
 (from `Q1View.svg`) and `Comparator/res/Comparator.ico` (from `Comparator.svg`),
 each a multi-size PNG-framed icon (16/24/32/48/64/128/256).
 
-The 16/24/32/48 px app-icon frames and MSIX `Square44x44Logo.targetsize-*`
-taskbar assets intentionally render the outer rounded square smaller than the
-canvas. This adds transparent safe padding so the rounded corners remain visible
-at taskbar scale.
-
 ## Required files (scale-100 minimum)
 
 | File | Size | Purpose |
