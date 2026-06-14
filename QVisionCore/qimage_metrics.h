@@ -26,6 +26,11 @@ struct qmetric_info
 	double max_val;
 	double same_value;
 	double same_epsilon;
+	// Backend id for a lazy ML metric ("alex" / "vgg"), used to provision and
+	// load the matching ONNX model. NULL for built-in (non-ML) metrics. LPIPS
+	// values from different backbones are not numerically interchangeable, so
+	// each backbone is its own metric entry with its own cache slot and label.
+	const char *ml_id;
 };
 
 double qPSNR(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w);
@@ -33,9 +38,10 @@ double qSSIM(qu8 *src, qu8 *dst, int w, int h, int stride, int px_w);
 
 static const struct qmetric_info qmetric_info_table[] =
 {
-	{ "PSNR", qPSNR, QMETRIC_PER_PLANE, 0, 3, 1, 1, 0.0, 120.0, 120.0, 0.0 },
-	{ "SSIM", qSSIM, QMETRIC_PER_PLANE, 0, 3, 1, 1, -1.0, 1.0, 1.0, 0.0 },
-	{ "LPIPS", NULL, QMETRIC_WHOLE_IMAGE, 1, 1, 0, 0, 0.0, 1.0, 0.0, 1e-4 }
+	{ "PSNR", qPSNR, QMETRIC_PER_PLANE, 0, 3, 1, 1, 0.0, 120.0, 120.0, 0.0, NULL },
+	{ "SSIM", qSSIM, QMETRIC_PER_PLANE, 0, 3, 1, 1, -1.0, 1.0, 1.0, 0.0, NULL },
+	{ "LPIPS-AlexNet", NULL, QMETRIC_WHOLE_IMAGE, 1, 1, 0, 0, 0.0, 1.0, 0.0, 1e-4, "alex" },
+	{ "LPIPS-VGG",     NULL, QMETRIC_WHOLE_IMAGE, 1, 1, 0, 0, 0.0, 1.0, 0.0, 1e-4, "vgg"  }
 };
 
 #define METRIC_COUNT         ARRAY_SIZE(qmetric_info_table)

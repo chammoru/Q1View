@@ -18,6 +18,12 @@ LpipsEngine& LpipsEngine::getInstance()
 	return instance;
 }
 
+bool LpipsEngine::availableFor(const std::string& backendId) const
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+	return m_available.load() && m_backendId == backendId;
+}
+
 LpipsEngine::LpipsEngine()
 	: m_available(false)
 	, m_initialized(false)
@@ -53,13 +59,25 @@ void LpipsEngine::teardown()
 	}
 }
 
-bool LpipsEngine::init(const std::wstring& modelPath)
+bool LpipsEngine::init(const std::wstring& modelPath, const std::string& backendId)
 {
-	// A previous attempt already settled the outcome. Only a *successful* init
-	// flips m_initialized, so a transient failure (e.g. the model had not been
-	// downloaded yet) can be retried the next time LPIPS is selected.
+	// Serialize against distance(): a backbone switch tears down and recreates the
+	// session, which must never happen while another thread is mid-inference.
+	std::lock_guard<std::mutex> lock(m_mutex);
+
 	if (m_initialized.load())
-		return m_available.load();
+	{
+		// Same model already loaded -> reuse it.
+		if (modelPath == m_modelPath)
+			return m_available.load();
+		// A different backbone was selected: drop the current session/runtime so
+		// the requested model is loaded in its place below.
+		teardown();
+		m_initialized.store(false);
+		m_available.store(false);
+		m_modelPath.clear();
+		m_backendId.clear();
+	}
 
 	// Load onnxruntime.dll from the executable's directory (bundled runtime).
 	wchar_t exePath[MAX_PATH];
@@ -122,6 +140,8 @@ bool LpipsEngine::init(const std::wstring& modelPath)
 
 	m_ortApi->CreateCpuMemoryInfo(OrtArenaAllocator, OrtMemTypeDefault, &m_memoryInfo);
 
+	m_modelPath = modelPath;
+	m_backendId = backendId;
 	m_available.store(true);
 	m_initialized.store(true);
 	return true;
@@ -165,6 +185,10 @@ static void PreprocessImage(const unsigned char* bgr, int w, int h, int stride, 
 
 double LpipsEngine::distance(const unsigned char* rgbA, const unsigned char* rgbB, int w, int h, int stride)
 {
+	// Hold the lock across the whole inference so a concurrent backbone switch in
+	// init() cannot release m_session while Run() is using it.
+	std::lock_guard<std::mutex> lock(m_mutex);
+
 	if (!m_available.load() || !m_session)
 		return 0.0;
 
@@ -211,6 +235,6 @@ double LpipsEngine::distance(const unsigned char* rgbA, const unsigned char* rgb
 }
 #else
 LpipsEngine::~LpipsEngine() {}
-bool LpipsEngine::init(const std::wstring& modelPath) { return false; }
+bool LpipsEngine::init(const std::wstring& modelPath, const std::string& backendId) { return false; }
 double LpipsEngine::distance(const unsigned char* rgbA, const unsigned char* rgbB, int w, int h, int stride) { return 0.0; }
 #endif

@@ -8,6 +8,8 @@ torchvision>=0.11      # provides the AlexNet/SqueezeNet/VGG backbones lpips wra
 lpips>=0.1.4           # the reference perceptual-distance package + pretrained linear heads
 onnx>=1.10             # ONNX export support in torch.onnx
 numpy>=1.19
+onnxscript>=0.1        # required by the torch>=2.x dynamo ONNX exporter (torch.onnx.export)
+onnxconverter-common>=1.13  # float16 weight quantization for the --fp16 artifact
 
 # Optional: enables the numerical verification step (torch vs ONNX Runtime).
 onnxruntime>=1.10

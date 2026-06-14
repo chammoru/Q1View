@@ -9,6 +9,7 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <cstring>
 
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "bcrypt.lib")
@@ -17,10 +18,51 @@
 #define NT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
 #endif
 
-static const wchar_t* LPIPS_URL = L"https://github.com/chammoru/Q1View/releases/download/models-lpips-v1/lpips_alex.onnx";
-static const wchar_t* LPIPS_EXPECTED_SHA256 = L"6742F1268D6E3D577A91ABC7B8D21AA34F2F94072809046656E1EDF968166006";
-static const wchar_t* LPIPS_FILE_NAME = L"lpips_alex.onnx";
 static const wchar_t* LPIPS_VERSION_DIR = L"v1";
+
+// Per-backend provisioning manifest. Each LPIPS backbone is a separate on-demand
+// download asset (same models-lpips-v1 release) with its own pinned SHA-256, so
+// the two are never confused. Keep these in sync with tools/lpips/export_lpips_onnx.py
+// output (it prints the SHA-256 of the fp16 artifact it generates).
+struct LpipsModelManifest
+{
+	const char* mlId;            // backend id from qmetric_info_table ("alex"/"vgg")
+	const wchar_t* displayName;  // human-readable backbone name for prompts
+	const wchar_t* fileName;     // cache / dev-path file name
+	const wchar_t* url;          // release asset URL
+	const wchar_t* sha256;       // pinned hash of the fp16 artifact (UPPERCASE hex)
+	const wchar_t* sizeText;     // human-readable size for the download prompt
+};
+
+static const LpipsModelManifest LPIPS_MODELS[] = {
+	{
+		"alex",
+		L"AlexNet",
+		L"lpips_alex.onnx",
+		L"https://github.com/chammoru/Q1View/releases/download/models-lpips-v1/lpips_alex.onnx",
+		L"6742F1268D6E3D577A91ABC7B8D21AA34F2F94072809046656E1EDF968166006",
+		L"4.7 MB",
+	},
+	{
+		"vgg",
+		L"VGG",
+		L"lpips_vgg.onnx",
+		L"https://github.com/chammoru/Q1View/releases/download/models-lpips-v1/lpips_vgg.onnx",
+		L"5621992EE96D284567C147B7521097BE4219A213FB14FC2AA168F423FAE8FC2F",
+		L"29.6 MB",
+	},
+};
+
+static const LpipsModelManifest* FindLpipsManifest(const char* mlId)
+{
+	if (!mlId)
+		return NULL;
+	for (size_t i = 0; i < sizeof(LPIPS_MODELS) / sizeof(LPIPS_MODELS[0]); ++i) {
+		if (strcmp(LPIPS_MODELS[i].mlId, mlId) == 0)
+			return &LPIPS_MODELS[i];
+	}
+	return NULL;
+}
 
 static std::wstring ComputeSHA256(const std::wstring& filePath)
 {
@@ -243,14 +285,18 @@ Cleanup:
 	return success;
 }
 
-std::wstring MlModelProvisioner::provisionLpipsModel(HWND hParentWnd)
+std::wstring MlModelProvisioner::provisionLpipsModel(HWND hParentWnd, const char* mlId)
 {
+	const LpipsModelManifest* manifest = FindLpipsManifest(mlId);
+	if (!manifest)
+		return L"";
+
 	wchar_t localAppData[MAX_PATH];
 	if (!SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, localAppData)))
 		return L"";
 
 	std::wstring cacheDir = std::wstring(localAppData) + L"\\Q1View\\ml\\" + LPIPS_VERSION_DIR;
-	std::wstring cachePath = cacheDir + L"\\" + LPIPS_FILE_NAME;
+	std::wstring cachePath = cacheDir + L"\\" + manifest->fileName;
 
 	// Check local dev path first (in models/ adjacent to the executable, or higher up)
 	wchar_t exePath[MAX_PATH];
@@ -260,18 +306,18 @@ std::wstring MlModelProvisioner::provisionLpipsModel(HWND hParentWnd)
 	if (slash != std::wstring::npos)
 		exeDir = exeDir.substr(0, slash + 1);
 
-	const wchar_t* devPaths[] = {
-		L"models\\lpips_alex.onnx",
-		L"..\\models\\lpips_alex.onnx",
-		L"..\\..\\models\\lpips_alex.onnx",
-		L"..\\..\\..\\models\\lpips_alex.onnx"
+	const wchar_t* devPrefixes[] = {
+		L"models\\",
+		L"..\\models\\",
+		L"..\\..\\models\\",
+		L"..\\..\\..\\models\\"
 	};
 
 	for (int i = 0; i < 4; i++) {
-		std::wstring testPath = exeDir + devPaths[i];
+		std::wstring testPath = exeDir + devPrefixes[i] + manifest->fileName;
 		if (GetFileAttributesW(testPath.c_str()) != INVALID_FILE_ATTRIBUTES) {
 			std::wstring hash = ComputeSHA256(testPath);
-			if (hash == LPIPS_EXPECTED_SHA256)
+			if (hash == manifest->sha256)
 				return testPath;
 		}
 	}
@@ -280,15 +326,17 @@ std::wstring MlModelProvisioner::provisionLpipsModel(HWND hParentWnd)
 	if (GetFileAttributesW(cachePath.c_str()) != INVALID_FILE_ATTRIBUTES)
 	{
 		std::wstring hash = ComputeSHA256(cachePath);
-		if (hash == LPIPS_EXPECTED_SHA256)
+		if (hash == manifest->sha256)
 			return cachePath;
 		// Invalid hash, delete it
 		DeleteFileW(cachePath.c_str());
 	}
 
 	// Prompt user
+	std::wstring prompt = std::wstring(L"LPIPS (") + manifest->displayName
+		+ L") requires a one-time " + manifest->sizeText + L" download. Download now?";
 	int resp = ::MessageBoxW(hParentWnd,
-		L"LPIPS requires a one-time 4.7 MB download. Download now?",
+		prompt.c_str(),
 		L"Q1View - Model Download Required",
 		MB_YESNO | MB_ICONQUESTION
 	);
@@ -310,14 +358,15 @@ std::wstring MlModelProvisioner::provisionLpipsModel(HWND hParentWnd)
 	if (SUCCEEDED(CoCreateInstance(CLSID_ProgressDialog, NULL, CLSCTX_INPROC_SERVER,
 		IID_PPV_ARGS(&ppd))))
 	{
+		std::wstring line1 = std::wstring(manifest->fileName) + L" (one-time, " + manifest->sizeText + L")";
 		ppd->SetTitle(L"Q1View - Downloading LPIPS model");
-		ppd->SetLine(1, L"lpips_alex.onnx (one-time, ~4.7 MB)", FALSE, NULL);
+		ppd->SetLine(1, line1.c_str(), FALSE, NULL);
 		ppd->SetLine(2, L"Downloading the perceptual-metric model...", FALSE, NULL);
 		ppd->StartProgressDialog(hParentWnd, NULL, PROGDLG_NORMAL | PROGDLG_AUTOTIME, NULL);
 	}
 
 	bool cancelled = false;
-	bool dlOk = DownloadFileWinHttp(LPIPS_URL, tempPath, ppd, &cancelled);
+	bool dlOk = DownloadFileWinHttp(manifest->url, tempPath, ppd, &cancelled);
 
 	if (ppd)
 	{
@@ -343,7 +392,7 @@ std::wstring MlModelProvisioner::provisionLpipsModel(HWND hParentWnd)
 	}
 
 	std::wstring downloadedHash = ComputeSHA256(tempPath);
-	if (downloadedHash != LPIPS_EXPECTED_SHA256)
+	if (downloadedHash != manifest->sha256)
 	{
 		::MessageBoxW(hParentWnd, L"Model validation failed (SHA-256 mismatch).", L"Error", MB_OK | MB_ICONERROR);
 		DeleteFileW(tempPath.c_str());

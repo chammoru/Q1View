@@ -863,7 +863,10 @@ void CComparatorDoc::UpdateCurrentMetricState(int metricIdx)
 			mFrmState.Format(_T("%s(%.4f %.4f %.4f)"), (const TCHAR*)metricName,
 				metrics[0], metrics[1], metrics[2]);
 	} else if (pane->rgbBuf && opposite->rgbBuf) {
-		if (LpipsEngine::getInstance().available()) {
+		// Only compute live when the engine has *this* backbone loaded; right after
+		// a backend switch it may still hold the previous model, so fall back to
+		// "computing..." until the worker reloads the requested one.
+		if (qminfo->ml_id && LpipsEngine::getInstance().availableFor(qminfo->ml_id)) {
 			double dist = LpipsEngine::getInstance().distance(pane->rgbBuf, opposite->rgbBuf,
 				mW, mH, ROUNDUP_DWORD(mW) * QIMG_DST_RGB_BYTES);
 			mFrmState.Format(_T("%s(%.4f)"), (const TCHAR*)metricName, dist);
@@ -874,7 +877,7 @@ void CComparatorDoc::UpdateCurrentMetricState(int metricIdx)
 		}
 	} else if (IsLpipsScanRunning()) {
 		mFrmState.Format(_T("%s(computing...)"), (const TCHAR*)metricName);
-	} else if (!LpipsEngine::getInstance().available()) {
+	} else if (!(qminfo->ml_id && LpipsEngine::getInstance().availableFor(qminfo->ml_id))) {
 		mFrmState.Format(_T("%s(N/A)"), (const TCHAR*)metricName);
 	} else {
 		mFrmState.Format(_T("%s(...)"), (const TCHAR*)metricName);

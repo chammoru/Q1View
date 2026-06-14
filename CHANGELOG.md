@@ -8,6 +8,7 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ### Added
 - Comparator: a synchronized selection rectangle for side-by-side region inspection. Press `S` to enter selection mode and drag a rectangle on either image; Comparator draws the same region on both panes so the corresponding area can be compared directly, and the rectangle stays locked to that image region while zooming, panning, or resizing. A width × height readout is shown next to the rectangle, and the selection clears with `Esc` or a right-click.
+- Comparator: a selectable LPIPS perceptual backbone. The Metric menu now offers `LPIPS-AlexNet` (the existing fast, lightweight default) and `LPIPS-VGG` (a heavier, more detailed mode), each downloaded on demand the first time it is selected and verified by a pinned SHA-256. Results always carry the backbone in the label (for example `LPIPS-VGG(0.0020)`) since values from different backbones are not interchangeable, each backbone keeps its own per-frame cache, and the chosen metric is remembered across sessions.
 
 ### Packaging
 - The app, taskbar, and Start menu icons now render larger within their frame. The SVG masters' built-in safe margin was reduced (the rounded square grows from ~84% to ~91% of the icon), so the artwork reads bigger at every size while keeping the same glyph proportions and rounded corners. Regenerated from the `Q1View.svg` / `Comparator.svg` masters.

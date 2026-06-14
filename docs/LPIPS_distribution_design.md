@@ -61,9 +61,18 @@ The exported model is **float16-quantized** for a smaller download:
   **download/disk size**, not speed (speed unchanged vs fp32). That is exactly
   the goal for an on-demand artifact.
 
-Backbone stays **alex** — the LPIPS paper's recommended *forward* metric and the
-fastest; vgg is for use as an optimization loss and is ~6× larger/slower (wrong
-choice for per-frame video scanning).
+Backbone default stays **alex** — the LPIPS paper's recommended *forward* metric
+and the fastest; vgg is traditionally an optimization loss and is ~6× larger/slower
+(a poor default for per-frame video scanning).
+
+**Update (issue #75):** `vgg` is now also offered as an opt-in detailed mode
+alongside `alex`, not a replacement. It is a second on-demand asset
+(`lpips_vgg.onnx`, fp16, 29.6 MB, SHA-256
+`5621992EE96D284567C147B7521097BE4219A213FB14FC2AA168F423FAE8FC2F`) in the same
+`models-lpips-v1` release, provisioned through the same SHA-pinned download path.
+Each backbone is a distinct metric with its own label and per-frame cache, since
+LPIPS values from different backbones are not numerically interchangeable.
+Regenerate either with `tools/lpips/export_lpips_onnx.py --net <alex|vgg> --fp16`.
 
 ## Measured size impact (portable ZIP, baseline 36.72 MB)
 

@@ -61,6 +61,12 @@ CMainFrame::CMainFrame()
 , mMetricIdx(METRIC_PSNR_IDX)
 , mNumOfViews(COMPARER_DEF_VIEWS)
 {
+	// Restore the last-selected metric (which encodes the LPIPS backbone choice,
+	// issue #75). Clamp in case the metric table shrank since it was written.
+	int savedMetric = AfxGetApp()->GetProfileInt(_T("Comparator"), _T("MetricIdx"), METRIC_PSNR_IDX);
+	if (savedMetric >= 0 && savedMetric < METRIC_COUNT)
+		mMetricIdx = savedMetric;
+
 	mResolutionMenu.CreatePopupMenu();
 	mMetricMenu.CreatePopupMenu();
 	mFpsMenu.CreatePopupMenu();
@@ -539,6 +545,9 @@ void CMainFrame::UpdateMagnication(float n)
 void CMainFrame::OnMetricChange(UINT nID)
 {
 	mMetricIdx = nID - ID_METRIC_START;
+
+	// Remember the choice (incl. the LPIPS backbone) for the next session.
+	AfxGetApp()->WriteProfileInt(_T("Comparator"), _T("MetricIdx"), mMetricIdx);
 
 	UpdateMetricLabel();
 	CheckMetricRadio();

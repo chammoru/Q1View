@@ -40,11 +40,17 @@ bool LpipsScanThread::threadLoop()
 {
 	unsigned gen = m_baseScanner->getScanGeneration();
 
-	std::wstring modelPath = MlModelProvisioner::provisionLpipsModel(m_hMainWnd);
+	// The backbone id ("alex"/"vgg") for the selected LPIPS metric drives which
+	// model is provisioned and loaded; non-ML metrics never start this worker.
+	const char* mlId = qmetric_info_table[m_metricIdx].ml_id;
+	if (!mlId)
+		return false;
+
+	std::wstring modelPath = MlModelProvisioner::provisionLpipsModel(m_hMainWnd, mlId);
 	if (modelPath.empty())
 		return false;
 
-	if (!LpipsEngine::getInstance().init(modelPath))
+	if (!LpipsEngine::getInstance().init(modelPath, mlId))
 		return false;
 
 	SQPane scanInfo[2];

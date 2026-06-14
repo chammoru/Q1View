@@ -127,6 +127,23 @@ def convert_to_fp16(out_path):
     print("Quantized to float16 (keep_io_types) -> %s" % out_path)
 
 
+def consolidate_single_file(out_path):
+    """Fold any external weight data back into a single self-contained .onnx.
+
+    The torch>=2.x dynamo exporter offloads large initializers to a sibling
+    `<model>.onnx.data` file. Q1View provisions each model as ONE downloadable,
+    SHA-256-pinned artifact, so re-embed the weights and delete the side file.
+    A no-op when the graph is already self-contained.
+    """
+    import onnx
+
+    model = onnx.load(out_path)  # load_external_data=True by default
+    onnx.save_model(model, out_path, save_as_external_data=False)
+    side = out_path + ".data"
+    if os.path.exists(side):
+        os.remove(side)
+
+
 def sha256_of(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -189,6 +206,9 @@ def main(argv=None):
         model, d0, d1 = export(args.net, out_path, args.opset)
         if args.fp16:
             convert_to_fp16(out_path)
+        # Guarantee one self-contained file (newer torch exporters split weights
+        # into a sidecar .onnx.data; Q1View ships a single pinned artifact).
+        consolidate_single_file(out_path)
     except ImportError as e:
         print("Missing dependency: %s\nRun: pip install -r requirements.txt" % e,
               file=sys.stderr)
