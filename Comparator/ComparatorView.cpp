@@ -622,6 +622,8 @@ void CComparatorView::ClearSelection(CComparatorDoc *pDoc)
 	pDoc->mHasSelection = false;
 	pDoc->mSelecting = false;
 	InvalidateAllPanes(pDoc);
+	// Drop the crop figure from the metric readout now the selection is gone.
+	pDoc->RefreshSelectionMetric();
 }
 
 // Draw the shared selection rectangle into this pane's canvas DC. The rectangle
@@ -1216,6 +1218,9 @@ void CComparatorView::OnLButtonUp(UINT nFlags, CPoint point)
 		if (pDoc->mSelStart == pDoc->mSelCur)
 			pDoc->mHasSelection = false;
 		InvalidateAllPanes(pDoc);
+		// Compute the crop metric for the freshly committed region (or drop it if
+		// the click selected nothing).
+		pDoc->RefreshSelectionMetric();
 		::ReleaseCapture();
 		return;
 	}

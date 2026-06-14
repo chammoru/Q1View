@@ -75,6 +75,34 @@ void RgbFrmCmpStrategy::CalMetricsImpl(ComparatorPane *paneA, ComparatorPane *pa
 	RecordMetrics(paneA->rgbBuf, paneB->rgbBuf, metricIdx, scores);
 }
 
+CString RgbFrmCmpStrategy::CropScore(ComparatorPane *paneA, ComparatorPane *paneB, int metricIdx,
+									 int l, int t, int r, int b) const
+{
+	const qmetric_info *qminfo = &qmetric_info_table[metricIdx];
+	if (qminfo->lazy || qminfo->measure == NULL)
+		return CString();
+
+	const int stride = ROUNDUP_DWORD(mW);
+	const int cw = r - l + 1;
+	const int ch = b - t + 1;
+	// Byte offset of the crop's top-left in the packed RGB888 buffer.
+	const size_t off = (size_t)t * stride * QIMG_DST_RGB_BYTES
+		+ (size_t)l * QIMG_DST_RGB_BYTES;
+
+	BYTE *a = GetRgb888Addr(paneA) + off;
+	BYTE *b2 = GetRgb888Addr(paneB) + off;
+
+	// Same OpenCV/TensorFlow scheme as the whole-image RGB score: treat each
+	// channel byte as an independent sample (width in bytes, byte row stride).
+	double metric = qminfo->measure(a, b2, cw * QIMG_DST_RGB_BYTES, ch,
+		stride * QIMG_DST_RGB_BYTES, 1);
+
+	const CString metricName = CA2W(qminfo->name);
+	CString score;
+	score.Format(_T("%s(%.4f)"), (const TCHAR*)metricName, metric);
+	return score;
+}
+
 void RgbFrmCmpStrategy::DiffNMetrics(SQPane *paneA, SQPane *paneB,
 									 double metrics[METRIC_COUNT][QPLANES],
 									 list<RLC> rlc[QPLANES]) const

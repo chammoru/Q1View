@@ -87,6 +87,41 @@ void YuvFrmCmpStrategy::CalMetricsImpl(ComparatorPane *paneA, ComparatorPane *pa
 	RecordMetrics(GetYuv420Addr(paneA), GetYuv420Addr(paneB), metricIdx, scores);
 }
 
+CString YuvFrmCmpStrategy::CropScore(ComparatorPane *paneA, ComparatorPane *paneB, int metricIdx,
+									 int l, int t, int r, int b) const
+{
+	const qmetric_info *qminfo = &qmetric_info_table[metricIdx];
+	if (qminfo->lazy || qminfo->measure == NULL)
+		return CString();
+
+	int bufOffset2 = 0, bufOffset3 = 0;
+	qimage_yuv420_load_info(mW, mH, &bufOffset2, &bufOffset3);
+	const int chroma_w = (mW + 1) >> 1;
+
+	BYTE *a = GetYuv420Addr(paneA);
+	BYTE *b2 = GetYuv420Addr(paneB);
+
+	// Luma crop [l..r] x [t..b]; the 4:2:0 chroma crop is the overlapping
+	// half-resolution region, so the three planes cover the same image area.
+	const int yw = r - l + 1;
+	const int yh = b - t + 1;
+	const int cl = l >> 1, ct = t >> 1, cr = r >> 1, cb = b >> 1;
+	const int cw = cr - cl + 1;
+	const int chh = cb - ct + 1;
+
+	double mY = qminfo->measure(a + (size_t)t * mW + l,
+		b2 + (size_t)t * mW + l, yw, yh, mW, 1);
+	double mU = qminfo->measure(a + bufOffset2 + (size_t)ct * chroma_w + cl,
+		b2 + bufOffset2 + (size_t)ct * chroma_w + cl, cw, chh, chroma_w, 1);
+	double mV = qminfo->measure(a + bufOffset3 + (size_t)ct * chroma_w + cl,
+		b2 + bufOffset3 + (size_t)ct * chroma_w + cl, cw, chh, chroma_w, 1);
+
+	const CString metricName = CA2W(qminfo->name);
+	CString score;
+	score.Format(_T("%s(%.4f %.4f %.4f)"), (const TCHAR*)metricName, mY, mU, mV);
+	return score;
+}
+
 void YuvFrmCmpStrategy::DiffNMetrics(SQPane *paneA, SQPane *paneB,
 									 double metrics[METRIC_COUNT][QPLANES],
 									 list<RLC> rlc[QPLANES]) const

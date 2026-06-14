@@ -101,6 +101,11 @@ public:
 	CPoint mSelStart;    // drag anchor, source-pixel coords
 	CPoint mSelCur;      // drag current / committed opposite corner
 
+	// Normalized, image-clamped selection rectangle in source-pixel coords
+	// (inclusive [l..r] x [t..b]). Returns false when there is no usable
+	// selection. Backs the region/crop metrics (issue #74).
+	bool GetSelectionRect(int &l, int &t, int &r, int &b) const;
+
 // Operations
 public:
 	void ProcessDocument(ComparatorPane *pane);
@@ -133,6 +138,8 @@ public:
 	BOOL OpenMultiFiles(const std::vector<CString>& filenames);
 	void SelectMetric(int metricIdx);
 	void UpdateCurrentMetricState(int metricIdx);
+	void AppendCropMetric(int metricIdx, ComparatorPane *pane, ComparatorPane *opposite);
+	void RefreshSelectionMetric();
 	bool IsLpipsScanRunning() const;
 	void StopLpipsScanThread();
 

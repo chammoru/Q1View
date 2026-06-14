@@ -16,6 +16,7 @@
 #include "QViewerCmn.h"
 #include "ComparatorUtil.h"
 #include "FileChangeNotiThread.h"
+#include "FrmInfoView.h"
 #include "LpipsScanThread.h"
 #include "LpipsEngine.h"
 
@@ -833,6 +834,59 @@ void CComparatorDoc::SelectMetric(int metricIdx)
 	UpdateAllViews(NULL);
 }
 
+bool CComparatorDoc::GetSelectionRect(int &l, int &t, int &r, int &b) const
+{
+	if (!mHasSelection || mW <= 0 || mH <= 0)
+		return false;
+
+	l = mSelStart.x < mSelCur.x ? mSelStart.x : mSelCur.x;
+	t = mSelStart.y < mSelCur.y ? mSelStart.y : mSelCur.y;
+	r = mSelStart.x > mSelCur.x ? mSelStart.x : mSelCur.x;
+	b = mSelStart.y > mSelCur.y ? mSelStart.y : mSelCur.y;
+
+	if (l < 0) l = 0;
+	if (t < 0) t = 0;
+	if (r > mW - 1) r = mW - 1;
+	if (b > mH - 1) b = mH - 1;
+
+	return (r >= l && b >= t);
+}
+
+// Append the selected metric measured over just the selection rectangle, so a
+// localized region can be compared against the whole-image score on the same
+// line (issue #74). PSNR/SSIM use the color-space-native crop; LPIPS reuses the
+// RGB engine on the cropped region.
+void CComparatorDoc::AppendCropMetric(int metricIdx, ComparatorPane *pane, ComparatorPane *opposite)
+{
+	int l, t, r, b;
+	if (!GetSelectionRect(l, t, r, b))
+		return;
+	if (!pane->rgbBuf || !opposite->rgbBuf)
+		return;
+
+	const qmetric_info *qminfo = &qmetric_info_table[metricIdx];
+	const int cw = r - l + 1;
+	const int ch = b - t + 1;
+	CString cropScore;
+
+	if (qminfo->lazy) {
+		if (qminfo->ml_id && LpipsEngine::getInstance().availableFor(qminfo->ml_id)) {
+			const int stride = ROUNDUP_DWORD(mW);
+			const size_t off = (size_t)t * stride * QIMG_DST_RGB_BYTES
+				+ (size_t)l * QIMG_DST_RGB_BYTES;
+			double dist = LpipsEngine::getInstance().distance(pane->rgbBuf + off,
+				opposite->rgbBuf + off, cw, ch, stride * QIMG_DST_RGB_BYTES);
+			const CString metricName = CA2W(qminfo->name);
+			cropScore.Format(_T("%s(%.4f)"), (const TCHAR*)metricName, dist);
+		}
+	} else if (mFrmCmpStrategy) {
+		cropScore = mFrmCmpStrategy->CropScore(pane, opposite, metricIdx, l, t, r, b);
+	}
+
+	if (!cropScore.IsEmpty())
+		mFrmState.AppendFormat(_T("   |   crop %dx%d %s"), cw, ch, (const TCHAR*)cropScore);
+}
+
 void CComparatorDoc::UpdateCurrentMetricState(int metricIdx)
 {
 	mFrmState.Empty();
@@ -846,6 +900,7 @@ void CComparatorDoc::UpdateCurrentMetricState(int metricIdx)
 	if (!qminfo->lazy) {
 		if (mFrmCmpStrategy)
 			mFrmCmpStrategy->CalMetrics(pane, opposite, metricIdx, mFrmState);
+		AppendCropMetric(metricIdx, pane, opposite);
 		return;
 	}
 
@@ -882,4 +937,20 @@ void CComparatorDoc::UpdateCurrentMetricState(int metricIdx)
 	} else {
 		mFrmState.Format(_T("%s(...)"), (const TCHAR*)metricName);
 	}
+
+	AppendCropMetric(metricIdx, pane, opposite);
+}
+
+// Recompute the current-frame metric line (which now includes the crop score)
+// and repaint the readout. Called when the selection rectangle is committed or
+// cleared so the crop figure tracks the selection (issue #74).
+void CComparatorDoc::RefreshSelectionMetric()
+{
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	if (!pMainFrm)
+		return;
+
+	UpdateCurrentMetricState(pMainFrm->mMetricIdx);
+	if (mFrmInfoView)
+		mFrmInfoView->Invalidate(FALSE);
 }

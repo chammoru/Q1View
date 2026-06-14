@@ -26,6 +26,8 @@ public:
 	static BYTE *ConvertToRgb888(SQPane *pane, int w, int h);
 	virtual void CalMetricsImpl(ComparatorPane *paneA, ComparatorPane *paneB, int metricIdx,
 		std::vector<CString>& scores) const;
+	virtual CString CropScore(ComparatorPane *paneA, ComparatorPane *paneB, int metricIdx,
+		int l, int t, int r, int b) const;
 	virtual void DiffNMetrics(SQPane *paneA, SQPane *paneB,
 		double metrics[METRIC_COUNT][QPLANES], list<RLC> rlc[QPLANES]) const;
 	virtual void AllocBuffer(SQPane *paneL, SQPane *paneR) const;
