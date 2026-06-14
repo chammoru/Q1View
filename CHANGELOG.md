@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Added
+- Comparator: a synchronized selection rectangle for side-by-side region inspection. Press `S` to enter selection mode and drag a rectangle on either image; Comparator draws the same region on both panes so the corresponding area can be compared directly, and the rectangle stays locked to that image region while zooming, panning, or resizing. A width × height readout is shown next to the rectangle, and the selection clears with `Esc` or a right-click.
+
 ### Packaging
 - The app, taskbar, and Start menu icons now render larger within their frame. The SVG masters' built-in safe margin was reduced (the rounded square grows from ~84% to ~91% of the icon), so the artwork reads bigger at every size while keeping the same glyph proportions and rounded corners. Regenerated from the `Q1View.svg` / `Comparator.svg` masters.
 

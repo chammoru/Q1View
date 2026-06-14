@@ -74,6 +74,11 @@ CComparatorDoc::CComparatorDoc()
 , mCursorView(NULL)
 , mCursorX(0)
 , mCursorY(0)
+, mSelMode(false)
+, mSelecting(false)
+, mHasSelection(false)
+, mSelStart(0, 0)
+, mSelCur(0, 0)
 {
 	BITMAPINFOHEADER &bmiHeader = mBmi.bmiHeader;
 	bmiHeader.biSize = (DWORD)sizeof(BITMAPINFOHEADER);

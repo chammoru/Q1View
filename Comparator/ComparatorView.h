@@ -78,6 +78,11 @@ public:
 	void DrawCursorCoord(CDC *pDC, CComparatorDoc *pDoc, ComparatorPane *pane);
 	void UpdateCursorCoord(const CPoint &clientPoint);
 	void InvalidateCursorCoord(CComparatorDoc *pDoc);
+	// Synchronized selection rectangle (issue #74).
+	void ClientToSource(const CPoint &clientPoint, int &srcX, int &srcY) const;
+	void InvalidateAllPanes(CComparatorDoc *pDoc);
+	void ClearSelection(CComparatorDoc *pDoc);
+	void DrawSelection(CDC *pDC, CComparatorDoc *pDoc);
 	void DrawCloseButton(CDC *pDC, bool paneAvailable);
 	void ClosePane();
 	void UpdateCloseHover(const CPoint &point);

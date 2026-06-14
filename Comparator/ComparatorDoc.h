@@ -90,6 +90,17 @@ public:
 	CComparatorView *mCursorView;
 	int mCursorX, mCursorY;
 
+	// Synchronized selection rectangle (issue #74). Stored in the shared mW x mH
+	// source-canvas space so both panes re-project it through their own zoom/pan
+	// transform and stay in sync while zooming, panning, or resizing. mSelStart /
+	// mSelCur are inclusive source-pixel corners; the rectangle is their
+	// normalized span.
+	bool mSelMode;       // 'S' toggles: left-drag selects instead of panning
+	bool mSelecting;     // a selection drag is in progress
+	bool mHasSelection;  // a committed rectangle exists
+	CPoint mSelStart;    // drag anchor, source-pixel coords
+	CPoint mSelCur;      // drag current / committed opposite corner
+
 // Operations
 public:
 	void ProcessDocument(ComparatorPane *pane);

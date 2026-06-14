@@ -18,6 +18,11 @@
 
 #include <gdiplus.h>
 
+// Match the Viewer's selection-rectangle palette (Viewer/ViewerView.h): amber
+// while the drag is in progress, green once the rectangle is committed.
+#define COLOR_SELECTING_RECT  Q1UI_COLOR_WARNING
+#define COLOR_SELECTED_RECT   Q1UI_COLOR_SUCCESS
+
 // CComparatorView
 
 CComparatorView::CComparatorView()
@@ -259,6 +264,10 @@ void CComparatorView::OnDraw(CDC *pDC)
 
 	DrawDiffOverlay(&mMemDC, pDoc, pane);
 
+	// The selection rectangle lives in shared source space, so every pane draws
+	// the same region projected through its own transform (issue #74).
+	DrawSelection(&mMemDC, pDoc);
+
 	if (pDoc->mShowCursorCoord && pDoc->mCursorView != NULL)
 		DrawCursorCoord(&mMemDC, pDoc, pane);
 
@@ -320,6 +329,8 @@ void CComparatorView::DrawHelpMenu(CDC *pDC)
 		"I              Interpolate pixels\n"
 		"D              Toggle pink diff overlay (grid + dots)\n"
 		"C              Toggle cursor pixel coordinates\n"
+		"S              Toggle selection mode (drag a synced region)\n"
+		"Esc / RClick   Clear the selection rectangle\n"
 		"Click timeline Seek to a video frame (left/right pane)\n"
 		);
 	pDC->DrawText(manual, &manualRect, DT_LEFT | DT_TOP);
@@ -572,11 +583,110 @@ void CComparatorView::UpdateCursorCoord(const CPoint &clientPoint)
 		InvalidateCursorCoord(pDoc);
 }
 
-void CComparatorView::InvalidateCursorCoord(CComparatorDoc *pDoc)
+void CComparatorView::InvalidateAllPanes(CComparatorDoc *pDoc)
 {
 	Invalidate(FALSE);
 	for (auto view : GetOhterViews(pDoc))
 		view->Invalidate(FALSE);
+}
+
+void CComparatorView::InvalidateCursorCoord(CComparatorDoc *pDoc)
+{
+	// Every loaded pane shows its own source-mapped cursor coord, so a change to
+	// the shared cursor must repaint all of them.
+	InvalidateAllPanes(pDoc);
+}
+
+// Map a window-client point to an inclusive source-pixel coordinate, clamped to
+// the shared mW x mH canvas. Mirrors UpdateCursorCoord's transform: the canvas
+// sits below the controls strip, and source = (canvas - dstOrigin) / zoom.
+void CComparatorView::ClientToSource(const CPoint &clientPoint, int &srcX, int &srcY) const
+{
+	CComparatorDoc *pDoc = GetDocument();
+
+	int canvasX = clientPoint.x;
+	int canvasY = clientPoint.y - mRcControls.bottom;
+
+	srcX = int((canvasX - mXDst) / pDoc->mN);
+	srcY = int((canvasY - mYDst) / pDoc->mN);
+
+	srcX = QMAX(0, QMIN(srcX, pDoc->mW - 1));
+	srcY = QMAX(0, QMIN(srcY, pDoc->mH - 1));
+}
+
+void CComparatorView::ClearSelection(CComparatorDoc *pDoc)
+{
+	if (!pDoc->mHasSelection && !pDoc->mSelecting)
+		return;
+
+	pDoc->mHasSelection = false;
+	pDoc->mSelecting = false;
+	InvalidateAllPanes(pDoc);
+}
+
+// Draw the shared selection rectangle into this pane's canvas DC. The rectangle
+// is stored in shared source-pixel space (issue #74), so projecting it through
+// this view's own mXDst / mYDst / mN keeps every pane's rectangle aligned with
+// the same image region as the view zooms, pans, or resizes.
+void CComparatorView::DrawSelection(CDC *pDC, CComparatorDoc *pDoc)
+{
+	if (!pDoc->mHasSelection && !pDoc->mSelecting)
+		return;
+	if (pDoc->mW <= 0 || pDoc->mH <= 0)
+		return;
+
+	// Normalize the inclusive corners and clamp to the current image, which may
+	// have shrunk since the rectangle was drawn (e.g. a smaller source loaded).
+	int l = QMIN(pDoc->mSelStart.x, pDoc->mSelCur.x);
+	int t = QMIN(pDoc->mSelStart.y, pDoc->mSelCur.y);
+	int r = QMAX(pDoc->mSelStart.x, pDoc->mSelCur.x);
+	int b = QMAX(pDoc->mSelStart.y, pDoc->mSelCur.y);
+	l = QMAX(l, 0);
+	t = QMAX(t, 0);
+	r = QMIN(r, pDoc->mW - 1);
+	b = QMIN(b, pDoc->mH - 1);
+	if (r < l || b < t)
+		return;
+
+	// Source pixels [l..r] x [t..b] enclose whole cells, so the right/bottom
+	// edges extend one source pixel past the last selected pixel.
+	int x0 = int(l * pDoc->mN) + mXDst;
+	int y0 = int(t * pDoc->mN) + mYDst;
+	int x1 = int((r + 1) * pDoc->mN) + mXDst;
+	int y1 = int((b + 1) * pDoc->mN) + mYDst;
+
+	COLORREF color = pDoc->mSelecting ? COLOR_SELECTING_RECT : COLOR_SELECTED_RECT;
+	CPen pen(PS_SOLID, 1, color);
+	CPen *prevPen = pDC->SelectObject(&pen);
+	pDC->SelectStockObject(NULL_BRUSH);
+	pDC->Rectangle(x0, y0, x1, y1);
+	pDC->SelectObject(prevPen);
+
+	// Size readout (width x height in source pixels) pinned just inside the
+	// rectangle's top-left corner, on a translucent plate for legibility.
+	LOGFONT lf;
+	mDefPixelTextFont.GetLogFont(&lf);
+	lf.lfHeight = 14;
+	lf.lfWeight = FW_NORMAL;
+	CFont sizeFont;
+	sizeFont.CreateFontIndirect(&lf);
+	CFont *prevFont = pDC->SelectObject(&sizeFont);
+
+	CString label;
+	label.Format(_T("%d x %d"), r - l + 1, b - t + 1);
+
+	CRect textRect;
+	pDC->DrawText(label, -1, textRect, DT_SINGLELINE | DT_CALCRECT);
+	CRect bgRect(x0, y0, x0 + textRect.Width(), y0 + textRect.Height());
+	bgRect.InflateRect(4, 2, 4, 2);
+	pDC->FillSolidRect(bgRect, Q1UI_COLOR_OVERLAY);
+
+	int prevBkMode = pDC->SetBkMode(TRANSPARENT);
+	COLORREF prevTextColor = pDC->SetTextColor(Q1UI_COLOR_OVERLAY_TEXT);
+	pDC->DrawText(label, &bgRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+	pDC->SetTextColor(prevTextColor);
+	pDC->SetBkMode(prevBkMode);
+	pDC->SelectObject(prevFont);
 }
 
 void CComparatorView::DrawCursorCoord(CDC *pDC, CComparatorDoc *pDoc, ComparatorPane *pane)
@@ -1010,7 +1120,14 @@ void CComparatorView::OnMouseMove(UINT nFlags, CPoint point)
 	if (!pDoc)
 		goto OnMouseMoveDefault;
 
-	if (mIsClicked) {
+	if (pDoc->mSelecting) {
+		// Extend the rubber-band rectangle; both panes repaint so the matching
+		// region tracks live on the opposite image (issue #74).
+		int sx, sy;
+		ClientToSource(point, sx, sy);
+		pDoc->mSelCur = CPoint(sx, sy);
+		InvalidateAllPanes(pDoc);
+	} else if (mIsClicked) {
 		pDoc->mXOff = pDoc->mXInitOff + (point.x - mPointS.x) / pDoc->mN;
 		pDoc->mYOff = pDoc->mYInitOff + (point.y - mPointS.y) / pDoc->mN;
 
@@ -1064,6 +1181,20 @@ void CComparatorView::OnLButtonDown(UINT nFlags, CPoint point)
 		return;
 	}
 
+	// In selection mode a left-drag draws a synchronized rectangle instead of
+	// panning the shared view (issue #74). Capture is already held above, so the
+	// matching move/up events land on this view.
+	if (pDoc->mSelMode) {
+		int sx, sy;
+		ClientToSource(point, sx, sy);
+		pDoc->mSelStart = pDoc->mSelCur = CPoint(sx, sy);
+		pDoc->mSelecting = true;
+		pDoc->mHasSelection = true;
+		::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_CROSS));
+		InvalidateAllPanes(pDoc);
+		return;
+	}
+
 	mIsClicked = true;
 	mPointS = point;
 	pDoc->mXInitOff = pDoc->mXOff;
@@ -1076,6 +1207,19 @@ void CComparatorView::OnLButtonDown(UINT nFlags, CPoint point)
 
 void CComparatorView::OnLButtonUp(UINT nFlags, CPoint point)
 {
+	CComparatorDoc* pDoc = GetDocument();
+
+	if (pDoc && pDoc->mSelecting) {
+		pDoc->mSelecting = false;
+		// A click without a drag (zero-area span) clears rather than leaving a
+		// degenerate rectangle behind.
+		if (pDoc->mSelStart == pDoc->mSelCur)
+			pDoc->mHasSelection = false;
+		InvalidateAllPanes(pDoc);
+		::ReleaseCapture();
+		return;
+	}
+
 	mIsClicked = false;
 
 	::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_ARROW));
@@ -1089,6 +1233,15 @@ BOOL CComparatorView::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 {
 	if (mIsClicked) {
 		::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_HAND));
+
+		return TRUE;
+	}
+
+	// A crosshair over the canvas signals that a left-drag will select a region
+	// (issue #74). HTCLIENT excludes the controls-strip child windows.
+	CComparatorDoc* pDoc = GetDocument();
+	if (pDoc && pDoc->mSelMode && nHitTest == HTCLIENT) {
+		::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_CROSS));
 
 		return TRUE;
 	}
@@ -1203,6 +1356,12 @@ void CComparatorView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			view->Invalidate(FALSE);
 		Invalidate(FALSE);
 		break;
+	case 'S': // Toggle selection mode: left-drag selects a region (issue #74).
+		pDoc->mSelMode = !pDoc->mSelMode;
+		break;
+	case VK_ESCAPE: // Clear the synchronized selection rectangle.
+		ClearSelection(pDoc);
+		break;
 	case VK_OEM_2: // '?' / '/' on US keyboards.
 		ToggleHelp();
 		break;
@@ -1243,5 +1402,12 @@ ComparatorPane* CComparatorView::GetPane(CComparatorDoc* pDoc) const
 
 void CComparatorView::OnRButtonDown(UINT nFlags, CPoint point)
 {
+	// Right-click clears the synchronized selection rectangle (issue #74).
+	CComparatorDoc* pDoc = GetDocument();
+	if (pDoc && (pDoc->mHasSelection || pDoc->mSelecting)) {
+		ClearSelection(pDoc);
+		return;
+	}
+
 	CScrollView::OnRButtonDown(nFlags, point);
 }
