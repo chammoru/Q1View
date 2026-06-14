@@ -235,6 +235,36 @@ if(Q1VIEW_BUILD_QT_VIEWER)
         RUNTIME DESTINATION bin
     )
 
+    # --- Headless QPA plugins for the smoke check --------------------------
+    # The smoke check below drives the viewer under the "offscreen" QPA platform
+    # (and ctest can be pointed at "minimal"). windeployqt only bundles the GUI
+    # platform plugin (qwindows), so once Qt has been deployed into the build
+    # tree, platforms\qwindows.dll shadows the Qt install while qoffscreen /
+    # qminimal stay missing. The viewer then aborts during QApplication startup
+    # with "Could not find the Qt platform plugin offscreen"; on Windows that
+    # surfaces as a 0xc0000409 abort (which WER can then stall on) rather than a
+    # clean decode -- exactly the local-only failure in issue #73, masked in CI
+    # only because nothing there shadows the Qt install's plugins. Copy the
+    # headless plugins next to the exe so the smoke test runs from the build tree
+    # on any developer machine, matching CI.
+    if(WIN32 AND TARGET Qt6::QOffscreenIntegrationPlugin)
+        set(_q1_qpa_plugins Qt6::QOffscreenIntegrationPlugin)
+        if(TARGET Qt6::QMinimalIntegrationPlugin)
+            list(APPEND _q1_qpa_plugins Qt6::QMinimalIntegrationPlugin)
+        endif()
+        add_custom_command(TARGET q1view_viewer_qt POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:q1view_viewer_qt>/platforms"
+            VERBATIM)
+        foreach(_q1_plugin IN LISTS _q1_qpa_plugins)
+            add_custom_command(TARGET q1view_viewer_qt POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "$<TARGET_FILE:${_q1_plugin}>"
+                    "$<TARGET_FILE_DIR:q1view_viewer_qt>/platforms"
+                VERBATIM)
+        endforeach()
+    endif()
+
     # --- Minimal Qt smoke check --------------------------------------------
     # Drive the built viewer headlessly (--selftest under the offscreen QPA
     # platform) over the committed raw-format fixtures, asserting each opens
