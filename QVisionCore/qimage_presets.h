@@ -9,6 +9,14 @@
 #define VIEWER_DEF_W 640
 #define VIEWER_DEF_H 480
 
+// Thumbnail drawer width (logical px), shared by the MFC and Qt viewers so the
+// drawer opens at the same default size and clamps to the same min/max when the
+// user drags the divider. The drawer always lives inside the fixed window: it
+// takes its width from the image area rather than growing the window (issue #76).
+#define DRAWER_DEF_W 220
+#define DRAWER_MIN_W 120
+#define DRAWER_MAX_W 480
+
 namespace q1 {
 
 // Preset resolutions -- the single source of truth for the resolution menus in

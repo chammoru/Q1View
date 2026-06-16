@@ -195,7 +195,7 @@ private:
 	ThumbnailPane *mThumbPane = nullptr;
 	QDockWidget *mThumbDock = nullptr;
 	QAction *mToggleDrawerAction = nullptr;
-	int mDrawerWidth = 220;
+	int mDrawerWidth = DRAWER_DEF_W;
 	QScrollArea *mScrollArea;
 	// Image page = scroll area + the raw/sequence seek bar below it. The seek bar
 	// (frame slider + frame/time readout) shows only for multi-frame raw sources,

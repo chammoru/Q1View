@@ -190,6 +190,9 @@ MainWindow::MainWindow(QWidget *parent)
 	// added lazily the first time a clip opens (see openVideoFile).
 	mCentralStack->addWidget(mImagePage);
 	setCentralWidget(mCentralStack);
+	// Keep a usable image area even when the drawer is dragged wide, so the
+	// divider can never squeeze the view away entirely (mirrors the MFC viewer).
+	mCentralStack->setMinimumWidth(DRAWER_MIN_W);
 	setAcceptDrops(true);
 	setFocusPolicy(Qt::StrongFocus);
 
@@ -197,6 +200,11 @@ MainWindow::MainWindow(QWidget *parent)
 	// viewer; activating a file row opens it through the normal open routing.
 	mThumbPane = new ThumbnailPane;
 	mThumbPane->setNameFilters(imageNameFilters());
+	// The drawer is dragged wider/narrower (to read long file names) but always
+	// inside the fixed window, taking width from the image area. Clamp it to the
+	// shared min/max so both viewers behave the same (issue #76).
+	mThumbPane->setMinimumWidth(DRAWER_MIN_W);
+	mThumbPane->setMaximumWidth(DRAWER_MAX_W);
 	connect(mThumbPane, &ThumbnailPane::fileActivated, this, [this](const QString &path) {
 		// Thumbnail selection must not resize the window (issue #76): keep the
 		// current frame and let the opener fit the image into the viewport, like
@@ -2763,8 +2771,17 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 		return QMainWindow::eventFilter(object, event);
 	}
 
-	if (event->type() == QEvent::Resize && mHelpOverlay && mHelpOverlay->isVisible()) {
-		positionHelpOverlay();
+	if (event->type() == QEvent::Resize) {
+		// The viewport changes width when the window is resized or the thumbnail
+		// drawer's divider is dragged. Re-fit so the shown image tracks the
+		// available area (issue #76): the whole-window resizeEvent does not fire
+		// on a divider drag, so this is where that case is caught.
+		if (mFitToWindow && !mImage.isNull()) {
+			updateView();
+		}
+		if (mHelpOverlay && mHelpOverlay->isVisible()) {
+			positionHelpOverlay();
+		}
 	}
 
 	if (event->type() == QEvent::Wheel && !mImage.isNull()) {

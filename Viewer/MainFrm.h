@@ -48,27 +48,38 @@ struct ViewerSyncInputState
 };
 
 class CThumbnailPane;
+class CMainFrame;
+
+// Width (logical px) of the draggable divider between the image view and the
+// thumbnail drawer.
+#define DRAWER_SPLIT_BAR  6
 
 // Static splitter hosting the image view (column 0) and the thumbnail drawer
-// (column 1). It draws no bar or border, and the slide animation grows the
-// window so the view column stays a constant width.
+// (column 1). The divider is a thin, draggable bar so the user can resize the
+// drawer (e.g. to read long file names); dragging redistributes width between
+// the two panes inside the fixed window, never resizing the frame (issue #76).
 class CDrawerSplitter : public CSplitterWnd
 {
 public:
-	void RemoveBar()
+	CMainFrame *mFrame = NULL;   // notified when the user drags the divider
+
+	// Show/hide the draggable divider. Hidden (zero width) when the drawer is
+	// closed so the image view fills the whole client with no leftover gap.
+	void SetBarVisible(bool visible)
 	{
-		// Zero every splitter/border metric so there is no visible divider line
-		// and the split is gap-free.
-		m_cxSplitter = m_cySplitter = 0;
-		m_cxSplitterGap = m_cySplitterGap = 0;
+		int w = visible ? DRAWER_SPLIT_BAR : 0;
+		m_cxSplitter = m_cxSplitterGap = w;
+		m_cySplitter = m_cySplitterGap = w;
 		m_cxBorder = m_cyBorder = 0;
 		m_cxBorderShare = m_cyBorderShare = 0;
 	}
-	int  BarWidth() const { return 0; }
+	int BarWidth() const { return m_cxSplitterGap; }
 
 protected:
-	// Draw nothing: no split bar or border lines between the panes.
-	virtual void OnDraw(CDC * /*pDC*/) {}
+	// Flat, subtle divider instead of the default 3D splitter bar.
+	virtual void OnDrawSplitter(CDC *pDC, ESplitType nType, const CRect &rect);
+	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+	DECLARE_MESSAGE_MAP()
 };
 
 class CMainFrame : public CFrameWnd
@@ -96,15 +107,13 @@ private:
 	int  mDrawerWidth;
 	bool mSplitterReady;
 
-	// Open/close slide animation state.
+	// Open/close slide animation state. The drawer column slides between 0 and
+	// mDrawerWidth while the frame size stays fixed (the image view absorbs the
+	// change), so no window-geometry bookkeeping is needed.
 	bool mDrawerAnimating;
 	bool mDrawerAnimOpening;
 	int  mDrawerAnimStep;
 	int  mDrawerAnimSteps;
-	int  mAnimClosedLeft, mAnimClosedWidth, mAnimTop, mAnimHeight;
-	int  mAnimReservedFull;
-	int  mAnimViewWidth;   // image-view column width held constant during the slide
-	bool mAnimCanResize;
 
 // Operations
 public:
@@ -140,6 +149,9 @@ public:
 	int  GetDrawerReservedWidth() const;
 	// Called by the document when the active file changes, to sync the drawer.
 	void OnDocPathChanged(LPCTSTR lpszPath);
+	// Called by CDrawerSplitter after the user finishes dragging the divider:
+	// adopts the new drawer width (clamped) and refits the image to the view.
+	void OnDrawerDividerDragged();
 
 // Generated message map functions
 protected:
@@ -169,8 +181,10 @@ private:
 	BOOL LaunchComparator(const CString &cmperPath, const CString &quotedArgs);
 	void PinDrawerColumn();
 	void StartDrawerAnimation(bool opening);
-	void ApplyDrawerReserved(int reserved);
+	void ApplyDrawerColumn(int drawerCol);
 	void FinalizeDrawerAnimation();
+	// Refit the image into the current view column (after a drawer resize).
+	void RefitView();
 	afx_msg LRESULT Reload(WPARAM wParam, LPARAM lParam);
 	afx_msg BOOL OnCopyData(CWnd *pWnd, COPYDATASTRUCT *pCopyDataStruct);
 	afx_msg LRESULT OnApplySyncInput(WPARAM wParam, LPARAM lParam);
