@@ -3,6 +3,8 @@
 
 #include <QString>
 
+#include "qimage_presets.h" // shared VIEWER_DEF_W / VIEWER_DEF_H
+
 class QWidget;
 
 struct RawOpenOptions
@@ -10,8 +12,8 @@ struct RawOpenOptions
 	QString fileName;
 	// Default to the viewer's display-area footprint, matching the MFC viewer's
 	// VIEWER_DEF_W x VIEWER_DEF_H rather than a hard-coded 1080p.
-	int width = 500;
-	int height = 392;
+	int width = VIEWER_DEF_W;
+	int height = VIEWER_DEF_H;
 	QString colorSpaceName = QStringLiteral("yuv420");
 };
 

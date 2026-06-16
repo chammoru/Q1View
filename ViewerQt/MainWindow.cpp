@@ -255,10 +255,12 @@ MainWindow::MainWindow(QWidget *parent)
 	statusBar()->showMessage(tr("Ready"));
 	setWindowTitle(tr("Q1View Qt"));
 	// Open at the same footprint as the MFC viewer, whose client area defaults to
-	// VIEWER_DEF_W x VIEWER_DEF_H (500 x 392). The menu bar and status bar live
-	// inside the Qt window, so size the central area to leave the viewport close
-	// to that, keeping the on-screen window the same size as the MFC one.
-	resize(500, 412);
+	// VIEWER_DEF_W x VIEWER_DEF_H (the shared default in qimage_presets.h). Unlike
+	// the MFC frame, the Qt menu bar and status bar live inside the window, so add
+	// their height on top so the viewport (not the whole window) matches that
+	// default. sizeHint() is valid before the window is shown (unlike height()).
+	const int chromeH = menuBar()->sizeHint().height() + statusBar()->sizeHint().height();
+	resize(VIEWER_DEF_W, VIEWER_DEF_H + chromeH);
 }
 
 void MainWindow::warn(const QString &title, const QString &text)
@@ -1263,8 +1265,8 @@ void MainWindow::setActualSize()
 
 void MainWindow::loadSettings()
 {
-	// The default raw resolution comes from RawOpenOptions (the MFC viewer's
-	// 500x392 display-area footprint); a saved value still takes precedence.
+	// The default raw resolution comes from RawOpenOptions (the shared
+	// VIEWER_DEF_W x VIEWER_DEF_H footprint); a saved value still takes precedence.
 	QSettings settings;
 	mRawOptions.width = settings.value(QStringLiteral("raw/width"), mRawOptions.width).toInt();
 	mRawOptions.height = settings.value(QStringLiteral("raw/height"), mRawOptions.height).toInt();
@@ -1683,11 +1685,14 @@ void MainWindow::resizeToImage()
 		// widget size is the chrome the screen budget must also leave room for.
 		const int frameExtraW = std::max(0, frameGeometry().width() - width());
 		const int frameExtraH = std::max(0, frameGeometry().height() - height());
-		const int maxContentW = std::max(500, available.width() - frameExtraW);
-		const int maxContentH = std::max(412, available.height() - frameExtraH);
+		// Never shrink below the default footprint (VIEWER_DEF_W x VIEWER_DEF_H plus
+		// the in-window menu/status chrome), and never grow past the screen.
+		const int minContentH = VIEWER_DEF_H + chromeH;
+		const int maxContentW = std::max(VIEWER_DEF_W, available.width() - frameExtraW);
+		const int maxContentH = std::max(minContentH, available.height() - frameExtraH);
 
-		const int contentW = std::clamp(shown.width(), 500, maxContentW);
-		const int contentH = std::clamp(shown.height() + chromeH, 412, maxContentH);
+		const int contentW = std::clamp(shown.width(), VIEWER_DEF_W, maxContentW);
+		const int contentH = std::clamp(shown.height() + chromeH, minContentH, maxContentH);
 		resize(contentW, contentH);
 	}
 

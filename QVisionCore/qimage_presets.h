@@ -1,6 +1,14 @@
 #ifndef __QIMAGE_PRESETS_H__
 #define __QIMAGE_PRESETS_H__
 
+// Default viewer footprint, shared by the MFC and Qt front-ends so both open at
+// the same fixed size on a fresh launch and assume the same dimensions for a raw
+// image of unknown size. 640x480 (VGA) is a standard codec/image resolution and
+// one of the resolution_info_table presets below, so the resolution menu shows a
+// real, checked preset on launch instead of a non-standard size (issue #77).
+#define VIEWER_DEF_W 640
+#define VIEWER_DEF_H 480
+
 namespace q1 {
 
 // Preset resolutions -- the single source of truth for the resolution menus in
