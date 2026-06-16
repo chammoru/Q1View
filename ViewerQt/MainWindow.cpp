@@ -197,7 +197,16 @@ MainWindow::MainWindow(QWidget *parent)
 	// viewer; activating a file row opens it through the normal open routing.
 	mThumbPane = new ThumbnailPane;
 	mThumbPane->setNameFilters(imageNameFilters());
-	connect(mThumbPane, &ThumbnailPane::fileActivated, this, &MainWindow::openDroppedFile);
+	connect(mThumbPane, &ThumbnailPane::fileActivated, this, [this](const QString &path) {
+		// Thumbnail selection must not resize the window (issue #76): keep the
+		// current frame and let the opener fit the image into the viewport, like
+		// folder navigation does. Restore the flag so a later File>Open still
+		// sizes the window to its image.
+		const bool prevKeep = mKeepWindowOnLoad;
+		mKeepWindowOnLoad = true;
+		const auto restoreKeep = qScopeGuard([this, prevKeep]() { mKeepWindowOnLoad = prevKeep; });
+		openDroppedFile(path);
+	});
 	mThumbDock = new QDockWidget(tr("Thumbnail Browser"), this);
 	mThumbDock->setObjectName(QStringLiteral("thumbnailDrawer"));
 	mThumbDock->setWidget(mThumbPane);

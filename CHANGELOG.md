@@ -9,6 +9,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 ### Changed
 - Viewer: the default window now opens at the standard 640×480 (VGA) instead of the previous non-standard 500×392, giving a roomier workspace on modern displays while keeping the size fixed — loading an image or selecting a thumbnail does not resize the window, and a manually resized window is still remembered across sessions. The MFC and Qt viewers share one default, which also seeds the assumed dimensions for raw images of unknown size. (issue #77)
 
+### Fixed
+- Viewer: selecting a thumbnail from the browser no longer resizes the window to fit each image. Like folder navigation, it now keeps the current window size and fits the chosen image into the existing viewport, so stepping through a folder of mixed-resolution images stays smooth instead of making the window jump, maximize, and flicker (which also left thumbnails briefly blank during the resize churn). (issue #76)
+
 ---
 
 ## [2.5.0] — 2026-06-14

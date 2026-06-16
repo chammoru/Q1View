@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include "Viewer.h"
 #include "ThumbnailPane.h"
+#include "ViewerDoc.h"
 
 #include "QViewerCmn.h"
 #include "QCvUtil.h"
@@ -410,7 +411,21 @@ LRESULT CThumbnailPane::OnActivatePosted(WPARAM /*wParam*/, LPARAM /*lParam*/)
 	Entry e = mPending;
 	if (e.kind == ENTRY_FILE) {
 		// Opening routes through CViewerDoc::OnOpenDocument (raw files included).
-		AfxGetApp()->OpenDocumentFile(e.path);
+		// Thumbnail selection keeps the current window size and fits the image
+		// into the existing viewport, like folder navigation (issue #76), instead
+		// of resizing the frame to each image as a fresh File>Open does. Save and
+		// restore the layout so a later File>Open still sizes the window.
+		CFrameWnd *pFrame = DYNAMIC_DOWNCAST(CFrameWnd, AfxGetMainWnd());
+		CViewerDoc *pDoc = pFrame ?
+			DYNAMIC_DOWNCAST(CViewerDoc, pFrame->GetActiveDocument()) : NULL;
+		if (pDoc) {
+			LoadLayout prevLayout = pDoc->mLoadLayout;
+			pDoc->mLoadLayout = LOAD_FIT_TO_WINDOW;
+			AfxGetApp()->OpenDocumentFile(e.path);
+			pDoc->mLoadLayout = prevLayout;
+		} else {
+			AfxGetApp()->OpenDocumentFile(e.path);
+		}
 	} else {
 		NavigateTo(e.path);
 	}
