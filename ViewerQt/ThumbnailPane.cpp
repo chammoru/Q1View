@@ -1,6 +1,7 @@
 #include "ThumbnailPane.h"
 
 #include "HeifReader.h"
+#include "Q1Theme.h"
 
 #include <QApplication>
 #include <QDir>
@@ -15,7 +16,8 @@
 #include <QTimer>
 
 namespace {
-constexpr int kThumbSize = 96;
+constexpr int kThumbSize = 96;   // decode size (scaled down for display)
+constexpr int kIconDisplay = 48; // on-screen icon edge, matching the MFC pane
 constexpr int kKindRole = Qt::UserRole;       // EntryKind
 constexpr int kPathRole = Qt::UserRole + 1;   // QString target/file path
 } // namespace
@@ -27,15 +29,28 @@ ThumbnailPane::ThumbnailPane(QWidget *parent)
 	  mPendingPos(0),
 	  mDecodeTimer(new QTimer(this))
 {
-	setViewMode(QListView::IconMode);
-	setIconSize(QSize(mThumb, mThumb));
-	setGridSize(QSize(mThumb + 24, mThumb + 34));
-	setResizeMode(QListView::Adjust);
+	// Compact rows (small thumbnail at left, name at right), matching the MFC
+	// viewer's report-style drawer rather than a big icon grid.
+	setViewMode(QListView::ListMode);
+	setIconSize(QSize(kIconDisplay, kIconDisplay));
 	setMovement(QListView::Static);
+	setResizeMode(QListView::Adjust);
+	setWrapping(false);
 	setUniformItemSizes(true);
-	setWordWrap(true);
+	setWordWrap(false);
+	setTextElideMode(Qt::ElideRight);
+	setSpacing(1);
 	setSelectionMode(QAbstractItemView::SingleSelection);
 	setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	// Drawer colours mirror the MFC pane: a light surface, the accent-soft
+	// selection highlight, and the shared text colour (from q1theme).
+	setStyleSheet(QStringLiteral(
+		"QListWidget { background:%1; border:none; outline:none; }"
+		"QListWidget::item { color:%2; padding:2px 4px; }"
+		"QListWidget::item:selected { background:%3; color:%2; }")
+		.arg(q1theme::hex(q1theme::surfaceAlt()),
+			q1theme::hex(q1theme::text()),
+			q1theme::hex(q1theme::accentSoft())));
 
 	// Decode thumbnails one at a time off the event loop, so opening a folder of
 	// large images fills in progressively instead of blocking the UI.

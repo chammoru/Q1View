@@ -5,6 +5,7 @@
 #include "RawOpenDialog.h"
 #include "Y4mReader.h"
 #include "ThumbnailPane.h"
+#include "Q1Theme.h"
 #ifdef Q1VIEW_ENABLE_QT_MULTIMEDIA
 #include "VideoView.h"
 #endif
@@ -14,6 +15,7 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QClipboard>
+#include <QColor>
 #include <QContextMenuEvent>
 #include <QDateTime>
 #include <QDir>
@@ -34,6 +36,7 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QPalette>
 #include <QPinchGesture>
 #include <QPointF>
 #include <QRect>
@@ -152,7 +155,16 @@ MainWindow::MainWindow(QWidget *parent)
 		return nativeSampleAtDisplay(x, y, s);
 	});
 
-	mScrollArea->setBackgroundRole(QPalette::Dark);
+	// Light canvas behind the image (the letterbox around a smaller image),
+	// matching the MFC viewer's canvas colour instead of Qt's default gray.
+	{
+		QPalette canvasPal = mScrollArea->palette();
+		canvasPal.setColor(QPalette::Window, q1theme::canvasBg());
+		mScrollArea->setBackgroundRole(QPalette::Window);
+		mScrollArea->setPalette(canvasPal);
+		mScrollArea->viewport()->setAutoFillBackground(true);
+		mScrollArea->viewport()->setPalette(canvasPal);
+	}
 	mScrollArea->setWidget(mImageView);
 	mScrollArea->setWidgetResizable(false);
 	mScrollArea->setAlignment(Qt::AlignCenter);
@@ -219,8 +231,17 @@ MainWindow::MainWindow(QWidget *parent)
 	mThumbDock->setObjectName(QStringLiteral("thumbnailDrawer"));
 	mThumbDock->setWidget(mThumbPane);
 	mThumbDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+	// Match the MFC drawer: a borderless pane with no title bar (no float/close
+	// chrome). Removing the title bar drops the move/float/close affordances
+	// while leaving the divider draggable; it is toggled with E.
+	mThumbDock->setTitleBarWidget(new QWidget(mThumbDock));
 	addDockWidget(Qt::RightDockWidgetArea, mThumbDock);
 	mThumbDock->setVisible(false);
+	// Colour the divider between the image and the drawer to match the MFC
+	// viewer's hairline (q1theme::border) instead of Qt's default raised
+	// separator; width mirrors the MFC DRAWER_SPLIT_BAR (6 px).
+	setStyleSheet(QStringLiteral("QMainWindow::separator { background:%1; width:6px; height:6px; }")
+		.arg(q1theme::hex(q1theme::border())));
 
 	mPlayTimer->setInterval(static_cast<int>(1000.0 / mFps + 0.5));
 	connect(mPlayTimer, &QTimer::timeout, this, &MainWindow::nextFrameOrFile);
@@ -255,12 +276,13 @@ MainWindow::MainWindow(QWidget *parent)
 	}
 	// Match the MFC shortcuts panel (DrawHelpMenu): a white surface card with a
 	// soft border. Background/border apply cleanly from the stylesheet; the text
-	// colour is carried by the rich text above. Colours mirror
-	// Q1UI_COLOR_SURFACE / Q1UI_COLOR_BORDER / Q1UI_COLOR_TEXT.
+	// colour is carried by the rich text above. Colours come from q1theme
+	// (surface / border / text).
 	mHelpOverlay->setStyleSheet(QStringLiteral(
-		"background-color: #ffffff;"
-		"border: 1px solid #d8e0ea;"
-		"border-radius: 8px;"));
+		"background-color: %1;"
+		"border: 1px solid %2;"
+		"border-radius: 8px;")
+		.arg(q1theme::hex(q1theme::surface()), q1theme::hex(q1theme::border())));
 	mHelpOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, true);
 	mHelpOverlay->hide();
 
@@ -929,9 +951,9 @@ QString MainWindow::helpText() const
 	// palette. <pre> keeps the monospace columns aligned. Colour mirrors
 	// Q1UI_COLOR_TEXT, the same dark ink the MFC panel draws with.
 	return QStringLiteral(
-		"<pre style=\"margin:0; color:#1f2937; "
-		"font-family:'Cascadia Mono'; font-size:14px;\">%1</pre>")
-		.arg(text.trimmed().toHtmlEscaped());
+		"<pre style=\"margin:0; color:%1; "
+		"font-family:'Cascadia Mono'; font-size:14px;\">%2</pre>")
+		.arg(q1theme::hex(q1theme::text()), text.trimmed().toHtmlEscaped());
 }
 
 void MainWindow::toggleHelpOverlay()

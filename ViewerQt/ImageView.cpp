@@ -1,5 +1,7 @@
 #include "ImageView.h"
 
+#include "Q1Theme.h"
+
 #include <QColor>
 #include <QFont>
 #include <QFontMetrics>
@@ -104,7 +106,9 @@ void ImageView::paintEvent(QPaintEvent *event)
 {
 	QPainter painter(this);
 	const QRect dirty = event->rect();
-	painter.fillRect(dirty, palette().color(QPalette::Base));
+	// Light canvas behind the image, matching the MFC viewer's canvas colour
+	// rather than Qt's default Base/gray.
+	painter.fillRect(dirty, q1theme::canvasBg());
 
 	if (mImage.isNull()) {
 		return;
@@ -141,8 +145,8 @@ void ImageView::paintEvent(QPaintEvent *event)
 			mSelection.width() * mScale, mSelection.height() * mScale);
 		// Solid 1px outline matching the MFC viewer: Q1UI_COLOR_WARNING (amber)
 		// while dragging out a new selection, Q1UI_COLOR_SUCCESS (green) once set.
-		const QColor color = mSelectionActive ? QColor(0xf5, 0x9e, 0x0b)
-			: QColor(0x16, 0x9b, 0x62);
+		const QColor color = mSelectionActive ? q1theme::warning()
+			: q1theme::success();
 		QPen pen(color);
 		pen.setStyle(Qt::SolidLine);
 		pen.setCosmetic(true);
@@ -221,7 +225,7 @@ void ImageView::paintPixelValues(QPainter &painter, const QRect &srcRect) const
 	// box dimmed half-way toward grey ((0x80 + channel) / 2) in a fixed light ink
 	// (COLOR_PIXEL_TEXT). The dimmed boxes read consistently over any pixel colour
 	// and tile into the familiar pixel grid, rather than flipping black/white.
-	const QColor textColor(0xe8, 0xee, 0xf7);            // Q1UI COLOR_PIXEL_TEXT
+	const QColor textColor = q1theme::pixelText();
 	const int tw = metrics.horizontalAdvance(widthRef);
 	const int th = metrics.height() * lineCount;
 	const char *fmt1 = mHexMode ? "%0*X" : "%0*d";
