@@ -165,6 +165,46 @@ jobs:
 
           chmod +x "dist/${{ matrix.asset_name }}.AppImage"
 
+      # Verify the released artifact (its own bundled Qt libs/plugins and libheif
+      # runtime) before publishing: the deployed bundle / AppImage must open a
+      # common image and a raw frame headlessly and exit 0. Automated stand-in
+      # for the manual clean-desktop check (#63).
+      - name: Verify packaged AppImage (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get install -y xvfb
+          appimage="dist/${{ matrix.asset_name }}.AppImage"
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          xvfb-run -a "${appimage}" --selftest Tests/fixtures/sample_16x16.png
+          xvfb-run -a "${appimage}" --selftest --raw --width 16 --height 16 \
+            --format yuv420 Tests/fixtures/raw/gradient_16x16.yuv420
+
+      - name: Verify packaged app (Windows/macOS)
+        if: runner.os != 'Linux'
+        shell: pwsh
+        run: |
+          $pkg = "package/${{ matrix.asset_name }}"
+          if ($env:RUNNER_OS -eq "Windows") {
+            $bin = Join-Path $pkg "q1view_viewer_qt.exe"
+          } else {
+            $bin = Join-Path $pkg "q1view_viewer_qt.app/Contents/MacOS/q1view_viewer_qt"
+          }
+          if (-not (Test-Path $bin)) { throw "packaged binary not found: $bin" }
+          function Invoke-SelfTest($AppArgs) {
+            $p = Start-Process -FilePath $bin -ArgumentList $AppArgs -PassThru -NoNewWindow
+            $null = $p.Handle   # cache handle so ExitCode is readable after exit
+            if (-not $p.WaitForExit(60000)) {
+              $p.Kill(); throw "packaged --selftest timed out: $($AppArgs -join ' ')"
+            }
+            if ($p.ExitCode -ne 0) {
+              throw "packaged --selftest failed ($($p.ExitCode)): $($AppArgs -join ' ')"
+            }
+          }
+          Invoke-SelfTest @("--selftest", "Tests/fixtures/sample_16x16.png")
+          Invoke-SelfTest @("--selftest", "--raw", "--width", "16", "--height", "16", "--format", "yuv420", "Tests/fixtures/raw/gradient_16x16.yuv420")
+
       - name: Upload release asset artifact
         uses: actions/upload-artifact@v4
         with:

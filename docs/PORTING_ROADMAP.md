@@ -591,6 +591,12 @@ viewer entry once parity is reached.
 
 ## Phase 5 — ComparatorQt
 
+> **Descoped (maintainer decision, 2026-06-17).** ComparatorQt will **not** be
+> implemented. The cross-platform effort targets Viewer parity only; the Windows
+> MFC Comparator stays the comparison tool. The design below is retained for
+> reference in case this decision is ever revisited, but it is not planned work,
+> and #63 is considered complete without it.
+
 **Why last:** ComparatorQt is the largest single chunk of new UI work and
 it benefits from a battle-tested ViewerQt plus the abstractions laid down
 in Phases 0–2 (decoders, file scanner, watcher, video, audio). Doing it

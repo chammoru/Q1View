@@ -11,9 +11,10 @@ This file captures the current cross-platform porting state so future Codex sess
 - The short-lived `cross-platform-core` branch has been **merged and deleted** —
   it no longer exists. All further work lands directly on `master`.
 - Qt viewer feature-parity work is tracked in #63. Video playback, file-change
-  auto-refresh, and multi-window Sync Input have landed; remaining items are the
-  Comparator features, clean-desktop AppImage verification, automated Qt smoke
-  checks, and raw fixtures.
+  auto-refresh, and multi-window Sync Input have landed. The Qt **Comparator**
+  is out of scope (see "Out of scope" below), so the only remaining #63 item —
+  verifying the *packaged* artifacts on each OS — is now automated in CI: every
+  Qt build runs the deployed bundle / AppImage headlessly via `--selftest`.
 - The Qt viewer stays additive: it builds behind the `Q1VIEW_BUILD_QT_VIEWER`
   CMake option (default OFF) and only *links* the shared core, so the MFC
   Windows product (`Viewer.sln` / `Comparator.sln`) is unaffected.
@@ -131,9 +132,15 @@ Current capabilities:
     Playback sync covers raw-sequence play/stop and video play/pause; the video
     clock/position itself is not mirrored (each window plays on its own clock)
 
-It does not yet implement:
+Out of scope (maintainer decision, 2026-06-17):
 
-- Comparator features.
+- **Comparator / ComparatorQt features are not being ported to Qt.** The
+  cross-platform effort targets *Viewer* parity only; the Windows MFC
+  Comparator remains the comparison tool. Phase 5 of
+  [PORTING_ROADMAP.md](PORTING_ROADMAP.md) is therefore descoped, and #63's
+  remaining Viewer work (packaged-artifact verification) is now automated in
+  CI rather than done by hand. With Comparator excluded, the Qt Viewer is at
+  feature parity with the MFC Viewer.
 
 Successful Qt viewer CI runs:
 
@@ -206,8 +213,12 @@ Local build note: GitHub Actions remains the cross-platform source of truth (Lin
 
 ## Next Suggested Steps
 
-1. Track and land the remaining Qt viewer parity work via #63 (Comparator, Qt
-   smoke checks, and raw fixtures).
+1. Qt viewer parity (#63) is complete for the in-scope feature set; the Qt
+   Comparator is intentionally not ported (the MFC Comparator remains the
+   comparison tool). Raw fixtures and automated Qt smoke checks have landed, and
+   the packaged artifacts are now verified headlessly in CI (`--selftest` against
+   the deployed bundle / AppImage), replacing the earlier manual clean-desktop
+   check.
 2. Improve packaging for `q1view_viewer_qt`:
    - Windows packaging uses `windeployqt`.
    - macOS packaging uses `macdeployqt`.
