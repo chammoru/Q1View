@@ -71,6 +71,7 @@ CComparatorView::CComparatorView()
 CComparatorView::~CComparatorView()
 {
 	mCsMenu.DestroyMenu();
+	mMouseMenu.DestroyMenu();
 
 	if (mRgbBuf)
 		_mm_free(mRgbBuf);
@@ -86,6 +87,7 @@ CComparatorView::~CComparatorView()
 
 BEGIN_MESSAGE_MAP(CComparatorView, CScrollView)
 	ON_COMMAND_RANGE(ID_CS_START, ID_CS_END, CComparatorView::OnCsChange)
+	ON_COMMAND_RANGE(ID_MOUSEMENU_START, ID_MOUSEMENU_END, CComparatorView::OnMouseMenu)
 	ON_WM_CREATE()
 	ON_WM_DROPFILES()
 	ON_WM_ERASEBKGND()
@@ -97,8 +99,15 @@ BEGIN_MESSAGE_MAP(CComparatorView, CScrollView)
 	ON_WM_LBUTTONUP()
 	ON_WM_SETCURSOR()
 	ON_WM_KEYDOWN()
-	ON_WM_RBUTTONDOWN()
+	ON_WM_RBUTTONUP()
 END_MESSAGE_MAP()
+
+// Right-click popup items, mirroring the MFC Viewer's mouse menu. The command
+// IDs are ID_MOUSEMENU_START + this index.
+enum QMouseMenuId {
+	QMouseMenuSel = 0,   // toggle selection mode (same as the 'S' shortcut)
+	QMouseMenuClear,     // clear the synchronized selection rectangle
+};
 
 enum {
 	STATIC_CS_EVENT_ID = 0x1000,
@@ -916,6 +925,12 @@ int CComparatorView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	mRcNameQMenu.InflateRect(0, 0, 0, QMENUITEM_IN_MARGIN_H);
 	mNameQMenu.MoveWindow(&mRcNameQMenu);
 
+	// Right-click popup, mirroring the MFC Viewer's mouse menu: a checkable
+	// "Sel Mode" toggle plus "Clear Selection" for the synchronized rectangle.
+	mMouseMenu.CreatePopupMenu();
+	mMouseMenu.AppendMenu(MF_STRING, ID_MOUSEMENU_START + QMouseMenuSel, _T("Sel Mode"));
+	mMouseMenu.AppendMenu(MF_STRING, ID_MOUSEMENU_START + QMouseMenuClear, _T("Clear Selection"));
+
 	return 0;
 }
 
@@ -1405,14 +1420,42 @@ ComparatorPane* CComparatorView::GetPane(CComparatorDoc* pDoc) const
 	return nullptr;
 }
 
-void CComparatorView::OnRButtonDown(UINT nFlags, CPoint point)
+void CComparatorView::OnRButtonUp(UINT nFlags, CPoint point)
 {
-	// Right-click clears the synchronized selection rectangle (issue #74).
-	CComparatorDoc* pDoc = GetDocument();
-	if (pDoc && (pDoc->mHasSelection || pDoc->mSelecting)) {
-		ClearSelection(pDoc);
-		return;
+	// Right-click popup, like the MFC Viewer: toggle selection mode and clear the
+	// synchronized rectangle (issue #74). Esc also clears. The check/enable state
+	// is refreshed from the document each time the menu opens.
+	CComparatorDoc *pDoc = GetDocument();
+	if (pDoc) {
+		mMouseMenu.CheckMenuItem(ID_MOUSEMENU_START + QMouseMenuSel,
+			MF_BYCOMMAND | (pDoc->mSelMode ? MF_CHECKED : MF_UNCHECKED));
+		const bool hasSel = pDoc->mHasSelection || pDoc->mSelecting;
+		mMouseMenu.EnableMenuItem(ID_MOUSEMENU_START + QMouseMenuClear,
+			MF_BYCOMMAND | (hasSel ? MF_ENABLED : (MF_GRAYED | MF_DISABLED)));
+
+		CPoint screenPoint = point;
+		ClientToScreen(&screenPoint);
+		mMouseMenu.TrackPopupMenu(TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON,
+			screenPoint.x, screenPoint.y, this);
 	}
 
-	CScrollView::OnRButtonDown(nFlags, point);
+	CScrollView::OnRButtonUp(nFlags, point);
+}
+
+void CComparatorView::OnMouseMenu(UINT nID)
+{
+	CComparatorDoc *pDoc = GetDocument();
+	if (!pDoc)
+		return;
+
+	switch (nID - ID_MOUSEMENU_START) {
+	case QMouseMenuSel:
+		// Same effect as the 'S' shortcut: left-drag selects instead of panning.
+		pDoc->mSelMode = !pDoc->mSelMode;
+		pDoc->UpdateAllViews(NULL);
+		break;
+	case QMouseMenuClear:
+		ClearSelection(pDoc);
+		break;
+	}
 }

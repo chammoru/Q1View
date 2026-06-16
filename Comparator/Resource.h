@@ -22,6 +22,8 @@
 #define ID_VIEWS_END                    0x74ff
 #define ID_OPTIONS_START                0x7500
 #define ID_OPTIONS_END                  0x75ff
+#define ID_MOUSEMENU_START              0x7600
+#define ID_MOUSEMENU_END                0x76ff
 #define ID_MAGNIFY                      32771
 
 // Next default values for new objects

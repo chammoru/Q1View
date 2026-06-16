@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Added
+- Comparator: right-click now opens a popup menu with a checkable `Sel Mode` toggle (the same region-selection capture as the `S` shortcut) and a `Clear Selection` item for the synchronized rectangle (enabled only when a selection exists), mirroring the Viewer's right-click menu. Previously right-click only cleared the selection and selection mode was reachable solely via the keyboard.
+
 ---
 
 ## [2.6.0] — 2026-06-17
