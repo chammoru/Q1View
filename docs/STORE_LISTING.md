@@ -37,7 +37,7 @@ For raw YUV sources, Viewer can show native Y, U, and V values sampled directly 
 
 Raw input can be reinterpreted quickly without reopening the file. Press N to cycle color spaces and D to cycle preset resolutions. This is useful when debugging raw YUV/RGB dumps whose format, size, or color interpretation must be checked quickly.
 
-Viewer also supports image-sequence navigation, video playback, frame/time progress display, clipboard paste, screen capture, and a thumbnail browser for browsing the current folder. Open multiple Viewer windows and enable Sync Input to keep navigation, zoom, pan, rotation, playback, and display settings synchronized across them.
+Viewer also supports image-sequence navigation, video playback, frame/time progress display, clipboard paste, screen capture, and a resizable thumbnail browser for browsing the current folder (drag the divider to widen it for long file names without changing the window size). Open multiple Viewer windows and enable Sync Input to keep navigation, zoom, pan, rotation, playback, and display settings synchronized across them.
 
 COMPARATOR
 
@@ -99,6 +99,7 @@ TECHNICAL NOTES
 15. Allow Different Resolution mode for cross-resolution comparisons
 16. Portable ZIP available alongside the installer
 17. Cycle raw color space (N) and preset resolutions (D) without reopening the file
+18. Resizable thumbnail drawer — drag the divider to read long file names without changing the window size
 ```
 
 ---

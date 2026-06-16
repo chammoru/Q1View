@@ -6,6 +6,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.6.0] — 2026-06-17
+
 ### Added
 - Viewer: the thumbnail drawer is now resizable — drag the divider between the drawer and the image to widen it (handy for reading long file names) or narrow it. The drawer always lives inside the fixed window, so dragging the divider, or opening and closing the drawer, resizes the image area to fit and never changes the outer window size; the chosen width is remembered across sessions. The MFC and Qt viewers now share one drawer width default (and min/max) and behave identically — previously the MFC drawer could not be resized at all and grew the window when opened.
 
@@ -238,7 +242,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/chammoru/Q1View/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/chammoru/Q1View/compare/v2.4.4...v2.5.0
 [2.4.4]: https://github.com/chammoru/Q1View/compare/v2.4.3...v2.4.4
 [2.4.3]: https://github.com/chammoru/Q1View/compare/v2.4.2...v2.4.3
