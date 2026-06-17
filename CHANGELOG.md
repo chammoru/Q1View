@@ -6,7 +6,12 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.0] — 2026-06-18
+
 ### Added
+- Viewer: the thumbnail drawer gains a gallery grid view. Ctrl+wheel now steps through view sizes — the existing compact list, then grids packed 4, 3, 2, and finally 1 column wide — and the chosen step is remembered across sessions. The grid steps are a pure image gallery: tiles fill the drawer width and butt together with no gaps, names and folder entries are hidden, and each thumbnail is center-cropped to cover its square tile (no letterbox). Folder navigation stays in the list view, and selecting a grid thumbnail keeps the current window size and fits the image into the existing viewport, like list selection. (issue #78)
 - Comparator: right-click now opens a popup menu with a checkable `Sel Mode` toggle (the same region-selection capture as the `S` shortcut) and a `Clear Selection` item for the synchronized rectangle (enabled only when a selection exists), mirroring the Viewer's right-click menu. Previously right-click only cleared the selection and selection mode was reachable solely via the keyboard.
 
 ---
@@ -245,7 +250,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.6.0...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.0...HEAD
+[2.7.0]: https://github.com/chammoru/Q1View/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/chammoru/Q1View/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/chammoru/Q1View/compare/v2.4.4...v2.5.0
 [2.4.4]: https://github.com/chammoru/Q1View/compare/v2.4.3...v2.4.4
