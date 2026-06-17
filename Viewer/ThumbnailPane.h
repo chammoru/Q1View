@@ -50,12 +50,16 @@ protected:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnItemActivate(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnGetInfoTip(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
+	afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar);
+	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg LRESULT OnThumbReady(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnActivatePosted(WPARAM wParam, LPARAM lParam);
 
 private:
-	struct Task { unsigned gen; int index; CString path; };
-	struct Result { unsigned gen; int index; HBITMAP hbmp; };
+	struct Task { unsigned gen; int index; int size; bool crop; CString path; };
+	struct Result { unsigned gen; int index; int size; HBITMAP hbmp; };
 
 	void Populate(const CString &folder, const CString &current);
 	void NavigateTo(const CString &folder);
@@ -66,13 +70,39 @@ private:
 	void QueueThumb(int index, const CString &path);
 	void WorkerLoop();
 
-	// Cache (LRU) of decoded source bitmaps keyed by full path.
+	// Only decode the thumbnails that are (or are about to be) on screen, so a
+	// folder with thousands of images stays responsive while scrolling.
+	void QueueVisibleThumbs();
+	void ScheduleVisibleScan();        // debounced QueueVisibleThumbs
+
+	// View-size steps: step 0 is the compact list (report view, names + folders);
+	// steps 1..N are gallery grids (icon view) of image thumbnails only -- no
+	// folders, names, or borders -- packed N columns wide (step 1 = 4 columns,
+	// each higher step one fewer, down to a single full-width column). Ctrl+wheel
+	// moves between steps; the chosen step is remembered across sessions.
+	static int  ViewStepCount();
+	static int  GridColsForStep(int step);   // columns for a grid step (4,3,2,1)
+	void        RecalcThumbSize();           // mThumb: list = fixed, grid = width/cols
+	bool        IsGrid() const { return mViewStep > 0; }
+	void        ApplyViewStep(int step, bool persist);
+	void        RelayoutGrid();              // debounced re-fit of the grid after a resize
+	void        ScheduleRelayout();
+	void        LoadViewStep();
+	void        SaveViewStep() const;
+
+	// Cache (LRU) of decoded source bitmaps keyed by "path|size".
 	HBITMAP CacheFind(const CString &path);
 	void    CacheStore(const CString &path, HBITMAP hbmp);
 	void    CacheClear();
+	CString CacheKey(const CString &path) const;
 
 	HBITMAP MakePlaceholder(const CString &ext);            // UI thread
-	static HBITMAP DecodeThumbnail(const CString &path, int size, COLORREF bg); // worker
+	int     BadgeForExt(const CString &ext);                // image-list index for a raw badge
+	int     FolderIconIndex();                              // image-list index for a folder tile
+	// crop = fill the square tile (center-crop, no letterbox); else fit + center.
+	static HBITMAP DecodeThumbnail(const CString &path, int size, bool crop, COLORREF bg); // worker
+	static HBITMAP DecodeThumbnailShell(const CString &path, int size, bool crop, COLORREF bg);
+	static HBITMAP DecodeThumbnailCv(const CString &path, int size, bool crop, COLORREF bg);
 
 	static bool IsDecodableExt(const CString &ext);
 	static bool IsRawExt(const CString &ext);
@@ -81,24 +111,28 @@ private:
 	CImageList mImages;
 	CFont      mLabelFont;
 	CFont      mExtFont;
-	int        mThumb;                 // icon edge size in px
+	int        mThumb;                 // icon edge size in px (follows mViewStep)
+	int        mViewStep;              // 0 = list, >=1 = grid step
 
 	enum EntryKind { ENTRY_PARENT, ENTRY_DIR, ENTRY_FILE };
 	struct Entry {
 		EntryKind kind;
 		CString   path;   // target folder for parent/dir; file path for file
 		int       img;    // image-list index for image thumbnails, else -1
+		bool      queued; // a decode task is already in flight for this entry
 	};
 	std::vector<Entry> mEntries;       // item index -> entry
 	Entry      mPending;               // deferred load/navigate target
 	CString    mFolder;                // folder currently listed (trailing '\\')
 	int        mLoadingImg;            // image index shown while a thumb decodes
+	int        mFolderImg;             // image index for folder/parent tiles (grid)
+	std::map<CString, int> mBadgeByExt; // raw extension -> image-list badge index
 
 	std::map<CString, HBITMAP> mCache;
 	std::list<CString>         mCacheOrder;
 	size_t                     mCacheCap;
 
-	std::thread              mWorker;
+	std::vector<std::thread> mWorkers;
 	std::mutex               mMutex;
 	std::condition_variable  mCv;
 	std::deque<Task>         mTasks;

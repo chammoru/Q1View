@@ -1,5 +1,13 @@
 // ThumbnailPane.cpp : implementation of CThumbnailPane
 //
+// A CListCtrl thumbnail browser with two layouts driven by one Ctrl+wheel
+// "view size" control: step 0 is the compact list (report view, small thumb at
+// the left of each row); steps >= 1 are gallery grids (icon view) with growing
+// thumbnails. Thumbnails are produced on a small worker pool, preferring the
+// Windows shell thumbnail cache (IShellItemImageFactory -- EXIF thumbnails and
+// thumbcache.db, the same path Explorer uses) and falling back to an OpenCV
+// decode. Only the thumbnails on (or near) screen are decoded, so a folder with
+// thousands of images stays responsive while scrolling.
 
 #include "stdafx.h"
 #include "Viewer.h"
@@ -12,7 +20,10 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include "Shlwapi.h"
+#include <shlobj.h>      // SHCreateItemFromParsingName, IShellItemImageFactory
 #include <algorithm>
+
+#pragma comment(lib, "shell32.lib")
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -20,10 +31,28 @@
 
 static CString ExtensionOf(const CString &path);   // defined below
 
+// List (report) step thumbnail edge -- the smallest, default view.
+static const int kListThumb = 44;
+// Grid steps pack a whole number of columns across the pane width; the tile edge
+// is simply the pane width divided by the column count, so tiles butt together
+// with no gaps. Index 0 is the list step (unused here); higher steps zoom in by
+// showing fewer, larger columns.
+static const int kGridCols[] = { 0, 4, 3, 2, 1 };
+// Default step 0 = the compact list (smallest thumbnail). Ctrl+wheel up grows
+// into the gallery grids.
+static const int kDefaultStep = 0;
+// Debounced timers: rescan visible after scrolling; re-fit the grid after a resize.
+static const UINT_PTR kScanTimerId = 0x7100;
+static const UINT_PTR kRelayoutTimerId = 0x7101;
+
 BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_WM_CREATE()
 	ON_WM_DESTROY()
 	ON_WM_SIZE()
+	ON_WM_MOUSEWHEEL()
+	ON_WM_VSCROLL()
+	ON_WM_KEYDOWN()
+	ON_WM_TIMER()
 	ON_NOTIFY_REFLECT(NM_DBLCLK, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(NM_RETURN, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(LVN_GETINFOTIP, &CThumbnailPane::OnGetInfoTip)
@@ -32,13 +61,16 @@ BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 END_MESSAGE_MAP()
 
 CThumbnailPane::CThumbnailPane()
-: mThumb(48)
+: mThumb(kListThumb)
+, mViewStep(kDefaultStep)
 , mLoadingImg(-1)
-, mCacheCap(256)
+, mFolderImg(-1)
+, mCacheCap(512)
 , mStop(false)
 , mGen(0)
 , mWorkerStarted(false)
 {
+	LoadViewStep();
 }
 
 CThumbnailPane::~CThumbnailPane()
@@ -46,12 +78,58 @@ CThumbnailPane::~CThumbnailPane()
 	Shutdown();
 }
 
+int CThumbnailPane::ViewStepCount()
+{
+	return _countof(kGridCols);
+}
+
+int CThumbnailPane::GridColsForStep(int step)
+{
+	if (step < 1) return 1;
+	if (step >= ViewStepCount()) step = ViewStepCount() - 1;
+	return kGridCols[step];
+}
+
+// List: a fixed small edge. Grid: divide the current pane width evenly among the
+// step's columns so the tiles fill the width and butt together.
+void CThumbnailPane::RecalcThumbSize()
+{
+	if (!IsGrid()) {
+		mThumb = kListThumb;
+		return;
+	}
+	int cols = GridColsForStep(mViewStep);
+	CRect rc;
+	GetClientRect(&rc);
+	int w = rc.Width();
+	if (w <= 0)
+		w = cols * 96;                       // no window yet; pick a sane default
+	mThumb = std::max(16, w / cols);
+}
+
+void CThumbnailPane::LoadViewStep()
+{
+	int step = AfxGetApp()->GetProfileInt(_T("Drawer"), _T("ThumbStep"), kDefaultStep);
+	if (step < 0) step = 0;
+	if (step >= ViewStepCount()) step = ViewStepCount() - 1;
+	mViewStep = step;
+	// mThumb is finalized by RecalcThumbSize() once the pane has a width.
+}
+
+void CThumbnailPane::SaveViewStep() const
+{
+	AfxGetApp()->WriteProfileInt(_T("Drawer"), _T("ThumbStep"), mViewStep);
+}
+
 BOOL CThumbnailPane::CreatePane(CWnd *pParent, UINT nID)
 {
-	// Compact report list (no border so there is no dark divider line; the
-	// drawer's background colour separates it from the image view).
+	// Owner-draw report rows for the list step; icon view (standard draw) for the
+	// grid steps. The view style is finalized in ApplyViewStep() after creation.
+	// LVS_AUTOARRANGE keeps the grid (icon view) items reflowed into as many
+	// columns as the drawer width allows; it is ignored in the report (list) step.
 	DWORD style = WS_CHILD | WS_VISIBLE | LVS_OWNERDRAWFIXED |
-		LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOCOLUMNHEADER;
+		LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOCOLUMNHEADER |
+		LVS_AUTOARRANGE;
 	return Create(style, CRect(0, 0, 0, 0), pParent, nID);
 }
 
@@ -68,9 +146,9 @@ int CThumbnailPane::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	SetExtendedStyle(GetExtendedStyle() |
 		LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_INFOTIP);
 
-	// Small thumbnails sit at the left of each row; the row height follows them.
 	mImages.Create(mThumb, mThumb, ILC_COLOR32, 0, 64);
 	SetImageList(&mImages, LVSIL_SMALL);
+	SetImageList(&mImages, LVSIL_NORMAL);
 
 	InsertColumn(0, _T(""), LVCFMT_LEFT, 0);
 
@@ -87,9 +165,17 @@ int CThumbnailPane::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	SetTextBkColor(Q1UI_COLOR_SURFACE_ALT);
 	SetTextColor(Q1UI_COLOR_TEXT);
 
+	// A small pool of decode workers fills the visible grid quickly. Cap it so a
+	// big folder scroll doesn't saturate every core.
+	unsigned hw = std::thread::hardware_concurrency();
+	unsigned n = hw ? std::min<unsigned>(hw, 4u) : 2u;
 	mStop = false;
-	mWorker = std::thread(&CThumbnailPane::WorkerLoop, this);
+	for (unsigned i = 0; i < n; i++)
+		mWorkers.emplace_back(&CThumbnailPane::WorkerLoop, this);
 	mWorkerStarted = true;
+
+	// Apply the persisted step (sets report/icon style + spacing).
+	ApplyViewStep(mViewStep, false);
 
 	return 0;
 }
@@ -97,13 +183,199 @@ int CThumbnailPane::OnCreate(LPCREATESTRUCT lpCreateStruct)
 void CThumbnailPane::OnSize(UINT nType, int cx, int cy)
 {
 	CListCtrl::OnSize(nType, cx, cy);
-	// Single column fills the client width so there is no horizontal scrollbar.
-	SetColumnWidth(0, cx);
+	if (!IsGrid()) {
+		// Single column fills the client width so there is no horizontal scrollbar.
+		SetColumnWidth(0, cx);
+	} else {
+		// The drawer is user-resizable, so the per-tile width (= pane width / cols)
+		// changes with it; re-fit the tiles once the resize settles.
+		ScheduleRelayout();
+	}
 	ShowScrollBar(SB_HORZ, FALSE);
+	ScheduleVisibleScan();
+}
+
+// ---------------------------------------------------------------------------
+// View size (Ctrl+wheel): list step 0, grid steps 1..N
+// ---------------------------------------------------------------------------
+
+void CThumbnailPane::ApplyViewStep(int step, bool persist)
+{
+	if (!GetSafeHwnd())
+		return;
+	if (step < 0) step = 0;
+	if (step >= ViewStepCount()) step = ViewStepCount() - 1;
+
+	// Remember the selected image so it stays selected across the mode switch.
+	CString current;
+	int sel = GetNextItem(-1, LVNI_SELECTED);
+	if (sel >= 0 && sel < (int)mEntries.size() && mEntries[sel].kind == ENTRY_FILE)
+		current = mEntries[sel].path;
+
+	mViewStep = step;
+	if (persist)
+		SaveViewStep();
+
+	// Switching size invalidates in-flight (old-size) decodes; bump the
+	// generation so their results are dropped, and clear the queue.
+	mGen++;
+	{
+		std::lock_guard<std::mutex> lk(mMutex);
+		mTasks.clear();
+	}
+
+	// Report view owns its row layout via owner-draw; icon view draws standard
+	// tiles (thumbnail only), so the owner-draw bit must be off there.
+	if (IsGrid())
+		ModifyStyle(LVS_TYPEMASK | LVS_OWNERDRAWFIXED, LVS_ICON | LVS_AUTOARRANGE);
+	else
+		ModifyStyle(LVS_TYPEMASK, LVS_REPORT | LVS_OWNERDRAWFIXED);
+
+	// Re-list the folder: the grid steps show only image tiles (no folders or
+	// names) while the list step shows folders + names, and the tile size differs
+	// per step, so the simplest correct refresh is a full repopulate.
+	Populate(mFolder, current);
+}
+
+BOOL CThumbnailPane::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
+{
+	if (nFlags & MK_CONTROL) {
+		// Ctrl+wheel grows/shrinks the thumbnails (and crosses list<->grid),
+		// like Explorer. One step per notch.
+		int step = mViewStep + (zDelta > 0 ? 1 : -1);
+		if (step < 0) step = 0;
+		if (step >= ViewStepCount()) step = ViewStepCount() - 1;
+		if (step != mViewStep)
+			ApplyViewStep(step, true);
+		return TRUE;   // consume; don't also scroll
+	}
+
+	BOOL ret = CListCtrl::OnMouseWheel(nFlags, zDelta, pt);
+	ScheduleVisibleScan();
+	return ret;
+}
+
+void CThumbnailPane::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
+{
+	CListCtrl::OnVScroll(nSBCode, nPos, pScrollBar);
+	ScheduleVisibleScan();
+}
+
+void CThumbnailPane::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+	CListCtrl::OnKeyDown(nChar, nRepCnt, nFlags);
+	switch (nChar) {
+	case VK_UP: case VK_DOWN: case VK_LEFT: case VK_RIGHT:
+	case VK_PRIOR: case VK_NEXT: case VK_HOME: case VK_END:
+		ScheduleVisibleScan();
+		break;
+	default:
+		break;
+	}
+}
+
+void CThumbnailPane::ScheduleVisibleScan()
+{
+	if (GetSafeHwnd())
+		SetTimer(kScanTimerId, 90, NULL);   // coalesce rapid scroll into one scan
+}
+
+void CThumbnailPane::OnTimer(UINT_PTR nIDEvent)
+{
+	if (nIDEvent == kScanTimerId) {
+		KillTimer(kScanTimerId);
+		QueueVisibleThumbs();
+		return;
+	}
+	if (nIDEvent == kRelayoutTimerId) {
+		KillTimer(kRelayoutTimerId);
+		RelayoutGrid();
+		return;
+	}
+	CListCtrl::OnTimer(nIDEvent);
+}
+
+void CThumbnailPane::ScheduleRelayout()
+{
+	if (GetSafeHwnd())
+		SetTimer(kRelayoutTimerId, 120, NULL);   // coalesce rapid resizes into one re-fit
+}
+
+// The drawer is user-resizable, so the grid's column width (and thus tile size)
+// changes as it is dragged. Repopulate at the new tile size only when the edge
+// actually changed; otherwise just reflow.
+void CThumbnailPane::RelayoutGrid()
+{
+	if (!IsGrid() || !GetSafeHwnd())
+		return;
+
+	int old = mThumb;
+	RecalcThumbSize();
+	if (mThumb == old) {
+		Arrange(LVA_DEFAULT);
+		QueueVisibleThumbs();
+		return;
+	}
+
+	CString current;
+	int sel = GetNextItem(-1, LVNI_SELECTED);
+	if (sel >= 0 && sel < (int)mEntries.size() && mEntries[sel].kind == ENTRY_FILE)
+		current = mEntries[sel].path;
+	Populate(mFolder, current);
+}
+
+// Queue decodes only for files at (or one screen beyond) the visible region, so
+// scrolling never waits behind a folder-sized backlog. Cached thumbnails are
+// applied inline; raw/folders never decode.
+void CThumbnailPane::QueueVisibleThumbs()
+{
+	int n = (int)mEntries.size();
+	if (n == 0 || !GetSafeHwnd())
+		return;
+
+	CRect rc0;
+	if (!GetItemRect(0, &rc0, LVIR_BOUNDS))
+		return;
+
+	CRect client;
+	GetClientRect(&client);
+	int cw = std::max(1, (int)rc0.Width());
+	int chh = std::max(1, (int)rc0.Height());
+	int scrollY = -rc0.top;                          // pixels scrolled past item 0
+	int cols = IsGrid() ? std::max(1, client.Width() / cw) : 1;
+	int firstRow = std::max(0, scrollY / chh);
+	int rowsVisible = client.Height() / chh + 2;
+	int look = rowsVisible;                           // ~one screen of lookahead
+
+	int first = std::max(0, (firstRow - look) * cols);
+	int last = std::min(n - 1, (firstRow + rowsVisible + look) * cols + cols - 1);
+
+	for (int i = first; i <= last; i++) {
+		Entry &e = mEntries[i];
+		if (e.kind != ENTRY_FILE || e.queued)
+			continue;
+		if (IsRawExt(ExtensionOf(e.path)))
+			continue;
+		if (e.img >= 0 && e.img != mLoadingImg)
+			continue;                                 // already has a real thumb
+
+		HBITMAP cached = CacheFind(e.path);
+		if (cached) {
+			int idx = AddImageCopy(cached);
+			e.img = idx;
+			SetItem(i, 0, LVIF_IMAGE, NULL, idx, 0, 0, 0);
+			RedrawItems(i, i);
+		} else {
+			e.queued = true;
+			QueueThumb(i, e.path);
+		}
+	}
 }
 
 void CThumbnailPane::DrawItem(LPDRAWITEMSTRUCT dis)
 {
+	// Owner-draw is only used in the list (report) step; the grid steps draw
+	// standard icon tiles.
 	int i = (int)dis->itemID;
 	if (i < 0 || i >= (int)mEntries.size())
 		return;
@@ -188,11 +460,14 @@ void CThumbnailPane::Shutdown()
 			mStop = true;
 		}
 		mCv.notify_all();
-		if (mWorker.joinable())
-			mWorker.join();
+		for (std::thread &t : mWorkers) {
+			if (t.joinable())
+				t.join();
+		}
+		mWorkers.clear();
 		mWorkerStarted = false;
 
-		// Drain any results the worker posted but we never processed.
+		// Drain any results the workers posted but we never processed.
 		if (GetSafeHwnd()) {
 			MSG msg;
 			while (::PeekMessage(&msg, m_hWnd, WM_THUMB_READY, WM_THUMB_READY, PM_REMOVE)) {
@@ -299,20 +574,28 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 	SetRedraw(FALSE);
 	DeleteAllItems();
 	mEntries.clear();
+	// Size the tiles for the current mode/width before (re)building the image list.
+	RecalcThumbSize();
 	ResetImageList();
 	mFolder = folder;
 
+	// The grid steps are a pure image gallery: no parent (".."), folders, or names
+	// -- only image thumbnails. Folder navigation lives in the list step.
+	const bool grid = IsGrid();
 	int row = 0;
 
 	if (folder.IsEmpty()) {
-		// Top level: list the logical drives so any directory is reachable.
-		TCHAR buf[512] = {0, };
-		::GetLogicalDriveStrings(_countof(buf) - 1, buf);
-		for (TCHAR *d = buf; *d; d += lstrlen(d) + 1) {
-			InsertItem(row, d, I_IMAGENONE);
-			Entry e; e.kind = ENTRY_DIR; e.path = d; e.img = -1;
-			mEntries.push_back(e);
-			row++;
+		// Top level: list the logical drives so any directory is reachable (list
+		// step only -- there are no images to show in a grid here).
+		if (!grid) {
+			TCHAR buf[512] = {0, };
+			::GetLogicalDriveStrings(_countof(buf) - 1, buf);
+			for (TCHAR *d = buf; *d; d += lstrlen(d) + 1) {
+				InsertItem(row, d, FolderIconIndex());
+				Entry e; e.kind = ENTRY_DIR; e.path = d; e.img = -1; e.queued = false;
+				mEntries.push_back(e);
+				row++;
+			}
 		}
 	} else {
 		// Collect sub-directories and supported files separately.
@@ -342,45 +625,63 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		std::sort(dirs.begin(), dirs.end(), ByName());
 		std::sort(files.begin(), files.end(), ByName());
 
-		// ".." goes to the parent folder, or to the drive list at a drive root.
-		InsertItem(row, _T(".."), I_IMAGENONE);
-		Entry pe; pe.kind = ENTRY_PARENT; pe.path = ParentFolderOf(folder); pe.img = -1;
-		mEntries.push_back(pe);
-		row++;
-
-		for (size_t i = 0; i < dirs.size(); i++) {
-			InsertItem(row, PathFindFileName(dirs[i]), I_IMAGENONE);
-			Entry e; e.kind = ENTRY_DIR; e.path = dirs[i] + _T("\\"); e.img = -1;
-			mEntries.push_back(e);
+		// Parent ("..") and sub-folders appear in the list step only; the grid is
+		// images-only.
+		if (!grid) {
+			// ".." goes to the parent folder, or to the drive list at a drive root.
+			InsertItem(row, _T(".."), FolderIconIndex());
+			Entry pe; pe.kind = ENTRY_PARENT; pe.path = ParentFolderOf(folder); pe.img = -1; pe.queued = false;
+			mEntries.push_back(pe);
 			row++;
+
+			for (size_t i = 0; i < dirs.size(); i++) {
+				InsertItem(row, PathFindFileName(dirs[i]), FolderIconIndex());
+				Entry e; e.kind = ENTRY_DIR; e.path = dirs[i] + _T("\\"); e.img = -1; e.queued = false;
+				mEntries.push_back(e);
+				row++;
+			}
 		}
 
 		for (size_t i = 0; i < files.size(); i++) {
 			const CString &full = files[i];
-			bool raw = IsRawExt(ExtensionOf(full));
+			CString ext = ExtensionOf(full);
+			bool raw = IsRawExt(ext);
 
-			// Images get a thumbnail (a light placeholder until decoded); raw
-			// files are drawn with an extension badge instead.
-			int img = -1;
-			if (!raw) {
+			// Images get a thumbnail (a light placeholder until decoded, applied
+			// lazily as the row scrolls into view); raw files show a badge.
+			int img;
+			if (raw) {
+				img = BadgeForExt(ext);
+			} else {
 				HBITMAP cached = CacheFind(full);
 				img = cached ? AddImageCopy(cached) : mLoadingImg;
 			}
 
-			InsertItem(row, PathFindFileName(full), I_IMAGENONE);
-			Entry e; e.kind = ENTRY_FILE; e.path = full; e.img = img;
+			// The grid hides names; the list step draws the name itself (owner-draw)
+			// so its item text is only needed for keyboard type-ahead.
+			InsertItem(row, grid ? _T("") : PathFindFileName(full), img);
+			Entry e; e.kind = ENTRY_FILE; e.path = full;
+			e.img = raw ? -1 : img; e.queued = false;
 			mEntries.push_back(e);
-
-			if (!raw && img == mLoadingImg)
-				QueueThumb(row, full);
 			row++;
 		}
+	}
+
+	if (grid) {
+		// Cell == tile, so tiles butt together with no gaps or label strip, then
+		// reflow into as many columns as the current width allows.
+		SetIconSpacing(mThumb, mThumb);
+		Arrange(LVA_DEFAULT);
+	} else {
+		CRect rc; GetClientRect(&rc);
+		SetColumnWidth(0, rc.Width());
 	}
 
 	SetRedraw(TRUE);
 	Invalidate();
 
 	SelectByPath(current);
+	QueueVisibleThumbs();
 }
 
 void CThumbnailPane::NavigateTo(const CString &folder)
@@ -496,9 +797,13 @@ void CThumbnailPane::ResetImageList()
 		mImages.DeleteImageList();
 	mImages.Create(mThumb, mThumb, ILC_COLOR32, 0, 64);
 	SetImageList(&mImages, LVSIL_SMALL);
+	SetImageList(&mImages, LVSIL_NORMAL);
 
-	// Folders and raw files render as text (no icon); only decoding images need
-	// a light placeholder until their thumbnail arrives.
+	// Image-list indices are invalidated by the recreate; re-seed the shared
+	// placeholder and forget the per-extension badge cache.
+	mFolderImg = -1;
+	mBadgeByExt.clear();
+
 	HBITMAP loading = MakePlaceholder(_T(""));
 	mLoadingImg = AddImageCopy(loading);
 	if (loading)
@@ -516,11 +821,87 @@ int CThumbnailPane::AddImageCopy(HBITMAP hbmp)
 	return idx;
 }
 
+int CThumbnailPane::FolderIconIndex()
+{
+	if (mFolderImg >= 0)
+		return mFolderImg;
+
+	// A simple folder tile: an accent-tinted card. The name underneath (icon
+	// view) or beside it (list) identifies the folder.
+	void *bits = NULL;
+	HBITMAP hbmp = NULL;
+	{
+		BITMAPINFO bmi = {};
+		bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+		bmi.bmiHeader.biWidth = mThumb;
+		bmi.bmiHeader.biHeight = -mThumb;
+		bmi.bmiHeader.biPlanes = 1;
+		bmi.bmiHeader.biBitCount = 32;
+		bmi.bmiHeader.biCompression = BI_RGB;
+		HDC screen = ::GetDC(NULL);
+		hbmp = ::CreateDIBSection(screen, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
+		::ReleaseDC(NULL, screen);
+	}
+	if (!hbmp)
+		return mLoadingImg;
+
+	HDC screen = ::GetDC(NULL);
+	HDC mem = ::CreateCompatibleDC(screen);
+	HBITMAP old = (HBITMAP)::SelectObject(mem, hbmp);
+	CDC dc; dc.Attach(mem);
+
+	CRect rc(0, 0, mThumb, mThumb);
+	dc.FillSolidRect(rc, Q1UI_COLOR_SURFACE_ALT);
+
+	// Folder glyph: a tab + body rounded rectangle.
+	CRect body = rc; body.DeflateRect(mThumb / 6, mThumb / 4);
+	body.top += mThumb / 12;
+	CBrush fill(Q1UI_COLOR_ACCENT_SOFT);
+	CPen   pen(PS_SOLID, std::max(1, mThumb / 48), Q1UI_COLOR_ACCENT);
+	CBrush *ob = dc.SelectObject(&fill);
+	CPen   *op = dc.SelectObject(&pen);
+	CRect tab(body.left, body.top - mThumb / 12, body.left + body.Width() / 2, body.top + mThumb / 16);
+	dc.RoundRect(tab, CPoint(mThumb / 16, mThumb / 16));
+	dc.RoundRect(body, CPoint(mThumb / 12, mThumb / 12));
+	dc.SelectObject(ob);
+	dc.SelectObject(op);
+
+	dc.Detach();
+	::SelectObject(mem, old);
+	::DeleteDC(mem);
+	::ReleaseDC(NULL, screen);
+
+	BYTE *p = static_cast<BYTE *>(bits);
+	for (int i = 0; i < mThumb * mThumb; i++)
+		p[i * 4 + 3] = 255;
+
+	mFolderImg = AddImageCopy(hbmp);
+	::DeleteObject(hbmp);
+	return mFolderImg;
+}
+
+int CThumbnailPane::BadgeForExt(const CString &ext)
+{
+	CString key = ext; key.MakeLower();
+	std::map<CString, int>::iterator it = mBadgeByExt.find(key);
+	if (it != mBadgeByExt.end())
+		return it->second;
+
+	HBITMAP hbmp = MakePlaceholder(ext);
+	int idx = AddImageCopy(hbmp);
+	if (hbmp)
+		::DeleteObject(hbmp);
+	mBadgeByExt[key] = idx;
+	return idx;
+}
+
 void CThumbnailPane::QueueThumb(int index, const CString &path)
 {
 	Task t;
 	t.gen = mGen.load();
 	t.index = index;
+	t.size = mThumb;
+	t.crop = IsGrid();          // grid tiles fill the square (crop); list fits
 	t.path = path;
 	{
 		std::lock_guard<std::mutex> lk(mMutex);
@@ -535,13 +916,14 @@ LRESULT CThumbnailPane::OnThumbReady(WPARAM wParam, LPARAM /*lParam*/)
 	if (r == NULL)
 		return 0;
 
-	if (r->hbmp && r->gen == mGen.load() &&
+	if (r->hbmp && r->gen == mGen.load() && r->size == mThumb &&
 			r->index >= 0 && r->index < (int)mEntries.size() &&
 			mEntries[r->index].kind == ENTRY_FILE) {
-		int img = AddImageCopy(r->hbmp);   // image list keeps its own copy
-		CacheStore(mEntries[r->index].path, r->hbmp);  // cache takes ownership
+		int img = AddImageCopy(r->hbmp);                // image list keeps its own copy
+		CacheStore(mEntries[r->index].path, r->hbmp);   // cache takes ownership
 
-		mEntries[r->index].img = img;       // owner-draw reads this
+		mEntries[r->index].img = img;                   // owner-draw (list) reads this
+		SetItem(r->index, 0, LVIF_IMAGE, NULL, img, 0, 0, 0); // icon view reads this
 		RedrawItems(r->index, r->index);
 	} else if (r->hbmp) {
 		::DeleteObject(r->hbmp);
@@ -552,33 +934,44 @@ LRESULT CThumbnailPane::OnThumbReady(WPARAM wParam, LPARAM /*lParam*/)
 }
 
 // ---------------------------------------------------------------------------
-// LRU cache
+// LRU cache (keyed by path + size so each view step caches independently)
 // ---------------------------------------------------------------------------
+
+CString CThumbnailPane::CacheKey(const CString &path) const
+{
+	// Size and crop both change the pixels, so key on them (a 44px fit list thumb
+	// and a 44px cropped grid thumb must not alias to the same cache entry).
+	CString key;
+	key.Format(_T("%d|%d|%s"), mThumb, IsGrid() ? 1 : 0, (LPCTSTR)path);
+	return key;
+}
 
 HBITMAP CThumbnailPane::CacheFind(const CString &path)
 {
-	std::map<CString, HBITMAP>::iterator it = mCache.find(path);
+	CString key = CacheKey(path);
+	std::map<CString, HBITMAP>::iterator it = mCache.find(key);
 	if (it == mCache.end())
 		return NULL;
-	mCacheOrder.remove(path);
-	mCacheOrder.push_back(path);
+	mCacheOrder.remove(key);
+	mCacheOrder.push_back(key);
 	return it->second;
 }
 
 void CThumbnailPane::CacheStore(const CString &path, HBITMAP hbmp)
 {
-	std::map<CString, HBITMAP>::iterator it = mCache.find(path);
+	CString key = CacheKey(path);
+	std::map<CString, HBITMAP>::iterator it = mCache.find(key);
 	if (it != mCache.end()) {
 		// Already cached; drop the duplicate.
 		if (it->second != hbmp)
 			::DeleteObject(hbmp);
-		mCacheOrder.remove(path);
-		mCacheOrder.push_back(path);
+		mCacheOrder.remove(key);
+		mCacheOrder.push_back(key);
 		return;
 	}
 
-	mCache[path] = hbmp;
-	mCacheOrder.push_back(path);
+	mCache[key] = hbmp;
+	mCacheOrder.push_back(key);
 
 	while (mCache.size() > mCacheCap && !mCacheOrder.empty()) {
 		CString oldest = mCacheOrder.front();
@@ -632,7 +1025,86 @@ static HBITMAP CreateThumbDib(int size, void **ppBits)
 	return hbmp;
 }
 
-HBITMAP CThumbnailPane::DecodeThumbnail(const CString &path, int size, COLORREF bg)
+// Composite an arbitrary (possibly non-square) source bitmap onto a size x size
+// opaque tile. crop = scale to cover and center-crop the overflow (fills the
+// tile, no letterbox); otherwise scale to fit and center on a bg fill. Used to
+// normalize shell thumbnails into the square cells the image list expects.
+static HBITMAP CompositeOntoSquare(HBITMAP src, int size, bool crop, COLORREF bg)
+{
+	BITMAP bm = {};
+	if (!::GetObject(src, sizeof(bm), &bm) || bm.bmWidth <= 0 || bm.bmHeight <= 0)
+		return NULL;
+
+	void *bits = NULL;
+	HBITMAP tile = CreateThumbDib(size, &bits);
+	if (!tile)
+		return NULL;
+
+	HDC screen = ::GetDC(NULL);
+	HDC dst = ::CreateCompatibleDC(screen);
+	HDC sdc = ::CreateCompatibleDC(screen);
+	HBITMAP odst = (HBITMAP)::SelectObject(dst, tile);
+	HBITMAP osrc = (HBITMAP)::SelectObject(sdc, src);
+
+	RECT rc = { 0, 0, size, size };
+	HBRUSH bgBrush = ::CreateSolidBrush(bg);
+	::FillRect(dst, &rc, bgBrush);
+	::DeleteObject(bgBrush);
+
+	// Cover (crop) scales by the larger ratio so the tile is fully covered, with
+	// the overflow clipped to the tile DC; fit scales by the smaller ratio. Both
+	// center the image.
+	double scale = crop
+		? std::max((double)size / bm.bmWidth, (double)size / bm.bmHeight)
+		: std::min((double)size / bm.bmWidth, (double)size / bm.bmHeight);
+	int nw = std::max(1, (int)(bm.bmWidth * scale));
+	int nh = std::max(1, (int)(bm.bmHeight * scale));
+	int ox = (size - nw) / 2;       // negative when cropping (overflow clipped)
+	int oy = (size - nh) / 2;
+
+	::SetStretchBltMode(dst, HALFTONE);
+	::SetBrushOrgEx(dst, 0, 0, NULL);
+	::StretchBlt(dst, ox, oy, nw, nh, sdc, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
+
+	::SelectObject(dst, odst);
+	::SelectObject(sdc, osrc);
+	::DeleteDC(dst);
+	::DeleteDC(sdc);
+	::ReleaseDC(NULL, screen);
+
+	ForceOpaque(bits, size);
+	return tile;
+}
+
+// Fast path: the Windows shell thumbnail (thumbcache + EXIF), the same source
+// Explorer uses. THUMBNAILONLY makes non-previewable types fail here so we fall
+// back to our own decode (or a placeholder) instead of getting a generic icon.
+HBITMAP CThumbnailPane::DecodeThumbnailShell(const CString &path, int size, bool crop, COLORREF bg)
+{
+	IShellItemImageFactory *factory = NULL;
+	HRESULT hr = SHCreateItemFromParsingName(path, NULL, IID_PPV_ARGS(&factory));
+	if (FAILED(hr) || !factory)
+		return NULL;
+
+	SIZE sz = { size, size };
+	// Cropping needs enough source pixels to cover the short axis, so allow the
+	// shell to hand back a bigger (still aspect-correct) thumbnail; fitting just
+	// wants it shrunk to fit.
+	DWORD flags = SIIGBF_THUMBNAILONLY | (crop ? SIIGBF_BIGGERSIZEOK : SIIGBF_RESIZETOFIT);
+	HBITMAP raw = NULL;
+	hr = factory->GetImage(sz, flags, &raw);
+	factory->Release();
+	if (FAILED(hr) || !raw)
+		return NULL;
+
+	HBITMAP square = CompositeOntoSquare(raw, size, crop, bg);
+	::DeleteObject(raw);
+	return square;
+}
+
+// Fallback decode via OpenCV (covers HEIF/AVIF when the shell has no codec, and
+// any format the shell declines to thumbnail).
+HBITMAP CThumbnailPane::DecodeThumbnailCv(const CString &path, int size, bool crop, COLORREF bg)
 {
 	cv::Mat img = q1::imreadW(path.GetString());
 	if (img.empty())
@@ -646,18 +1118,30 @@ HBITMAP CThumbnailPane::DecodeThumbnail(const CString &path, int size, COLORREF 
 	else
 		bgr = img;
 
-	double scale = std::min((double)size / bgr.cols, (double)size / bgr.rows);
+	// Cover (crop) scales by the larger ratio so both axes reach >= size; fit uses
+	// the smaller ratio and pads with bg.
+	double scale = crop
+		? std::max((double)size / bgr.cols, (double)size / bgr.rows)
+		: std::min((double)size / bgr.cols, (double)size / bgr.rows);
 	int nw = std::max(1, (int)(bgr.cols * scale));
 	int nh = std::max(1, (int)(bgr.rows * scale));
 
 	cv::Mat resized;
 	cv::resize(bgr, resized, cv::Size(nw, nh), 0, 0, cv::INTER_AREA);
 
-	cv::Scalar bgScalar(GetBValue(bg), GetGValue(bg), GetRValue(bg));
-	cv::Mat canvas(size, size, CV_8UC3, bgScalar);
-	int ox = (size - nw) / 2;
-	int oy = (size - nh) / 2;
-	resized.copyTo(canvas(cv::Rect(ox, oy, nw, nh)));
+	cv::Mat canvas;
+	if (crop) {
+		// Center-crop the size x size region (nw, nh are both >= size here).
+		int x0 = std::min(nw - size, std::max(0, (nw - size) / 2));
+		int y0 = std::min(nh - size, std::max(0, (nh - size) / 2));
+		resized(cv::Rect(x0, y0, size, size)).copyTo(canvas);
+	} else {
+		cv::Scalar bgScalar(GetBValue(bg), GetGValue(bg), GetRValue(bg));
+		canvas = cv::Mat(size, size, CV_8UC3, bgScalar);
+		int ox = (size - nw) / 2;
+		int oy = (size - nh) / 2;
+		resized.copyTo(canvas(cv::Rect(ox, oy, nw, nh)));
+	}
 
 	void *bits = NULL;
 	HBITMAP hbmp = CreateThumbDib(size, &bits);
@@ -676,6 +1160,14 @@ HBITMAP CThumbnailPane::DecodeThumbnail(const CString &path, int size, COLORREF 
 		}
 	}
 	return hbmp;
+}
+
+HBITMAP CThumbnailPane::DecodeThumbnail(const CString &path, int size, bool crop, COLORREF bg)
+{
+	HBITMAP h = DecodeThumbnailShell(path, size, crop, bg);
+	if (h)
+		return h;
+	return DecodeThumbnailCv(path, size, crop, bg);
 }
 
 HBITMAP CThumbnailPane::MakePlaceholder(const CString &ext)
@@ -731,13 +1223,16 @@ HBITMAP CThumbnailPane::MakePlaceholder(const CString &ext)
 
 void CThumbnailPane::WorkerLoop()
 {
+	// Shell thumbnail extraction is COM; each worker needs its own apartment.
+	HRESULT hrCo = ::CoInitializeEx(NULL, COINIT_MULTITHREADED);
+
 	for (;;) {
 		Task task;
 		{
 			std::unique_lock<std::mutex> lk(mMutex);
 			mCv.wait(lk, [this] { return mStop || !mTasks.empty(); });
 			if (mStop)
-				return;
+				break;
 			task = mTasks.front();
 			mTasks.pop_front();
 		}
@@ -745,7 +1240,7 @@ void CThumbnailPane::WorkerLoop()
 		if (task.gen != mGen.load())
 			continue;
 
-		HBITMAP hbmp = DecodeThumbnail(task.path, mThumb, Q1UI_COLOR_SURFACE_ALT);
+		HBITMAP hbmp = DecodeThumbnail(task.path, task.size, task.crop, Q1UI_COLOR_SURFACE_ALT);
 
 		if (task.gen != mGen.load() || !GetSafeHwnd() || !::IsWindow(m_hWnd)) {
 			if (hbmp)
@@ -756,6 +1251,7 @@ void CThumbnailPane::WorkerLoop()
 		Result *r = new Result();
 		r->gen = task.gen;
 		r->index = task.index;
+		r->size = task.size;
 		r->hbmp = hbmp;
 		if (!::PostMessage(m_hWnd, WM_THUMB_READY, reinterpret_cast<WPARAM>(r), 0)) {
 			if (hbmp)
@@ -763,4 +1259,7 @@ void CThumbnailPane::WorkerLoop()
 			delete r;
 		}
 	}
+
+	if (SUCCEEDED(hrCo))
+		::CoUninitialize();
 }
