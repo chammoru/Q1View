@@ -24,6 +24,7 @@
 #include <algorithm>
 
 #pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "msimg32.lib")   // AlphaBlend (selected-tile lift)
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -34,10 +35,13 @@ static CString ExtensionOf(const CString &path);   // defined below
 // List (report) step thumbnail edge -- the smallest, default view.
 static const int kListThumb = 44;
 // Grid steps pack a whole number of columns across the pane width; the tile edge
-// is simply the pane width divided by the column count, so tiles butt together
-// with no gaps. Index 0 is the list step (unused here); higher steps zoom in by
-// showing fewer, larger columns.
-static const int kGridCols[] = { 0, 4, 3, 2, 1 };
+// is the pane width divided by the column count, minus a thin gutter so adjacent
+// thumbnails stay visually separated (issue #80). Index 0 is the list step
+// (unused here); higher steps zoom in by showing fewer, larger columns.
+static const int kGridCols[] = { 0, 5, 4, 3, 2, 1 };
+// Hairline gutter (px) between grid tiles -- a thin separator in the surface
+// colour so similar-coloured neighbours don't blend (issue #80).
+static const int kGridGutter = 1;
 // Default step 0 = the compact list (smallest thumbnail). Ctrl+wheel up grows
 // into the gallery grids.
 static const int kDefaultStep = 0;
@@ -56,6 +60,7 @@ BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_NOTIFY_REFLECT(NM_DBLCLK, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(NM_RETURN, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(LVN_GETINFOTIP, &CThumbnailPane::OnGetInfoTip)
+	ON_NOTIFY_REFLECT(NM_CUSTOMDRAW, &CThumbnailPane::OnCustomDraw)
 	ON_MESSAGE(WM_THUMB_READY, &CThumbnailPane::OnThumbReady)
 	ON_MESSAGE(WM_DRAWER_ACTIVATE, &CThumbnailPane::OnActivatePosted)
 END_MESSAGE_MAP()
@@ -104,7 +109,9 @@ void CThumbnailPane::RecalcThumbSize()
 	int w = rc.Width();
 	if (w <= 0)
 		w = cols * 96;                       // no window yet; pick a sane default
-	mThumb = std::max(16, w / cols);
+	// The cell (tile + one gutter) tiles the width; the image fills the cell minus
+	// the gutter, so a hairline of background shows between neighbours.
+	mThumb = std::max(16, w / cols - kGridGutter);
 }
 
 void CThumbnailPane::LoadViewStep()
@@ -668,9 +675,9 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 	}
 
 	if (grid) {
-		// Cell == tile, so tiles butt together with no gaps or label strip, then
-		// reflow into as many columns as the current width allows.
-		SetIconSpacing(mThumb, mThumb);
+		// Cell = tile + a hairline gutter, so a thin background separator shows
+		// between tiles (issue #80); then reflow into as many columns as fit.
+		SetIconSpacing(mThumb + kGridGutter, mThumb + kGridGutter);
 		Arrange(LVA_DEFAULT);
 	} else {
 		CRect rc; GetClientRect(&rc);
@@ -785,6 +792,65 @@ void CThumbnailPane::OnGetInfoTip(NMHDR *pNMHDR, LRESULT *pResult)
 	}
 
 	lstrcpyn(tip->pszText, name, tip->cchTextMax);
+}
+
+// Selected grid tile "lift": a subtle accent-soft wash over the chosen tile (no
+// frame), consistent with the accent-soft selection fill the list step uses
+// (issue #80). Tiles are opaque full-bleed images, so the only way to show
+// selection is to draw over the tile -- done here in custom-draw post-paint
+// (icon view can't be owner-drawn). The list step keeps its own owner-draw.
+void CThumbnailPane::OnCustomDraw(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMLVCUSTOMDRAW cd = reinterpret_cast<LPNMLVCUSTOMDRAW>(pNMHDR);
+	switch (cd->nmcd.dwDrawStage) {
+	case CDDS_PREPAINT:
+		*pResult = IsGrid() ? CDRF_NOTIFYITEMDRAW : CDRF_DODEFAULT;
+		return;
+	case CDDS_ITEMPREPAINT: {
+		int i = (int)cd->nmcd.dwItemSpec;
+		bool sel = (GetItemState(i, LVIS_SELECTED) & LVIS_SELECTED) != 0;
+		*pResult = sel ? CDRF_NOTIFYPOSTPAINT : CDRF_DODEFAULT;
+		return;
+	}
+	case CDDS_ITEMPOSTPAINT: {
+		int i = (int)cd->nmcd.dwItemSpec;
+		CRect rc;
+		if (GetItemRect(i, &rc, LVIR_ICON)) {
+			// Constant-alpha blend of accent-soft over the tile (stretch a 1x1
+			// source); ~38% reads as selected while staying gentle.
+			BITMAPINFO bmi = {};
+			bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+			bmi.bmiHeader.biWidth = 1;
+			bmi.bmiHeader.biHeight = 1;
+			bmi.bmiHeader.biPlanes = 1;
+			bmi.bmiHeader.biBitCount = 32;
+			bmi.bmiHeader.biCompression = BI_RGB;
+			void *bits = NULL;
+			HDC dst = cd->nmcd.hdc;
+			HDC mem = ::CreateCompatibleDC(dst);
+			HBITMAP dib = ::CreateDIBSection(dst, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
+			if (mem && dib && bits) {
+				BYTE *p = static_cast<BYTE *>(bits);
+				p[0] = GetBValue(Q1UI_COLOR_ACCENT_SOFT);
+				p[1] = GetGValue(Q1UI_COLOR_ACCENT_SOFT);
+				p[2] = GetRValue(Q1UI_COLOR_ACCENT_SOFT);
+				p[3] = 0;
+				HBITMAP old = (HBITMAP)::SelectObject(mem, dib);
+				BLENDFUNCTION bf = { AC_SRC_OVER, 0, 96, 0 };
+				::AlphaBlend(dst, rc.left, rc.top, rc.Width(), rc.Height(),
+					mem, 0, 0, 1, 1, bf);
+				::SelectObject(mem, old);
+			}
+			if (dib) ::DeleteObject(dib);
+			if (mem) ::DeleteDC(mem);
+		}
+		*pResult = CDRF_DODEFAULT;
+		return;
+	}
+	default:
+		*pResult = CDRF_DODEFAULT;
+		return;
+	}
 }
 
 // ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ### Changed
 - Viewer & Comparator: the shortcut/help panel (the `?` key or the Help menu) is now a full-window overlay that dims the whole window and centers the panel, instead of being painted inside the image area — where it shifted with the thumbnail drawer (Viewer) or sat inside a single comparison pane (Comparator). The Comparator Help menu now opens this same overlay (which shows the product version) and the separate "About Comparator" menu item was removed, matching the Viewer. (issue #79)
+- Viewer: refined the gallery grid thumbnails (issue #80). Adjacent tiles are now separated by a thin hairline gutter so similar-coloured neighbours stay distinct, and the selected/current image gets a subtle accent tint instead of relying on the faint system highlight — clearly visible without a hard border. The grid also starts one step wider, at 5 columns (then 4, 3, 2, 1).
 
 ---
 
