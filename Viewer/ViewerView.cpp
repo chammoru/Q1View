@@ -117,7 +117,6 @@ CViewerView::CViewerView()
 , mYMode(false)
 , mInterpol(false)
 , mFullMode(false)
-, mShowHelp(false)
 , mShowCoord(false)
 , mShowBoxInfo(true)
 , mWasZoomed(false)
@@ -889,53 +888,6 @@ void CViewerView::DrawPixelText(CDC *pDC, q1::GridInfo &gi)
 	}
 }
 
-void CViewerView::DrawHelpMenu(CDC *pDC)
-{
-	const int W_HELP = VIEWER_DEF_W;
-	const int H_HELP = VIEWER_DEF_H;
-	const int W_MARGIN = 18;
-	const int H_MARGIN = 14;
-	const int X_HELP = (mWCanvas - W_HELP) / 2;
-	const int Y_HELP = (mHCanvas - H_HELP) / 2;
-	CRect bgRect(X_HELP, Y_HELP, X_HELP + W_HELP, Y_HELP + H_HELP);
-	pDC->FillSolidRect(bgRect, Q1UI_COLOR_SURFACE);
-	CPen borderPen(PS_SOLID, 1, Q1UI_COLOR_BORDER);
-	CPen *prevPen = pDC->SelectObject(&borderPen);
-	pDC->SelectStockObject(NULL_BRUSH);
-	pDC->Rectangle(bgRect);
-	pDC->SelectObject(prevPen);
-
-	CRect manualRect(bgRect.left + W_MARGIN, bgRect.top + H_MARGIN,
-		bgRect.right - W_MARGIN, bgRect.bottom - H_MARGIN);
-	LOGFONT lf;
-	CFont manualFont;
-	mConsolasFont.GetLogFont(&lf);
-	lf.lfHeight = 14;
-	lf.lfWeight = FW_NORMAL;
-	manualFont.CreateFontIndirect(&lf);
-	pDC->SelectObject(&manualFont);
-	pDC->SetTextColor(Q1UI_COLOR_TEXT);
-	// Build the panel text from the shared shortcut table (QViewerShortcuts.h),
-	// the same source the Qt viewer's help overlay renders from. Rows tagged for
-	// the MFC front-end are shown, in the table's order.
-	CString manual(Q1VIEW_SHORTCUTS_TITLE);
-	manual += _T("\nVersion ");
-	manual += Q1ViewGetProductVersion();
-	manual += _T("\n\n");
-	for (int i = 0; i < ARRAY_SIZE(Q1VIEW_SHORTCUTS); i++) {
-		const Q1ViewShortcutRow &row = Q1VIEW_SHORTCUTS[i];
-		if (!(row.fe & Q1VIEW_FE_MFC))
-			continue;
-		CString line;
-		line.Format(_T("%-*hs%hs\n"),
-			Q1VIEW_SHORTCUTS_KEY_WIDTH, row.key, row.desc);
-		manual += line;
-	}
-	// DT_NOPREFIX so a literal '&' in a key (e.g. "Drag & Drop") is drawn as-is
-	// rather than treated as a mnemonic underscore.
-	pDC->DrawText(manual, &manualRect, DT_LEFT | DT_TOP | DT_NOPREFIX);
-}
-
 void CViewerView::DrawEmptyState(CDC *pDC)
 {
 	pDC->FillSolidRect(CRect(0, 0, mWClient, mHClient), Q1UI_COLOR_CANVAS_BG);
@@ -1141,8 +1093,6 @@ void CViewerView::OnDraw(CDC *pDC)
 
 	if (!src) {
 		DrawEmptyState(&memDC);
-		if (mShowHelp)
-			DrawHelpMenu(&memDC);
 		pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
 		return;
 	}
@@ -1175,8 +1125,6 @@ void CViewerView::OnDraw(CDC *pDC)
 	// progressive
 	if (pDoc->mFrames > 1)
 		ProgressiveDraw(&memDC, pDoc, mStableRgbBufferInfo.ID);
-	if (mShowHelp)
-		DrawHelpMenu(&memDC);
 
 	if (pDoc->mDocState == DOC_NEWIMAGE)
 		pDoc->mDocState = DOC_ADJUSTED;
@@ -1834,8 +1782,11 @@ void CViewerView::ToggleFullScreen()
 
 void CViewerView::ToggleHelp()
 {
-	mShowHelp = !mShowHelp;
-	Invalidate(FALSE);
+	// Help is now a full-window overlay owned by the frame (issue #79) rather than
+	// a panel painted inside this view's (drawer-shifted) image column.
+	CMainFrame *pFrame = DYNAMIC_DOWNCAST(CMainFrame, GetParentFrame());
+	if (pFrame)
+		pFrame->ToggleHelpOverlay();
 }
 
 UINT CViewerView::GetDisplayOptions() const

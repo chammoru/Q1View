@@ -82,6 +82,33 @@ protected:
 	DECLARE_MESSAGE_MAP()
 };
 
+// Application-level help overlay (issue #79): a borderless, layered child window
+// that covers the entire frame client -- image view *and* thumbnail drawer -- so
+// the shortcut panel is centered on the whole window and dims everything behind
+// it, regardless of whether the drawer is open. (Previously help was painted in
+// the image view's DC, so it sat inside the image column and shifted with it
+// when the drawer opened.)
+class CHelpOverlay : public CWnd
+{
+public:
+	BOOL CreateOverlay(CWnd *pParent);
+	bool IsShown() const
+	{ return GetSafeHwnd() != NULL && (GetStyle() & WS_VISIBLE) != 0; }
+	void Toggle();
+	void Hide();
+	void Relayout();          // re-cover the owner's client; repaint if visible
+
+protected:
+	bool OwnerScreenRect(CRect &rc) const;   // owner client rect in screen coords
+	void Render();            // build the per-pixel-alpha image and push it
+	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+	afx_msg BOOL OnEraseBkgnd(CDC *pDC);
+	DECLARE_MESSAGE_MAP()
+
+private:
+	CWnd *mOwner = NULL;      // the frame whose client this overlay covers
+};
+
 class CMainFrame : public CFrameWnd
 {
 protected: // create from serialization only
@@ -114,6 +141,9 @@ private:
 	bool mDrawerAnimOpening;
 	int  mDrawerAnimStep;
 	int  mDrawerAnimSteps;
+
+	// Full-window shortcut/help overlay (issue #79).
+	CHelpOverlay mHelpOverlay;
 
 // Operations
 public:
@@ -152,6 +182,8 @@ public:
 	// Called by CDrawerSplitter after the user finishes dragging the divider:
 	// adopts the new drawer width (clamped) and refits the image to the view.
 	void OnDrawerDividerDragged();
+	// Show/hide the full-window help overlay ('?' key or the Help menu).
+	void ToggleHelpOverlay();
 
 // Generated message map functions
 protected:
@@ -166,6 +198,7 @@ public:
 	afx_msg void OnCsChange(UINT nID);
 	afx_msg void OnFpsChange(UINT nID);
 	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg void OnMove(int x, int y);
 	afx_msg void OnDestroy();
 	afx_msg void OnToggleDrawer();
 	afx_msg void OnUpdateToggleDrawer(CCmdUI *pCmdUI);

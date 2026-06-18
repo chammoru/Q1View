@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Changed
+- Viewer & Comparator: the shortcut/help panel (the `?` key or the Help menu) is now a full-window overlay that dims the whole window and centers the panel, instead of being painted inside the image area — where it shifted with the thumbnail drawer (Viewer) or sat inside a single comparison pane (Comparator). The Comparator Help menu now opens this same overlay (which shows the product version) and the separate "About Comparator" menu item was removed, matching the Viewer. (issue #79)
+
 ---
 
 ## [2.7.0] — 2026-06-18

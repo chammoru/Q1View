@@ -164,7 +164,6 @@ public:
 	bool mYMode;
 	bool mInterpol;
 	bool mFullMode;
-	bool mShowHelp;
 	bool mShowCoord;
 	bool mShowBoxInfo;
 	bool mWasZoomed;
@@ -202,7 +201,6 @@ public:
 	void DrawPixelText(CDC *pDC, q1::GridInfo &gi);
 	void DrawPixelValueMode(CDC *pDC);
 	void ToggleHelp();
-	void DrawHelpMenu(CDC *pDC);
 	void DrawCursorCoordinates(CDC *pDC);
 	void DrawBoxInfo(CDC *pDC);
 	void DrawEmptyState(CDC *pDC);

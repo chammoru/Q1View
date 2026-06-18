@@ -35,7 +35,6 @@ CComparatorView::CComparatorView()
 , mIsClicked(false)
 , mCloseHover(false)
 , mProcessing(false)
-, mShowHelp(false)
 , mRgbBufSize(0)
 , mRgbBuf(NULL)
 , mPixelTextFontHeight(0)
@@ -280,9 +279,6 @@ void CComparatorView::OnDraw(CDC *pDC)
 	if (pDoc->mShowCursorCoord && pDoc->mCursorView != NULL)
 		DrawCursorCoord(&mMemDC, pDoc, pane);
 
-	if (mShowHelp)
-		DrawHelpMenu(&mMemDC);
-
 	pDC->BitBlt(0, mRcControls.bottom, mWCanvas, mHCanvas, &mMemDC, 0, 0, SRCCOPY);
 
 	// The close button lives on the controls strip (above the BitBlt'ed
@@ -295,55 +291,11 @@ void CComparatorView::OnDraw(CDC *pDC)
 
 void CComparatorView::ToggleHelp()
 {
-	mShowHelp = !mShowHelp;
-	Invalidate(FALSE);
-}
-
-void CComparatorView::DrawHelpMenu(CDC *pDC)
-{
-	const int W_HELP = 460;
-	const int H_HELP = 280;
-	const int W_MARGIN = 18;
-	const int H_MARGIN = 14;
-	const int X_HELP = (mWCanvas - W_HELP) / 2;
-	const int Y_HELP = (mHCanvas - H_HELP) / 2;
-	CRect bgRect(X_HELP, Y_HELP, X_HELP + W_HELP, Y_HELP + H_HELP);
-	pDC->FillSolidRect(bgRect, Q1UI_COLOR_SURFACE);
-	CPen borderPen(PS_SOLID, 1, Q1UI_COLOR_BORDER);
-	CPen *prevPen = pDC->SelectObject(&borderPen);
-	pDC->SelectStockObject(NULL_BRUSH);
-	pDC->Rectangle(bgRect);
-	pDC->SelectObject(prevPen);
-
-	CRect manualRect(bgRect.left + W_MARGIN, bgRect.top + H_MARGIN,
-		bgRect.right - W_MARGIN, bgRect.bottom - H_MARGIN);
-	LOGFONT lf;
-	CFont manualFont;
-	mDefPixelTextFont.GetLogFont(&lf);
-	lf.lfHeight = 14;
-	lf.lfWeight = FW_NORMAL;
-	manualFont.CreateFontIndirect(&lf);
-	pDC->SetBkMode(TRANSPARENT);
-	CFont *prevFont = pDC->SelectObject(&manualFont);
-	pDC->SetTextColor(Q1UI_COLOR_TEXT);
-	CString manual(
-		"Comparator shortcuts\n"
-		"\n"
-		"?              Show or hide this panel\n"
-		"Drag && Drop    Open a source in a pane\n"
-		"Mouse Wheel    Zoom in or out; high zoom shows pixel values\n"
-		"Left/Right     Previous or next video frame\n"
-		"Space          Play or pause\n"
-		"H              Toggle hex pixel values\n"
-		"I              Interpolate pixels\n"
-		"D              Toggle pink diff overlay (grid + dots)\n"
-		"C              Toggle cursor pixel coordinates\n"
-		"S              Toggle selection mode (drag a synced region)\n"
-		"Esc / RClick   Clear the selection rectangle\n"
-		"Click timeline Seek to a video frame (left/right pane)\n"
-		);
-	pDC->DrawText(manual, &manualRect, DT_LEFT | DT_TOP);
-	pDC->SelectObject(prevFont);
+	// Help is now a full-window overlay owned by the frame (issue #79) rather than
+	// a panel painted inside a single pane's canvas.
+	CMainFrame *pFrame = DYNAMIC_DOWNCAST(CMainFrame, GetParentFrame());
+	if (pFrame)
+		pFrame->ToggleHelpOverlay();
 }
 
 // Pilot: draw a semi-transparent pink cell outline + center dot in every

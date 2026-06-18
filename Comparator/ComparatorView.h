@@ -51,7 +51,6 @@ public:
 	CQMenuItem mNameQMenu;
 	CQMenuItem mCsQMenu;
 	bool mProcessing;
-	bool mShowHelp;
 	int mRgbBufSize;
 	BYTE *mRgbBuf;
 	CFont mDefPixelTextFont;
@@ -88,7 +87,6 @@ public:
 	void ClosePane();
 	void UpdateCloseHover(const CPoint &point);
 	void RepaintCloseButton();
-	void DrawHelpMenu(CDC *pDC);
 	void ToggleHelp();
 
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);

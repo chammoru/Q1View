@@ -21,11 +21,15 @@
 
 #include <QImageStr.h>
 #include <QViewerCmn.h>
+#include "QViewerShortcuts.h"
+#include "Q1ViewVersion.h"
 #include "qimage_util.h"
 
 #include "FrmSrc.h"
 
 #include "Shlwapi.h"
+
+#include <algorithm>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -94,6 +98,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_COMMAND(ID_EDIT_COPY, &CMainFrame::OnEditCopy)
 	ON_COMMAND(ID_EDIT_PASTE, &CMainFrame::OnEditPaste)
 	ON_WM_SIZE()
+	ON_WM_MOVE()
 	ON_WM_DESTROY()
 	ON_WM_TIMER()
 	ON_COMMAND(ID_TOGGLE_DRAWER, &CMainFrame::OnToggleDrawer)
@@ -137,6 +142,198 @@ void CDrawerSplitter::OnLButtonUp(UINT nFlags, CPoint point)
 	CSplitterWnd::OnLButtonUp(nFlags, point);   // applies the new split
 	if (wasTracking && mFrame != NULL)
 		mFrame->OnDrawerDividerDragged();
+}
+
+// ---------------------------------------------------------------------------
+// CHelpOverlay: full-window, layered shortcut/help overlay (issue #79)
+// ---------------------------------------------------------------------------
+
+BEGIN_MESSAGE_MAP(CHelpOverlay, CWnd)
+	ON_WM_LBUTTONDOWN()
+	ON_WM_ERASEBKGND()
+END_MESSAGE_MAP()
+
+// The shortcut panel text, built from the shared table (QViewerShortcuts.h) --
+// the same source the in-view help used and the Qt viewer renders from.
+static CString BuildHelpText()
+{
+	CString manual(Q1VIEW_SHORTCUTS_TITLE);
+	manual += _T("\nVersion ");
+	manual += Q1ViewGetProductVersion();
+	manual += _T("\n\n");
+	for (int i = 0; i < ARRAY_SIZE(Q1VIEW_SHORTCUTS); i++) {
+		const Q1ViewShortcutRow &row = Q1VIEW_SHORTCUTS[i];
+		if (!(row.fe & Q1VIEW_FE_MFC))
+			continue;
+		CString line;
+		line.Format(_T("%-*hs%hs\n"),
+			Q1VIEW_SHORTCUTS_KEY_WIDTH, row.key, row.desc);
+		manual += line;
+	}
+	return manual;
+}
+
+BOOL CHelpOverlay::CreateOverlay(CWnd *pParent)
+{
+	mOwner = pParent;
+	// A top-level layered popup owned by the frame. Layered *popups* composite
+	// reliably across Windows versions (layered child windows do not), and the
+	// owner relationship keeps the overlay above the frame and tied to its
+	// show/minimize. WS_EX_NOACTIVATE so showing it never steals focus from the
+	// image view (so '?' / the Help menu can still toggle it back off).
+	LPCTSTR cls = AfxRegisterWndClass(0, ::LoadCursor(NULL, IDC_ARROW), NULL, NULL);
+	return CreateEx(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+		cls, _T(""), WS_POPUP, CRect(0, 0, 0, 0), pParent, 0);
+}
+
+// The owner frame's client area expressed in screen coordinates -- the region a
+// top-level overlay must cover so it sits exactly over the image view + drawer.
+bool CHelpOverlay::OwnerScreenRect(CRect &rc) const
+{
+	if (!mOwner || !::IsWindow(mOwner->GetSafeHwnd()))
+		return false;
+	mOwner->GetClientRect(&rc);
+	mOwner->ClientToScreen(&rc);
+	return true;
+}
+
+void CHelpOverlay::Toggle()
+{
+	if (!GetSafeHwnd())
+		return;
+	if (IsShown()) {
+		Hide();
+		return;
+	}
+	CRect rc;
+	if (!OwnerScreenRect(rc))
+		return;
+	MoveWindow(&rc, FALSE);            // screen coords for a top-level window
+	ShowWindow(SW_SHOWNA);             // show without activating
+	Render();
+}
+
+void CHelpOverlay::Hide()
+{
+	if (IsShown())
+		ShowWindow(SW_HIDE);
+}
+
+void CHelpOverlay::Relayout()
+{
+	CRect rc;
+	if (!GetSafeHwnd() || !OwnerScreenRect(rc))
+		return;
+	MoveWindow(&rc, FALSE);
+	if (IsShown())
+		Render();
+}
+
+void CHelpOverlay::Render()
+{
+	CRect rc;
+	GetClientRect(&rc);
+	int W = rc.Width(), H = rc.Height();
+	if (W <= 0 || H <= 0)
+		return;
+
+	BITMAPINFO bmi = {};
+	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = W;
+	bmi.bmiHeader.biHeight = -H;          // top-down
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 32;
+	bmi.bmiHeader.biCompression = BI_RGB;
+
+	void *bits = NULL;
+	HDC screen = ::GetDC(NULL);
+	HBITMAP dib = ::CreateDIBSection(screen, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
+	if (!dib) {
+		::ReleaseDC(NULL, screen);
+		return;
+	}
+	HDC mem = ::CreateCompatibleDC(screen);
+	HBITMAP oldbmp = (HBITMAP)::SelectObject(mem, dib);
+
+	// 1) Dim scrim over the whole window. Premultiplied alpha: black so the RGB is
+	// 0 regardless of alpha; only the alpha byte carries the dimming.
+	const BYTE kScrimAlpha = 140;
+	BYTE *px = static_cast<BYTE *>(bits);
+	for (int i = 0; i < W * H; i++) {
+		px[i * 4 + 0] = 0;
+		px[i * 4 + 1] = 0;
+		px[i * 4 + 2] = 0;
+		px[i * 4 + 3] = kScrimAlpha;
+	}
+
+	// 2) Opaque shortcut panel centered on the whole window (clamped to fit).
+	int pw = std::min(W - 24, (int)VIEWER_DEF_W);
+	int ph = std::min(H - 24, (int)VIEWER_DEF_H);
+	if (pw < 80) pw = W;
+	if (ph < 80) ph = H;
+	CRect panel((W - pw) / 2, (H - ph) / 2, 0, 0);
+	panel.right = panel.left + pw;
+	panel.bottom = panel.top + ph;
+
+	CDC dc;
+	dc.Attach(mem);
+	dc.FillSolidRect(panel, Q1UI_COLOR_SURFACE);
+	CPen border(PS_SOLID, 1, Q1UI_COLOR_BORDER);
+	CPen *prevPen = dc.SelectObject(&border);
+	dc.SelectStockObject(NULL_BRUSH);
+	dc.Rectangle(panel);
+	dc.SelectObject(prevPen);
+
+	const int W_MARGIN = 18, H_MARGIN = 14;
+	CRect textRc(panel.left + W_MARGIN, panel.top + H_MARGIN,
+		panel.right - W_MARGIN, panel.bottom - H_MARGIN);
+	LOGFONT lf = {};
+	lstrcpyn(lf.lfFaceName, _T("Consolas"), LF_FACESIZE);
+	lf.lfHeight = 14;
+	lf.lfWeight = FW_NORMAL;
+	CFont font;
+	font.CreateFontIndirect(&lf);
+	CFont *prevFont = dc.SelectObject(&font);
+	dc.SetBkMode(TRANSPARENT);
+	dc.SetTextColor(Q1UI_COLOR_TEXT);
+	// DT_NOPREFIX so a literal '&' in a key (e.g. "Drag & Drop") is drawn as-is.
+	CString manual = BuildHelpText();
+	dc.DrawText(manual, &textRc, DT_LEFT | DT_TOP | DT_NOPREFIX);
+	dc.SelectObject(prevFont);
+	dc.Detach();
+
+	// 3) GDI leaves the alpha byte at the scrim value; force the panel opaque. Its
+	// colors are opaque (surface/text), so premultiplied == raw -- no rescale.
+	int x0 = std::max(0, (int)panel.left), x1 = std::min(W, (int)panel.right);
+	int y0 = std::max(0, (int)panel.top), y1 = std::min(H, (int)panel.bottom);
+	for (int y = y0; y < y1; y++) {
+		BYTE *row = px + (size_t)y * W * 4;
+		for (int x = x0; x < x1; x++)
+			row[x * 4 + 3] = 255;
+	}
+
+	CRect wr;
+	GetWindowRect(&wr);
+	POINT ptDst = { wr.left, wr.top };   // top-level window's screen position
+	SIZE size = { W, H };
+	POINT ptSrc = { 0, 0 };
+	BLENDFUNCTION bf = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
+	::UpdateLayeredWindow(m_hWnd, screen, &ptDst, &size, mem, &ptSrc, 0, &bf, ULW_ALPHA);
+
+	::SelectObject(mem, oldbmp);
+	::DeleteDC(mem);
+	::DeleteObject(dib);
+	::ReleaseDC(NULL, screen);
+}
+
+void CHelpOverlay::OnLButtonDown(UINT /*nFlags*/, CPoint /*point*/)
+{
+	Hide();   // click anywhere dismisses the overlay
+}
+
+BOOL CHelpOverlay::OnEraseBkgnd(CDC * /*pDC*/)
+{
+	return TRUE;   // content comes from UpdateLayeredWindow, not WM_PAINT
 }
 
 
@@ -241,16 +438,7 @@ void CMainFrame::Dump(CDumpContext& dc) const
 
 void CMainFrame::OnHelp()
 {
-	CViewerView *pView = static_cast<CViewerView *>(GetActiveView());
-	if (!pView) {
-		CWnd *pWnd = GetDescendantWindow(AFX_IDW_PANE_FIRST, TRUE);
-		if (pWnd && pWnd->IsKindOf(RUNTIME_CLASS(CViewerView)))
-			pView = static_cast<CViewerView *>(pWnd);
-	}
-	if (pView) {
-		pView->ToggleHelp();
-		pView->UpdateWindow();
-	}
+	ToggleHelpOverlay();
 }
 
 void CMainFrame::OnFileOpen()
@@ -477,6 +665,10 @@ BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext)
 	// The image view must remain the active view for doc/view command routing.
 	SetActiveView(static_cast<CView *>(mwndSplitter.GetPane(0, 0)));
 	mSplitterReady = true;
+
+	// Full-window help overlay sits above the splitter (created last, raised to
+	// top when shown). Failure is non-fatal -- the app simply has no help panel.
+	mHelpOverlay.CreateOverlay(this);
 	return TRUE;
 }
 
@@ -515,6 +707,22 @@ void CMainFrame::OnSize(UINT nType, int cx, int cy)
 {
 	CFrameWnd::OnSize(nType, cx, cy);
 	PinDrawerColumn();
+	// Keep the help overlay covering the whole client; drop it on minimize.
+	if (nType == SIZE_MINIMIZED)
+		mHelpOverlay.Hide();
+	else
+		mHelpOverlay.Relayout();
+}
+
+void CMainFrame::OnMove(int x, int y)
+{
+	CFrameWnd::OnMove(x, y);
+	mHelpOverlay.Relayout();   // the overlay is top-level; follow the frame
+}
+
+void CMainFrame::ToggleHelpOverlay()
+{
+	mHelpOverlay.Toggle();
 }
 
 void CMainFrame::OnToggleDrawer()

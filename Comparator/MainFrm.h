@@ -34,9 +34,36 @@ enum ComparatorTimerID
 	CTI_ID_MAX,
 };
 
+// Application-level help overlay: a borderless, top-level layered popup owned by
+// the frame that covers the entire frame client (all comparison panes + info
+// views) and dims everything behind a centered shortcut panel, so help is shown
+// at the application level regardless of the multi-pane splitter layout. Mirrors
+// the Viewer's overlay (issue #79). Layered *popups* composite reliably across
+// Windows versions (layered child windows do not).
+class CHelpOverlay : public CWnd
+{
+public:
+	BOOL CreateOverlay(CWnd *pParent);
+	bool IsShown() const
+	{ return GetSafeHwnd() != NULL && (GetStyle() & WS_VISIBLE) != 0; }
+	void Toggle();
+	void Hide();
+	void Relayout();          // re-cover the owner's client; repaint if visible
+
+protected:
+	bool OwnerScreenRect(CRect &rc) const;   // owner client rect in screen coords
+	void Render();            // build the per-pixel-alpha image and push it
+	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+	afx_msg BOOL OnEraseBkgnd(CDC *pDC);
+	DECLARE_MESSAGE_MAP()
+
+private:
+	CWnd *mOwner = NULL;      // the frame whose client this overlay covers
+};
+
 class CMainFrame : public CFrameWnd
 {
-	
+
 protected: // create from serialization only
 	CMainFrame();
 	DECLARE_DYNCREATE(CMainFrame)
@@ -49,6 +76,9 @@ private:
 	CQSplitterWnd mCompSplitter;
 	int mSplitMargin;
 	CMenu mResolutionMenu, mMetricMenu, mFpsMenu, mViewsMenu, mOptionsMenu;
+
+	// Full-window shortcut/help overlay (issue #79).
+	CHelpOverlay mHelpOverlay;
 
 public:
 	int mMetricIdx;
@@ -71,6 +101,8 @@ public:
 	void RefreshFrmsInfoView();
 	void RefreshAllViews();
 	int ChangeNumOfViews(int newNumOfViews);
+	// Show/hide the full-window help overlay ('?' key or the Help menu).
+	void ToggleHelpOverlay();
 
 // Overrides
 public:
@@ -93,6 +125,8 @@ protected:
 
 public:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg void OnMove(int x, int y);
+	afx_msg void OnHelp();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnDestroy();
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
