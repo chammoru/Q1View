@@ -46,7 +46,8 @@ Viewer includes a built-in control panel, opened with `?`.
 | Toggle thumbnail browser (drawer) | `E` |
 | Paste image from clipboard | `Ctrl+V` |
 | Zoom | Mouse wheel |
-| Full screen | `Return` |
+| Enter or exit full screen | `Return` |
+| Exit full screen | `Esc` |
 | Play or pause video | `Space` |
 | Previous or next frame | Left / Right |
 | First or last frame | Home / End |

@@ -501,6 +501,19 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 	return TRUE;
 }
 
+BOOL CMainFrame::PreTranslateMessage(MSG *pMsg)
+{
+	if (pMsg != NULL && pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_ESCAPE) {
+		CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
+		if (pView != NULL && pView->IsFullScreen()) {
+			pView->ToggleFullScreen();
+			return TRUE;
+		}
+	}
+
+	return CFrameWnd::PreTranslateMessage(pMsg);
+}
+
 void CMainFrame::OnUpdateFrameTitle(BOOL bAddToTitle)
 {
 	if ((GetStyle() & FWS_ADDTOTITLE) == 0)
@@ -1175,7 +1188,11 @@ void CMainFrame::UpdateMagnication(float n, int wDst, int hDst)
 	CString str;
 	str.Format(_T("%dx%d (%.2fx)"), wDst, hDst, n);
 
-	GetMenu()->ModifyMenu(ID_MAGNIFY, MF_BYCOMMAND | MF_RIGHTJUSTIFY | MF_GRAYED, ID_MAGNIFY, str);
+	CMenu *pMenu = GetMenu();
+	if (pMenu == NULL)
+		return;
+
+	pMenu->ModifyMenu(ID_MAGNIFY, MF_BYCOMMAND | MF_RIGHTJUSTIFY | MF_GRAYED, ID_MAGNIFY, str);
 
 	// While the drawer slides or the divider is dragged, the image refits every
 	// frame; DrawMenuBar repaints the whole (non-buffered) menu bar each time, which

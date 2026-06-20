@@ -166,7 +166,8 @@ public:
 	bool mFullMode;
 	bool mShowCoord;
 	bool mShowBoxInfo;
-	bool mWasZoomed;
+	bool mHavePreFullPlacement;
+	WINDOWPLACEMENT mPreFullPlacement;
 	bool mHexMode;
 	bool mShowSourceYuv;
 	const CString mRgbHex;
@@ -198,6 +199,7 @@ public:
 	void ChangeZoom(short zDelta, CPoint &pt);
 	cv::Mat CreateRoiMat(int x0, int y0, int w, int h);
 	void ToggleFullScreen();
+	bool IsFullScreen() const { return mFullMode; }
 	void DrawPixelText(CDC *pDC, q1::GridInfo &gi);
 	void DrawPixelValueMode(CDC *pDC);
 	void ToggleHelp();
@@ -254,6 +256,7 @@ public:
 	afx_msg void OnDestroy();
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnRButtonUp(UINT nFlags, CPoint point);
 	afx_msg LRESULT OnPlayTimer(WPARAM wParam, LPARAM lParam);
 };

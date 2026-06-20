@@ -21,6 +21,9 @@
 #include "Q1ViewVersion.h"
 
 #include <cmath>
+#include <dwmapi.h>
+
+#pragma comment(lib, "dwmapi.lib")
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -37,6 +40,9 @@
 const bool printPlaySpeed = false;
 
 #define WM_VIEWER_PLAY_TIMER (WM_APP + 1)
+
+static const UINT_PTR VIEWER_FULLSCREEN_DWM_TIMER = 0x5100;
+static const UINT VIEWER_FULLSCREEN_DWM_DELAY_MS = 250;
 
 enum QMouseMenuID
 {
@@ -72,6 +78,7 @@ BEGIN_MESSAGE_MAP(CViewerView, CView)
 	ON_WM_DESTROY()
 	ON_WM_CREATE()
 	ON_WM_SIZE()
+	ON_WM_TIMER()
 	ON_WM_SETCURSOR()
 	ON_WM_RBUTTONUP()
 	ON_MESSAGE(WM_VIEWER_PLAY_TIMER, CViewerView::OnPlayTimer)
@@ -120,7 +127,7 @@ CViewerView::CViewerView()
 , mFullMode(false)
 , mShowCoord(false)
 , mShowBoxInfo(true)
-, mWasZoomed(false)
+, mHavePreFullPlacement(false)
 , mHexMode(false)
 , mShowSourceYuv(true)
 , mRgbHex(_T("%02X\n%02X\n%02X"))
@@ -129,6 +136,9 @@ CViewerView::CViewerView()
 , mNewSel(false)
 , mDeltaIdx(-1)
 {
+	::ZeroMemory(&mPreFullPlacement, sizeof(mPreFullPlacement));
+	mPreFullPlacement.length = sizeof(mPreFullPlacement);
+
 	LOGFONT lf;
 
 	::ZeroMemory(&lf, sizeof(lf));
@@ -262,11 +272,16 @@ void CViewerView::AdjustWindowSize()
 
 void CViewerView::FitToWindow()
 {
-	// The frame size is unchanged, so OnSize did not run; refresh the canvas
-	// extent from the current client size in case Initialize() toggled the
-	// per-frame progress bar for the newly loaded source.
+	CRect rcClient;
+	GetClientRect(&rcClient);
+	mWClient = rcClient.Width();
+	mHClient = rcClient.Height();
+
+	// Refresh the canvas extent from the actual client size. During frame style
+	// changes OnSize can arrive after the first repaint, so do not rely on the
+	// cached size when fitting a full-screen transition.
 	mWCanvas = mWClient;
-	mHCanvas = mHClient - mHProgress;
+	mHCanvas = max(0, mHClient - mHProgress);
 
 	// Scale the freshly loaded image so the whole image is visible in the
 	// current viewport, without touching the frame size. Mirroring common
@@ -1696,32 +1711,69 @@ void CViewerView::ToggleFullScreen()
 {
 	// In this SDI app the view's parent is CMainFrame.
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
-	mFullMode = !mFullMode;
+	if (pMainFrm == NULL)
+		return;
 
-	if (mFullMode) {
-		pMainFrm->SetMenu(NULL);
-		if (pMainFrm->IsZoomed()) {
-			pMainFrm->SendMessage(WM_SYSCOMMAND, SC_RESTORE,
-				(LPARAM)pMainFrm->GetSafeHwnd());
-			mWasZoomed = true;
+	const bool entering = !mFullMode;
+	pMainFrm->SetRedraw(FALSE);
+	SetRedraw(FALSE);
+	::LockWindowUpdate(pMainFrm->GetSafeHwnd());
+	KillTimer(VIEWER_FULLSCREEN_DWM_TIMER);
+	BOOL disableDwmTransitions = TRUE;
+	::DwmSetWindowAttribute(pMainFrm->GetSafeHwnd(),
+		DWMWA_TRANSITIONS_FORCEDISABLED,
+		&disableDwmTransitions,
+		sizeof(disableDwmTransitions));
+
+	if (entering) {
+		mPreFullPlacement.length = sizeof(mPreFullPlacement);
+		mHavePreFullPlacement = pMainFrm->GetWindowPlacement(&mPreFullPlacement) != FALSE;
+		if (mPreFullPlacement.showCmd == SW_SHOWMINIMIZED)
+			mPreFullPlacement.showCmd = SW_SHOWNORMAL;
+
+		mFullMode = true;
+
+		MONITORINFO mi = {};
+		mi.cbSize = sizeof(mi);
+		HMONITOR hmon = ::MonitorFromWindow(pMainFrm->GetSafeHwnd(), MONITOR_DEFAULTTONEAREST);
+		if (::GetMonitorInfo(hmon, &mi)) {
+			CRect rc(mi.rcMonitor);
+			pMainFrm->SetMenu(NULL);
+			pMainFrm->ModifyStyle(
+				WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX,
+				WS_POPUP, 0);
+			pMainFrm->SetWindowPos(&CWnd::wndTop, rc.left, rc.top,
+				rc.Width(), rc.Height(),
+				SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOREDRAW);
 		}
-		pMainFrm->ModifyStyle(WS_CAPTION | WS_SYSMENU, WS_POPUP, SWP_FRAMECHANGED);
-		pMainFrm->SendMessage(WM_SYSCOMMAND, SC_MAXIMIZE,
-			(LPARAM)pMainFrm->GetSafeHwnd());
 	} else {
+		mFullMode = false;
 		HMENU hMenu = ::LoadMenu(theApp.m_hInstance, MAKEINTRESOURCE(IDR_MAINFRAME));
 		::SetMenu(pMainFrm->GetSafeHwnd(), hMenu);
-		pMainFrm->ModifyStyle(WS_POPUP, WS_CAPTION | WS_SYSMENU, SWP_FRAMECHANGED);
+		pMainFrm->ModifyStyle(WS_POPUP,
+			WS_OVERLAPPED | WS_CAPTION | FWS_ADDTOTITLE |
+			WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU | WS_THICKFRAME,
+			0);
 		pMainFrm->AddMainMenu();
 		GetDocument()->UpdateMenu();
-		pMainFrm->SendMessage(WM_SYSCOMMAND, SC_RESTORE,
-			(LPARAM)pMainFrm->GetSafeHwnd());
-		if (mWasZoomed) {
-			pMainFrm->SendMessage(WM_SYSCOMMAND, SC_MAXIMIZE,
-				(LPARAM)pMainFrm->GetSafeHwnd());
-			mWasZoomed = false;
-		}
+		if (mHavePreFullPlacement)
+			pMainFrm->SetWindowPlacement(&mPreFullPlacement);
+		else
+			pMainFrm->ShowWindow(SW_RESTORE);
+		pMainFrm->SetWindowPos(NULL, 0, 0, 0, 0,
+			SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+			SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOREDRAW);
 	}
+
+	pMainFrm->RecalcLayout(TRUE);
+	FitToWindow();
+	pMainFrm->SetRedraw(TRUE);
+	SetRedraw(TRUE);
+	::LockWindowUpdate(NULL);
+	pMainFrm->SetForegroundWindow();
+	pMainFrm->RedrawWindow(NULL, NULL,
+		RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_FRAME | RDW_ERASE);
+	SetTimer(VIEWER_FULLSCREEN_DWM_TIMER, VIEWER_FULLSCREEN_DWM_DELAY_MS, NULL);
 }
 
 void CViewerView::ToggleHelp()
@@ -2049,6 +2101,16 @@ void CViewerView::OnDestroy()
 {
 	CView::OnDestroy();
 
+	KillTimer(VIEWER_FULLSCREEN_DWM_TIMER);
+	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+	if (pMainFrm != NULL) {
+		BOOL disableDwmTransitions = FALSE;
+		::DwmSetWindowAttribute(pMainFrm->GetSafeHwnd(),
+			DWMWA_TRANSITIONS_FORCEDISABLED,
+			&disableDwmTransitions,
+			sizeof(disableDwmTransitions));
+	}
+
 	mBufferPool->disable();
 	mBufferQueue->destroy();
 	KillPlayTimer();
@@ -2088,6 +2150,24 @@ void CViewerView::OnSize(UINT nType, int cx, int cy)
 	mYDst = q1::DeterminDestPos(mHCanvas, mHDst, mYOff, mN);
 
 	mRcProgress.SetRect(0, mHCanvas, mWClient, mHClient);
+}
+
+void CViewerView::OnTimer(UINT_PTR nIDEvent)
+{
+	if (nIDEvent == VIEWER_FULLSCREEN_DWM_TIMER) {
+		KillTimer(VIEWER_FULLSCREEN_DWM_TIMER);
+		CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+		if (pMainFrm != NULL) {
+			BOOL disableDwmTransitions = FALSE;
+			::DwmSetWindowAttribute(pMainFrm->GetSafeHwnd(),
+				DWMWA_TRANSITIONS_FORCEDISABLED,
+				&disableDwmTransitions,
+				sizeof(disableDwmTransitions));
+		}
+		return;
+	}
+
+	CView::OnTimer(nIDEvent);
 }
 
 void CViewerView::OnRButtonUp(UINT nFlags, CPoint point)

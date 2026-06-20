@@ -7,6 +7,7 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 ## [Unreleased]
 
 ### Changed
+- Viewer: pressing `Esc` now exits full-screen mode and returns to the previous normal window state, even when focus is in the thumbnail drawer or another Viewer child control. `Return` still toggles full screen. (issue #82)
 - Viewer: the thumbnail drawer now always starts closed, so every launch looks like the classic Viewer and the drawer appears only when you open it (the `E` shortcut). Its width is still remembered, so it reopens at the size you last used; only the open/closed state is no longer persisted.
 - Viewer: when the thumbnail drawer has focus, `PgUp`/`PgDn` now step the selection to the previous/next file (matching the main view's file navigation) instead of scrolling by a page — in the gallery grid the page was the whole list, so they had simply duplicated `Home`/`End`. They move the selection only (arrow keys still browse folders; `Enter`/double-click still opens), while `Home`/`End` continue to jump to the first/last item. (issue #84)
 
