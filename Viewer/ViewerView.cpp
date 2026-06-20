@@ -7,6 +7,7 @@
 
 #include "ViewerDoc.h"
 #include "ViewerView.h"
+#include "ViewerFileOrder.h"
 
 #include "QMath.h"
 #include "QDebug.h"
@@ -1637,97 +1638,40 @@ cv::Mat CViewerView::GetRoiMat()
 	return CreateRoiMat(x0, y0, w, h);
 }
 
-inline void FindFirstFileName(CString *candidate, CFileFind &finder,
-						  CString &rPathName, BOOL &bWorking)
-{
-	while (bWorking) {
-		bWorking = finder.FindNextFile();
-
-		if (finder.IsDirectory())
-			continue;
-
-		CString &curPath = finder.GetFilePath();
-		if (rPathName == curPath)
-			break;
-
-		*candidate = curPath;
-		break;
-	}
-}
-
-inline void FindLastFileName(CString *candidate, CFileFind &finder, BOOL &bWorking)
-{
-	while (bWorking) {
-		bWorking = finder.FindNextFile();
-		if (finder.IsDirectory())
-			continue;
-
-		*candidate = finder.GetFilePath();
-	}
-}
-
-inline void FindPriorFileName(CString *candidate, CFileFind &finder,
-						  CString &rPathName, BOOL &bWorking)
-{
-	while (bWorking) {
-		bWorking = finder.FindNextFile();
-
-		if (finder.IsDirectory())
-			continue;
-
-		CString &curPath = finder.GetFilePath();
-		if (rPathName == curPath)
-			break;
-		else
-			*candidate = curPath;
-	}
-}
-
-inline void FindNextFileName(CString *candidate, CFileFind &finder,
-						  CString &rPathName, BOOL &bWorking)
-{
-	while (bWorking) {
-		bWorking = finder.FindNextFile();
-
-		if (finder.IsDirectory())
-			continue;
-
-		if (rPathName != finder.GetFilePath())
-			continue;
-
-		while (bWorking) {
-			bWorking = finder.FindNextFile();
-
-			if (finder.IsDirectory())
-				continue;
-
-			*candidate = finder.GetFilePath();
-			break;
-		}
-		break;
-	}
-}
-
 bool CViewerView::FindFile(CViewerDoc* pDoc, UINT nChar)
 {
-	CFileFind finder;
-	BOOL bWorking = finder.FindFile(pDoc->mPurePathRegex);
+	std::vector<CString> files;
+	q1view::CollectSortedFilePaths(pDoc->mPurePathRegex, files);
+
 	CString candidate = _T("");
+	int cur = -1;
+	for (int i = 0; i < (int)files.size(); i++) {
+		if (files[i].CompareNoCase(pDoc->mPathName) == 0) {
+			cur = i;
+			break;
+		}
+	}
+
 	switch (nChar) {
 	case VK_PRIOR:
-		FindPriorFileName(&candidate, finder, pDoc->mPathName, bWorking);
+		if (cur > 0)
+			candidate = files[cur - 1];
+		else if (cur < 0 && !files.empty())
+			candidate = files.back();
 		break;
 	case VK_NEXT:
-		FindNextFileName(&candidate, finder, pDoc->mPathName, bWorking);
+		if (cur >= 0 && cur + 1 < (int)files.size())
+			candidate = files[cur + 1];
 		break;
 	case VK_HOME:
-		FindFirstFileName(&candidate, finder, pDoc->mPathName, bWorking);
+		if (!files.empty() && cur != 0)
+			candidate = files.front();
 		break;
 	case VK_END:
-		FindLastFileName(&candidate, finder, bWorking);
+		if (!files.empty() && cur != (int)files.size() - 1)
+			candidate = files.back();
 		break;
 	}
-	finder.Close();
 
 	if (candidate != _T("")) {
 		// Folder navigation keeps the current window size and fits the next

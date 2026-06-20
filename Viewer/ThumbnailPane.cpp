@@ -16,6 +16,8 @@
 
 #include "QViewerCmn.h"
 #include "QCvUtil.h"
+#include "ViewerFileOrder.h"
+#include "ViewerFileTypes.h"
 
 #include <opencv2/imgproc/imgproc.hpp>
 
@@ -69,6 +71,7 @@ CThumbnailPane::CThumbnailPane()
 : mThumb(kListThumb)
 , mViewStep(kDefaultStep)
 , mSlideWidth(0)
+, mResizing(false)
 , mLoadingImg(-1)
 , mFolderImg(-1)
 , mCacheCap(512)
@@ -206,12 +209,12 @@ void CThumbnailPane::OnSize(UINT nType, int cx, int cy)
 	if (!IsGrid()) {
 		// Single column fills the client width so there is no horizontal scrollbar.
 		SetColumnWidth(0, cx);
-	} else if (mSlideWidth <= 0) {
+	} else if (mSlideWidth <= 0 && !mResizing) {
 		// The drawer is user-resizable, so the per-tile width (= pane width / cols)
 		// changes with it; re-fit the tiles once the resize settles. Suppressed while
-		// an open/close slide is in flight -- the tiles are already sized for the
-		// final width, and the icon view reveals them as the column grows/shrinks
-		// without resizing or repopulating each frame.
+		// an open/close slide is in flight (the tiles are already sized for the final
+		// width) or while the user is live-dragging the splitter (re-fit once at the
+		// end, in SetResizing) -- otherwise the grid repopulates on every frame.
 		ScheduleRelayout();
 	}
 	ShowScrollBar(SB_HORZ, FALSE);
@@ -430,6 +433,18 @@ void CThumbnailPane::BeginSlide(int targetWidth)
 
 // The slide finished: drop the locks and settle into the real (now final) width,
 // restoring normal auto-arrange so later resizes (divider drags) reflow as usual.
+// Bracket a live splitter drag: while resizing, OnSize skips the grid re-fit so the
+// tiles only reflow; when it ends, re-fit once to the final width.
+void CThumbnailPane::SetResizing(bool on)
+{
+	mResizing = on;
+	if (on) {
+		KillTimer(kRelayoutTimerId);   // cancel any pending re-fit
+	} else if (IsGrid() && GetSafeHwnd()) {
+		RelayoutGrid();
+	}
+}
+
 void CThumbnailPane::EndSlide()
 {
 	mSlideWidth = 0;
@@ -619,43 +634,6 @@ void CThumbnailPane::Shutdown()
 	CacheClear();
 }
 
-// ---------------------------------------------------------------------------
-// Extension classification
-// ---------------------------------------------------------------------------
-
-bool CThumbnailPane::IsDecodableExt(const CString &ext)
-{
-	static const LPCTSTR kExts[] = {
-		_T("bmp"), _T("jpg"), _T("jpeg"), _T("png"), _T("tif"), _T("tiff"),
-		_T("webp"), _T("heic"), _T("heif"), _T("hif"), _T("avif")
-	};
-	for (int i = 0; i < _countof(kExts); i++)
-		if (ext.CompareNoCase(kExts[i]) == 0)
-			return true;
-	return false;
-}
-
-bool CThumbnailPane::IsVideoExt(const CString &ext)
-{
-	static const LPCTSTR kExts[] = {
-		_T("mp4"), _T("m4v"), _T("mov"), _T("avi"), _T("mkv"), _T("webm"),
-		_T("wmv"), _T("mpg"), _T("mpeg"), _T("flv"), _T("3gp"), _T("ts"), _T("m2ts")
-	};
-	for (int i = 0; i < _countof(kExts); i++)
-		if (ext.CompareNoCase(kExts[i]) == 0)
-			return true;
-	return false;
-}
-
-// Images and videos can be turned into a real pixel thumbnail (the Windows shell
-// thumbnails videos, EXIF-embedded JPEGs, etc.; OpenCV covers the rest). Raw
-// formats (yuv/rgb -- no known pixel layout) and every other type fall back to an
-// extension badge.
-bool CThumbnailPane::IsThumbnailable(const CString &ext)
-{
-	return IsDecodableExt(ext) || IsVideoExt(ext);
-}
-
 static CString ExtensionOf(const CString &path)
 {
 	int dot = path.ReverseFind(_T('.'));
@@ -749,7 +727,7 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		std::vector<CString> dirs;
 		std::vector<CString> files;
 		CFileFind finder;
-		BOOL working = finder.FindFile(folder + _T("*.*"));
+		BOOL working = finder.FindFile(folder + _T("*"));
 		while (working) {
 			working = finder.FindNextFile();
 			if (finder.IsDots())
@@ -766,21 +744,10 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		}
 		finder.Close();
 
-		struct ByName {
-			bool operator()(const CString &a, const CString &b) const
-			{
-				// Ordinal, case-insensitive compare so the drawer order matches the
-				// main view's CFileFind/NTFS enumeration. A locale word-sort
-				// (lstrcmpi) puts names beginning with '_' first, but the filesystem
-				// -- and the viewer's PgUp/PgDn file navigation -- list them last; the
-				// mismatch meant the drawer's "first" file could actually be near the
-				// end, so paging from it stalled almost immediately (issue #84).
-				return CompareStringOrdinal(PathFindFileName(a), -1,
-					PathFindFileName(b), -1, TRUE) == CSTR_LESS_THAN;
-			}
-		};
-		std::sort(dirs.begin(), dirs.end(), ByName());
-		std::sort(files.begin(), files.end(), ByName());
+		// Match the main view's PgUp/PgDn/Home/End order exactly: both paths now use
+		// the same ordinal, case-insensitive filename sort helper.
+		std::sort(dirs.begin(), dirs.end(), q1view::LessFileNameOrdinal);
+		std::sort(files.begin(), files.end(), q1view::LessFileNameOrdinal);
 
 		// Parent ("..") and sub-folders appear in the list step only; the grid is
 		// images-only.
@@ -802,7 +769,7 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		for (size_t i = 0; i < files.size(); i++) {
 			const CString &full = files[i];
 			CString ext = ExtensionOf(full);
-			bool thumbable = IsThumbnailable(ext);
+			bool thumbable = q1view::IsViewerThumbnailableExt(ext);
 
 			// Images and videos get a thumbnail (a light placeholder until decoded,
 			// applied lazily as the row scrolls into view); raw formats and any other

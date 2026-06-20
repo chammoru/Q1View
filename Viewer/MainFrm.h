@@ -78,7 +78,20 @@ public:
 protected:
 	// Flat, subtle divider instead of the default 3D splitter bar.
 	virtual void OnDrawSplitter(CDC *pDC, ESplitType nType, const CRect &rect);
+	// Live-resize the panes as the divider is dragged, instead of CSplitterWnd's
+	// default XOR "ghost" bar -- the ghost was drawn over the thumbnails and
+	// flickered, and let the divider overshoot the minimum then snap back on release
+	// (issue #85). We track the drag ourselves, clamp to the min widths, and resize
+	// the columns in real time.
+	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+	afx_msg void OnCaptureChanged(CWnd *pWnd);
+	afx_msg void OnCancelMode();
+
+	bool OnBar(CPoint point) const;   // is point on the divider bar?
+	void FinishDrag(bool releaseCapture);
+	bool mDragging = false;           // our own live-resize drag is in progress
 	DECLARE_MESSAGE_MAP()
 };
 
@@ -133,6 +146,7 @@ private:
 	bool mDrawerVisible;
 	int  mDrawerWidth;
 	bool mSplitterReady;
+	bool mDrawerResizing = false;   // user is live-dragging the divider
 
 	// Open/close slide animation state. The drawer column slides between 0 and
 	// mDrawerWidth while the frame size stays fixed (the image view absorbs the
@@ -179,8 +193,12 @@ public:
 	int  GetDrawerReservedWidth() const;
 	// Called by the document when the active file changes, to sync the drawer.
 	void OnDocPathChanged(LPCTSTR lpszPath);
-	// Called by CDrawerSplitter after the user finishes dragging the divider:
-	// adopts the new drawer width (clamped) and refits the image to the view.
+	// Called by CDrawerSplitter when the user starts/finishes dragging the divider.
+	// Track-begin pauses the grid's per-resize re-fit so it doesn't churn during the
+	// live drag; dragged adopts the new drawer width (clamped), refits the image, and
+	// re-fits the grid once.
+	void OnDrawerDividerTrackBegin();
+	void OnDrawerDividerTracking();
 	void OnDrawerDividerDragged();
 	// Show/hide the full-window help overlay ('?' key or the Help menu).
 	void ToggleHelpOverlay();
@@ -217,7 +235,7 @@ private:
 	void ApplyDrawerColumn(int drawerCol);
 	void FinalizeDrawerAnimation();
 	// Refit the image into the current view column (after a drawer resize).
-	void RefitView();
+	void RefitView(bool updateNow = false);
 	afx_msg LRESULT Reload(WPARAM wParam, LPARAM lParam);
 	afx_msg BOOL OnCopyData(CWnd *pWnd, COPYDATASTRUCT *pCopyDataStruct);
 	afx_msg LRESULT OnApplySyncInput(WPARAM wParam, LPARAM lParam);

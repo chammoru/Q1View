@@ -50,6 +50,10 @@ public:
 	void BeginSlide(int targetWidth);
 	void EndSlide();
 
+	// While the user live-drags the splitter, skip the per-resize grid re-fit; the
+	// tiles just reflow. Passing false re-fits once at the final width.
+	void SetResizing(bool on);
+
 	// Owner-drawn rows: thumbnail / extension badge / plain folder text.
 	virtual void DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct);
 
@@ -117,18 +121,13 @@ private:
 	static HBITMAP DecodeThumbnailShell(const CString &path, int size, bool crop, COLORREF bg);
 	static HBITMAP DecodeThumbnailCv(const CString &path, int size, bool crop, COLORREF bg);
 
-	static bool IsDecodableExt(const CString &ext);
-	static bool IsVideoExt(const CString &ext);
-	// True for types we can turn into a real pixel thumbnail (images + videos);
-	// everything else (raw, documents, ...) is shown as an extension badge.
-	static bool IsThumbnailable(const CString &ext);
-
 	CImageList mImages;
 	CFont      mLabelFont;
 	CFont      mExtFont;
 	int        mThumb;                 // icon edge size in px (follows mViewStep)
 	int        mViewStep;              // 0 = list, >=1 = grid step
 	int        mSlideWidth;            // >0 while open/close sliding: lay out for this width
+	bool       mResizing;             // true while live-dragging the splitter: skip re-fit
 
 	enum EntryKind { ENTRY_PARENT, ENTRY_DIR, ENTRY_FILE };
 	struct Entry {

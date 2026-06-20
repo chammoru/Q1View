@@ -13,6 +13,7 @@
 #include "ViewerView.h"
 #include "ThumbnailPane.h"
 #include "StoreUpdate.h"
+#include "ViewerFileTypes.h"
 
 #include "QCommon.h"
 
@@ -114,8 +115,102 @@ END_MESSAGE_MAP()
 // ---------------------------------------------------------------------------
 
 BEGIN_MESSAGE_MAP(CDrawerSplitter, CSplitterWnd)
+	ON_WM_LBUTTONDOWN()
 	ON_WM_LBUTTONUP()
+	ON_WM_MOUSEMOVE()
+	ON_WM_CAPTURECHANGED()
+	ON_WM_CANCELMODE()
 END_MESSAGE_MAP()
+
+// The divider bar is the gap between the image view (column 0) and the drawer
+// (column 1): client x in [col0 width, col0 width + bar], full height.
+bool CDrawerSplitter::OnBar(CPoint point) const
+{
+	int bar = BarWidth();
+	if (bar <= 0)
+		return false;   // divider hidden (drawer closed)
+	int cur0 = 0, min0 = 0;
+	const_cast<CDrawerSplitter *>(this)->GetColumnInfo(0, cur0, min0);
+	return point.x >= cur0 && point.x <= cur0 + bar;
+}
+
+void CDrawerSplitter::OnLButtonDown(UINT nFlags, CPoint point)
+{
+	if (OnBar(point)) {
+		// Start our own live-resize drag (no XOR ghost). The frame pauses the grid's
+		// re-fit until the drag ends so the thumbnails reflow once, at the final size.
+		mDragging = true;
+		SetCapture();
+		if (mFrame != NULL)
+			mFrame->OnDrawerDividerTrackBegin();
+		return;
+	}
+	CSplitterWnd::OnLButtonDown(nFlags, point);
+}
+
+void CDrawerSplitter::OnMouseMove(UINT nFlags, CPoint point)
+{
+	if (mDragging) {
+		::SetCursor(::LoadCursor(NULL, IDC_SIZEWE));
+		CRect rc;
+		GetClientRect(&rc);
+		int bar = BarWidth();
+		// col0 is the image view's width; its bounds keep the drawer within
+		// [DRAWER_MIN_W, DRAWER_MAX_W] and the image view at >= DRAWER_MIN_IMAGE.
+		// Without the max-drawer bound a wide (maximized) window let the divider run
+		// far left and then snap back to the max on release (issue #85).
+		int lo = rc.Width() - bar - DRAWER_MAX_W;     // drawer's maximum width
+		if (lo < DRAWER_MIN_IMAGE)
+			lo = DRAWER_MIN_IMAGE;                    // image view's minimum width
+		int hi = rc.Width() - bar - DRAWER_MIN_W;     // drawer's minimum width
+		if (hi < lo)
+			hi = lo;
+		int col0 = point.x;
+		if (col0 < lo) col0 = lo;
+		else if (col0 > hi) col0 = hi;
+		int col1 = rc.Width() - bar - col0;
+		if (col1 < 0) col1 = 0;
+		SetColumnInfo(0, col0, DRAWER_MIN_IMAGE);
+		SetColumnInfo(1, col1, DRAWER_MIN_W);
+		RecalcLayout();
+		if (mFrame != NULL)
+			mFrame->OnDrawerDividerTracking();
+		return;
+	}
+	CSplitterWnd::OnMouseMove(nFlags, point);
+}
+
+void CDrawerSplitter::OnLButtonUp(UINT nFlags, CPoint point)
+{
+	if (mDragging) {
+		FinishDrag(true);
+		return;
+	}
+	CSplitterWnd::OnLButtonUp(nFlags, point);
+}
+
+void CDrawerSplitter::OnCaptureChanged(CWnd *pWnd)
+{
+	if (mDragging)
+		FinishDrag(false);
+	CSplitterWnd::OnCaptureChanged(pWnd);
+}
+
+void CDrawerSplitter::OnCancelMode()
+{
+	if (mDragging)
+		FinishDrag(true);
+	CSplitterWnd::OnCancelMode();
+}
+
+void CDrawerSplitter::FinishDrag(bool releaseCapture)
+{
+	mDragging = false;
+	if (releaseCapture && ::GetCapture() == GetSafeHwnd())
+		ReleaseCapture();
+	if (mFrame != NULL)
+		mFrame->OnDrawerDividerDragged();
+}
 
 void CDrawerSplitter::OnDrawSplitter(CDC *pDC, ESplitType nType, const CRect &rect)
 {
@@ -134,14 +229,6 @@ void CDrawerSplitter::OnDrawSplitter(CDC *pDC, ESplitType nType, const CRect &re
 	line.left += (rect.Width() - 1) / 2;
 	line.right = line.left + 1;
 	pDC->FillSolidRect(line, Q1UI_COLOR_BORDER);
-}
-
-void CDrawerSplitter::OnLButtonUp(UINT nFlags, CPoint point)
-{
-	BOOL wasTracking = m_bTracking;
-	CSplitterWnd::OnLButtonUp(nFlags, point);   // applies the new split
-	if (wasTracking && mFrame != NULL)
-		mFrame->OnDrawerDividerDragged();
 }
 
 // ---------------------------------------------------------------------------
@@ -445,11 +532,7 @@ void CMainFrame::OnHelp()
 
 void CMainFrame::OnFileOpen()
 {
-	TCHAR name_filter[] =
-		_T("All Files (*.*)|*.*|")
-		_T("Image Files (*.bmp;*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.webp;*.heic;*.heif;*.hif;*.avif)|*.bmp;*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.webp;*.heic;*.heif;*.hif;*.avif|")
-		_T("YUV Files (*.yuv)|*.yuv|")
-		_T("RGB Files (*.rgb)|*.rgb|");
+	CString name_filter = q1view::OpenFileFilter();
 
 	CFileDialog ins_dlg(TRUE, _T("All Files (*.*)"), _T("*.*"),
 		OFN_HIDEREADONLY, name_filter, NULL);
@@ -852,29 +935,70 @@ int CMainFrame::GetDrawerReservedWidth() const
 	return mDrawerVisible ? (mDrawerWidth + DRAWER_SPLIT_BAR) : 0;
 }
 
-void CMainFrame::OnDrawerDividerDragged()
+void CMainFrame::OnDrawerDividerTrackBegin()
+{
+	// Pause the grid's per-resize re-fit (repopulate) for the duration of the live
+	// drag; the tiles reflow at their current size and re-fit once when the drag ends.
+	// mDrawerResizing also holds the menu-bar repaint until the drag settles.
+	mDrawerResizing = true;
+	if (mpDrawer != NULL && ::IsWindow(mpDrawer->GetSafeHwnd()))
+		mpDrawer->SetResizing(true);
+}
+
+void CMainFrame::OnDrawerDividerTracking()
 {
 	if (!mSplitterReady || mDrawerAnimating)
 		return;
 
-	// Adopt the width the user dragged the drawer column to, clamped to the
-	// shared bounds, then re-pin (enforces the minimum image view) and refit.
-	int cur = 0, mn = 0;
-	mwndSplitter.GetColumnInfo(1, cur, mn);
-	if (cur < DRAWER_MIN_W) cur = DRAWER_MIN_W;
-	if (cur > DRAWER_MAX_W) cur = DRAWER_MAX_W;
-	mDrawerWidth = cur;
+	// The splitter has already resized the child panes. Refit and repaint the image
+	// view in the same mouse-move pass, otherwise the newly exposed area can briefly
+	// show stale pixels while Windows waits for the next paint message.
+	RefitView(true);
 
-	PinDrawerColumn();
-	RefitView();
+	if (mpDrawer != NULL && ::IsWindow(mpDrawer->GetSafeHwnd())) {
+		mpDrawer->RedrawWindow(NULL, NULL,
+			RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASE | RDW_ALLCHILDREN);
+	}
+	mwndSplitter.RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOERASE);
 }
 
-void CMainFrame::RefitView()
+void CMainFrame::OnDrawerDividerDragged()
+{
+	bool commit = mSplitterReady && !mDrawerAnimating;
+	if (commit) {
+		// Adopt the width the user dragged the drawer column to, clamped to the
+		// shared bounds, then re-pin (enforces the minimum image view) and refit.
+		int cur = 0, mn = 0;
+		mwndSplitter.GetColumnInfo(1, cur, mn);
+		if (cur < DRAWER_MIN_W) cur = DRAWER_MIN_W;
+		if (cur > DRAWER_MAX_W) cur = DRAWER_MAX_W;
+		mDrawerWidth = cur;
+	}
+
+	// Clear before refitting so the one refit below repaints the menu bar (the
+	// magnification readout) a single time at the final size. This must happen
+	// even if capture was cancelled and the final width is not committed.
+	mDrawerResizing = false;
+	if (commit) {
+		PinDrawerColumn();
+		RefitView();
+	}
+
+	// Resume and re-fit the grid once at the final width.
+	if (mpDrawer != NULL && ::IsWindow(mpDrawer->GetSafeHwnd()))
+		mpDrawer->SetResizing(false);
+}
+
+void CMainFrame::RefitView(bool updateNow)
 {
 	CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
 	if (pView != NULL) {
 		pView->FitToWindow();
-		pView->Invalidate(FALSE);
+		if (updateNow) {
+			pView->RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOERASE);
+		} else {
+			pView->Invalidate(FALSE);
+		}
 	}
 }
 
@@ -1053,12 +1177,12 @@ void CMainFrame::UpdateMagnication(float n, int wDst, int hDst)
 
 	GetMenu()->ModifyMenu(ID_MAGNIFY, MF_BYCOMMAND | MF_RIGHTJUSTIFY | MF_GRAYED, ID_MAGNIFY, str);
 
-	// While the drawer slides, the image refits every frame, so this ran ~12 times
-	// in a fifth of a second; DrawMenuBar repaints the whole (non-buffered) menu bar
-	// each time, which read as a flicker. Update the label text now but defer the
-	// repaint -- FinalizeDrawerAnimation refits once more after the slide (with
-	// mDrawerAnimating cleared), drawing the final value a single time.
-	if (!mDrawerAnimating)
+	// While the drawer slides or the divider is dragged, the image refits every
+	// frame; DrawMenuBar repaints the whole (non-buffered) menu bar each time, which
+	// read as a flicker. Update the label text now but defer the repaint -- the
+	// refit after the slide/drag settles (with these flags cleared) draws the final
+	// value a single time.
+	if (!mDrawerAnimating && !mDrawerResizing)
 		DrawMenuBar();
 }
 
