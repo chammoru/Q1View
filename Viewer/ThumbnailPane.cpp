@@ -68,6 +68,7 @@ END_MESSAGE_MAP()
 CThumbnailPane::CThumbnailPane()
 : mThumb(kListThumb)
 , mViewStep(kDefaultStep)
+, mSlideWidth(0)
 , mLoadingImg(-1)
 , mFolderImg(-1)
 , mCacheCap(512)
@@ -104,11 +105,23 @@ void CThumbnailPane::RecalcThumbSize()
 		return;
 	}
 	int cols = GridColsForStep(mViewStep);
-	CRect rc;
-	GetClientRect(&rc);
-	int w = rc.Width();
+	// While sliding open/closed, lay out for the drawer's final width so the tile
+	// size stays fixed and the content isn't repopulated at each intermediate width.
+	// Otherwise use the full pane width (the window rect spans the scrollbar region,
+	// so it doesn't change when the scrollbar shows or hides).
+	int w = mSlideWidth;
+	if (w <= 0) {
+		CRect rc;
+		GetWindowRect(&rc);
+		w = rc.Width();
+	}
 	if (w <= 0)
 		w = cols * 96;                       // no window yet; pick a sane default
+	// Always reserve the vertical scrollbar's width so the tile size and column count
+	// don't change when the scrollbar appears or disappears -- e.g. a view-step change
+	// that alters the row count would otherwise reflow the whole grid by a
+	// scrollbar-width as the bar toggled, a visible jolt.
+	w = std::max(cols * 16, w - ::GetSystemMetrics(SM_CXVSCROLL));
 	// The cell (tile + one gutter) tiles the width; the image fills the cell minus
 	// the gutter, so a hairline of background shows between neighbours.
 	mThumb = std::max(16, w / cols - kGridGutter);
@@ -193,9 +206,12 @@ void CThumbnailPane::OnSize(UINT nType, int cx, int cy)
 	if (!IsGrid()) {
 		// Single column fills the client width so there is no horizontal scrollbar.
 		SetColumnWidth(0, cx);
-	} else {
+	} else if (mSlideWidth <= 0) {
 		// The drawer is user-resizable, so the per-tile width (= pane width / cols)
-		// changes with it; re-fit the tiles once the resize settles.
+		// changes with it; re-fit the tiles once the resize settles. Suppressed while
+		// an open/close slide is in flight -- the tiles are already sized for the
+		// final width, and the icon view reveals them as the column grows/shrinks
+		// without resizing or repopulating each frame.
 		ScheduleRelayout();
 	}
 	ShowScrollBar(SB_HORZ, FALSE);
@@ -270,15 +286,54 @@ void CThumbnailPane::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 
 void CThumbnailPane::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
+	// PgUp/PgDn step the selection to the previous/next file, matching the main
+	// view's file navigation, instead of the list control's page scroll -- which in
+	// the grid (icon) view pages by the whole list and so just duplicated Home/End.
+	// (Selection only; Enter/double-click still opens.)
+	if (nChar == VK_PRIOR || nChar == VK_NEXT) {
+		StepFile(nChar == VK_NEXT);
+		ScheduleVisibleScan();
+		return;
+	}
+
 	CListCtrl::OnKeyDown(nChar, nRepCnt, nFlags);
 	switch (nChar) {
 	case VK_UP: case VK_DOWN: case VK_LEFT: case VK_RIGHT:
-	case VK_PRIOR: case VK_NEXT: case VK_HOME: case VK_END:
+	case VK_HOME: case VK_END:
 		ScheduleVisibleScan();
 		break;
 	default:
 		break;
 	}
+}
+
+// Move the selection one file earlier/later in list order, skipping folders and
+// the ".." entry so PgUp/PgDn walk only files (like the main view). Clamps at the
+// first/last file; does not open the file.
+void CThumbnailPane::StepFile(bool next)
+{
+	int n = (int)mEntries.size();
+	if (n == 0)
+		return;
+
+	int cur = GetNextItem(-1, LVNI_SELECTED);
+	if (cur < 0)
+		cur = GetNextItem(-1, LVNI_FOCUSED);
+
+	int target = -1;
+	if (next) {
+		for (int i = cur + 1; i < n; i++)           // cur < 0 -> starts at the first row
+			if (mEntries[i].kind == ENTRY_FILE) { target = i; break; }
+	} else {
+		int from = (cur < 0) ? n - 1 : cur - 1;     // no selection -> start from the last row
+		for (int i = from; i >= 0; i--)
+			if (mEntries[i].kind == ENTRY_FILE) { target = i; break; }
+	}
+	if (target < 0)
+		return;                                     // already at the first/last file
+
+	SetItemState(target, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+	EnsureVisible(target, FALSE);
 }
 
 void CThumbnailPane::ScheduleVisibleScan()
@@ -331,6 +386,66 @@ void CThumbnailPane::RelayoutGrid()
 	Populate(mFolder, current);
 }
 
+// Pin every grid tile to its final N-column position and stop the icon view from
+// auto-arranging, so that resizing the pane no longer reflows the columns. The
+// open/close slide then just reveals or clips this fixed layout instead of
+// re-packing the tiles into 1, 2, 3 ... N columns as the width passes through.
+void CThumbnailPane::FreezeGridLayout()
+{
+	if (!IsGrid() || !GetSafeHwnd())
+		return;
+	int n = GetItemCount();
+	if (n == 0) {
+		ModifyStyle(LVS_AUTOARRANGE, 0);
+		return;
+	}
+	// The items are still auto-arranged here, so item 0 sits at the icon view's own
+	// top-left inset. Anchor the frozen grid to that same inset so it lines up
+	// exactly with the auto-arranged layout EndSlide restores -- otherwise every row
+	// snapped by the inset (a couple of px) when the slide ended.
+	CPoint base(0, 0);
+	GetItemPosition(0, &base);
+	ModifyStyle(LVS_AUTOARRANGE, 0);
+	int cols = GridColsForStep(mViewStep);
+	int cell = mThumb + kGridGutter;          // same pitch SetIconSpacing uses
+	for (int i = 0; i < n; i++)
+		SetItemPosition(i, CPoint(base.x + (i % cols) * cell, base.y + (i / cols) * cell));
+}
+
+// The drawer is about to slide open or closed. Lock the grid to its final width and
+// column layout for the whole animation: the tiles keep one size (mSlideWidth feeds
+// RecalcThumbSize) and one column count (FreezeGridLayout pins them), so the slide
+// reveals/hides a stable grid instead of resizing and reflowing it frame by frame.
+void CThumbnailPane::BeginSlide(int targetWidth)
+{
+	// The drawer's final pane width; RecalcThumbSize reserves the scrollbar from it,
+	// the same way it does at rest, so the slide and resting layouts match exactly.
+	mSlideWidth = std::max(1, targetWidth);
+	// Freeze now if the grid already holds items (reopen / closing). On a fresh open
+	// the items are inserted right after, by SetCurrentFile -> Populate, which
+	// freezes them itself while sliding (mSlideWidth > 0).
+	if (IsGrid() && GetSafeHwnd() && GetItemCount() > 0)
+		FreezeGridLayout();
+}
+
+// The slide finished: drop the locks and settle into the real (now final) width,
+// restoring normal auto-arrange so later resizes (divider drags) reflow as usual.
+void CThumbnailPane::EndSlide()
+{
+	mSlideWidth = 0;
+	if (IsGrid() && GetSafeHwnd()) {
+		// Re-enable auto-arrange for later resizes. The frozen tiles already sit at
+		// their canonical positions, so no Arrange() is needed here. Scroll the
+		// current image into view now that the pane is full width -- the
+		// EnsureVisible during the (zero-width) slide couldn't.
+		ModifyStyle(0, LVS_AUTOARRANGE);
+		int sel = GetNextItem(-1, LVNI_SELECTED);
+		if (sel >= 0)
+			EnsureVisible(sel, FALSE);
+		QueueVisibleThumbs();
+	}
+}
+
 // Queue decodes only for files at (or one screen beyond) the visible region, so
 // scrolling never waits behind a folder-sized backlog. Cached thumbnails are
 // applied inline; raw/folders never decode.
@@ -346,11 +461,25 @@ void CThumbnailPane::QueueVisibleThumbs()
 
 	CRect client;
 	GetClientRect(&client);
-	int cw = std::max(1, (int)rc0.Width());
-	int chh = std::max(1, (int)rc0.Height());
-	int scrollY = -rc0.top;                          // pixels scrolled past item 0
+
+	// Row/column pitch used to map the scroll offset to a band of item indices.
+	// In the grid (icon view) the LVIR_BOUNDS height includes the empty label line
+	// below each tile, which is taller than the actual cell pitch; using it as the
+	// row stride undercounts firstRow, so after a large Home/End jump the queued
+	// band lands above the real viewport and the newly revealed tiles never decode
+	// (issue #84). The grid lays tiles out on the square spacing we set, so use that
+	// pitch. The list (report) step has one column whose row height is the bounds
+	// height, so keep rc0 there.
+	int cw, chh;
+	if (IsGrid()) {
+		cw = chh = std::max(1, mThumb + kGridGutter);
+	} else {
+		cw = std::max(1, (int)rc0.Width());
+		chh = std::max(1, (int)rc0.Height());
+	}
+	int scrollY = std::max(0, (int)-rc0.top);        // pixels scrolled past item 0
 	int cols = IsGrid() ? std::max(1, client.Width() / cw) : 1;
-	int firstRow = std::max(0, scrollY / chh);
+	int firstRow = scrollY / chh;
 	int rowsVisible = client.Height() / chh + 2;
 	int look = rowsVisible;                           // ~one screen of lookahead
 
@@ -361,7 +490,7 @@ void CThumbnailPane::QueueVisibleThumbs()
 		Entry &e = mEntries[i];
 		if (e.kind != ENTRY_FILE || e.queued)
 			continue;
-		if (IsRawExt(ExtensionOf(e.path)))
+		if (e.badge)                                  // raw + non-thumbnailable types
 			continue;
 		if (e.img >= 0 && e.img != mLoadingImg)
 			continue;                                 // already has a real thumb
@@ -401,8 +530,8 @@ void CThumbnailPane::DrawItem(LPDRAWITEMSTRUCT dis)
 
 	if (e.kind == ENTRY_FILE) {
 		CString ext = ExtensionOf(e.path);
-		if (IsRawExt(ext)) {
-			// Raw formats: extension badge instead of a thumbnail.
+		if (e.badge) {
+			// Raw formats and non-thumbnailable types: extension badge.
 			CRect badge(x, rc.top + 3, x + box - 6, rc.bottom - 3);
 			CBrush fill(Q1UI_COLOR_ACCENT_SOFT);
 			CPen   pen(PS_SOLID, 1, Q1UI_COLOR_ACCENT);
@@ -506,14 +635,25 @@ bool CThumbnailPane::IsDecodableExt(const CString &ext)
 	return false;
 }
 
-bool CThumbnailPane::IsRawExt(const CString &ext)
+bool CThumbnailPane::IsVideoExt(const CString &ext)
 {
-	return ext.CompareNoCase(_T("yuv")) == 0 || ext.CompareNoCase(_T("rgb")) == 0;
+	static const LPCTSTR kExts[] = {
+		_T("mp4"), _T("m4v"), _T("mov"), _T("avi"), _T("mkv"), _T("webm"),
+		_T("wmv"), _T("mpg"), _T("mpeg"), _T("flv"), _T("3gp"), _T("ts"), _T("m2ts")
+	};
+	for (int i = 0; i < _countof(kExts); i++)
+		if (ext.CompareNoCase(kExts[i]) == 0)
+			return true;
+	return false;
 }
 
-bool CThumbnailPane::IsSupportedExt(const CString &ext)
+// Images and videos can be turned into a real pixel thumbnail (the Windows shell
+// thumbnails videos, EXIF-embedded JPEGs, etc.; OpenCV covers the rest). Raw
+// formats (yuv/rgb -- no known pixel layout) and every other type fall back to an
+// extension badge.
+bool CThumbnailPane::IsThumbnailable(const CString &ext)
 {
-	return IsDecodableExt(ext) || IsRawExt(ext);
+	return IsDecodableExt(ext) || IsVideoExt(ext);
 }
 
 static CString ExtensionOf(const CString &path)
@@ -599,7 +739,7 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 			::GetLogicalDriveStrings(_countof(buf) - 1, buf);
 			for (TCHAR *d = buf; *d; d += lstrlen(d) + 1) {
 				InsertItem(row, d, FolderIconIndex());
-				Entry e; e.kind = ENTRY_DIR; e.path = d; e.img = -1; e.queued = false;
+				Entry e; e.kind = ENTRY_DIR; e.path = d; e.img = -1; e.queued = false; e.badge = false;
 				mEntries.push_back(e);
 				row++;
 			}
@@ -618,16 +758,26 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 				if (!finder.IsHidden() && !finder.IsSystem())
 					dirs.push_back(finder.GetFilePath());
 			} else {
-				CString full = finder.GetFilePath();
-				if (IsSupportedExt(ExtensionOf(full)))
-					files.push_back(full);
+				// List every file, not just images: the main view pages through
+				// the whole folder (PgUp/PgDn), so the drawer must hold each of
+				// those files for its selection to stay in sync (issue #84).
+				files.push_back(finder.GetFilePath());
 			}
 		}
 		finder.Close();
 
 		struct ByName {
 			bool operator()(const CString &a, const CString &b) const
-			{ return lstrcmpi(PathFindFileName(a), PathFindFileName(b)) < 0; }
+			{
+				// Ordinal, case-insensitive compare so the drawer order matches the
+				// main view's CFileFind/NTFS enumeration. A locale word-sort
+				// (lstrcmpi) puts names beginning with '_' first, but the filesystem
+				// -- and the viewer's PgUp/PgDn file navigation -- list them last; the
+				// mismatch meant the drawer's "first" file could actually be near the
+				// end, so paging from it stalled almost immediately (issue #84).
+				return CompareStringOrdinal(PathFindFileName(a), -1,
+					PathFindFileName(b), -1, TRUE) == CSTR_LESS_THAN;
+			}
 		};
 		std::sort(dirs.begin(), dirs.end(), ByName());
 		std::sort(files.begin(), files.end(), ByName());
@@ -637,13 +787,13 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		if (!grid) {
 			// ".." goes to the parent folder, or to the drive list at a drive root.
 			InsertItem(row, _T(".."), FolderIconIndex());
-			Entry pe; pe.kind = ENTRY_PARENT; pe.path = ParentFolderOf(folder); pe.img = -1; pe.queued = false;
+			Entry pe; pe.kind = ENTRY_PARENT; pe.path = ParentFolderOf(folder); pe.img = -1; pe.queued = false; pe.badge = false;
 			mEntries.push_back(pe);
 			row++;
 
 			for (size_t i = 0; i < dirs.size(); i++) {
 				InsertItem(row, PathFindFileName(dirs[i]), FolderIconIndex());
-				Entry e; e.kind = ENTRY_DIR; e.path = dirs[i] + _T("\\"); e.img = -1; e.queued = false;
+				Entry e; e.kind = ENTRY_DIR; e.path = dirs[i] + _T("\\"); e.img = -1; e.queued = false; e.badge = false;
 				mEntries.push_back(e);
 				row++;
 			}
@@ -652,23 +802,26 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		for (size_t i = 0; i < files.size(); i++) {
 			const CString &full = files[i];
 			CString ext = ExtensionOf(full);
-			bool raw = IsRawExt(ext);
+			bool thumbable = IsThumbnailable(ext);
 
-			// Images get a thumbnail (a light placeholder until decoded, applied
-			// lazily as the row scrolls into view); raw files show a badge.
+			// Images and videos get a thumbnail (a light placeholder until decoded,
+			// applied lazily as the row scrolls into view); raw formats and any other
+			// type (documents, archives, ...) show an extension badge so the file is
+			// still listed and stays selectable during PgUp/PgDn navigation.
 			int img;
-			if (raw) {
-				img = BadgeForExt(ext);
-			} else {
+			if (thumbable) {
 				HBITMAP cached = CacheFind(full);
 				img = cached ? AddImageCopy(cached) : mLoadingImg;
+			} else {
+				img = BadgeForExt(ext);
 			}
 
 			// The grid hides names; the list step draws the name itself (owner-draw)
 			// so its item text is only needed for keyboard type-ahead.
 			InsertItem(row, grid ? _T("") : PathFindFileName(full), img);
 			Entry e; e.kind = ENTRY_FILE; e.path = full;
-			e.img = raw ? -1 : img; e.queued = false;
+			e.badge = !thumbable;
+			e.img = thumbable ? img : -1; e.queued = false;
 			mEntries.push_back(e);
 			row++;
 		}
@@ -678,7 +831,10 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		// Cell = tile + a hairline gutter, so a thin background separator shows
 		// between tiles (issue #80); then reflow into as many columns as fit.
 		SetIconSpacing(mThumb + kGridGutter, mThumb + kGridGutter);
-		Arrange(LVA_DEFAULT);
+		if (mSlideWidth > 0)
+			FreezeGridLayout();    // mid-slide: pin the N-column layout, don't reflow
+		else
+			Arrange(LVA_DEFAULT);
 	} else {
 		CRect rc; GetClientRect(&rc);
 		SetColumnWidth(0, rc.Width());
@@ -982,14 +1138,24 @@ LRESULT CThumbnailPane::OnThumbReady(WPARAM wParam, LPARAM /*lParam*/)
 	if (r == NULL)
 		return 0;
 
-	if (r->hbmp && r->gen == mGen.load() && r->size == mThumb &&
-			r->index >= 0 && r->index < (int)mEntries.size() &&
-			mEntries[r->index].kind == ENTRY_FILE) {
+	bool current = r->gen == mGen.load() && r->size == mThumb &&
+		r->index >= 0 && r->index < (int)mEntries.size() &&
+		mEntries[r->index].kind == ENTRY_FILE;
+	if (r->hbmp && current) {
 		int img = AddImageCopy(r->hbmp);                // image list keeps its own copy
 		CacheStore(mEntries[r->index].path, r->hbmp);   // cache takes ownership
 
 		mEntries[r->index].img = img;                   // owner-draw (list) reads this
 		SetItem(r->index, 0, LVIF_IMAGE, NULL, img, 0, 0, 0); // icon view reads this
+		RedrawItems(r->index, r->index);
+	} else if (current) {
+		// The decode produced nothing (e.g., a video whose codec the shell can't
+		// thumbnail): fall back to an extension badge so the file is still shown and
+		// stays selectable, instead of a permanent blank placeholder (issue #84).
+		int badge = BadgeForExt(ExtensionOf(mEntries[r->index].path));
+		mEntries[r->index].badge = true;
+		mEntries[r->index].img = -1;
+		SetItem(r->index, 0, LVIF_IMAGE, NULL, badge, 0, 0, 0);
 		RedrawItems(r->index, r->index);
 	} else if (r->hbmp) {
 		::DeleteObject(r->hbmp);

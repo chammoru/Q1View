@@ -350,8 +350,10 @@ CMainFrame::CMainFrame()
 , mDrawerAnimSteps(DRAWER_ANIM_STEPS)
 , mUpdateMenuShown(false)
 {
-	// Default hidden: the first run looks exactly like the classic Viewer.
-	mDrawerVisible = AfxGetApp()->GetProfileInt(_T("Drawer"), _T("Visible"), 0) != 0;
+	// The drawer always starts closed -- every launch looks like the classic
+	// Viewer, and the user opens the drawer (E) only when they want it. Only its
+	// width is remembered, so it reopens at the size last used.
+	mDrawerVisible = false;
 	mDrawerWidth = AfxGetApp()->GetProfileInt(_T("Drawer"), _T("Width"), DRAWER_DEF_W);
 	if (mDrawerWidth < DRAWER_MIN_W) mDrawerWidth = DRAWER_MIN_W;
 	if (mDrawerWidth > DRAWER_MAX_W) mDrawerWidth = DRAWER_MAX_W;
@@ -741,6 +743,12 @@ void CMainFrame::StartDrawerAnimation(bool opening)
 	mDrawerAnimStep = 0;
 	mDrawerAnimSteps = DRAWER_ANIM_STEPS;
 
+	// Lock the grid to its final width for the whole slide so its tiles don't resize
+	// or repopulate frame by frame -- they are simply revealed/hidden as the column
+	// grows/shrinks (issue #84 follow-up).
+	if (mpDrawer && ::IsWindow(mpDrawer->GetSafeHwnd()))
+		mpDrawer->BeginSlide(mDrawerWidth);
+
 	if (opening) {
 		// Show the pane and start decoding thumbnails now so they appear during
 		// the slide. The window stays fixed; the image view gives up the width.
@@ -826,6 +834,10 @@ void CMainFrame::FinalizeDrawerAnimation()
 	PinDrawerColumn();
 	RefitView();
 
+	// Release the slide lock and settle the grid into its now-final width.
+	if (mpDrawer && ::IsWindow(mpDrawer->GetSafeHwnd()))
+		mpDrawer->EndSlide();
+
 	if (mDrawerVisible && mpDrawer && ::IsWindow(mpDrawer->GetSafeHwnd()))
 		mpDrawer->SetFocus();
 }
@@ -878,7 +890,7 @@ void CMainFrame::OnDestroy()
 	if (mDrawerWidth < DRAWER_MIN_W) mDrawerWidth = DRAWER_MIN_W;
 	if (mDrawerWidth > DRAWER_MAX_W) mDrawerWidth = DRAWER_MAX_W;
 
-	AfxGetApp()->WriteProfileInt(_T("Drawer"), _T("Visible"), mDrawerVisible ? 1 : 0);
+	// Only the width is persisted; the drawer always reopens closed (above).
 	AfxGetApp()->WriteProfileInt(_T("Drawer"), _T("Width"), mDrawerWidth);
 
 	CFrameWnd::OnDestroy();
@@ -1040,7 +1052,14 @@ void CMainFrame::UpdateMagnication(float n, int wDst, int hDst)
 	str.Format(_T("%dx%d (%.2fx)"), wDst, hDst, n);
 
 	GetMenu()->ModifyMenu(ID_MAGNIFY, MF_BYCOMMAND | MF_RIGHTJUSTIFY | MF_GRAYED, ID_MAGNIFY, str);
-	DrawMenuBar();
+
+	// While the drawer slides, the image refits every frame, so this ran ~12 times
+	// in a fifth of a second; DrawMenuBar repaints the whole (non-buffered) menu bar
+	// each time, which read as a flicker. Update the label text now but defer the
+	// repaint -- FinalizeDrawerAnimation refits once more after the slide (with
+	// mDrawerAnimating cleared), drawing the final value a single time.
+	if (!mDrawerAnimating)
+		DrawMenuBar();
 }
 
 void CMainFrame::ToggleSyncInput()

@@ -1,9 +1,11 @@
 // ThumbnailPane.h : left-side thumbnail explorer drawer for the Viewer.
 //
-// A CListCtrl (icon view) that lists the supported image/raw files in the
-// folder of the current document. Encoded images get an asynchronously decoded
-// thumbnail; raw formats (whose pixel layout can't be guessed) get a labeled
-// placeholder. Clicking / pressing Enter on an item opens it in the main view.
+// A CListCtrl (icon view) that lists every file in the folder of the current
+// document -- the same set the main view pages through with PgUp/PgDn -- so the
+// drawer selection always tracks the current file. Images and videos get an
+// asynchronously decoded thumbnail; raw formats (whose pixel layout can't be
+// guessed) and any other type get a labeled extension badge. Clicking / pressing
+// Enter on an item opens it in the main view.
 
 #pragma once
 
@@ -40,6 +42,14 @@ public:
 	// Stop the worker thread and release cached bitmaps. Safe to call twice.
 	void Shutdown();
 
+	// Open/close slide bracketing. While sliding, the grid is laid out for the
+	// drawer's final width and intermediate relayouts are suppressed, so the tiles
+	// keep one size and the content is revealed/hidden smoothly instead of
+	// resizing and repopulating mid-animation. targetWidth is the resting drawer
+	// width in pixels.
+	void BeginSlide(int targetWidth);
+	void EndSlide();
+
 	// Owner-drawn rows: thumbnail / extension badge / plain folder text.
 	virtual void DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct);
 
@@ -63,6 +73,8 @@ private:
 	struct Result { unsigned gen; int index; int size; HBITMAP hbmp; };
 
 	void Populate(const CString &folder, const CString &current);
+	void FreezeGridLayout();               // pin tiles to the N-column grid (no auto-arrange)
+	void StepFile(bool next);              // PgUp/PgDn: select prev/next file (no open)
 	void NavigateTo(const CString &folder);
 	void ActivateIndex(int index, bool allowNavigate);
 	void SelectByPath(const CString &path);
@@ -106,14 +118,17 @@ private:
 	static HBITMAP DecodeThumbnailCv(const CString &path, int size, bool crop, COLORREF bg);
 
 	static bool IsDecodableExt(const CString &ext);
-	static bool IsRawExt(const CString &ext);
-	static bool IsSupportedExt(const CString &ext);
+	static bool IsVideoExt(const CString &ext);
+	// True for types we can turn into a real pixel thumbnail (images + videos);
+	// everything else (raw, documents, ...) is shown as an extension badge.
+	static bool IsThumbnailable(const CString &ext);
 
 	CImageList mImages;
 	CFont      mLabelFont;
 	CFont      mExtFont;
 	int        mThumb;                 // icon edge size in px (follows mViewStep)
 	int        mViewStep;              // 0 = list, >=1 = grid step
+	int        mSlideWidth;            // >0 while open/close sliding: lay out for this width
 
 	enum EntryKind { ENTRY_PARENT, ENTRY_DIR, ENTRY_FILE };
 	struct Entry {
@@ -121,13 +136,14 @@ private:
 		CString   path;   // target folder for parent/dir; file path for file
 		int       img;    // image-list index for image thumbnails, else -1
 		bool      queued; // a decode task is already in flight for this entry
+		bool      badge;  // render an extension badge (raw / non-thumbnailable file)
 	};
 	std::vector<Entry> mEntries;       // item index -> entry
 	Entry      mPending;               // deferred load/navigate target
 	CString    mFolder;                // folder currently listed (trailing '\\')
 	int        mLoadingImg;            // image index shown while a thumb decodes
 	int        mFolderImg;             // image index for folder/parent tiles (grid)
-	std::map<CString, int> mBadgeByExt; // raw extension -> image-list badge index
+	std::map<CString, int> mBadgeByExt; // extension -> image-list badge index
 
 	std::map<CString, HBITMAP> mCache;
 	std::list<CString>         mCacheOrder;

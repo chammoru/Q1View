@@ -6,6 +6,19 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Changed
+- Viewer: the thumbnail drawer now always starts closed, so every launch looks like the classic Viewer and the drawer appears only when you open it (the `E` shortcut). Its width is still remembered, so it reopens at the size you last used; only the open/closed state is no longer persisted.
+- Viewer: when the thumbnail drawer has focus, `PgUp`/`PgDn` now step the selection to the previous/next file (matching the main view's file navigation) instead of scrolling by a page — in the gallery grid the page was the whole list, so they had simply duplicated `Home`/`End`. They move the selection only (arrow keys still browse folders; `Enter`/double-click still opens), while `Home`/`End` continue to jump to the first/last item. (issue #84)
+
+### Fixed
+- Viewer: resizing the gallery grid with Ctrl+wheel (e.g. from 3 to 2 columns) no longer jolts when the change makes the vertical scrollbar appear or disappear. The grid is now laid out as if the scrollbar is always present, so its width — and therefore the tile size and column count — no longer shifts by a scrollbar's width as the bar toggles.
+- Viewer: opening the thumbnail drawer now scrolls the current image into view, instead of leaving the list at the top.
+- Viewer: the menu bar no longer flickers while the thumbnail drawer slides open or closed. The image refits to the changing view width on every animation frame, and each refit refreshed the magnification readout in the menu with `DrawMenuBar`, repainting the whole (non-buffered) menu bar a dozen times in a fifth of a second. The readout text is still updated during the slide, but the menu is repainted only once, after the slide settles.
+- Viewer: opening or closing the thumbnail drawer in the gallery grid view no longer churns. As the panel slid, the grid both resized its tiles (briefly huge, built at the near-zero starting width) and re-packed its columns (1, then 2, then 3 ... up to the full count) as the width passed through, which was visually busy. The grid is now locked to its final tile size and column layout for the whole slide and simply revealed or hidden as the panel moves, so the thumbnails hold still instead of resizing and reflowing.
+- Viewer: the thumbnail drawer now lists files in the same order the main view pages through them. It had used a locale word-sort, which places names beginning with `_` first, while PgUp/PgDn follow the filesystem's order, where those names come last — so the drawer's apparent first file could actually sit near the end of the navigation order, and paging forward from it stopped after a file or two. The drawer now sorts with the same ordinal, case-insensitive order. (issue #84)
+- Viewer: the thumbnail drawer now lists every file in the folder, matching the set the main view pages through with PgUp/PgDn (and Home/End) — videos get a real thumbnail and any other type (raw, documents, archives, ...) gets an extension badge — so the drawer selection always tracks the current file. Previously the drawer listed only decodable images, so paging onto a video or any non-image file cleared the drawer selection and left it out of sync with what the main view showed. (issue #84)
+- Viewer: in the gallery grid view, pressing `End` (or otherwise scrolling far down a large folder) left the newly revealed thumbnails stuck as blank placeholders that never decoded; `Home` worked only because it returns to the top. The visible-range scan mapped the scroll offset to item rows using the icon's full bounding height — which includes the empty label line below each tile — instead of the actual square cell pitch, so after a large jump the decode band landed above the real viewport. The grid now uses the true cell pitch, so the thumbnails on screen after a large scroll always load.
+
 ---
 
 ## [2.7.1] — 2026-06-18
