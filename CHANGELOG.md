@@ -8,6 +8,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.3] — 2026-06-29
+
+### Changed
+- Viewer: smoother repaints. The off-screen back buffer (`CDC` / `CBitmap`) is now reused across repaints and reallocated only when the client size changes, instead of being created and destroyed on every paint — matching the Comparator's cached off-screen buffer. Rendered pixels are identical to the previous path. (issue #87)
+
+---
+
 ## [2.7.2] — 2026-06-20
 
 ### Changed
@@ -275,7 +282,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.2...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.3...HEAD
+[2.7.3]: https://github.com/chammoru/Q1View/compare/v2.7.2...v2.7.3
 [2.7.2]: https://github.com/chammoru/Q1View/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/chammoru/Q1View/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/chammoru/Q1View/compare/v2.6.0...v2.7.0
