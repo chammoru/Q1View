@@ -211,6 +211,8 @@ public:
 
 // Helper
 private:
+	bool EnsureBackBuffer(CDC *pDC);
+	void ReleaseBackBuffer();
 	CRect CvtCoord2Show(const CRect &rt);
 	bool FindFile(CViewerDoc* pDoc, UINT nChar);
 	bool HandleNavigationKey(UINT nChar);
@@ -224,6 +226,12 @@ private:
 	void SetDstSize();
 	void _ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi);
 	int DrawBoxInfoText(CDC *pDC, CRect &rect, COLORREF color, int hAccumGap);
+
+	CDC mBackDC;
+	CBitmap mBackBitmap;
+	CBitmap *mPrevBackBitmap;
+	int mBackW;
+	int mBackH;
 
 // Overrides
 public:

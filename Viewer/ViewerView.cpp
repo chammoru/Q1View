@@ -191,6 +191,9 @@ CViewerView::CViewerView()
 , mNewRgbBufferInfoQ(new SSafeCQ<BufferInfo>(1))
 , mBufferPool(NULL)
 , mKeyProcessing(false)
+, mPrevBackBitmap(NULL)
+, mBackW(0)
+, mBackH(0)
 , mXCursor(-1)
 , mYCursor(-1)
 , mSelMode(false)
@@ -268,6 +271,7 @@ CViewerView::~CViewerView()
 	delete mNewRgbBufferInfoQ;
 
 	mMouseMenu.DestroyMenu();
+	ReleaseBackBuffer();
 
 	if (mRgbBuf)
 		_mm_free(mRgbBuf);
@@ -291,6 +295,48 @@ CViewerView::~CViewerView()
 BOOL CViewerView::PreCreateWindow(CREATESTRUCT& cs)
 {
 	return CView::PreCreateWindow(cs);
+}
+
+bool CViewerView::EnsureBackBuffer(CDC *pDC)
+{
+	if (mWClient <= 0 || mHClient <= 0)
+		return false;
+
+	if (mBackDC.GetSafeHdc() && mBackW == mWClient && mBackH == mHClient)
+		return true;
+
+	ReleaseBackBuffer();
+
+	if (!mBackDC.CreateCompatibleDC(pDC))
+		return false;
+
+	if (!mBackBitmap.CreateCompatibleBitmap(pDC, mWClient, mHClient)) {
+		mBackDC.DeleteDC();
+		return false;
+	}
+
+	mPrevBackBitmap = mBackDC.SelectObject(&mBackBitmap);
+	mBackW = mWClient;
+	mBackH = mHClient;
+
+	return true;
+}
+
+void CViewerView::ReleaseBackBuffer()
+{
+	if (mBackDC.GetSafeHdc()) {
+		if (mPrevBackBitmap) {
+			mBackDC.SelectObject(mPrevBackBitmap);
+			mPrevBackBitmap = NULL;
+		}
+		mBackDC.DeleteDC();
+	}
+
+	if (mBackBitmap.GetSafeHandle())
+		mBackBitmap.DeleteObject();
+
+	mBackW = 0;
+	mBackH = 0;
 }
 
 void CViewerView::AdjustWindowSize()
@@ -1133,13 +1179,10 @@ void CViewerView::OnDraw(CDC *pDC)
 	if (!pDoc)
 		return;
 
-	CDC memDC;
-	memDC.CreateCompatibleDC(pDC);
+	if (!EnsureBackBuffer(pDC))
+		return;
 
-	CBitmap bitmap;
-	bitmap.CreateCompatibleBitmap(pDC, mWClient, mHClient);
-
-	memDC.SelectObject(bitmap);
+	CDC &memDC = mBackDC;
 	memDC.SetStretchBltMode(COLORONCOLOR);
 	memDC.FillSolidRect(CRect(0, 0, mWClient, mHClient), Q1UI_COLOR_CANVAS_BG);
 
