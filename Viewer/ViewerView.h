@@ -213,6 +213,7 @@ public:
 private:
 	bool EnsureBackBuffer(CDC *pDC);
 	void ReleaseBackBuffer();
+	void PresentBackBuffer(CDC *pDC);
 	CRect CvtCoord2Show(const CRect &rt);
 	bool FindFile(CViewerDoc* pDoc, UINT nChar);
 	bool HandleNavigationKey(UINT nChar);

@@ -8,6 +8,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.4] — 2026-07-10
+
+### Fixed
+- Viewer: video playback now completes each GDI back-buffer copy and synchronizes it with DWM presentation, preventing horizontal tearing-like mixtures of adjacent frames on large displays. (issue #88)
+
+---
+
 ## [2.7.3] — 2026-06-29
 
 ### Changed
@@ -282,7 +289,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.3...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.4...HEAD
+[2.7.4]: https://github.com/chammoru/Q1View/compare/v2.7.3...v2.7.4
 [2.7.3]: https://github.com/chammoru/Q1View/compare/v2.7.2...v2.7.3
 [2.7.2]: https://github.com/chammoru/Q1View/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/chammoru/Q1View/compare/v2.7.0...v2.7.1

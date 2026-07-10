@@ -339,6 +339,20 @@ void CViewerView::ReleaseBackBuffer()
 	mBackH = 0;
 }
 
+void CViewerView::PresentBackBuffer(CDC *pDC)
+{
+	pDC->BitBlt(0, 0, mWClient, mHClient, &mBackDC, 0, 0, SRCCOPY);
+
+	if (!mIsPlaying)
+		return;
+
+	// BitBlt may be GDI-batched, while the cached bitmap is overwritten by the
+	// next playback paint. Complete that copy first, then wait for DWM to present
+	// it so the compositor cannot sample two adjacent frames from the same surface.
+	::GdiFlush();
+	::DwmFlush();
+}
+
 void CViewerView::AdjustWindowSize()
 {
 	CViewerDoc* pDoc = GetDocument();
@@ -1224,7 +1238,7 @@ void CViewerView::OnDraw(CDC *pDC)
 
 	if (!src) {
 		DrawEmptyState(&memDC);
-		pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
+		PresentBackBuffer(pDC);
 		return;
 	}
 
@@ -1260,7 +1274,7 @@ void CViewerView::OnDraw(CDC *pDC)
 	if (pDoc->mDocState == DOC_NEWIMAGE)
 		pDoc->mDocState = DOC_ADJUSTED;
 
-	pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
+	PresentBackBuffer(pDC);
 
 	pDoc->mCurFrameID = mStableRgbBufferInfo.ID;
 
