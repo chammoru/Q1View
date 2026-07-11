@@ -8,6 +8,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.5] — 2026-07-11
+
+### Packaging
+- Microsoft Store release automation now checks every `msstore` exit code, emits verbose Store CLI logs, and recovers from a rejected draft by deleting the failed pending submission, restaging the MSIX, and retrying the publish step.
+
+---
+
 ## [2.7.4] — 2026-07-10
 
 ### Fixed
@@ -289,7 +296,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.4...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.5...HEAD
+[2.7.5]: https://github.com/chammoru/Q1View/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/chammoru/Q1View/compare/v2.7.3...v2.7.4
 [2.7.3]: https://github.com/chammoru/Q1View/compare/v2.7.2...v2.7.3
 [2.7.2]: https://github.com/chammoru/Q1View/compare/v2.7.1...v2.7.2
