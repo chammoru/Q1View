@@ -12,6 +12,7 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ### Packaging
 - Microsoft Store release automation now checks every `msstore` exit code, emits verbose Store CLI logs, and recovers from a rejected draft by deleting the failed pending submission, restaging the MSIX, and retrying the publish step.
+- Qt Viewer CI now pins macOS builds to `macos-13`, avoiding the `macos-latest` image change where Qt 6.5.3 links against the removed AGL framework.
 
 ---
 

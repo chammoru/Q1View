@@ -24,7 +24,7 @@ jobs:
         include:
           - os: ubuntu-latest
             asset_name: q1view-viewer-qt-linux-x86_64
-          - os: macos-latest
+          - os: macos-13
             asset_name: q1view-viewer-qt-macos
           - os: windows-2022
             asset_name: q1view-viewer-qt-windows-x64
