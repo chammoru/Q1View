@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Packaging
+- Microsoft Store release automation now retries submission metadata reads, keeps command results separate from CLI output, reapplies listing metadata after recovery restaging, and gives actionable Partner Center guidance when a recovered publish still fails.
+
 ---
 
 ## [2.7.6] — 2026-07-11
