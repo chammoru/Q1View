@@ -20,6 +20,7 @@ function Invoke-MsStoreCommand {
         [string[]]$Arguments,
 
         [int]$Attempts = 1,
+        [int]$InitialRetryDelaySeconds = 30,
         [switch]$AllowFailure
     )
 
@@ -34,7 +35,7 @@ function Invoke-MsStoreCommand {
         }
 
         if ($attempt -lt $Attempts) {
-            $delay = [Math]::Min(60, 10 * $attempt)
+            $delay = [Math]::Min(180, $InitialRetryDelaySeconds * $attempt)
             Write-Host "::warning::$Description failed with exit code $exitCode; retrying in $delay seconds."
             Start-Sleep -Seconds $delay
         }
@@ -52,6 +53,7 @@ function Remove-PendingStoreSubmission {
     Invoke-MsStoreCommand `
         -Description "Delete pending Microsoft Store submission" `
         -Arguments @("submission", "delete", $ProductId, "--no-confirm", "--verbose") `
+        -Attempts 2 `
         -AllowFailure | Out-Null
 }
 
@@ -59,14 +61,14 @@ function Stage-StorePackage {
     Invoke-MsStoreCommand `
         -Description "Stage Microsoft Store package" `
         -Arguments @("publish", $PackagePath, "-id", $ProductId, "--noCommit", "--verbose") `
-        -Attempts 2 | Out-Null
+        -Attempts 4 | Out-Null
 }
 
 function Publish-StoreSubmission {
     Invoke-MsStoreCommand `
         -Description "Publish Microsoft Store submission" `
         -Arguments @("submission", "publish", $ProductId, "--verbose") `
-        -Attempts 2 | Out-Null
+        -Attempts 4 | Out-Null
 }
 
 function Get-StoreListingBlock {
@@ -178,7 +180,7 @@ function Update-StoreMetadata {
     $ok = Invoke-MsStoreCommand `
         -Description "Update Microsoft Store metadata" `
         -Arguments @("submission", "updateMetadata", $ProductId, $metadata, "--verbose") `
-        -Attempts 2 `
+        -Attempts 3 `
         -AllowFailure
 
     if ($ok) {

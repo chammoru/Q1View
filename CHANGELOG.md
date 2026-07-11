@@ -8,6 +8,14 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.6] — 2026-07-11
+
+### Packaging
+- Microsoft Store release automation now uses longer backoff and additional retries around Partner Center submission operations, covering transient Azure Front Door 504 responses seen while creating and updating Store submissions.
+- The Store publish step now has an explicit 45-minute timeout so a stuck Partner Center request fails with bounded logs instead of holding the release workflow indefinitely.
+
+---
+
 ## [2.7.5] — 2026-07-11
 
 ### Packaging
@@ -297,7 +305,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.5...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.6...HEAD
+[2.7.6]: https://github.com/chammoru/Q1View/compare/v2.7.5...v2.7.6
 [2.7.5]: https://github.com/chammoru/Q1View/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/chammoru/Q1View/compare/v2.7.3...v2.7.4
 [2.7.3]: https://github.com/chammoru/Q1View/compare/v2.7.2...v2.7.3

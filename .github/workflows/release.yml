@@ -325,6 +325,7 @@ jobs:
 
       - name: Publish MSIX to Microsoft Store
         if: startsWith(github.ref, 'refs/tags/')
+        timeout-minutes: 45
         shell: pwsh
         run: |
           .\build\Publish-MicrosoftStore.ps1 `
