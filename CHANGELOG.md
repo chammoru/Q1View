@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Fixed
+- Viewer: video playback now waits for one extra desktop composition pass after presenting each frame, which stops the horizontal tearing line that still appeared on large/4K displays after the v2.7.4 presentation fix. (issue #88)
+
 ---
 
 ## [2.7.6] — 2026-07-11

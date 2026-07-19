@@ -1285,6 +1285,11 @@ void CViewerView::OnDraw(CDC *pDC)
 
 	if (mKeyProcessing == true)
 		mKeyProcessing = false;
+
+	if (mIsPlaying) {
+		::GdiFlush();
+		::DwmFlush();
+	}
 }
 
 
