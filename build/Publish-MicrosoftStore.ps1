@@ -21,17 +21,25 @@ function Invoke-MsStoreCommand {
 
         [int]$Attempts = 1,
         [int]$InitialRetryDelaySeconds = 30,
+        [switch]$CaptureOutput,
         [switch]$AllowFailure
     )
 
     for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
         Write-Host "::group::$Description (attempt $attempt/$Attempts)"
-        & msstore @Arguments
+        $commandOutput = @(& msstore @Arguments)
         $exitCode = $LASTEXITCODE
+        if (-not $CaptureOutput -or $exitCode -ne 0) {
+            $commandOutput | ForEach-Object { Write-Host $_ }
+        }
         Write-Host "::endgroup::"
 
         if ($exitCode -eq 0) {
-            return $true
+            return [pscustomobject]@{
+                Succeeded = $true
+                ExitCode = $exitCode
+                Output = if ($CaptureOutput) { $commandOutput -join "`n" } else { "" }
+            }
         }
 
         if ($attempt -lt $Attempts) {
@@ -43,32 +51,36 @@ function Invoke-MsStoreCommand {
 
     if ($AllowFailure) {
         Write-Host "::warning::$Description failed after $Attempts attempt(s); continuing."
-        return $false
+        return [pscustomobject]@{
+            Succeeded = $false
+            ExitCode = $exitCode
+            Output = if ($CaptureOutput) { $commandOutput -join "`n" } else { "" }
+        }
     }
 
     throw "$Description failed after $Attempts attempt(s)."
 }
 
 function Remove-PendingStoreSubmission {
-    Invoke-MsStoreCommand `
+    $null = Invoke-MsStoreCommand `
         -Description "Delete pending Microsoft Store submission" `
         -Arguments @("submission", "delete", $ProductId, "--no-confirm", "--verbose") `
         -Attempts 2 `
-        -AllowFailure | Out-Null
+        -AllowFailure
 }
 
 function Stage-StorePackage {
-    Invoke-MsStoreCommand `
+    $null = Invoke-MsStoreCommand `
         -Description "Stage Microsoft Store package" `
         -Arguments @("publish", $PackagePath, "-id", $ProductId, "--noCommit", "--verbose") `
-        -Attempts 4 | Out-Null
+        -Attempts 4
 }
 
 function Publish-StoreSubmission {
-    Invoke-MsStoreCommand `
+    $null = Invoke-MsStoreCommand `
         -Description "Publish Microsoft Store submission" `
         -Arguments @("submission", "publish", $ProductId, "--verbose") `
-        -Attempts 4 | Out-Null
+        -Attempts 4
 }
 
 function Get-StoreListingBlock {
@@ -154,10 +166,12 @@ function Update-StoreMetadata {
     $storeDescription = Get-StoreListingBlock '^## Description '
     $storeShortDescription = Get-StoreListingBlock '^## Short description '
 
-    $raw = (msstore submission get $ProductId --verbose | Out-String)
-    if ($LASTEXITCODE -ne 0) {
-        throw "msstore submission get failed with exit code $LASTEXITCODE"
-    }
+    $getResult = Invoke-MsStoreCommand `
+        -Description "Get Microsoft Store submission metadata" `
+        -Arguments @("submission", "get", $ProductId, "--verbose") `
+        -Attempts 4 `
+        -CaptureOutput
+    $raw = $getResult.Output
 
     $open = $raw.IndexOf('{')
     $close = $raw.LastIndexOf('}')
@@ -177,19 +191,31 @@ function Update-StoreMetadata {
     }
 
     $metadata = $json | ConvertTo-Json -Depth 50 -Compress
-    $ok = Invoke-MsStoreCommand `
+    $updateResult = Invoke-MsStoreCommand `
         -Description "Update Microsoft Store metadata" `
         -Arguments @("submission", "updateMetadata", $ProductId, $metadata, "--verbose") `
         -Attempts 3 `
         -AllowFailure
 
-    if ($ok) {
+    if ($updateResult.Succeeded) {
         Write-Host "Updated What's New in $($script:ReleaseNotesUpdated) listing(s)."
         Write-Host "Updated Store description in $($script:DescriptionUpdated) listing(s)."
         Write-Host "Updated Store short description in $($script:ShortDescriptionUpdated) listing(s)."
     }
 
-    return $ok
+    return $updateResult.Succeeded
+}
+
+function Update-StoreMetadataBestEffort {
+    param([Parameter(Mandatory = $true)][string]$Context)
+
+    try {
+        if (-not (Update-StoreMetadata)) {
+            Write-Host "::warning::Store metadata update failed $Context; continuing without it."
+        }
+    } catch {
+        Write-Host "::warning::Store metadata update failed $Context; continuing without it: $($_.Exception.Message)"
+    }
 }
 
 try {
@@ -208,16 +234,22 @@ try {
 }
 
 if (-not $metadataUpdated) {
-    Write-Host "::warning::Restaging package without metadata update to recover from a rejected draft."
+    Write-Host "::warning::Store metadata update failed; restaging the package before submission."
     Remove-PendingStoreSubmission
     Stage-StorePackage
+    Update-StoreMetadataBestEffort -Context "after restaging the package"
 }
 
 try {
     Publish-StoreSubmission
 } catch {
     Write-Host "::warning::Submission publish failed: $($_.Exception.Message)"
-    Remove-PendingStoreSubmission
-    Stage-StorePackage
-    Publish-StoreSubmission
+    try {
+        Remove-PendingStoreSubmission
+        Stage-StorePackage
+        Update-StoreMetadataBestEffort -Context "after restaging the failed submission"
+        Publish-StoreSubmission
+    } catch {
+        throw "Microsoft Store submission recovery failed. The Store may already have accepted an earlier timed-out request; check the submission status in Partner Center before rerunning this workflow. Last error: $($_.Exception.Message)"
+    }
 }

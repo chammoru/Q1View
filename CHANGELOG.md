@@ -9,6 +9,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 ### Fixed
 - Viewer: video playback now waits for one extra desktop composition pass after presenting each frame, which stops the horizontal tearing line that still appeared on large/4K displays after the v2.7.4 presentation fix. (issue #88)
 
+### Packaging
+- Microsoft Store release automation now retries submission metadata reads, keeps command results separate from CLI output, reapplies listing metadata after recovery restaging, and gives actionable Partner Center guidance when a recovered publish still fails.
+
 ---
 
 ## [2.7.6] — 2026-07-11
