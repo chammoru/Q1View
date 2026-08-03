@@ -27,9 +27,14 @@ function Invoke-MsStoreCommand {
 
     for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
         Write-Host "::group::$Description (attempt $attempt/$Attempts)"
-        $commandOutput = @(& msstore @Arguments)
+        $commandOutput = @()
+        if ($CaptureOutput) {
+            $commandOutput = @(& msstore @Arguments)
+        } else {
+            & msstore @Arguments | ForEach-Object { Write-Host $_ }
+        }
         $exitCode = $LASTEXITCODE
-        if (-not $CaptureOutput -or $exitCode -ne 0) {
+        if ($CaptureOutput -and $exitCode -ne 0) {
             $commandOutput | ForEach-Object { Write-Host $_ }
         }
         Write-Host "::endgroup::"

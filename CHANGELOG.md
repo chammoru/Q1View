@@ -6,11 +6,15 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.7] — 2026-08-03
+
 ### Fixed
-- Viewer: video playback now waits for one extra desktop composition pass after presenting each frame, which stops the horizontal tearing line that still appeared on large/4K displays after the v2.7.4 presentation fix. (issue #88)
+- Viewer: video playback now waits for one extra desktop composition pass after presenting each frame, eliminating the horizontal seam that remained on the affected large/4K display after the v2.7.4 presentation fix; a future DXGI flip-model backend is tracked separately in issue #90. (issue #88)
 
 ### Packaging
-- Microsoft Store release automation now retries submission metadata reads, keeps command results separate from CLI output, reapplies listing metadata after recovery restaging, and gives actionable Partner Center guidance when a recovered publish still fails.
+- Microsoft Store release automation now retries submission metadata reads, keeps command results separate while streaming non-captured CLI output live, reapplies listing metadata after recovery restaging, and gives actionable Partner Center guidance when a recovered publish still fails.
 
 ---
 
@@ -311,7 +315,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.6...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.7...HEAD
+[2.7.7]: https://github.com/chammoru/Q1View/compare/v2.7.6...v2.7.7
 [2.7.6]: https://github.com/chammoru/Q1View/compare/v2.7.5...v2.7.6
 [2.7.5]: https://github.com/chammoru/Q1View/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/chammoru/Q1View/compare/v2.7.3...v2.7.4
