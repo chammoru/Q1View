@@ -274,6 +274,19 @@ void CViewerDoc::Serialize(CArchive& ar)
 	}
 }
 
+int CViewerDoc::QueueScene(int frameID)
+{
+	long previousFrameID = mCurFrameID;
+	mCurFrameID = frameID;
+
+	if (!QueueSource2View()) {
+		mCurFrameID = previousFrameID;
+		return -1;
+	}
+
+	return mCurFrameID;
+}
+
 int CViewerDoc::SeekScene(int frameID)
 {
 	if (frameID >= mFrames || frameID < 0) {
@@ -281,12 +294,7 @@ int CViewerDoc::SeekScene(int frameID)
 		return -1;
 	}
 
-	mCurFrameID = frameID;
-	
-	if (!QueueSource2View())
-		return -1;
-
-	return mCurFrameID;
+	return QueueScene(frameID);
 }
 
 int CViewerDoc::NextScene()
@@ -296,12 +304,7 @@ int CViewerDoc::NextScene()
 		return -1;
 	}
 
-	mCurFrameID++;
-
-	if (!QueueSource2View())
-		return -1;
-
-	return mCurFrameID;
+	return QueueScene(mCurFrameID + 1);
 }
 
 int CViewerDoc::PrevScene()
@@ -311,32 +314,17 @@ int CViewerDoc::PrevScene()
 		return -1;
 	}
 
-	mCurFrameID--;
-
-	if (!QueueSource2View())
-		return -1;
-
-	return mCurFrameID;
+	return QueueScene(mCurFrameID - 1);
 }
 
 int CViewerDoc::FirstScene()
 {
-	mCurFrameID = 0;
-
-	if (!QueueSource2View())
-		return -1;
-
-	return mCurFrameID;
+	return QueueScene(0);
 }
 
 int CViewerDoc::LastScene()
 {
-	mCurFrameID = mFrames - 1;
-
-	if (!QueueSource2View())
-		return -1;
-
-	return mCurFrameID;
+	return QueueScene(mFrames - 1);
 }
 
 #ifdef _DEBUG

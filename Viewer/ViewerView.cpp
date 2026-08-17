@@ -1739,6 +1739,8 @@ void CViewerView::KillPlayTimerSafe()
 	CViewerDoc* pDoc = GetDocument();
 
 	FrmSrc *frmSrc = pDoc->mFrmSrc;
+	// Keep the exact last-presented RGB buffer reserved across playback shutdown.
+	// Position only the source at the following frame for stepping or resuming.
 	frmSrc->SetFramePos(pDoc, mStableRgbBufferInfo.ID + 1);
 	mStableRgbBufferInfo.ID = QMIN(mStableRgbBufferInfo.ID, pDoc->mFrames - 1);
 
@@ -1981,7 +1983,6 @@ void CViewerView::ApplyPlaybackState(bool play)
 		}
 	} else if (mIsPlaying) {
 		KillPlayTimerSafe();
-		pDoc->QueueSource2View();
 	}
 
 	mKeyProcessing = true;
@@ -2180,7 +2181,6 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			SetPlayTimer(pDoc);
 		} else {
 			KillPlayTimerSafe();
-			pDoc->QueueSource2View();
 		}
 		{
 			ViewerSyncInputState input = {};

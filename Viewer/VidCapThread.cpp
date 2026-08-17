@@ -37,7 +37,17 @@ bool VidCapThread::loadOrigBuf(long frameID, BYTE *buf)
 		return false;
 
 	cv::Mat matTemp(mH, mW, CV_8UC3, buf, mW * QIMG_DST_RGB_BYTES);
-	mVidCap >> matTemp;
+	bool ok = mVidCap.read(matTemp);
+	if (!ok || matTemp.empty())
+		return false;
 
 	return true;
+}
+
+void VidCapThread::cancelFrameReservation(long frameID)
+{
+	// VidCapFrmSrc owns a single sequential worker. GetNextFrameID() reserves
+	// the ID before decoding, so undo that reservation when no frame was read.
+	if (*mPlayFrameIdPtr == frameID)
+		qcmn_atomic_dec(mPlayFrameIdPtr);
 }

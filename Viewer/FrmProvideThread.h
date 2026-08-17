@@ -70,6 +70,7 @@ protected:
 	virtual bool setupDetail(CViewerDoc *pDoc) = 0;
 	virtual void sendQuitMsg(long frameID) = 0;
 	virtual bool loadOrigBuf(long frameID, BYTE *buf) = 0;
+	virtual void cancelFrameReservation(long) {}
 
 	SSafeCQ<BufferInfo> *mBufferQueue;
 	SBufferPool *mBufferPool;

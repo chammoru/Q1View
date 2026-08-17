@@ -24,6 +24,7 @@
 #elif defined(__GNUC__)
 /* __sync_fetch_and_add is used for (*A)++ */
 #define qcmn_atomic_inc(A) __sync_add_and_fetch((A), 1);
+#define qcmn_atomic_dec(A) __sync_sub_and_fetch((A), 1);
 #else
 # error "need to implement for this platform."
 #endif

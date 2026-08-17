@@ -13,6 +13,7 @@ bool FrmProvideThread::threadLoop()
 	long frameID = GetNextFrameID();
 	bool ok = loadOrigBuf(frameID, mOrigBuf);
 	if (!ok) {
+		cancelFrameReservation(frameID);
 		sendQuitMsg(frameID);
 		mBufferPool->turn_back(RGB);
 		return false;

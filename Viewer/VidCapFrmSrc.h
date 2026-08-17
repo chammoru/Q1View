@@ -64,7 +64,12 @@ public:
 			QSWAP(w, h);
 
 		cv::Mat matTemp(h, w, CV_8UC3, buf, w * (size_t)QIMG_DST_RGB_BYTES);
-		mVidCap >> matTemp;
+		bool ok = mVidCap.read(matTemp);
+		if (!ok || matTemp.empty()) {
+			matTemp.release();
+			mNextFrame = -1;
+			return false;
+		}
 		matTemp.release();
 
 		mNextFrame = pDoc->mCurFrameID + 1;
@@ -82,9 +87,11 @@ public:
 		if (id >= mFrames)
 			return false;
 
-		mNextFrame = id;
+		if (!mVidCap.set(cv::CAP_PROP_POS_FRAMES, id))
+			return false;
 
-		return mVidCap.set(cv::CAP_PROP_POS_FRAMES, id);
+		mNextFrame = id;
+		return true;
 	}
 
 	virtual inline bool Play(CViewerDoc *pDoc)

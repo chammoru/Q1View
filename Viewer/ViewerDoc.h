@@ -141,6 +141,7 @@ public:
 #endif
 
 protected:
+	int QueueScene(int frameID);
 
 // Generated message map functions
 protected:
