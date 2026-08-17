@@ -8,6 +8,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.8] — 2026-08-18
+
+### Fixed
+- Viewer: pausing video now preserves the exact last-presented pixels instead of seeking and decoding the nominal current frame again; OpenCV video reads are also validated so failed or empty frames cannot advance playback or frame-step bookkeeping. (issue #91)
+
+---
+
 ## [2.7.7] — 2026-08-03
 
 ### Fixed
@@ -315,7 +322,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.7...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.8...HEAD
+[2.7.8]: https://github.com/chammoru/Q1View/compare/v2.7.7...v2.7.8
 [2.7.7]: https://github.com/chammoru/Q1View/compare/v2.7.6...v2.7.7
 [2.7.6]: https://github.com/chammoru/Q1View/compare/v2.7.5...v2.7.6
 [2.7.5]: https://github.com/chammoru/Q1View/compare/v2.7.4...v2.7.5
