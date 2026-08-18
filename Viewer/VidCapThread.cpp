@@ -44,6 +44,27 @@ bool VidCapThread::loadOrigBuf(long frameID, BYTE *buf)
 	return true;
 }
 
+bool VidCapThread::loadRgbBuf(long frameID, BYTE *buf)
+{
+	if (frameID >= mFrames)
+		return false;
+
+	const size_t stride = ROUNDUP_DWORD(mW) * QIMG_DST_RGB_BYTES;
+	cv::Mat matTemp(mH, mW, CV_8UC3, buf, stride);
+	bool ok = mVidCap.read(matTemp);
+	if (!ok || matTemp.empty() || matTemp.cols != mW || matTemp.rows != mH ||
+		matTemp.type() != CV_8UC3) {
+		return false;
+	}
+
+	if (matTemp.data != buf || matTemp.step != stride) {
+		for (int y = 0; y < mH; ++y)
+			memcpy(buf + y * stride, matTemp.ptr(y), mW * QIMG_DST_RGB_BYTES);
+	}
+
+	return true;
+}
+
 void VidCapThread::cancelFrameReservation(long frameID)
 {
 	// VidCapFrmSrc owns a single sequential worker. GetNextFrameID() reserves

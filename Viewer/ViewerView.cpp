@@ -8,6 +8,7 @@
 #include "ViewerDoc.h"
 #include "ViewerView.h"
 #include "ViewerFileOrder.h"
+#include "DxgiPresenter.h"
 
 #include "QMath.h"
 #include "QDebug.h"
@@ -37,7 +38,12 @@
 #endif
 #endif
 
-const bool printPlaySpeed = false;
+static bool IsPlaybackTraceEnabled()
+{
+	static const bool enabled =
+		::GetEnvironmentVariableW(L"Q1VIEW_TRACE_PLAYBACK", NULL, 0) != 0;
+	return enabled;
+}
 
 #define WM_VIEWER_PLAY_TIMER (WM_APP + 1)
 
@@ -185,6 +191,9 @@ CViewerView::CViewerView()
 , mTimerID(0)
 , mPlaybackStartFrameID(0)
 , mDroppedFrameCount(0)
+, mTracePaintCount(0)
+, mTraceRenderTicks(0)
+, mTracePresentTicks(0)
 , mPlaybackRate(1.0)
 , mPlaybackEndPending(false)
 , mPlayTickPosted(0)
@@ -192,6 +201,8 @@ CViewerView::CViewerView()
 , mBufferPool(NULL)
 , mKeyProcessing(false)
 , mPrevBackBitmap(NULL)
+, mBackBits(NULL)
+, mDxgiPresenter(new DxgiPresenter())
 , mBackW(0)
 , mBackH(0)
 , mXCursor(-1)
@@ -272,6 +283,7 @@ CViewerView::~CViewerView()
 
 	mMouseMenu.DestroyMenu();
 	ReleaseBackBuffer();
+	delete mDxgiPresenter;
 
 	if (mRgbBuf)
 		_mm_free(mRgbBuf);
@@ -310,7 +322,20 @@ bool CViewerView::EnsureBackBuffer(CDC *pDC)
 	if (!mBackDC.CreateCompatibleDC(pDC))
 		return false;
 
-	if (!mBackBitmap.CreateCompatibleBitmap(pDC, mWClient, mHClient)) {
+	BITMAPINFO info = {};
+	info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	info.bmiHeader.biWidth = mWClient;
+	info.bmiHeader.biHeight = -mHClient;
+	info.bmiHeader.biPlanes = 1;
+	info.bmiHeader.biBitCount = 32;
+	info.bmiHeader.biCompression = BI_RGB;
+
+	HBITMAP bitmap = ::CreateDIBSection(pDC->GetSafeHdc(), &info,
+		DIB_RGB_COLORS, &mBackBits, NULL, 0);
+	if (bitmap == NULL || !mBackBitmap.Attach(bitmap)) {
+		if (bitmap != NULL)
+			::DeleteObject(bitmap);
+		mBackBits = NULL;
 		mBackDC.DeleteDC();
 		return false;
 	}
@@ -335,22 +360,30 @@ void CViewerView::ReleaseBackBuffer()
 	if (mBackBitmap.GetSafeHandle())
 		mBackBitmap.DeleteObject();
 
+	mBackBits = NULL;
 	mBackW = 0;
 	mBackH = 0;
 }
 
-void CViewerView::PresentBackBuffer(CDC *pDC)
+bool CViewerView::PresentBackBuffer(CDC *pDC)
 {
+	if (!pDC->IsPrinting() && mDxgiPresenter->Present(GetSafeHwnd(), mBackBits,
+		static_cast<UINT>(mWClient), static_cast<UINT>(mHClient),
+		static_cast<UINT>(mBackW * 4))) {
+		return true;
+	}
+
 	pDC->BitBlt(0, 0, mWClient, mHClient, &mBackDC, 0, 0, SRCCOPY);
 
 	if (!mIsPlaying)
-		return;
+		return false;
 
 	// BitBlt may be GDI-batched, while the cached bitmap is overwritten by the
 	// next playback paint. Complete that copy first, then wait for DWM to present
 	// it so the compositor cannot sample two adjacent frames from the same surface.
 	::GdiFlush();
 	::DwmFlush();
+	return false;
 }
 
 void CViewerView::AdjustWindowSize()
@@ -776,11 +809,21 @@ void CViewerView::SetPlayTimer(CViewerDoc* pDoc)
 	if (!ok)
 		return;
 
+	double startSec = pDoc->mFps > 0.0 ? pDoc->mCurFrameID / pDoc->mFps : 0.0;
+	bool audioReady = mAudioPlayer.Open(pDoc->mPathName.GetString());
+	if (audioReady) {
+		mAudioPlayer.SetVolume(mVolume);
+		mAudioPlayer.SetMuted(mVolumeMuted);
+	}
+
 	mIsPlaying = true;
 	mPreKeyFrameStamp = 0;
 	mPlayFrameCount = 0;
 	mPlaybackStartFrameID = pDoc->mCurFrameID;
 	mDroppedFrameCount = 0;
+	mTracePaintCount = 0;
+	mTraceRenderTicks = 0;
+	mTracePresentTicks = 0;
 	mPlaybackEndPending = false;
 	::InterlockedExchange(&mPlayTickPosted, 0);
 	QueryPerformanceCounter(&mPlaybackStartCounter);
@@ -802,12 +845,8 @@ void CViewerView::SetPlayTimer(CViewerDoc* pDoc)
 		return;
 	}
 
-	double startSec = pDoc->mFps > 0.0 ? pDoc->mCurFrameID / pDoc->mFps : 0.0;
-	if (mAudioPlayer.Open(pDoc->mPathName.GetString())) {
-		mAudioPlayer.SetVolume(mVolume);
-		mAudioPlayer.SetMuted(mVolumeMuted);
+	if (audioReady)
 		mAudioPlayer.Play(startSec);
-	}
 }
 
 // Timer callbacks only post clock ticks, so pausing does not need to wait for
@@ -816,6 +855,24 @@ void CViewerView::KillPlayTimer()
 {
 	if (!mIsPlaying)
 		return;
+
+	if (IsPlaybackTraceEnabled()) {
+		LARGE_INTEGER now;
+		QueryPerformanceCounter(&now);
+		double elapsedSeconds = (now.QuadPart - mPlaybackStartCounter.QuadPart) /
+			static_cast<double>(mPlaybackClockFrequency.QuadPart);
+		LOGWRN("playback summary: backend=%s presented=%d dropped=%ld elapsed=%.3f",
+			mDxgiPresenter->IsActive() ? "DXGI" : "GDI", mPlayFrameCount,
+			mDroppedFrameCount, elapsedSeconds);
+		if (mTracePaintCount > 0) {
+			double tickToMs = 1000.0 /
+				static_cast<double>(mPlaybackClockFrequency.QuadPart);
+			LOGWRN("paint summary: frames=%ld render_avg=%.3fms present_avg=%.3fms",
+				mTracePaintCount,
+				mTraceRenderTicks * tickToMs / mTracePaintCount,
+				mTracePresentTicks * tickToMs / mTracePaintCount);
+		}
+	}
 
 	mAudioPlayer.Pause();
 	mIsPlaying = false;
@@ -1196,6 +1253,11 @@ void CViewerView::OnDraw(CDC *pDC)
 	if (!EnsureBackBuffer(pDC))
 		return;
 
+	const bool tracePlayback = mIsPlaying && IsPlaybackTraceEnabled();
+	LARGE_INTEGER renderStart = {};
+	if (tracePlayback)
+		QueryPerformanceCounter(&renderStart);
+
 	CDC &memDC = mBackDC;
 	memDC.SetStretchBltMode(COLORONCOLOR);
 	memDC.FillSolidRect(CRect(0, 0, mWClient, mHClient), Q1UI_COLOR_CANVAS_BG);
@@ -1212,7 +1274,7 @@ void CViewerView::OnDraw(CDC *pDC)
 			mStableRgbBufferInfo = bi;
 
 			// Optional playback timing trace.
-			if (mIsPlaying & printPlaySpeed)
+			if (mIsPlaying && IsPlaybackTraceEnabled())
 				PrintPlaySpeed(pDoc->mFps);
 
 			stopAfterPresent = mPlaybackEndPending;
@@ -1274,7 +1336,17 @@ void CViewerView::OnDraw(CDC *pDC)
 	if (pDoc->mDocState == DOC_NEWIMAGE)
 		pDoc->mDocState = DOC_ADJUSTED;
 
-	PresentBackBuffer(pDC);
+	LARGE_INTEGER presentStart = {};
+	if (tracePlayback)
+		QueryPerformanceCounter(&presentStart);
+	const bool usedDxgi = PresentBackBuffer(pDC);
+	if (tracePlayback) {
+		LARGE_INTEGER presentEnd;
+		QueryPerformanceCounter(&presentEnd);
+		mTracePaintCount++;
+		mTraceRenderTicks += presentStart.QuadPart - renderStart.QuadPart;
+		mTracePresentTicks += presentEnd.QuadPart - presentStart.QuadPart;
+	}
 
 	pDoc->mCurFrameID = mStableRgbBufferInfo.ID;
 
@@ -1286,7 +1358,7 @@ void CViewerView::OnDraw(CDC *pDC)
 	if (mKeyProcessing == true)
 		mKeyProcessing = false;
 
-	if (mIsPlaying) {
+	if (mIsPlaying && !usedDxgi) {
 		::GdiFlush();
 		::DwmFlush();
 	}
@@ -2255,6 +2327,7 @@ void CViewerView::OnDestroy()
 	mBufferPool->disable();
 	mBufferQueue->destroy();
 	KillPlayTimer();
+	mDxgiPresenter->Reset();
 }
 
 int CViewerView::OnCreate(LPCREATESTRUCT lpCreateStruct)

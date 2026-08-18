@@ -26,6 +26,10 @@ public:
 	, mBufOffset3(0)
 	, mBgr888Processor(pBgr888Processor)
 	, mRot(QROT_000)
+	, mTraceEnabled(false)
+	, mTraceFrameCount(0)
+	, mTraceLoadTicks(0)
+	, mTracePostProcessTicks(0)
 	{}
 
 	virtual ~FrmProvideThread(void)
@@ -34,6 +38,8 @@ public:
 			delete [] mOrigBuf;
 	}
 
+	void LogPlaybackTrace() const;
+
 	inline long GetNextFrameID()
 	{
 		return qcmn_atomic_inc(mPlayFrameIdPtr);
@@ -41,6 +47,11 @@ public:
 
 	inline bool setup(CViewerDoc *pDoc)
 	{
+		mTraceEnabled =
+			::GetEnvironmentVariableW(L"Q1VIEW_TRACE_PLAYBACK", NULL, 0) != 0;
+		mTraceFrameCount = 0;
+		mTraceLoadTicks = 0;
+		mTracePostProcessTicks = 0;
 		mW = pDoc->mW;
 		mH = pDoc->mH;
 		mRot = pDoc->mRot;
@@ -70,6 +81,8 @@ protected:
 	virtual bool setupDetail(CViewerDoc *pDoc) = 0;
 	virtual void sendQuitMsg(long frameID) = 0;
 	virtual bool loadOrigBuf(long frameID, BYTE *buf) = 0;
+	virtual bool supportsDirectRgbLoad() const { return false; }
+	virtual bool loadRgbBuf(long frameID, BYTE *buf) { return false; }
 	virtual void cancelFrameReservation(long) {}
 
 	SSafeCQ<BufferInfo> *mBufferQueue;
@@ -88,4 +101,8 @@ protected:
 	QIMAGE_CSC_FN mCsc2Rgb888;
 	q1::ImageProcessor *mBgr888Processor;
 	QROTATION mRot;
+	bool mTraceEnabled;
+	long mTraceFrameCount;
+	LONGLONG mTraceLoadTicks;
+	LONGLONG mTracePostProcessTicks;
 };
