@@ -19,6 +19,8 @@ public:
 	bool setupDetail(CViewerDoc *pDoc);
 	void sendQuitMsg(long frameID);
 	bool loadOrigBuf(long frameID, BYTE *buf);
+	bool supportsDirectRgbLoad() const { return true; }
+	bool loadRgbBuf(long frameID, BYTE *buf);
 	void cancelFrameReservation(long frameID);
 
 	cv::VideoCapture &mVidCap;

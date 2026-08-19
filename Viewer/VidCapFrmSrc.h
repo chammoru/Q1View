@@ -108,6 +108,7 @@ public:
 	virtual inline void Stop()
 	{
 		mVidCapThread->requestExitAndWait();
+		mVidCapThread->LogPlaybackTrace();
 	}
 
 	virtual inline void Release()

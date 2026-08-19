@@ -213,6 +213,7 @@
     <ClCompile Include="CscThread.cpp" />
     <ClCompile Include="CustomFpsDlg.cpp" />
     <ClCompile Include="CustomSizeDlg.cpp" />
+    <ClCompile Include="DxgiPresenter.cpp" />
     <ClCompile Include="FileChangeNotiThread.cpp" />
     <ClCompile Include="FileFinderThread.cpp" />
     <ClCompile Include="FrmProvideThread.cpp" />
@@ -241,6 +242,7 @@
     <ClInclude Include="..\QCommon\inc\Q1ViewVersion.h" />
     <ClInclude Include="CustomFpsDlg.h" />
     <ClInclude Include="CustomSizeDlg.h" />
+    <ClInclude Include="DxgiPresenter.h" />
     <ClInclude Include="FileChangeNotiThread.h" />
     <ClInclude Include="FileFinderThread.h" />
     <ClInclude Include="FrmProvideThread.h" />

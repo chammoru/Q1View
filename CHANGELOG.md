@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Fixed
+- Viewer: completed frames are now presented atomically through a DXGI flip-model swap chain, removing the double-DWM-wait bottleneck that limited 60 fps video to roughly 30 displayed frames per second; the verified GDI path remains available as a fallback, and unrotated OpenCV video decodes directly into the playback buffer to sustain real-time 59.94 fps presentation. (issue #90)
+
 ---
 
 ## [2.7.8] — 2026-08-18

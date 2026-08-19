@@ -5,6 +5,7 @@
 #pragma once
 
 struct ViewerSyncInputState;
+class DxgiPresenter;
 
 #include <Mmsystem.h>
 #include "AudioPlayer.h"
@@ -141,6 +142,9 @@ public:
 	LARGE_INTEGER mPlaybackStartCounter;
 	long mPlaybackStartFrameID;
 	long mDroppedFrameCount;
+	long mTracePaintCount;
+	LONGLONG mTraceRenderTicks;
+	LONGLONG mTracePresentTicks;
 	double mPlaybackRate;
 	bool mPlaybackEndPending;
 	volatile LONG mPlayTickPosted;
@@ -213,7 +217,7 @@ public:
 private:
 	bool EnsureBackBuffer(CDC *pDC);
 	void ReleaseBackBuffer();
-	void PresentBackBuffer(CDC *pDC);
+	bool PresentBackBuffer(CDC *pDC);
 	CRect CvtCoord2Show(const CRect &rt);
 	bool FindFile(CViewerDoc* pDoc, UINT nChar);
 	bool HandleNavigationKey(UINT nChar);
@@ -231,6 +235,8 @@ private:
 	CDC mBackDC;
 	CBitmap mBackBitmap;
 	CBitmap *mPrevBackBitmap;
+	void *mBackBits;
+	DxgiPresenter *mDxgiPresenter;
 	int mBackW;
 	int mBackH;
 
