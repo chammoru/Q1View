@@ -6,7 +6,9 @@ param(
     [string]$PackagePath,
 
     [string]$WhatsNewPath = "STORE_WHATS_NEW.txt",
-    [string]$StoreListingPath = "docs/STORE_LISTING.md"
+    [string]$StoreListingPath = "docs/STORE_LISTING.md",
+    [ValidateRange(100, 100000)]
+    [int]$UploadTimeoutSeconds = 600
 )
 
 $ErrorActionPreference = "Stop"
@@ -77,7 +79,7 @@ function Remove-PendingStoreSubmission {
 function Stage-StorePackage {
     $null = Invoke-MsStoreCommand `
         -Description "Stage Microsoft Store package" `
-        -Arguments @("publish", $PackagePath, "-id", $ProductId, "--noCommit", "--verbose") `
+        -Arguments @("publish", $PackagePath, "-id", $ProductId, "--noCommit", "--uploadTimeout", "$UploadTimeoutSeconds", "--verbose") `
         -Attempts 4
 }
 

@@ -8,6 +8,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.10] — 2026-08-19
+
+### Packaging
+- Microsoft Store releases now pin MSStore CLI v0.4.0 and pass an explicit 600-second package upload timeout, avoiding the CLI's zero-second default timeout regression.
+
+---
+
 ## [2.7.9] — 2026-08-19
 
 ### Fixed
@@ -329,7 +336,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.9...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.10...HEAD
+[2.7.10]: https://github.com/chammoru/Q1View/compare/v2.7.9...v2.7.10
 [2.7.9]: https://github.com/chammoru/Q1View/compare/v2.7.8...v2.7.9
 [2.7.8]: https://github.com/chammoru/Q1View/compare/v2.7.7...v2.7.8
 [2.7.7]: https://github.com/chammoru/Q1View/compare/v2.7.6...v2.7.7
