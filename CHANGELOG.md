@@ -6,6 +6,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.9] — 2026-08-19
+
 ### Fixed
 - Viewer: completed frames are now presented atomically through a DXGI flip-model swap chain, removing the double-DWM-wait bottleneck that limited 60 fps video to roughly 30 displayed frames per second; the verified GDI path remains available as a fallback, and unrotated OpenCV video decodes directly into the playback buffer to sustain real-time 59.94 fps presentation. (issue #90)
 
@@ -325,7 +329,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.8...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.9...HEAD
+[2.7.9]: https://github.com/chammoru/Q1View/compare/v2.7.8...v2.7.9
 [2.7.8]: https://github.com/chammoru/Q1View/compare/v2.7.7...v2.7.8
 [2.7.7]: https://github.com/chammoru/Q1View/compare/v2.7.6...v2.7.7
 [2.7.6]: https://github.com/chammoru/Q1View/compare/v2.7.5...v2.7.6
