@@ -6,6 +6,11 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.11] — 2026-08-23
+
+### Added
 - Viewer: explicitly opened videos now begin playing automatically after their first valid frame is presented; the persistent `File > Autoplay Videos When Opened` option is enabled by default, while folder navigation and automatic reloads remain paused. (issue #89)
 
 ---
@@ -338,7 +343,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.10...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.11...HEAD
+[2.7.11]: https://github.com/chammoru/Q1View/compare/v2.7.10...v2.7.11
 [2.7.10]: https://github.com/chammoru/Q1View/compare/v2.7.9...v2.7.10
 [2.7.9]: https://github.com/chammoru/Q1View/compare/v2.7.8...v2.7.9
 [2.7.8]: https://github.com/chammoru/Q1View/compare/v2.7.7...v2.7.8
