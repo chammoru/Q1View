@@ -46,6 +46,7 @@ static bool IsPlaybackTraceEnabled()
 }
 
 #define WM_VIEWER_PLAY_TIMER (WM_APP + 1)
+#define WM_VIEWER_AUTOPLAY_VIDEO (WM_APP + 2)
 
 
 enum QMouseMenuID
@@ -160,6 +161,7 @@ BEGIN_MESSAGE_MAP(CViewerView, CView)
 	ON_WM_SETCURSOR()
 	ON_WM_RBUTTONUP()
 	ON_MESSAGE(WM_VIEWER_PLAY_TIMER, CViewerView::OnPlayTimer)
+	ON_MESSAGE(WM_VIEWER_AUTOPLAY_VIDEO, CViewerView::OnAutoplayVideo)
 END_MESSAGE_MAP()
 
 CViewerView::CViewerView()
@@ -849,6 +851,34 @@ void CViewerView::SetPlayTimer(CViewerDoc* pDoc)
 		mAudioPlayer.Play(startSec);
 }
 
+LRESULT CViewerView::OnAutoplayVideo(WPARAM wParam, LPARAM lParam)
+{
+	CViewerDoc *pDoc = GetDocument();
+	if (!pDoc || static_cast<UINT>(wParam) != pDoc->mOpenGeneration ||
+			!pDoc->mAutoplayMessagePending) {
+		return 0;
+	}
+	pDoc->mAutoplayMessagePending = false;
+
+	if (pDoc->mDocState == DOC_JUSTLOAD || mIsPlaying ||
+			!pDoc->mFrmSrc || !pDoc->mFrmSrc->isVideo() ||
+			pDoc->mFrames <= 1 || !theApp.IsVideoAutoplayEnabled()) {
+		return 0;
+	}
+
+	ApplyPlaybackState(true);
+	if (mIsPlaying) {
+		CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+		if (pMainFrm) {
+			ViewerSyncInputState input = {};
+			input.command = VIEWER_SYNC_PLAYBACK;
+			input.first = TRUE;
+			pMainFrm->BroadcastSyncInput(input);
+		}
+	}
+	return 0;
+}
+
 // Timer callbacks only post clock ticks, so pausing does not need to wait for
 // a callback that might own a frame buffer.
 void CViewerView::KillPlayTimer()
@@ -1349,6 +1379,20 @@ void CViewerView::OnDraw(CDC *pDC)
 	}
 
 	pDoc->mCurFrameID = mStableRgbBufferInfo.ID;
+
+	// Defer autoplay until the first valid RGB buffer has been fully presented.
+	// Posting a generation-tagged UI message avoids starting decoder/audio work
+	// inside OnDraw and prevents an old request from affecting a newer file.
+	if (!pDC->IsPrinting() && pDoc->mAutoplayAfterPresent && !mIsPlaying &&
+			mStableRgbBufferInfo.addr && mStableRgbBufferInfo.ID >= 0) {
+		pDoc->mAutoplayAfterPresent = false;
+		if (!PostMessage(WM_VIEWER_AUTOPLAY_VIDEO,
+				static_cast<WPARAM>(pDoc->mOpenGeneration), 0)) {
+			pDoc->mAutoplayAfterPresent = true;
+		} else {
+			pDoc->mAutoplayMessagePending = true;
+		}
+	}
 
 	if (stopAfterPresent && mIsPlaying) {
 		KillPlayTimerSafe();
@@ -2243,6 +2287,9 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	switch (nChar) {
 	case VK_SPACE:
 		// No lock is needed here; playback callbacks are marshalled to the UI thread.
+		// An explicit user toggle supersedes any queued autoplay request.
+		pDoc->mAutoplayAfterPresent = false;
+		pDoc->mAutoplayMessagePending = false;
 		if (!mIsPlaying) {
 			if (pDoc->mCurFrameID == pDoc->mFrames - 1) {
 				int ret = pDoc->FirstScene();

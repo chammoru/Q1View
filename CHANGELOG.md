@@ -6,6 +6,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+- Viewer: explicitly opened videos now begin playing automatically after their first valid frame is presented; the persistent `File > Autoplay Videos When Opened` option is enabled by default, while folder navigation and automatic reloads remain paused. (issue #89)
+
 ---
 
 ## [2.7.10] — 2026-08-19

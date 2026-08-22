@@ -25,6 +25,7 @@ END_MESSAGE_MAP()
 
 
 CViewerApp::CViewerApp()
+: mExplicitFileOpen(false)
 {
 }
 
@@ -85,6 +86,35 @@ BOOL CViewerApp::InitInstance()
 	// Enable drag/drop open
 	m_pMainWnd->DragAcceptFiles();
 	return TRUE;
+}
+
+CDocument* CViewerApp::OpenDocumentFile(LPCTSTR lpszFileName)
+{
+	// All MFC user-open paths (command line/DDE, File > Open, recent files,
+	// one-file drag-and-drop, and thumbnail activation) route through here.
+	// Direct document reload/navigation calls intentionally do not.
+	class ExplicitOpenFlagScope
+	{
+	public:
+		ExplicitOpenFlagScope(bool &flag)
+			: mFlag(flag), mPrevious(flag) { mFlag = true; }
+		~ExplicitOpenFlagScope() { mFlag = mPrevious; }
+	private:
+		bool &mFlag;
+		bool mPrevious;
+	} scope(mExplicitFileOpen);
+
+	return CWinApp::OpenDocumentFile(lpszFileName);
+}
+
+bool CViewerApp::IsVideoAutoplayEnabled()
+{
+	return GetProfileInt(_T("Playback"), _T("AutoplayVideos"), 1) != 0;
+}
+
+void CViewerApp::SetVideoAutoplayEnabled(bool enabled)
+{
+	WriteProfileInt(_T("Playback"), _T("AutoplayVideos"), enabled ? 1 : 0);
 }
 
 // CViewerApp message handlers

@@ -104,6 +104,8 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_WM_TIMER()
 	ON_COMMAND(ID_TOGGLE_DRAWER, &CMainFrame::OnToggleDrawer)
 	ON_UPDATE_COMMAND_UI(ID_TOGGLE_DRAWER, &CMainFrame::OnUpdateToggleDrawer)
+	ON_COMMAND(ID_AUTOPLAY_VIDEOS, &CMainFrame::OnToggleAutoplayVideos)
+	ON_UPDATE_COMMAND_UI(ID_AUTOPLAY_VIDEOS, &CMainFrame::OnUpdateAutoplayVideos)
 	ON_COMMAND(ID_UPDATE, &CMainFrame::OnUpdateNow)
 	ON_MESSAGE(WM_STORE_UPDATE_AVAILABLE, &CMainFrame::OnStoreUpdateAvailable)
 	ON_MESSAGE(WM_STORE_UPDATE_DONE, &CMainFrame::OnStoreUpdateDone)
@@ -941,6 +943,16 @@ void CMainFrame::FinalizeDrawerAnimation()
 void CMainFrame::OnUpdateToggleDrawer(CCmdUI *pCmdUI)
 {
 	pCmdUI->SetCheck(mDrawerVisible ? 1 : 0);
+}
+
+void CMainFrame::OnToggleAutoplayVideos()
+{
+	theApp.SetVideoAutoplayEnabled(!theApp.IsVideoAutoplayEnabled());
+}
+
+void CMainFrame::OnUpdateAutoplayVideos(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(theApp.IsVideoAutoplayEnabled() ? 1 : 0);
 }
 
 int CMainFrame::GetDrawerReservedWidth() const

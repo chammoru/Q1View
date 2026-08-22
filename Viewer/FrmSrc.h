@@ -20,6 +20,7 @@ public:
 	virtual void Stop() = 0;
 	virtual void Release() = 0;
 	inline bool isFixed() { return mFixedResolution; }
+	virtual bool isVideo() const { return false; }
 
 private:
 	bool mFixedResolution;
