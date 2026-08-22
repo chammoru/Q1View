@@ -105,6 +105,8 @@ public:
 		return true;
 	}
 
+	virtual bool isVideo() const override { return true; }
+
 	virtual inline void Stop()
 	{
 		mVidCapThread->requestExitAndWait();

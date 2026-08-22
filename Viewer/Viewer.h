@@ -16,15 +16,22 @@ class CViewerApp : public CWinApp
 {
 public:
 	CViewerApp();
+	bool IsExplicitFileOpenInProgress() const { return mExplicitFileOpen; }
+	bool IsVideoAutoplayEnabled();
+	void SetVideoAutoplayEnabled(bool enabled);
 
 // Overrides
 public:
 	virtual BOOL InitInstance();
+	virtual CDocument* OpenDocumentFile(LPCTSTR lpszFileName) override;
 
 // Implementation
 	DECLARE_MESSAGE_MAP()
 	afx_msg void OnFileNew();
 	afx_msg void OnFileOpen();
+
+private:
+	bool mExplicitFileOpen;
 };
 
 extern CViewerApp theApp;

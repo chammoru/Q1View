@@ -105,6 +105,10 @@ public:
 	struct qcsc_info *mSortedCscInfo;
 
 	CString mPendingFile;
+	bool mPendingExplicitOpen;
+	bool mAutoplayAfterPresent;
+	bool mAutoplayMessagePending;
+	UINT mOpenGeneration;
 	// from OpenCV library
 	std::vector<FrmSrc *> mFrmSrcs;
 	FrmSrc *mFrmSrc;

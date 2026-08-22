@@ -55,6 +55,10 @@ CViewerDoc::CViewerDoc()
 , mCsc2Rgb888(qcsc_info_table[QIMG_DEF_CS_IDX].csc2rgb888)
 , mCsLoadInfo(qcsc_info_table[QIMG_DEF_CS_IDX].cs_load_info)
 , mSampleNativePixel(qcsc_info_table[QIMG_DEF_CS_IDX].sample_native_pixel)
+, mPendingExplicitOpen(false)
+, mAutoplayAfterPresent(false)
+, mAutoplayMessagePending(false)
+, mOpenGeneration(0)
 , mFrmSrc(NULL)
 , mBgr888Processor(NULL)
 , mFileChangeNotiThread(new FileChangeNotiThread)
@@ -101,6 +105,10 @@ BOOL CViewerDoc::OnNewDocument()
 		return FALSE;
 
 	mPathName.Empty();
+	mPendingExplicitOpen = false;
+	mAutoplayAfterPresent = false;
+	mAutoplayMessagePending = false;
+	++mOpenGeneration;
 
 	return TRUE;
 }
@@ -362,6 +370,11 @@ void CViewerDoc::UpdateMenu()
 // CViewerDoc commands
 BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
+	bool explicitOpen = theApp.IsExplicitFileOpenInProgress();
+	mAutoplayAfterPresent = false;
+	mAutoplayMessagePending = false;
+	++mOpenGeneration;
+
 	CString pathName = lpszPathName;
 	pathName.Replace(_T('/'), _T('\\'));
 
@@ -375,9 +388,13 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 		// Command-line open can reach here before the SDI frame/view exists.
 		// Defer the real open until CMainFrame::ActivateFrame().
 		mPendingFile = pathName;
+		mPendingExplicitOpen = explicitOpen;
 		::CoInitialize(NULL);
 		return TRUE;
 	}
+
+	explicitOpen = explicitOpen || mPendingExplicitOpen;
+	mPendingExplicitOpen = false;
 
 	mPathName = pathName;
 	mPurePathName = mPathName.Left(mPathName.ReverseFind('\\') + 1);
@@ -406,6 +423,8 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 
 	mOrigW = mOrigH = -1;
 	mFrmSrc->ConfigureDoc(this);
+	mAutoplayAfterPresent = explicitOpen && mFrmSrc->isVideo() &&
+		theApp.IsVideoAutoplayEnabled();
 
 	LoadSourceImage(mLoadLayout);
 

@@ -274,6 +274,7 @@ public:
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnRButtonUp(UINT nFlags, CPoint point);
 	afx_msg LRESULT OnPlayTimer(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnAutoplayVideo(WPARAM wParam, LPARAM lParam);
 };
 
 #ifndef _DEBUG  // debug version in ViewerView.cpp
