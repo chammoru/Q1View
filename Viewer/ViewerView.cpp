@@ -169,6 +169,7 @@ CViewerView::CViewerView()
 , mH(VIEWER_DEF_H)
 , mD(0.f)
 , mN(ZOOM_RATIO(mD))
+, mFitToWindow(true)
 , mIsClicked(false)
 , mXOff(.0f)
 , mYOff(.0f)
@@ -439,6 +440,7 @@ void CViewerView::AdjustWindowSize()
 
 void CViewerView::FitToWindow()
 {
+	mFitToWindow = true;
 	CRect rcClient;
 	GetClientRect(&rcClient);
 	mWClient = rcClient.Width();
@@ -473,6 +475,7 @@ void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool pr
 	float prevN = mN;
 	float prevXOff = mXOff;
 	float prevYOff = mYOff;
+	bool prevFitToWindow = mFitToWindow;
 
 	mW = w;
 	mH = h;
@@ -480,6 +483,7 @@ void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool pr
 	mN = ZOOM_RATIO(mD);
 	mXOff = 0.0f;
 	mYOff = 0.0f;
+	mFitToWindow = true;
 
 	if (nFrame > 1)
 		mHProgress = PROGRESS_BAR_H;
@@ -493,6 +497,7 @@ void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool pr
 		mN = prevN;
 		mXOff = prevXOff;
 		mYOff = prevYOff;
+		mFitToWindow = prevFitToWindow;
 		SetDstSize();
 	}
 
@@ -1490,6 +1495,7 @@ void CViewerView::ChangeZoom(short zDelta, CPoint &pt)
 {
 	if (mN > ZOOM_MAX && zDelta > 0)
 		return;
+	mFitToWindow = false;
 
 	CPoint clientPoint = pt;
 
@@ -1533,6 +1539,7 @@ void CViewerView::ApplyViewState(float zoom, float xOff, float yOff)
 	int previousWidth = mWDst;
 	int previousHeight = mHDst;
 
+	mFitToWindow = false;
 	mN = zoom;
 	mD = ZOOM_DELTA(mN);
 	mXOff = xOff;
@@ -1829,6 +1836,7 @@ void CViewerView::OnMouseMove(UINT nFlags, CPoint point)
 		}
 	} else { // if not the SelMode
 		if (mIsClicked) {
+			mFitToWindow = false;
 			mXOff = mXInitOff + (point.x - mPointS.x) / mN;
 			mYOff = mYInitOff + (point.y - mPointS.y) / mN;
 

@@ -103,6 +103,9 @@ public:
 
 	// Zoom & Move
 	float mD, mN;
+	// True while viewport changes should recompute the best-fit transform. Manual
+	// zoom/pan and synchronized view states deliberately leave this mode.
+	bool mFitToWindow;
 	QPoint mPointS, mPointE;
 	bool mIsClicked;
 	float mXOff, mYOff;
@@ -186,6 +189,7 @@ public:
 public:
 	void AdjustWindowSize();
 	void FitToWindow();
+	bool IsFitToWindow() const { return mFitToWindow; }
 	void ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID);
 	void UpdateVolumeFromPoint(CPoint point);
 	void DrawMuteButton(CDC *pDC, const CRect &rect);

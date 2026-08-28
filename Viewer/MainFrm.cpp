@@ -124,8 +124,8 @@ BEGIN_MESSAGE_MAP(CDrawerSplitter, CSplitterWnd)
 	ON_WM_CANCELMODE()
 END_MESSAGE_MAP()
 
-// The divider bar is the gap between the image view (column 0) and the drawer
-// (column 1): client x in [col0 width, col0 width + bar], full height.
+// The divider bar follows the left drawer (column 0): client x in
+// [drawer width, drawer width + bar], full height.
 bool CDrawerSplitter::OnBar(CPoint point) const
 {
 	int bar = BarWidth();
@@ -157,23 +157,20 @@ void CDrawerSplitter::OnMouseMove(UINT nFlags, CPoint point)
 		CRect rc;
 		GetClientRect(&rc);
 		int bar = BarWidth();
-		// col0 is the image view's width; its bounds keep the drawer within
-		// [DRAWER_MIN_W, DRAWER_MAX_W] and the image view at >= DRAWER_MIN_IMAGE.
-		// Without the max-drawer bound a wide (maximized) window let the divider run
-		// far left and then snap back to the max on release (issue #85).
-		int lo = rc.Width() - bar - DRAWER_MAX_W;     // drawer's maximum width
-		if (lo < DRAWER_MIN_IMAGE)
-			lo = DRAWER_MIN_IMAGE;                    // image view's minimum width
-		int hi = rc.Width() - bar - DRAWER_MIN_W;     // drawer's minimum width
-		if (hi < lo)
-			hi = lo;
+		// col0 is now the drawer itself. Clamp its right edge to the shared
+		// drawer bounds while keeping the image view at DRAWER_MIN_IMAGE (issue #85).
+		int hi = rc.Width() - bar - DRAWER_MIN_IMAGE;
+		if (hi > DRAWER_MAX_W)
+			hi = DRAWER_MAX_W;
+		if (hi < DRAWER_MIN_W)
+			hi = DRAWER_MIN_W;
 		int col0 = point.x;
-		if (col0 < lo) col0 = lo;
+		if (col0 < DRAWER_MIN_W) col0 = DRAWER_MIN_W;
 		else if (col0 > hi) col0 = hi;
 		int col1 = rc.Width() - bar - col0;
 		if (col1 < 0) col1 = 0;
-		SetColumnInfo(0, col0, DRAWER_MIN_IMAGE);
-		SetColumnInfo(1, col1, DRAWER_MIN_W);
+		SetColumnInfo(0, col0, DRAWER_MIN_W);
+		SetColumnInfo(1, col1, DRAWER_MIN_IMAGE);
 		RecalcLayout();
 		if (mFrame != NULL)
 			mFrame->OnDrawerDividerTracking();
@@ -747,23 +744,22 @@ BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext)
 	mwndSplitter.mFrame = this;
 	mwndSplitter.SetBarVisible(mDrawerVisible);
 
-	// Image view in column 0 (left) and the thumbnail drawer in column 1
-	// (right). The frame stays a fixed size; opening the drawer or dragging the
-	// divider shrinks/grows the image-view column instead (issue #76).
-	if (!mwndSplitter.CreateView(0, 0, pContext->m_pNewViewClass,
+	// Drawer in column 0 (left), image view in column 1 (right). The outer frame
+	// remains fixed; opening or dragging the drawer only changes these columns.
+	mpDrawer = new CThumbnailPane();
+	if (!mpDrawer->CreatePane(&mwndSplitter, mwndSplitter.IdFromRowCol(0, 0)))
+		return FALSE;
+
+	if (!mwndSplitter.CreateView(0, 1, pContext->m_pNewViewClass,
 			CSize(200, 200), pContext))
 		return FALSE;
 
-	mpDrawer = new CThumbnailPane();
-	if (!mpDrawer->CreatePane(&mwndSplitter, mwndSplitter.IdFromRowCol(0, 1)))
-		return FALSE;
-
-	mwndSplitter.SetColumnInfo(0, 200, DRAWER_MIN_IMAGE);
-	mwndSplitter.SetColumnInfo(1, mDrawerVisible ? mDrawerWidth : 0, DRAWER_MIN_W);
+	mwndSplitter.SetColumnInfo(0, mDrawerVisible ? mDrawerWidth : 0, DRAWER_MIN_W);
+	mwndSplitter.SetColumnInfo(1, 200, DRAWER_MIN_IMAGE);
 	mwndSplitter.RecalcLayout();
 
 	// The image view must remain the active view for doc/view command routing.
-	SetActiveView(static_cast<CView *>(mwndSplitter.GetPane(0, 0)));
+	SetActiveView(static_cast<CView *>(mwndSplitter.GetPane(0, 1)));
 	mSplitterReady = true;
 
 	// Full-window help overlay sits above the splitter (created last, raised to
@@ -798,8 +794,8 @@ void CMainFrame::PinDrawerColumn()
 	if (viewCol < 0)
 		viewCol = 0;
 
-	mwndSplitter.SetColumnInfo(0, viewCol, DRAWER_MIN_IMAGE);  // image view (left)
-	mwndSplitter.SetColumnInfo(1, drawerCol, DRAWER_MIN_W);    // drawer (right)
+	mwndSplitter.SetColumnInfo(0, drawerCol, DRAWER_MIN_W);    // drawer (left)
+	mwndSplitter.SetColumnInfo(1, viewCol, DRAWER_MIN_IMAGE);  // image view (right)
 	mwndSplitter.RecalcLayout();
 }
 
@@ -889,12 +885,9 @@ void CMainFrame::ApplyDrawerColumn(int drawerCol)
 	if (viewCol < 0)
 		viewCol = 0;
 
-	mwndSplitter.SetColumnInfo(0, viewCol, DRAWER_MIN_IMAGE);  // image view, shrinks
-	mwndSplitter.SetColumnInfo(1, drawerCol, 0);               // drawer, grows
+	mwndSplitter.SetColumnInfo(0, drawerCol, 0);               // drawer, grows left
+	mwndSplitter.SetColumnInfo(1, viewCol, DRAWER_MIN_IMAGE);  // image view, shrinks
 	mwndSplitter.RecalcLayout();
-
-	// The view column changed size, so refit the image into it as it slides.
-	RefitView();
 }
 
 void CMainFrame::OnTimer(UINT_PTR nIDEvent)
@@ -928,9 +921,9 @@ void CMainFrame::FinalizeDrawerAnimation()
 	if (!mDrawerAnimOpening)
 		mDrawerVisible = false;
 
-	// Snap to the exact final column/layout for the resting state, then refit.
+	// Snap to the exact resting layout, then perform at most one final fit.
 	PinDrawerColumn();
-	RefitView();
+	SettleViewAfterDrawerResize();
 
 	// Release the slide lock and settle the grid into its now-final width.
 	if (mpDrawer && ::IsWindow(mpDrawer->GetSafeHwnd()))
@@ -975,10 +968,11 @@ void CMainFrame::OnDrawerDividerTracking()
 	if (!mSplitterReady || mDrawerAnimating)
 		return;
 
-	// The splitter has already resized the child panes. Refit and repaint the image
-	// view in the same mouse-move pass, otherwise the newly exposed area can briefly
-	// show stale pixels while Windows waits for the next paint message.
-	RefitView(true);
+	// CViewerView::OnSize preserves the current scale and image-space focal point.
+	// Repaint that stable transform, but defer a fit calculation until mouse-up.
+	CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
+	if (pView != NULL)
+		pView->RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOERASE);
 
 	if (mpDrawer != NULL && ::IsWindow(mpDrawer->GetSafeHwnd())) {
 		mpDrawer->RedrawWindow(NULL, NULL,
@@ -994,7 +988,7 @@ void CMainFrame::OnDrawerDividerDragged()
 		// Adopt the width the user dragged the drawer column to, clamped to the
 		// shared bounds, then re-pin (enforces the minimum image view) and refit.
 		int cur = 0, mn = 0;
-		mwndSplitter.GetColumnInfo(1, cur, mn);
+		mwndSplitter.GetColumnInfo(0, cur, mn);
 		if (cur < DRAWER_MIN_W) cur = DRAWER_MIN_W;
 		if (cur > DRAWER_MAX_W) cur = DRAWER_MAX_W;
 		mDrawerWidth = cur;
@@ -1006,7 +1000,7 @@ void CMainFrame::OnDrawerDividerDragged()
 	mDrawerResizing = false;
 	if (commit) {
 		PinDrawerColumn();
-		RefitView();
+		SettleViewAfterDrawerResize();
 	}
 
 	// Resume and re-fit the grid once at the final width.
@@ -1014,11 +1008,12 @@ void CMainFrame::OnDrawerDividerDragged()
 		mpDrawer->SetResizing(false);
 }
 
-void CMainFrame::RefitView(bool updateNow)
+void CMainFrame::SettleViewAfterDrawerResize(bool updateNow)
 {
 	CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
 	if (pView != NULL) {
-		pView->FitToWindow();
+		if (pView->IsFitToWindow())
+			pView->FitToWindow();
 		if (updateNow) {
 			pView->RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOERASE);
 		} else {

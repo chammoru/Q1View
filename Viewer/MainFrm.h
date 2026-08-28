@@ -54,7 +54,7 @@ class CMainFrame;
 // thumbnail drawer.
 #define DRAWER_SPLIT_BAR  6
 
-// Static splitter hosting the image view (column 0) and the thumbnail drawer
+// Static splitter hosting the thumbnail drawer (column 0) and image view
 // (column 1). The divider is a thin, draggable bar so the user can resize the
 // drawer (e.g. to read long file names); dragging redistributes width between
 // the two panes inside the fixed window, never resizing the frame (issue #76).
@@ -237,8 +237,9 @@ private:
 	void StartDrawerAnimation(bool opening);
 	void ApplyDrawerColumn(int drawerCol);
 	void FinalizeDrawerAnimation();
-	// Refit the image into the current view column (after a drawer resize).
-	void RefitView(bool updateNow = false);
+	// Settle the image after a drawer resize. Active fit mode is recomputed once
+	// at the final width; manual mode only repaints its preserved transform.
+	void SettleViewAfterDrawerResize(bool updateNow = false);
 	afx_msg LRESULT Reload(WPARAM wParam, LPARAM lParam);
 	afx_msg BOOL OnCopyData(CWnd *pWnd, COPYDATASTRUCT *pCopyDataStruct);
 	afx_msg LRESULT OnApplySyncInput(WPARAM wParam, LPARAM lParam);

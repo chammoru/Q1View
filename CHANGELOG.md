@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Changed
+- Viewer: the thumbnail browser now opens on the left in both the MFC and Qt front ends, while the fixed outer window, drawer width, manual zoom scale, image-space focal point, fit behavior, synchronized view state, and video playback remain stable across drawer toggles and divider resizing. (issue #96)
+
 ---
 
 ## [2.7.11] — 2026-08-23
