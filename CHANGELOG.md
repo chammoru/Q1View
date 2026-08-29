@@ -6,6 +6,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.12] — 2026-08-29
+
 ### Changed
 - Viewer: the thumbnail browser now opens on the left in both the MFC and Qt front ends, while the fixed outer window, drawer width, manual zoom scale, image-space focal point, fit behavior, synchronized view state, and video playback remain stable across drawer toggles and divider resizing; during active MFC video playback the drawer switches directly to its final layout instead of running a splitter animation that can starve 60 fps presentation, preserves the subject's desktop position, clears newly exposed canvas edges, and holds the last composed frame above the separate MFC and DXGI surfaces until the final layout is ready so no striped or partial transition frame reaches the display. (issue #96)
 
@@ -346,7 +350,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.11...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.12...HEAD
+[2.7.12]: https://github.com/chammoru/Q1View/compare/v2.7.11...v2.7.12
 [2.7.11]: https://github.com/chammoru/Q1View/compare/v2.7.10...v2.7.11
 [2.7.10]: https://github.com/chammoru/Q1View/compare/v2.7.9...v2.7.10
 [2.7.9]: https://github.com/chammoru/Q1View/compare/v2.7.8...v2.7.9
