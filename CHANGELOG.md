@@ -7,7 +7,7 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 ## [Unreleased]
 
 ### Changed
-- Viewer: the thumbnail browser now opens on the left in both the MFC and Qt front ends, while the fixed outer window, drawer width, manual zoom scale, image-space focal point, fit behavior, synchronized view state, and video playback remain stable across drawer toggles and divider resizing; during active MFC video playback the drawer switches directly to its final layout instead of running a splitter animation that can starve 60 fps presentation, and compensates the moved viewport so the video subject does not jump sideways on screen. (issue #96)
+- Viewer: the thumbnail browser now opens on the left in both the MFC and Qt front ends, while the fixed outer window, drawer width, manual zoom scale, image-space focal point, fit behavior, synchronized view state, and video playback remain stable across drawer toggles and divider resizing; during active MFC video playback the drawer switches directly to its final layout instead of running a splitter animation that can starve 60 fps presentation, preserves the subject's desktop position, clears newly exposed canvas edges, and holds the last composed frame above the separate MFC and DXGI surfaces until the final layout is ready so no striped or partial transition frame reaches the display. (issue #96)
 
 ---
 

@@ -122,6 +122,19 @@ private:
 	CWnd *mOwner = NULL;      // the frame whose client this overlay covers
 };
 
+// Holds the last fully composed client image above the separate MFC and DXGI
+// child surfaces while an active-video drawer toggle settles underneath it.
+class CDrawerTransitionOverlay : public CWnd
+{
+public:
+	BOOL CreateOverlay(CWnd *pParent);
+	bool ShowSnapshot();
+	void Hide();
+
+private:
+	CWnd *mOwner = NULL;
+};
+
 class CMainFrame : public CFrameWnd
 {
 protected: // create from serialization only
@@ -158,6 +171,7 @@ private:
 
 	// Full-window shortcut/help overlay (issue #79).
 	CHelpOverlay mHelpOverlay;
+	CDrawerTransitionOverlay mDrawerTransitionOverlay;
 
 // Operations
 public:

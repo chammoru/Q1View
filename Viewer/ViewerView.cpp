@@ -709,7 +709,14 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 {
 	long gap, yStart, yEnd, xStart, xEnd;
 
-	if (mYDst > 0 || mXDst > 0) // The image is smaller than the canvas.
+	// Clear whenever any canvas edge is outside the image. Normally letterboxing
+	// exposes the left/top edges too, but preserving the video's desktop origin
+	// across a left-drawer toggle can crop the left edge while exposing only the
+	// right edge. Leaving that strip untouched reuses prior RGB rows and flickers
+	// conspicuously as striped video noise during playback.
+	const bool hasExposedCanvas = mXDst > 0 || mYDst > 0 ||
+		mXDst + mWDst < mWCanvas || mYDst + mHDst < mHCanvas;
+	if (hasExposedCanvas)
 		memset(dst, 0xf7, sDst * mHClient * QIMG_DST_RGB_BYTES);
 
 	// Visible range of the scaled image on the canvas.

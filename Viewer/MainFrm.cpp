@@ -31,6 +31,9 @@
 #include "Shlwapi.h"
 
 #include <algorithm>
+#include <dwmapi.h>
+
+#pragma comment(lib, "dwmapi.lib")
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -423,6 +426,79 @@ BOOL CHelpOverlay::OnEraseBkgnd(CDC * /*pDC*/)
 }
 
 
+BOOL CDrawerTransitionOverlay::CreateOverlay(CWnd *pParent)
+{
+	mOwner = pParent;
+	LPCTSTR cls = AfxRegisterWndClass(0, ::LoadCursor(NULL, IDC_ARROW), NULL, NULL);
+	return CreateEx(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE |
+		WS_EX_TRANSPARENT, cls, _T(""), WS_POPUP, CRect(0, 0, 0, 0), pParent, 0);
+}
+
+bool CDrawerTransitionOverlay::ShowSnapshot()
+{
+	if (!GetSafeHwnd() || !mOwner || !::IsWindow(mOwner->GetSafeHwnd()))
+		return false;
+
+	CRect rc;
+	mOwner->GetClientRect(&rc);
+	mOwner->ClientToScreen(&rc);
+	const int width = rc.Width();
+	const int height = rc.Height();
+	if (width <= 0 || height <= 0)
+		return false;
+
+	BITMAPINFO bmi = {};
+	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = width;
+	bmi.bmiHeader.biHeight = -height;
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 32;
+	bmi.bmiHeader.biCompression = BI_RGB;
+
+	void *bits = NULL;
+	HDC screen = ::GetDC(NULL);
+	HBITMAP dib = ::CreateDIBSection(screen, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
+	HDC mem = dib ? ::CreateCompatibleDC(screen) : NULL;
+	if (!dib || !mem) {
+		if (mem) ::DeleteDC(mem);
+		if (dib) ::DeleteObject(dib);
+		::ReleaseDC(NULL, screen);
+		return false;
+	}
+
+	HBITMAP oldBitmap = static_cast<HBITMAP>(::SelectObject(mem, dib));
+	::BitBlt(mem, 0, 0, width, height, screen, rc.left, rc.top,
+		SRCCOPY | CAPTUREBLT);
+	BYTE *pixels = static_cast<BYTE *>(bits);
+	for (size_t i = 0, count = static_cast<size_t>(width) * height; i < count; ++i)
+		pixels[i * 4 + 3] = 255;
+
+	POINT destination = { rc.left, rc.top };
+	SIZE size = { width, height };
+	POINT source = { 0, 0 };
+	BLENDFUNCTION blend = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
+	BOOL updated = ::UpdateLayeredWindow(m_hWnd, screen, &destination, &size,
+		mem, &source, 0, &blend, ULW_ALPHA);
+
+	::SelectObject(mem, oldBitmap);
+	::DeleteDC(mem);
+	::DeleteObject(dib);
+	::ReleaseDC(NULL, screen);
+	if (!updated)
+		return false;
+
+	ShowWindow(SW_SHOWNA);
+	::DwmFlush();
+	return true;
+}
+
+void CDrawerTransitionOverlay::Hide()
+{
+	if (GetSafeHwnd() && (GetStyle() & WS_VISIBLE) != 0)
+		ShowWindow(SW_HIDE);
+}
+
+
 CMainFrame::CMainFrame()
 : mSyncInput(false)
 , mSyncViewStatePending(false)
@@ -765,6 +841,7 @@ BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext)
 	// Full-window help overlay sits above the splitter (created last, raised to
 	// top when shown). Failure is non-fatal -- the app simply has no help panel.
 	mHelpOverlay.CreateOverlay(this);
+	mDrawerTransitionOverlay.CreateOverlay(this);
 	return TRUE;
 }
 
@@ -858,6 +935,10 @@ void CMainFrame::SetDrawerVisibleImmediately(bool visible)
 			oldViewRect.top + pView->mYDst);
 	}
 
+	// The drawer and DXGI view are separate child surfaces, so a desktop capture
+	// holds the last fully composed frame above them while both settle underneath.
+	const bool snapshotShown = mDrawerTransitionOverlay.ShowSnapshot();
+
 	mDrawerVisible = visible;
 	PinDrawerColumn();
 
@@ -866,15 +947,25 @@ void CMainFrame::SetDrawerVisibleImmediately(bool visible)
 		// video, compensate the viewport's desktop movement as well so the subject
 		// does not jump sideways when the left drawer appears or disappears.
 		pView->RestoreImageScreenOrigin(oldImageOrigin);
-		pView->RedrawWindow(NULL, NULL,
-			RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOERASE);
 	} else {
 		SettleViewAfterDrawerResize(true);
 	}
 
-	// Populate only after the final column exists. Thumbnail decoding remains on
-	// its background workers, and no intermediate splitter sizes compete with
-	// video presentation on the UI thread.
+	if (pView != NULL) {
+		pView->RedrawWindow(NULL, NULL,
+			RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOERASE);
+	}
+
+	mwndSplitter.RedrawWindow(NULL, NULL,
+		RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_NOERASE);
+	if (snapshotShown) {
+		::DwmFlush();
+		mDrawerTransitionOverlay.Hide();
+	}
+
+	// Start the drawer's list/background thumbnail work only after the stable
+	// video surface is visible again, so folder setup cannot extend the frozen
+	// transition snapshot.
 	if (visible && mpDrawer != NULL && ::IsWindow(mpDrawer->GetSafeHwnd())) {
 		CDocument *pDoc = GetActiveDocument();
 		if (pDoc != NULL && !pDoc->GetPathName().IsEmpty())
