@@ -469,6 +469,24 @@ void CViewerView::FitToWindow()
 	pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
 }
 
+void CViewerView::RestoreImageScreenOrigin(const CPoint &screenOrigin)
+{
+	if (mN <= 0.0f || GetSafeHwnd() == NULL)
+		return;
+
+	CRect viewRect;
+	GetWindowRect(&viewRect);
+	mXDst = screenOrigin.x - viewRect.left;
+	mYDst = screenOrigin.y - viewRect.top;
+
+	// Reconstruct the centre-relative offsets without DeterminDestPos's usual
+	// edge clamp. A temporary letterbox strip is preferable here: clamping would
+	// move the video subject by up to half the drawer width and cause eye fatigue.
+	mXOff = (mXDst - (mWCanvas - mWDst) / 2.0f) / mN;
+	mYOff = (mYDst - (mHCanvas - mHDst) / 2.0f) / mN;
+	Invalidate(FALSE);
+}
+
 void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool preserveViewState)
 {
 	float prevD = mD;
@@ -705,15 +723,19 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 	}
 
 	if (mXDst >= 0 && sDst >= mWDst) {
-		gap = (sDst - mWDst) * QIMG_DST_RGB_BYTES;
 		dst += mXDst * QIMG_DST_RGB_BYTES;
 		xStart = 0;
-		xEnd = mWDst;
+		xEnd = QMIN(mWDst, mWCanvas - mXDst);
 	} else {
-		gap = (sDst - mWClient) * QIMG_DST_RGB_BYTES;
 		xStart = -mXDst;
 		xEnd = QMIN(mWDst, mWCanvas - mXDst);
 	}
+	// Use the actual visible span, not the canvas width. Playback drawer layout
+	// preservation can intentionally leave a letterbox strip on one side so the
+	// video subject stays fixed in desktop coordinates; assuming a full-width
+	// span here would advance each output row by the wrong stride and corrupt it.
+	const long visibleWidth = QMAX(0, xEnd - xStart);
+	gap = (sDst - visibleWidth) * QIMG_DST_RGB_BYTES;
 
 	if (mInterpol) {
 		q1::Interpolate(src, mH, mW, mWCanvas, xStart, xEnd, yStart, yEnd, mNnOffsetBuf, dst);

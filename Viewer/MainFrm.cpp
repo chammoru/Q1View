@@ -847,9 +847,30 @@ void CMainFrame::SetDrawerVisibleImmediately(bool visible)
 	if (visible == mDrawerVisible)
 		return;
 
+	CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
+	CRect oldViewRect;
+	const bool preserveScreenPosition = pView != NULL && !pView->IsFitToWindow() &&
+		pView->GetSafeHwnd() != NULL;
+	CPoint oldImageOrigin;
+	if (preserveScreenPosition) {
+		pView->GetWindowRect(&oldViewRect);
+		oldImageOrigin.SetPoint(oldViewRect.left + pView->mXDst,
+			oldViewRect.top + pView->mYDst);
+	}
+
 	mDrawerVisible = visible;
 	PinDrawerColumn();
-	SettleViewAfterDrawerResize(true);
+
+	if (preserveScreenPosition) {
+		// OnSize has preserved zoom and the image-space viewport anchor. For active
+		// video, compensate the viewport's desktop movement as well so the subject
+		// does not jump sideways when the left drawer appears or disappears.
+		pView->RestoreImageScreenOrigin(oldImageOrigin);
+		pView->RedrawWindow(NULL, NULL,
+			RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOERASE);
+	} else {
+		SettleViewAfterDrawerResize(true);
+	}
 
 	// Populate only after the final column exists. Thumbnail decoding remains on
 	// its background workers, and no intermediate splitter sizes compete with
