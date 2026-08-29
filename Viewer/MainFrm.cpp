@@ -826,9 +826,39 @@ void CMainFrame::OnToggleDrawer()
 	if (!mSplitterReady || mDrawerAnimating)
 		return;
 
+	// A 60 fps video already consumes the UI thread once per presented frame.
+	// Animating the splitter adds twelve RecalcLayout/ResizeBuffers passes on that
+	// same thread, so timer ticks can be delayed for nearly a second and leave the
+	// drawer apparently stuck between widths. During playback, apply the resting
+	// layout atomically; the decoder and playback clock remain untouched.
+	CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
+	if (pView != NULL && pView->mIsPlaying) {
+		SetDrawerVisibleImmediately(!mDrawerVisible);
+		return;
+	}
+
 	// mDrawerWidth is the fixed target width; it is never rederived from the
 	// laid-out column, so repeated toggles can't accumulate any drift.
 	StartDrawerAnimation(!mDrawerVisible);
+}
+
+void CMainFrame::SetDrawerVisibleImmediately(bool visible)
+{
+	if (visible == mDrawerVisible)
+		return;
+
+	mDrawerVisible = visible;
+	PinDrawerColumn();
+	SettleViewAfterDrawerResize(true);
+
+	// Populate only after the final column exists. Thumbnail decoding remains on
+	// its background workers, and no intermediate splitter sizes compete with
+	// video presentation on the UI thread.
+	if (visible && mpDrawer != NULL && ::IsWindow(mpDrawer->GetSafeHwnd())) {
+		CDocument *pDoc = GetActiveDocument();
+		if (pDoc != NULL && !pDoc->GetPathName().IsEmpty())
+			mpDrawer->SetCurrentFile(pDoc->GetPathName());
+	}
 }
 
 void CMainFrame::StartDrawerAnimation(bool opening)

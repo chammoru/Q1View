@@ -234,6 +234,7 @@ private:
 	BOOL ResolveComparatorPath(CString &cmperPath);
 	BOOL LaunchComparator(const CString &cmperPath, const CString &quotedArgs);
 	void PinDrawerColumn();
+	void SetDrawerVisibleImmediately(bool visible);
 	void StartDrawerAnimation(bool opening);
 	void ApplyDrawerColumn(int drawerCol);
 	void FinalizeDrawerAnimation();
