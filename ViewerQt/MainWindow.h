@@ -10,7 +10,9 @@
 #include <QImage>
 #include <QMainWindow>
 #include <QPoint>
+#include <QPointF>
 #include <QRect>
+#include <QSize>
 #include <QStringList>
 
 class ImageView;
@@ -180,6 +182,9 @@ private:
 	void broadcastViewState(bool force = false);
 	quint32 displayOptionBits() const;
 	void applySyncMessage(const SyncMessage &message);
+	QPointF viewportCenterInImage(const QSize &viewportSize) const;
+	void scheduleViewportSettle(const QSize &oldViewportSize);
+	void settleViewportAfterResize();
 
 protected:
 	void dragEnterEvent(QDragEnterEvent *event) override;
@@ -197,6 +202,11 @@ private:
 	QAction *mToggleDrawerAction = nullptr;
 	int mDrawerWidth = DRAWER_DEF_W;
 	QScrollArea *mScrollArea;
+	// Coalesces dock/window resize bursts. Fit is recalculated once at rest;
+	// manual zoom restores the image-space point that was under the old centre.
+	QTimer *mViewportSettleTimer;
+	QPointF mViewportResizeAnchor;
+	bool mViewportResizeAnchorValid = false;
 	// Image page = scroll area + the raw/sequence seek bar below it. The seek bar
 	// (frame slider + frame/time readout) shows only for multi-frame raw sources,
 	// mirroring the MFC viewer's bottom progress bar; video files use VideoView's

@@ -169,6 +169,7 @@ CViewerView::CViewerView()
 , mH(VIEWER_DEF_H)
 , mD(0.f)
 , mN(ZOOM_RATIO(mD))
+, mFitToWindow(true)
 , mIsClicked(false)
 , mXOff(.0f)
 , mYOff(.0f)
@@ -439,6 +440,7 @@ void CViewerView::AdjustWindowSize()
 
 void CViewerView::FitToWindow()
 {
+	mFitToWindow = true;
 	CRect rcClient;
 	GetClientRect(&rcClient);
 	mWClient = rcClient.Width();
@@ -467,12 +469,31 @@ void CViewerView::FitToWindow()
 	pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
 }
 
+void CViewerView::RestoreImageScreenOrigin(const CPoint &screenOrigin)
+{
+	if (mN <= 0.0f || GetSafeHwnd() == NULL)
+		return;
+
+	CRect viewRect;
+	GetWindowRect(&viewRect);
+	mXDst = screenOrigin.x - viewRect.left;
+	mYDst = screenOrigin.y - viewRect.top;
+
+	// Reconstruct the centre-relative offsets without DeterminDestPos's usual
+	// edge clamp. A temporary letterbox strip is preferable here: clamping would
+	// move the video subject by up to half the drawer width and cause eye fatigue.
+	mXOff = (mXDst - (mWCanvas - mWDst) / 2.0f) / mN;
+	mYOff = (mYDst - (mHCanvas - mHDst) / 2.0f) / mN;
+	Invalidate(FALSE);
+}
+
 void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool preserveViewState)
 {
 	float prevD = mD;
 	float prevN = mN;
 	float prevXOff = mXOff;
 	float prevYOff = mYOff;
+	bool prevFitToWindow = mFitToWindow;
 
 	mW = w;
 	mH = h;
@@ -480,6 +501,7 @@ void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool pr
 	mN = ZOOM_RATIO(mD);
 	mXOff = 0.0f;
 	mYOff = 0.0f;
+	mFitToWindow = true;
 
 	if (nFrame > 1)
 		mHProgress = PROGRESS_BAR_H;
@@ -493,6 +515,7 @@ void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool pr
 		mN = prevN;
 		mXOff = prevXOff;
 		mYOff = prevYOff;
+		mFitToWindow = prevFitToWindow;
 		SetDstSize();
 	}
 
@@ -686,7 +709,14 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 {
 	long gap, yStart, yEnd, xStart, xEnd;
 
-	if (mYDst > 0 || mXDst > 0) // The image is smaller than the canvas.
+	// Clear whenever any canvas edge is outside the image. Normally letterboxing
+	// exposes the left/top edges too, but preserving the video's desktop origin
+	// across a left-drawer toggle can crop the left edge while exposing only the
+	// right edge. Leaving that strip untouched reuses prior RGB rows and flickers
+	// conspicuously as striped video noise during playback.
+	const bool hasExposedCanvas = mXDst > 0 || mYDst > 0 ||
+		mXDst + mWDst < mWCanvas || mYDst + mHDst < mHCanvas;
+	if (hasExposedCanvas)
 		memset(dst, 0xf7, sDst * mHClient * QIMG_DST_RGB_BYTES);
 
 	// Visible range of the scaled image on the canvas.
@@ -700,15 +730,19 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 	}
 
 	if (mXDst >= 0 && sDst >= mWDst) {
-		gap = (sDst - mWDst) * QIMG_DST_RGB_BYTES;
 		dst += mXDst * QIMG_DST_RGB_BYTES;
 		xStart = 0;
-		xEnd = mWDst;
+		xEnd = QMIN(mWDst, mWCanvas - mXDst);
 	} else {
-		gap = (sDst - mWClient) * QIMG_DST_RGB_BYTES;
 		xStart = -mXDst;
 		xEnd = QMIN(mWDst, mWCanvas - mXDst);
 	}
+	// Use the actual visible span, not the canvas width. Playback drawer layout
+	// preservation can intentionally leave a letterbox strip on one side so the
+	// video subject stays fixed in desktop coordinates; assuming a full-width
+	// span here would advance each output row by the wrong stride and corrupt it.
+	const long visibleWidth = QMAX(0, xEnd - xStart);
+	gap = (sDst - visibleWidth) * QIMG_DST_RGB_BYTES;
 
 	if (mInterpol) {
 		q1::Interpolate(src, mH, mW, mWCanvas, xStart, xEnd, yStart, yEnd, mNnOffsetBuf, dst);
@@ -1490,6 +1524,7 @@ void CViewerView::ChangeZoom(short zDelta, CPoint &pt)
 {
 	if (mN > ZOOM_MAX && zDelta > 0)
 		return;
+	mFitToWindow = false;
 
 	CPoint clientPoint = pt;
 
@@ -1533,6 +1568,7 @@ void CViewerView::ApplyViewState(float zoom, float xOff, float yOff)
 	int previousWidth = mWDst;
 	int previousHeight = mHDst;
 
+	mFitToWindow = false;
 	mN = zoom;
 	mD = ZOOM_DELTA(mN);
 	mXOff = xOff;
@@ -1829,6 +1865,7 @@ void CViewerView::OnMouseMove(UINT nFlags, CPoint point)
 		}
 	} else { // if not the SelMode
 		if (mIsClicked) {
+			mFitToWindow = false;
 			mXOff = mXInitOff + (point.x - mPointS.x) / mN;
 			mYOff = mYInitOff + (point.y - mPointS.y) / mN;
 

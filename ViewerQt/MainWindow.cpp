@@ -88,6 +88,7 @@ MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent),
 	  mImageView(new ImageView),
 	  mScrollArea(new QScrollArea),
+	  mViewportSettleTimer(new QTimer(this)),
 	  mCentralStack(new QStackedWidget),
 	  mVideoView(nullptr),
 	  mShowingVideo(false),
@@ -173,6 +174,10 @@ MainWindow::MainWindow(QWidget *parent)
 	mScrollArea->viewport()->setFocusPolicy(Qt::StrongFocus);
 	mScrollArea->viewport()->grabGesture(Qt::PinchGesture);
 	mScrollArea->viewport()->installEventFilter(this);
+	mViewportSettleTimer->setSingleShot(true);
+	mViewportSettleTimer->setInterval(40);
+	connect(mViewportSettleTimer, &QTimer::timeout,
+		this, &MainWindow::settleViewportAfterResize);
 	// Image page = scroll area on top of the raw/sequence seek bar. The seek bar
 	// is a frame slider plus a "frame / max  cur / dur" readout; it stays hidden
 	// unless a multi-frame raw source is open (see updateSeekBar). Clicking the
@@ -230,12 +235,12 @@ MainWindow::MainWindow(QWidget *parent)
 	mThumbDock = new QDockWidget(tr("Thumbnail Browser"), this);
 	mThumbDock->setObjectName(QStringLiteral("thumbnailDrawer"));
 	mThumbDock->setWidget(mThumbPane);
-	mThumbDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+	mThumbDock->setAllowedAreas(Qt::LeftDockWidgetArea);
 	// Match the MFC drawer: a borderless pane with no title bar (no float/close
 	// chrome). Removing the title bar drops the move/float/close affordances
 	// while leaving the divider draggable; it is toggled with E.
 	mThumbDock->setTitleBarWidget(new QWidget(mThumbDock));
-	addDockWidget(Qt::RightDockWidgetArea, mThumbDock);
+	addDockWidget(Qt::LeftDockWidgetArea, mThumbDock);
 	mThumbDock->setVisible(false);
 	// Colour the divider between the image and the drawer to match the MFC
 	// viewer's hairline (q1theme::border) instead of Qt's default raised
@@ -2774,6 +2779,68 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *event)
 	event->ignore();
 }
 
+QPointF MainWindow::viewportCenterInImage(const QSize &viewportSize) const
+{
+	if (mImage.isNull() || mScaleFactor <= 0.0) {
+		return QPointF();
+	}
+
+	const QSize content = mImageView->size();
+	const double x = content.width() <= viewportSize.width()
+		? content.width() / (2.0 * mScaleFactor)
+		: (mScrollArea->horizontalScrollBar()->value() + viewportSize.width() / 2.0) / mScaleFactor;
+	const double y = content.height() <= viewportSize.height()
+		? content.height() / (2.0 * mScaleFactor)
+		: (mScrollArea->verticalScrollBar()->value() + viewportSize.height() / 2.0) / mScaleFactor;
+	return QPointF(x, y);
+}
+
+void MainWindow::scheduleViewportSettle(const QSize &oldViewportSize)
+{
+	if (mImage.isNull() || mShowingVideo) {
+		return;
+	}
+
+	if (!mFitToWindow && !mViewportResizeAnchorValid && oldViewportSize.isValid()) {
+		mViewportResizeAnchor = viewportCenterInImage(oldViewportSize);
+		mViewportResizeAnchorValid = true;
+	}
+
+	// Restore manual transforms after this layout pass so divider dragging stays
+	// anchored. Fit mode waits for the resize burst to stop, then computes once.
+	mViewportSettleTimer->start(mFitToWindow ? 40 : 0);
+}
+
+void MainWindow::settleViewportAfterResize()
+{
+	if (mImage.isNull() || mShowingVideo) {
+		mViewportResizeAnchorValid = false;
+		return;
+	}
+
+	if (mFitToWindow) {
+		mViewportResizeAnchorValid = false;
+		updateView();
+		return;
+	}
+
+	if (!mViewportResizeAnchorValid) {
+		return;
+	}
+
+	const QSize viewport = mScrollArea->viewport()->size();
+	const QSize content = mImageView->size();
+	if (content.width() > viewport.width()) {
+		mScrollArea->horizontalScrollBar()->setValue(static_cast<int>(std::lround(
+			mViewportResizeAnchor.x() * mScaleFactor - viewport.width() / 2.0)));
+	}
+	if (content.height() > viewport.height()) {
+		mScrollArea->verticalScrollBar()->setValue(static_cast<int>(std::lround(
+			mViewportResizeAnchor.y() * mScaleFactor - viewport.height() / 2.0)));
+	}
+	mViewportResizeAnchorValid = false;
+}
+
 bool MainWindow::eventFilter(QObject *object, QEvent *event)
 {
 	// Click anywhere on the seek bar groove to jump to that frame (QSlider only
@@ -2794,13 +2861,11 @@ bool MainWindow::eventFilter(QObject *object, QEvent *event)
 	}
 
 	if (event->type() == QEvent::Resize) {
-		// The viewport changes width when the window is resized or the thumbnail
-		// drawer's divider is dragged. Re-fit so the shown image tracks the
-		// available area (issue #76): the whole-window resizeEvent does not fire
-		// on a divider drag, so this is where that case is caught.
-		if (mFitToWindow && !mImage.isNull()) {
-			updateView();
-		}
+		// Drawer animation/dragging can deliver a burst of viewport resizes. Capture
+		// the pre-resize image anchor and settle once after the burst (#96), rather
+		// than fitting on every animation tick or letting manual zoom drift.
+		QResizeEvent *resize = static_cast<QResizeEvent *>(event);
+		scheduleViewportSettle(resize->oldSize());
 		if (mHelpOverlay && mHelpOverlay->isVisible()) {
 			positionHelpOverlay();
 		}
@@ -3035,9 +3100,6 @@ void MainWindow::keyPressEvent(QKeyEvent *event)
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
 	QMainWindow::resizeEvent(event);
-	if (mFitToWindow && !mImage.isNull()) {
-		updateView();
-	}
 }
 
 void MainWindow::dropEvent(QDropEvent *event)
