@@ -66,7 +66,9 @@ BOOL CViewerApp::InitInstance()
 
 	// Enable DDE Execute open
 	EnableShellOpen();
-	RegisterShellFileTypes(TRUE);
+	// File associations are owned by the MSIX manifest and Inno installer so
+	// their photo/video/raw icons stay consistent. Do not let MFC recreate the
+	// legacy Viewer.Document ProgID with the executable's generic app icon.
 
 	// Parse command line for standard shell commands, DDE, file open
 	CCommandLineInfo cmdInfo;

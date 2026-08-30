@@ -65,7 +65,10 @@ if (-not (Test-Path $ManifestTemplate)) {
 if (-not (Test-Path $AssetsDir)) {
     throw "Assets directory not found: $AssetsDir`n  See installer\msix\Assets\README.md for required files."
 }
-$requiredAssets = @("Square44x44Logo.png", "Square150x150Logo.png", "Wide310x150Logo.png", "StoreLogo.png")
+$requiredAssets = @(
+    "Square44x44Logo.png", "Square150x150Logo.png", "Wide310x150Logo.png", "StoreLogo.png",
+    "FilePhotoLogo.png", "FileVideoLogo.png", "FileRawLogo.png"
+)
 foreach ($asset in $requiredAssets) {
     if (-not (Test-Path (Join-Path $AssetsDir $asset))) {
         throw "Missing required asset: $asset`n  See installer\msix\Assets\README.md."
@@ -76,16 +79,35 @@ if ($AppVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') {
     throw "AppVersion must be in X.X.X.X format (e.g. 1.0.16.0), got: $AppVersion"
 }
 
+# --- Find Windows SDK packaging tools --------------------------------------
+
+function Get-WindowsKitBinRoots {
+    $roots = @(
+        "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
+        "$env:ProgramFiles\Windows Kits\10\bin"
+    )
+    foreach ($registryPath in @(
+        "HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows Kits\Installed Roots"
+    )) {
+        if (-not (Test-Path $registryPath)) { continue }
+        $kitsRoot = (Get-ItemProperty -LiteralPath $registryPath -ErrorAction SilentlyContinue).KitsRoot10
+        if (-not [string]::IsNullOrWhiteSpace($kitsRoot)) {
+            $roots += (Join-Path $kitsRoot "bin")
+        }
+    }
+    return $roots |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Select-Object -Unique
+}
+
 # --- Find makeappx.exe ------------------------------------------------------
 
 function Find-MakeAppx {
     $cmd = Get-Command "makeappx.exe" -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Source }
 
-    foreach ($kitRoot in @(
-        "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
-        "$env:ProgramFiles\Windows Kits\10\bin"
-    )) {
+    foreach ($kitRoot in (Get-WindowsKitBinRoots)) {
         if ([string]::IsNullOrWhiteSpace($kitRoot) -or -not (Test-Path $kitRoot)) { continue }
         $found = Get-ChildItem -LiteralPath $kitRoot -Recurse -Filter "makeappx.exe" `
             -ErrorAction SilentlyContinue |
@@ -109,10 +131,7 @@ function Find-MakePri {
     $cmd = Get-Command "makepri.exe" -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Source }
 
-    foreach ($kitRoot in @(
-        "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
-        "$env:ProgramFiles\Windows Kits\10\bin"
-    )) {
+    foreach ($kitRoot in (Get-WindowsKitBinRoots)) {
         if ([string]::IsNullOrWhiteSpace($kitRoot) -or -not (Test-Path $kitRoot)) { continue }
         $found = Get-ChildItem -LiteralPath $kitRoot -Recurse -Filter "makepri.exe" `
             -ErrorAction SilentlyContinue |

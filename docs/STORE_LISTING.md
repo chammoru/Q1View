@@ -100,6 +100,7 @@ TECHNICAL NOTES
 16. Portable ZIP available alongside the installer
 17. Cycle raw color space (N) and preset resolutions (D) without reopening the file
 18. Resizable left-side thumbnail drawer — drag the divider to read long file names without changing the window size
+19. Coordinated Viewer, Comparator, photo, video, and raw-file icons designed for clear recognition across Windows taskbar, Start, and File Explorer surfaces
 ```
 
 ---

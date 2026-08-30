@@ -283,7 +283,6 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\Comparator.ico" />
-    <Image Include="res\ComparatorDoc.ico" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Comparator.rc" />

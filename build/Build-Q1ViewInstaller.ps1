@@ -56,6 +56,12 @@ foreach ($requiredFile in @("Viewer.exe", "Comparator.exe")) {
         throw "Missing installer input: $path"
     }
 }
+foreach ($requiredIcon in @("Q1ViewPhoto.ico", "Q1ViewVideo.ico", "Q1ViewRaw.ico")) {
+    $path = Join-Path $sourcePath "Icons\$requiredIcon"
+    if (-not (Test-Path $path)) {
+        throw "Missing installer icon input: $path`n  Run python build/render_icons.py, then Package-Q1View.ps1."
+    }
+}
 
 New-Item -ItemType Directory -Force $outputPath | Out-Null
 

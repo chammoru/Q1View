@@ -44,6 +44,19 @@ New-Item -ItemType Directory -Force $outputPath | Out-Null
 Copy-Item -LiteralPath $viewerExe -Destination $outputPath -Force
 Copy-Item -LiteralPath $comparerExe -Destination $outputPath -Force
 
+# Standalone file-association icons are consumed by the Inno installer. Keep
+# them in the portable package too so every distribution contains the exact
+# assets referenced by its registration metadata.
+$iconOutputPath = Join-Path $outputPath "Icons"
+New-Item -ItemType Directory -Force $iconOutputPath | Out-Null
+foreach ($iconName in @("Q1ViewPhoto.ico", "Q1ViewVideo.ico", "Q1ViewRaw.ico")) {
+    $iconSource = Join-Path $repoRoot "Viewer\res\$iconName"
+    if (-not (Test-Path $iconSource)) {
+        throw "Missing generated file-association icon: $iconSource`n  Run python build/render_icons.py."
+    }
+    Copy-Item -LiteralPath $iconSource -Destination $iconOutputPath -Force
+}
+
 $runtimeDlls = @()
 foreach ($runtimeDir in @($viewerDir, $comparerDir)) {
     if (Test-Path $runtimeDir) {

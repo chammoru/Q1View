@@ -90,6 +90,12 @@ jobs:
         shell: pwsh
         run: .\build\Write-Q1ViewVersion.ps1 -Version "${{ steps.release_info.outputs.display_version }}"
 
+      - name: Generate and verify icon assets
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check Pillow==12.2.0
+          python build/render_icons.py
+
       - name: Build and run core regression tests
         run: |
           msbuild Tests\CoreRegressionTests.vcxproj /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143

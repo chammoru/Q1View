@@ -8,6 +8,17 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.13] — 2026-08-30
+
+### Changed
+- Icons: Viewer, Comparator, Start, taskbar, Microsoft Store, and package surfaces now use the cohesive Bright Sky Q1 identity, with native artwork generated independently for every required Windows icon size. (issue #95)
+- File associations: photo, video, and raw-frame formats now use coordinated purpose-specific document icons; video formats are also registered as supported handlers in both MSIX and Inno Setup packages. (issue #95)
+
+### Packaging
+- Release builds now regenerate and verify every ICO, SVG, Store/MSIX scale asset, and unplated target-size icon before compilation; MSIX packaging continues to build `resources.pri` with `makepri.exe` so Windows resolves the new taskbar and association assets instead of retaining or plating a fallback icon. (issue #95)
+
+---
+
 ## [2.7.12] — 2026-08-29
 
 ### Changed
@@ -350,7 +361,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.12...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.13...HEAD
+[2.7.13]: https://github.com/chammoru/Q1View/compare/v2.7.12...v2.7.13
 [2.7.12]: https://github.com/chammoru/Q1View/compare/v2.7.11...v2.7.12
 [2.7.11]: https://github.com/chammoru/Q1View/compare/v2.7.10...v2.7.11
 [2.7.10]: https://github.com/chammoru/Q1View/compare/v2.7.9...v2.7.10

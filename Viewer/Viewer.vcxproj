@@ -264,9 +264,10 @@
     <ClInclude Include="ViewerView.h" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="res\q1.ico" />
+    <Image Include="res\Q1ViewPhoto.ico" />
+    <Image Include="res\Q1ViewRaw.ico" />
+    <Image Include="res\Q1ViewVideo.ico" />
     <Image Include="res\Viewer.ico" />
-    <Image Include="res\ViewerDoc.ico" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Viewer.rc" />
@@ -274,7 +275,6 @@
   <ItemGroup>
     <None Include="README.md" />
     <None Include="res\Viewer.rc2" />
-    <None Include="Viewer.reg" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\QVisionCore\QVisionCore.vcxproj">

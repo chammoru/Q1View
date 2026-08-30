@@ -76,17 +76,24 @@
       </uap:VisualElements>
       <Extensions>
         <uap:Extension Category="windows.fileTypeAssociation">
-          <uap:FileTypeAssociation Name="q1viewfile">
+          <uap:FileTypeAssociation Name="q1viewraw">
+            <uap:DisplayName>Q1View Raw Frame</uap:DisplayName>
+            <uap:Logo>Assets\FileRawLogo.png</uap:Logo>
             <uap:SupportedFileTypes>
-              <!-- Raw Formats -->
               <uap:FileType>.yuv</uap:FileType>
               <uap:FileType>.rgb</uap:FileType>
-              <!-- High-Efficiency Images -->
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="q1viewphoto">
+            <uap:DisplayName>Q1View Photo</uap:DisplayName>
+            <uap:Logo>Assets\FilePhotoLogo.png</uap:Logo>
+            <uap:SupportedFileTypes>
               <uap:FileType>.heic</uap:FileType>
               <uap:FileType>.heif</uap:FileType>
               <uap:FileType>.hif</uap:FileType>
               <uap:FileType>.avif</uap:FileType>
-              <!-- Standard Image Formats -->
               <uap:FileType>.bmp</uap:FileType>
               <uap:FileType>.png</uap:FileType>
               <uap:FileType>.webp</uap:FileType>
@@ -95,7 +102,27 @@
               <uap:FileType>.tif</uap:FileType>
               <uap:FileType>.tiff</uap:FileType>
             </uap:SupportedFileTypes>
-            <uap:DisplayName>Q1View Supported File</uap:DisplayName>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="q1viewvideo">
+            <uap:DisplayName>Q1View Video</uap:DisplayName>
+            <uap:Logo>Assets\FileVideoLogo.png</uap:Logo>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.mp4</uap:FileType>
+              <uap:FileType>.m4v</uap:FileType>
+              <uap:FileType>.mov</uap:FileType>
+              <uap:FileType>.avi</uap:FileType>
+              <uap:FileType>.mkv</uap:FileType>
+              <uap:FileType>.webm</uap:FileType>
+              <uap:FileType>.wmv</uap:FileType>
+              <uap:FileType>.mpg</uap:FileType>
+              <uap:FileType>.mpeg</uap:FileType>
+              <uap:FileType>.flv</uap:FileType>
+              <uap:FileType>.3gp</uap:FileType>
+              <uap:FileType>.ts</uap:FileType>
+              <uap:FileType>.m2ts</uap:FileType>
+            </uap:SupportedFileTypes>
           </uap:FileTypeAssociation>
         </uap:Extension>
       </Extensions>

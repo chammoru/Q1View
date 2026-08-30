@@ -5,10 +5,10 @@ Place the required PNG logo files in this directory before running
 
 ## Source of truth
 
-`Q1View.svg` is the vector master for the Viewer app icon and every MSIX logo in
-this folder; `Comparator.svg` is the master for the Comparator app icon (teal
-variant). Edit the SVGs and re-render rather than touching the PNGs/`.ico` by
-hand.
+`build/render_icons.py` is the canonical geometric source for the approved J
+family. It emits `Q1View.svg`, `Comparator.svg`, and the three `File*.svg`
+inspection masters together with every PNG and `.ico`; do not edit generated
+artifacts by hand.
 
 Regenerate everything from the masters with:
 
@@ -19,9 +19,9 @@ python build/render_icons.py    # needs Pillow
 This rasterises each output **at its own size** (per-size supersample + one
 Lanczos downscale) with clean straight alpha, instead of downscaling a single
 large bitmap, so small sizes stay crisp and transparent edges stay clean. It
-writes the MSIX PNGs here plus `Viewer/res/Viewer.ico`, `ViewerQt/Viewer.ico`
-(from `Q1View.svg`) and `Comparator/res/Comparator.ico` (from `Comparator.svg`),
-each a multi-size PNG-framed icon (16/24/32/48/64/128/256).
+writes the MSIX PNGs here plus `Viewer/res/Viewer.ico`, `ViewerQt/Viewer.ico`,
+`Comparator/res/Comparator.ico`, and the photo/video/raw association ICOs in
+`Viewer/res`. Every ICO contains native 16/24/32/48/64/128/256 frames.
 
 ## Required files (scale-100 minimum)
 
@@ -31,6 +31,9 @@ each a multi-size PNG-framed icon (16/24/32/48/64/128/256).
 | `Square150x150Logo.png` | 150 × 150 px | Start menu medium tile |
 | `Wide310x150Logo.png` | 310 × 150 px | Start menu wide tile |
 | `StoreLogo.png` | 50 × 50 px | Microsoft Store listing thumbnail |
+| `FilePhotoLogo.png` | 44 × 44 px | Packaged photo-file association |
+| `FileVideoLogo.png` | 44 × 44 px | Packaged video-file association |
+| `FileRawLogo.png` | 44 × 44 px | Packaged raw-frame association |
 
 ## Additional scale variants for Store submission
 
@@ -48,6 +51,11 @@ Example naming: `Square44x44Logo.scale-100.png`, `Square44x44Logo.scale-200.png`
 
 When scaled variants are present, Windows picks the best fit automatically.
 The bare filename (`Square44x44Logo.png`) serves as the scale-100 fallback.
+
+`Package-Q1ViewMsix.ps1` runs `makepri.exe` and embeds `resources.pri`. This is
+required for Windows to resolve scale-qualified logos and especially the
+`targetsize-*_altform-unplated` taskbar assets; packaging the PNG files without
+the resource index causes Windows to reuse or plate the wrong icon.
 
 ## Design guidelines
 
