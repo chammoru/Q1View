@@ -94,6 +94,8 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_COMMAND_RANGE(ID_RESOLUTION_START, ID_RESOLUTION_END, &CMainFrame::OnResolutionChange)
 	ON_COMMAND_RANGE(ID_CS_START, ID_CS_END, &CMainFrame::OnCsChange)
 	ON_COMMAND_RANGE(ID_FPS_START, ID_FPS_END, &CMainFrame::OnFpsChange)
+	ON_COMMAND_RANGE(ID_SCALING_AUTO, ID_SCALING_PIXEL_EXACT, &CMainFrame::OnScalingModeChange)
+	ON_UPDATE_COMMAND_UI_RANGE(ID_SCALING_AUTO, ID_SCALING_PIXEL_EXACT, &CMainFrame::OnUpdateScalingMode)
 	ON_WM_CREATE()
 	ON_MESSAGE(WM_RELOAD, &CMainFrame::Reload)
 	ON_WM_COPYDATA()
@@ -638,6 +640,7 @@ void CMainFrame::OnFileOpen()
 #define MENU_POS_RESOLUTION 1
 #define MENU_POS_COLORSPACE 2
 #define MENU_POS_FPS        3
+#define MENU_POS_VIEW       4
 
 void CMainFrame::UpdateResolutionLabel(int w, int h)
 {
@@ -741,6 +744,20 @@ void CMainFrame::CheckFpsRadio(double fps)
 		id, MF_CHECKED | MF_BYCOMMAND);
 }
 
+void CMainFrame::CheckScalingRadio(int mode)
+{
+	if (GetMenu() == NULL)
+		return;
+
+	UINT id = ID_SCALING_AUTO + static_cast<UINT>(mode);
+	CMenu *viewMenu = GetMenu()->GetSubMenu(MENU_POS_VIEW);
+	CMenu *scalingMenu = viewMenu ? viewMenu->GetSubMenu(0) : NULL;
+	if (!scalingMenu)
+		return;
+	scalingMenu->CheckMenuRadioItem(ID_SCALING_AUTO, ID_SCALING_PIXEL_EXACT,
+		id, MF_CHECKED | MF_BYCOMMAND);
+}
+
 void CMainFrame::AddMainMenu()
 {
 	CString str;
@@ -799,6 +816,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	CheckResolutionRadio(VIEWER_DEF_W, VIEWER_DEF_H);
 	CheckCsRadio(qcsc_info_table[QIMG_DEF_CS_IDX].cs);
 	CheckFpsRadio(VIEWER_DEF_FPS);
+	CheckScalingRadio(static_cast<int>(q1::ImageScalingMode::Auto));
 
 	DrawMenuBar();
 
@@ -1329,6 +1347,28 @@ void CMainFrame::OnFpsChange(UINT nID)
 	BroadcastSyncInput(input);
 }
 
+void CMainFrame::OnScalingModeChange(UINT nID)
+{
+	CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
+	if (!pView)
+		return;
+
+	const int mode = static_cast<int>(nID - ID_SCALING_AUTO);
+	if (mode < static_cast<int>(q1::ImageScalingMode::Auto) ||
+		mode > static_cast<int>(q1::ImageScalingMode::PixelExact))
+		return;
+	pView->SetScalingMode(static_cast<q1::ImageScalingMode>(mode));
+}
+
+void CMainFrame::OnUpdateScalingMode(CCmdUI *pCmdUI)
+{
+	CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
+	const UINT checkedId = pView
+		? ID_SCALING_AUTO + static_cast<UINT>(pView->GetScalingMode())
+		: ID_SCALING_AUTO;
+	pCmdUI->SetRadio(pCmdUI->m_nID == checkedId);
+}
+
 void CMainFrame::UpdateMagnication(float n, int wDst, int hDst)
 {
 	if (GetMenu() == NULL)
@@ -1336,6 +1376,13 @@ void CMainFrame::UpdateMagnication(float n, int wDst, int hDst)
 
 	CString str;
 	str.Format(_T("%dx%d (%.2fx)"), wDst, hDst, n);
+	CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
+	if (pView) {
+		str += _T(" ");
+		str.AppendChar(0x00b7);
+		str += _T(" ");
+		str += pView->GetScalingStatusLabel();
+	}
 
 	CMenu *pMenu = GetMenu();
 	if (pMenu == NULL)

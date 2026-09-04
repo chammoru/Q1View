@@ -59,7 +59,7 @@ static const Q1ViewShortcutRow Q1VIEW_SHORTCUTS[] = {
 	{ "Click bottom", "Seek to a frame",                              Q1VIEW_FE_ALL },
 	{ "C",            "Cursor coordinates",                           Q1VIEW_FE_ALL },
 	{ "B",            "Selected box size",                            Q1VIEW_FE_MFC },
-	{ "I",            "Interpolate pixels",                           Q1VIEW_FE_ALL },
+	{ "I",            "Cycle scaling: Auto -> Smooth -> Pixel Exact", Q1VIEW_FE_ALL },
 	{ "N",            "Next color space",                             Q1VIEW_FE_ALL },
 	{ "D",            "Next preset resolution (raw input)",           Q1VIEW_FE_ALL },
 	{ "M",            "Mute or unmute video audio",                   Q1VIEW_FE_MFC }

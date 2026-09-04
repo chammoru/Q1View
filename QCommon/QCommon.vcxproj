@@ -127,6 +127,7 @@
   <ItemGroup>
     <ClInclude Include="inc\QCommon.h" />
     <ClInclude Include="inc\QDebug.h" />
+    <ClInclude Include="inc\QImageScaling.h" />
     <ClInclude Include="inc\QMath.h" />
     <ClInclude Include="inc\QPort.h" />
   </ItemGroup>

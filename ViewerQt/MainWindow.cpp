@@ -31,6 +31,7 @@
 #include <QIODevice>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QList>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -114,10 +115,13 @@ MainWindow::MainWindow(QWidget *parent)
 	  mRotateAction(nullptr),
 	  mYOnlyAction(nullptr),
 	  mCoordinatesAction(nullptr),
-	  mInterpolateAction(nullptr),
+	  mScalingGroup(nullptr),
+	  mScalingAutoAction(nullptr),
+	  mScalingSmoothAction(nullptr),
+	  mScalingPixelAction(nullptr),
 	  mPlayAction(nullptr),
 	  mRecentMenu(nullptr),
-	  mInterpolate(false),
+	  mScalingMode(q1::ImageScalingMode::Auto),
 	  mResolutionMenu(nullptr),
 	  mColorSpaceMenu(nullptr),
 	  mFpsMenu(nullptr),
@@ -517,11 +521,29 @@ void MainWindow::createActions()
 	mCoordinatesAction->setCheckable(true);
 	connect(mCoordinatesAction, &QAction::triggered, this, &MainWindow::toggleShowCoordinates);
 
-	mInterpolateAction = viewMenu->addAction(tr("&Interpolate Pixels"));
-	mInterpolateAction->setShortcut(QKeySequence(tr("I")));
-	mInterpolateAction->setCheckable(true);
-	mInterpolateAction->setChecked(mInterpolate);
-	connect(mInterpolateAction, &QAction::triggered, this, &MainWindow::toggleInterpolate);
+	QMenu *scalingMenu = viewMenu->addMenu(tr("Image &Scaling"));
+	mScalingGroup = new QActionGroup(this);
+	mScalingGroup->setExclusive(true);
+	mScalingAutoAction = scalingMenu->addAction(tr("&Auto"));
+	mScalingSmoothAction = scalingMenu->addAction(tr("&Smooth (Bilinear)"));
+	mScalingPixelAction = scalingMenu->addAction(tr("&Pixel Exact (Nearest)"));
+	const QList<QAction *> scalingActions = {
+		mScalingAutoAction, mScalingSmoothAction, mScalingPixelAction
+	};
+	for (int i = 0; i < scalingActions.size(); ++i) {
+		scalingActions[i]->setCheckable(true);
+		scalingActions[i]->setData(i);
+		mScalingGroup->addAction(scalingActions[i]);
+	}
+	mScalingAutoAction->setChecked(true);
+	connect(mScalingGroup, &QActionGroup::triggered, this, [this](QAction *action) {
+		setScalingMode(static_cast<q1::ImageScalingMode>(action->data().toInt()));
+	});
+
+	QAction *cycleScalingAction = new QAction(this);
+	cycleScalingAction->setShortcut(QKeySequence(tr("I")));
+	addAction(cycleScalingAction);
+	connect(cycleScalingAction, &QAction::triggered, this, &MainWindow::cycleScalingMode);
 
 	mSelectModeAction = viewMenu->addAction(tr("&Selection Mode"));
 	mSelectModeAction->setShortcut(QKeySequence(tr("S")));
@@ -795,10 +817,11 @@ void MainWindow::updateMagnifyLabel()
 
 	// mImageView is sized to the on-screen (scaled, rotated) pixmap, so its size is
 	// exactly the destination dimensions the MFC readout reports.
-	mMagnifyLabel->setText(QStringLiteral("%1x%2 (%3x)")
+	mMagnifyLabel->setText(QStringLiteral("%1x%2 (%3x) \u00b7 %4")
 		.arg(mImageView->width())
 		.arg(mImageView->height())
-		.arg(mScaleFactor, 0, 'f', 2));
+		.arg(mScaleFactor, 0, 'f', 2)
+		.arg(scalingStatusLabel()));
 }
 
 void MainWindow::applyResolution(int width, int height)
@@ -1677,20 +1700,60 @@ bool MainWindow::nativeSampleAtDisplay(int displayX, int displayY,
 		srcW, srcH, sx, sy, sample) != 0;
 }
 
-void MainWindow::toggleInterpolate()
+QString MainWindow::scalingStatusLabel() const
 {
-	mInterpolate = !mInterpolate;
-	if (mInterpolateAction) {
-		mInterpolateAction->setChecked(mInterpolate);
+	if (mScalingMode == q1::ImageScalingMode::Smooth) {
+		return tr("Smooth");
+	}
+	if (mScalingMode == q1::ImageScalingMode::PixelExact) {
+		return tr("Pixel");
+	}
+	return mScaleFactor >= 16.0 ? tr("Auto\u2192Pixel") : tr("Auto");
+}
+
+void MainWindow::setScalingMode(q1::ImageScalingMode mode, bool showFeedback,
+	bool broadcast)
+{
+	const bool changed = mScalingMode != mode;
+	mScalingMode = mode;
+	if (mScalingAutoAction) {
+		mScalingAutoAction->setChecked(mode == q1::ImageScalingMode::Auto);
+		mScalingSmoothAction->setChecked(mode == q1::ImageScalingMode::Smooth);
+		mScalingPixelAction->setChecked(mode == q1::ImageScalingMode::PixelExact);
 	}
 	updateView();
-	statusBar()->showMessage(
-		mInterpolate ? tr("Interpolation on") : tr("Interpolation off"), 1500);
+	if (showFeedback) {
+		QString message;
+		switch (mode) {
+		case q1::ImageScalingMode::Smooth:
+			message = tr("Scaling: Smooth (Bilinear)");
+			break;
+		case q1::ImageScalingMode::PixelExact:
+			message = tr("Scaling: Pixel Exact");
+			break;
+		default:
+			message = tr("Scaling: Auto");
+			break;
+		}
+		statusBar()->showMessage(message, 1500);
+		QTimer::singleShot(1500, this, [this, message]() {
+			const QString current = statusBar()->currentMessage();
+			if (current.isEmpty() || current == message)
+				updateZoomStatus();
+		});
+	}
 
-	SyncMessage message;
-	message.command = SyncMessage::DisplayOptions;
-	message.first = static_cast<qint32>(displayOptionBits());
-	broadcastSync(message);
+	if (changed && broadcast) {
+		SyncMessage sync;
+		sync.command = SyncMessage::DisplayOptions;
+		sync.first = static_cast<qint32>(displayOptionBits());
+		broadcastSync(sync);
+	}
+}
+
+void MainWindow::cycleScalingMode()
+{
+	setScalingMode(q1::NextImageScalingMode(mScalingMode));
 }
 
 void MainWindow::showAbout()
@@ -1918,7 +1981,8 @@ void MainWindow::updateView()
 	mImageView->setYOnly(mYOnly);
 	mImageView->setHexMode(mHexMode);
 	mImageView->setShowSourceValues(mShowSourceValues);
-	mImageView->setInterpolate(mInterpolate);
+	const bool singleStillImage = !mCurrentFileIsRaw || mRawFrameCount <= 1;
+	mImageView->setScalingMode(mScalingMode, singleStillImage);
 	mImageView->setSelection(mSelectionRect);
 	mImageView->setImage(shownImage, mScaleFactor);
 	updateZoomStatus();
@@ -2174,6 +2238,7 @@ void MainWindow::updateZoomStatus()
 		.arg(mImage.width())
 		.arg(mImage.height())
 		.arg(static_cast<int>(mScaleFactor * 100.0 + 0.5));
+	message += QStringLiteral("   \u00b7 %1").arg(scalingStatusLabel());
 	if (mCurrentFileIsRaw && mRawFrameCount > 1) {
 		message += tr("   frame %1/%2").arg(mCurrentFrame + 1).arg(mRawFrameCount);
 	}
@@ -2651,8 +2716,10 @@ quint32 MainWindow::displayOptionBits() const
 	if (mYOnly) {
 		bits |= SyncMessage::YOnly;
 	}
-	if (mInterpolate) {
+	if (mScalingMode == q1::ImageScalingMode::Smooth) {
 		bits |= SyncMessage::Interpolate;
+	} else if (mScalingMode == q1::ImageScalingMode::PixelExact) {
+		bits |= SyncMessage::PixelExact;
 	}
 	if (mShowCoordinates) {
 		bits |= SyncMessage::Coordinates;
@@ -2736,9 +2803,13 @@ void MainWindow::applySyncMessage(const SyncMessage &message)
 		if (((bits & SyncMessage::YOnly) != 0) != mYOnly) {
 			toggleYOnly();
 		}
-		if (((bits & SyncMessage::Interpolate) != 0) != mInterpolate) {
-			toggleInterpolate();
-		}
+		q1::ImageScalingMode scalingMode = q1::ImageScalingMode::Auto;
+		if (bits & SyncMessage::PixelExact)
+			scalingMode = q1::ImageScalingMode::PixelExact;
+		else if (bits & SyncMessage::Interpolate)
+			scalingMode = q1::ImageScalingMode::Smooth;
+		if (scalingMode != mScalingMode)
+			setScalingMode(scalingMode, false, false);
 		if (((bits & SyncMessage::Coordinates) != 0) != mShowCoordinates) {
 			toggleShowCoordinates();
 		}

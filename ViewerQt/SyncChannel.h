@@ -39,6 +39,7 @@ struct SyncMessage
 		Coordinates = 0x08,
 		HexPixel = 0x10,
 		SourceYuv = 0x20,
+		PixelExact = 0x40,
 	};
 
 	quint32 command = None;

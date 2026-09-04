@@ -39,6 +39,8 @@ Raw input can be reinterpreted quickly without reopening the file. Press N to cy
 
 Viewer also supports image-sequence navigation, video playback, frame/time progress display, clipboard paste, screen capture, and a resizable left-side thumbnail browser for browsing the current folder (drag the divider to widen it for long file names without changing the window size). Open multiple Viewer windows and enable Sync Input to keep navigation, zoom, pan, rotation, playback, and display settings synchronized across them.
 
+Choose Auto, Smooth (Bilinear), or Pixel Exact (Nearest) image scaling from the View menu. Auto keeps scanned text clear at moderate reductions, suppresses aliasing when large photos are reduced substantially, and preserves exact pixels during close inspection.
+
 COMPARATOR
 
 Open two to four sources side by side. Comparator aligns them in a synchronized view and calculates objective quality metrics frame by frame, including PSNR, SSIM, and LPIPS. A bottom graph shows metric values across frames, the timeline helps locate frames that contain differences, and synchronized region selection can show crop scores next to whole-image scores.
@@ -95,7 +97,7 @@ TECHNICAL NOTES
 11. Unicode and Korean path support
 12. Launch the dedicated Comparator workflow directly from Viewer
 13. Step through video frames one at a time with Left/Right arrow keys
-14. Rotation, luma-only view, interpolation, and hex pixel value modes
+14. Auto, Smooth, and Pixel Exact scaling modes with visible current-state feedback
 15. Allow Different Resolution mode for cross-resolution comparisons
 16. Portable ZIP available alongside the installer
 17. Cycle raw color space (N) and preset resolutions (D) without reopening the file

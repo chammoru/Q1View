@@ -100,6 +100,15 @@ BEGIN
         MENUITEM "Recent File",                 ID_FILE_MRU_FILE1,MFT_STRING,MFS_GRAYED
         MENUITEM MFT_SEPARATOR
     END
+    POPUP "&View",                          65535,MFT_STRING,MFS_ENABLED
+    BEGIN
+        POPUP "&Image Scaling",                 65535,MFT_STRING,MFS_ENABLED
+        BEGIN
+            MENUITEM "&Auto",                       ID_SCALING_AUTO,MFT_STRING,MFS_ENABLED
+            MENUITEM "&Smooth (Bilinear)",          ID_SCALING_SMOOTH,MFT_STRING,MFS_ENABLED
+            MENUITEM "&Pixel Exact (Nearest)",      ID_SCALING_PIXEL_EXACT,MFT_STRING,MFS_ENABLED
+        END
+    END
     MENUITEM "&Compare",                    ID_COMPARE,MFT_STRING | MFT_RIGHTJUSTIFY,MFS_ENABLED
     MENUITEM "&Help",                       ID_VIEWER_HELP,MFT_STRING | MFT_RIGHTJUSTIFY,MFS_ENABLED
     MENUITEM "1.00x",                       ID_MAGNIFY,MFT_STRING | MFT_RIGHTJUSTIFY,MFS_GRAYED

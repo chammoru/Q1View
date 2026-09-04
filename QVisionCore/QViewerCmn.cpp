@@ -269,4 +269,18 @@ namespace q1 {
 			dstStridePixels * QIMG_DST_RGB_BYTES);
 		cv::resize(srcMat, dstMat, dstMat.size(), 0, 0, cv::INTER_AREA);
 	}
+
+	void ResizeLinear(qu8* src, int h, int w, int hDst, int wDst,
+		int dstStridePixels, qu8* dst)
+	{
+		if (!src || !dst || h <= 0 || w <= 0 || hDst <= 0 || wDst <= 0 ||
+			dstStridePixels < wDst)
+			return;
+
+		cv::Mat srcMat(h, w, CV_8UC3, src,
+			ROUNDUP_DWORD(w) * QIMG_DST_RGB_BYTES);
+		cv::Mat dstMat(hDst, wDst, CV_8UC3, dst,
+			dstStridePixels * QIMG_DST_RGB_BYTES);
+		cv::resize(srcMat, dstMat, dstMat.size(), 0, 0, cv::INTER_LINEAR);
+	}
 } // namespace q1

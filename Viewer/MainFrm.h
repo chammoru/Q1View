@@ -35,6 +35,7 @@ enum ViewerSyncDisplayOptions
 	VIEWER_DISPLAY_COORDINATES = 0x08,
 	VIEWER_DISPLAY_BOX_INFO = 0x10,
 	VIEWER_DISPLAY_SOURCE_YUV = 0x20,
+	VIEWER_DISPLAY_PIXEL_EXACT = 0x40,
 };
 
 struct ViewerSyncInputState
@@ -199,6 +200,7 @@ public:
 	void UpdateMagnication(float n, int wDst, int hDst);
 	void UpdateFpsLabel(double fps);
 	void CheckFpsRadio(double fps);
+	void CheckScalingRadio(int mode);
 	void AddMainMenu();
 	void RefreshView();
 	bool IsSyncInputEnabled() const { return mSyncInput; }
@@ -230,6 +232,8 @@ public:
 	afx_msg void OnResolutionChange(UINT nID);
 	afx_msg void OnCsChange(UINT nID);
 	afx_msg void OnFpsChange(UINT nID);
+	afx_msg void OnScalingModeChange(UINT nID);
+	afx_msg void OnUpdateScalingMode(CCmdUI *pCmdUI);
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnMove(int x, int y);
 	afx_msg void OnDestroy();

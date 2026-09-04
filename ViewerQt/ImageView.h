@@ -8,6 +8,7 @@
 
 #include <functional>
 
+#include "QImageScaling.h"
 #include "qimage_cs.h"
 
 class QPaintEvent;
@@ -36,10 +37,8 @@ public:
 	using NativeSampleFn = std::function<bool(int, int, QIMAGE_NATIVE_PIXEL_SAMPLE *)>;
 	void setNativeSampler(NativeSampleFn sampler);
 	void setShowSourceValues(bool on);
-	// When true, the image is drawn with smooth (bilinear) interpolation even when
-	// magnified, instead of the default nearest-neighbour "pixel grid" look.
-	void setInterpolate(bool on);
-	bool interpolate() const { return mInterpolate; }
+	void setScalingMode(q1::ImageScalingMode mode, bool singleStillImage);
+	q1::ImageScalingMode scalingMode() const { return mScalingMode; }
 	// image coords; empty = none. active == true while the user is dragging out a
 	// fresh selection (drawn in the "warning" colour, like the MFC viewer); once
 	// committed it is drawn in the "success" colour.
@@ -65,7 +64,8 @@ private:
 	NativeSampleFn mNativeSampler;
 	QRect mSelection;
 	bool mSelectionActive;
-	bool mInterpolate;
+	q1::ImageScalingMode mScalingMode;
+	bool mSingleStillImage;
 };
 
 #endif

@@ -133,15 +133,14 @@ public:
 	int mNnOffsetBufSize;
 	float mPreN;
 	int mPreMaxL;
-	// Cached high-quality Auto Fit result. Static images are repainted often
-	// for overlays, so do not repeat a 4K/8K area resize when only the overlay
-	// changed.
-	bool mAreaScaleValid;
-	BYTE *mAreaScaleSource;
-	int mAreaScaleSourceW, mAreaScaleSourceH;
-	int mAreaScaleDstW, mAreaScaleDstH;
-	int mAreaScaleXDst, mAreaScaleYDst;
-	int mAreaScaleStride, mAreaScaleClientH;
+	// Cached high-quality whole-image resize. Static images are repainted often,
+	// so do not repeat a bilinear/area resize when only an overlay changed.
+	bool mStaticScaleValid;
+	BYTE *mStaticScaleSource;
+	int mStaticScaleSourceW, mStaticScaleSourceH;
+	int mStaticScaleDstW, mStaticScaleDstH;
+	int mStaticScaleXDst, mStaticScaleYDst;
+	int mStaticScaleStride, mStaticScaleClientH;
 
 	// Play
 	AudioPlayer mAudioPlayer;
@@ -178,7 +177,8 @@ public:
 
 	bool mSelMode;
 	bool mYMode;
-	bool mInterpol;
+	q1::ImageScalingMode mScalingMode;
+	CString mScalingToast;
 	bool mFullMode;
 	bool mShowCoord;
 	bool mShowBoxInfo;
@@ -228,6 +228,11 @@ public:
 	void DrawEmptyState(CDC *pDC);
 	void ToggleSelMode();
 	void ApplySyncInput(const ViewerSyncInputState &input);
+	void SetScalingMode(q1::ImageScalingMode mode, bool showFeedback = true,
+		bool broadcast = true);
+	void CycleScalingMode();
+	q1::ImageScalingMode GetScalingMode() const { return mScalingMode; }
+	CString GetScalingStatusLabel() const;
 
 // Helper
 private:
@@ -245,8 +250,10 @@ private:
 	double GetEffectivePlaybackFps(const CViewerDoc* pDoc) const;
 	long GetDuePlaybackFrameID(const CViewerDoc* pDoc) const;
 	void SetDstSize();
-	void _ScaleRgb(BYTE *src, BYTE *dst, int sDst, bool useArea,
-		q1::GridInfo &gi);
+	void _ScaleRgb(BYTE *src, BYTE *dst, int sDst,
+		q1::ImageScalingFilter filter, bool directResize, q1::GridInfo &gi);
+	void ShowScalingFeedback();
+	void DrawScalingToast(CDC *pDC);
 	int DrawBoxInfoText(CDC *pDC, CRect &rect, COLORREF color, int hAccumGap);
 
 	CDC mBackDC;

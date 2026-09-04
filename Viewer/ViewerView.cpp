@@ -142,6 +142,8 @@ private:
 
 using namespace std;
 
+#define SCALING_TOAST_TIMER 0x51A1
+
 // CViewerView
 
 IMPLEMENT_DYNCREATE(CViewerView, CView)
@@ -190,16 +192,16 @@ CViewerView::CViewerView()
 , mNnOffsetBufSize(0)
 , mPreN(0.0f)
 , mPreMaxL(0)
-, mAreaScaleValid(false)
-, mAreaScaleSource(NULL)
-, mAreaScaleSourceW(0)
-, mAreaScaleSourceH(0)
-, mAreaScaleDstW(0)
-, mAreaScaleDstH(0)
-, mAreaScaleXDst(0)
-, mAreaScaleYDst(0)
-, mAreaScaleStride(0)
-, mAreaScaleClientH(0)
+, mStaticScaleValid(false)
+, mStaticScaleSource(NULL)
+, mStaticScaleSourceW(0)
+, mStaticScaleSourceH(0)
+, mStaticScaleDstW(0)
+, mStaticScaleDstH(0)
+, mStaticScaleXDst(0)
+, mStaticScaleYDst(0)
+, mStaticScaleStride(0)
+, mStaticScaleClientH(0)
 , mIsPlaying(false)
 , mTimerID(0)
 , mPlaybackStartFrameID(0)
@@ -222,7 +224,7 @@ CViewerView::CViewerView()
 , mYCursor(-1)
 , mSelMode(false)
 , mYMode(false)
-, mInterpol(false)
+, mScalingMode(q1::ImageScalingMode::Auto)
 , mFullMode(false)
 , mShowCoord(false)
 , mShowBoxInfo(true)
@@ -715,8 +717,8 @@ void CViewerView::DrawMuteButton(CDC *pDC, const CRect &rect)
 	pDC->SelectObject(oldPen);
 }
 
-void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, bool useArea,
-	q1::GridInfo &gi)
+void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst,
+	q1::ImageScalingFilter filter, bool directResize, q1::GridInfo &gi)
 {
 	long gap, yStart, yEnd, xStart, xEnd;
 
@@ -755,9 +757,11 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, bool useArea,
 	const long visibleWidth = QMAX(0, xEnd - xStart);
 	gap = (sDst - visibleWidth) * QIMG_DST_RGB_BYTES;
 
-	if (useArea) {
+	if (directResize && filter == q1::ImageScalingFilter::Area) {
 		q1::ResizeArea(src, mH, mW, yEnd - yStart, visibleWidth, sDst, dst);
-	} else if (mInterpol) {
+	} else if (directResize && filter == q1::ImageScalingFilter::Bilinear) {
+		q1::ResizeLinear(src, mH, mW, yEnd - yStart, visibleWidth, sDst, dst);
+	} else if (filter == q1::ImageScalingFilter::Bilinear) {
 		q1::Interpolate(src, mH, mW, mWCanvas, xStart, xEnd, yStart, yEnd, mNnOffsetBuf, dst);
 	} else {
 		q1::NearestNeighbor(src, mH, mW, mHDst, mWDst, mXDst, mYDst, mN, xStart, xEnd,
@@ -991,7 +995,7 @@ void CViewerView::ScaleRgbBuf(BYTE *src, BYTE **pDst, q1::GridInfo &gi)
 
 		mRgbBufSize = rgbBufSize;
 		*pDst = static_cast<BYTE *>(_mm_malloc(mRgbBufSize, 16));
-		mAreaScaleValid = false;
+		mStaticScaleValid = false;
 	}
 
 	int maxL = QMAX(mWDst, mHDst);
@@ -1021,34 +1025,35 @@ void CViewerView::ScaleRgbBuf(BYTE *src, BYTE **pDst, q1::GridInfo &gi)
 	}
 
 	CViewerDoc *pDoc = GetDocument();
-	// Auto Fit is the photographic viewing path: area resampling suppresses
-	// high-frequency aliasing when a single still image is reduced. Keep the
-	// explicit I-key mode, manual zoom, raw sequences, and video playback on
-	// their existing paths so pixel inspection and playback cost do not change.
-	const bool useArea = !mInterpol && !mIsPlaying && mFitToWindow &&
-		mN < 1.0f && pDoc && pDoc->mFrames == 1 && pDoc->mFrmSrc &&
-		!pDoc->mFrmSrc->isVideo() &&
-		mXDst >= 0 && mYDst >= 0 && mWDst <= mWCanvas && mHDst <= mHCanvas;
-	const bool areaCacheHit = useArea && mAreaScaleValid &&
-		mAreaScaleSource == src && mAreaScaleSourceW == mW &&
-		mAreaScaleSourceH == mH && mAreaScaleDstW == mWDst &&
-		mAreaScaleDstH == mHDst && mAreaScaleXDst == mXDst &&
-		mAreaScaleYDst == mYDst && mAreaScaleStride == sDst &&
-		mAreaScaleClientH == mHClient;
+	const bool singleStillImage = pDoc && pDoc->mFrames == 1 && pDoc->mFrmSrc &&
+		!pDoc->mFrmSrc->isVideo();
+	const q1::ImageScalingFilter filter = q1::ResolveImageScalingFilter(
+		mScalingMode, mN, singleStillImage, true);
+	const bool wholeImageVisible = mXDst >= 0 && mYDst >= 0 &&
+		mWDst <= mWCanvas && mHDst <= mHCanvas;
+	const bool directResize = singleStillImage && wholeImageVisible &&
+		(filter == q1::ImageScalingFilter::Area ||
+		 filter == q1::ImageScalingFilter::Bilinear);
+	const bool staticCacheHit = directResize && mStaticScaleValid &&
+		mStaticScaleSource == src && mStaticScaleSourceW == mW &&
+		mStaticScaleSourceH == mH && mStaticScaleDstW == mWDst &&
+		mStaticScaleDstH == mHDst && mStaticScaleXDst == mXDst &&
+		mStaticScaleYDst == mYDst && mStaticScaleStride == sDst &&
+		mStaticScaleClientH == mHClient;
 
-	if (!areaCacheHit) {
-		_ScaleRgb(src, *pDst, sDst, useArea, gi);
-		mAreaScaleValid = useArea;
-		if (useArea) {
-			mAreaScaleSource = src;
-			mAreaScaleSourceW = mW;
-			mAreaScaleSourceH = mH;
-			mAreaScaleDstW = mWDst;
-			mAreaScaleDstH = mHDst;
-			mAreaScaleXDst = mXDst;
-			mAreaScaleYDst = mYDst;
-			mAreaScaleStride = sDst;
-			mAreaScaleClientH = mHClient;
+	if (!staticCacheHit) {
+		_ScaleRgb(src, *pDst, sDst, filter, directResize, gi);
+		mStaticScaleValid = directResize;
+		if (directResize) {
+			mStaticScaleSource = src;
+			mStaticScaleSourceW = mW;
+			mStaticScaleSourceH = mH;
+			mStaticScaleDstW = mWDst;
+			mStaticScaleDstH = mHDst;
+			mStaticScaleXDst = mXDst;
+			mStaticScaleYDst = mYDst;
+			mStaticScaleStride = sDst;
+			mStaticScaleClientH = mHClient;
 		}
 	}
 
@@ -1374,7 +1379,7 @@ void CViewerView::OnDraw(CDC *pDC)
 	BufferInfo bi;
 	bool ok = mNewRgbBufferInfoQ->try_pop(bi);
 	if (ok && (bi.addr != mStableRgbBufferInfo.addr || bi.ID != mStableRgbBufferInfo.ID)) {
-		mAreaScaleValid = false;
+		mStaticScaleValid = false;
 		if (bi.ID == MSG_QUIT) {
 			KillPlayTimerSafe();
 			pDoc->RefreshNativePixelSource();
@@ -1441,6 +1446,8 @@ void CViewerView::OnDraw(CDC *pDC)
 	// progressive
 	if (pDoc->mFrames > 1)
 		ProgressiveDraw(&memDC, pDoc, mStableRgbBufferInfo.ID);
+
+	DrawScalingToast(&memDC);
 
 	if (pDoc->mDocState == DOC_NEWIMAGE)
 		pDoc->mDocState = DOC_ADJUSTED;
@@ -2143,8 +2150,10 @@ UINT CViewerView::GetDisplayOptions() const
 		options |= VIEWER_DISPLAY_HEX_PIXEL;
 	if (mYMode)
 		options |= VIEWER_DISPLAY_Y_ONLY;
-	if (mInterpol)
+	if (mScalingMode == q1::ImageScalingMode::Smooth)
 		options |= VIEWER_DISPLAY_INTERPOLATE;
+	else if (mScalingMode == q1::ImageScalingMode::PixelExact)
+		options |= VIEWER_DISPLAY_PIXEL_EXACT;
 	if (mShowCoord)
 		options |= VIEWER_DISPLAY_COORDINATES;
 	if (mShowBoxInfo)
@@ -2153,6 +2162,88 @@ UINT CViewerView::GetDisplayOptions() const
 		options |= VIEWER_DISPLAY_SOURCE_YUV;
 
 	return options;
+}
+
+CString CViewerView::GetScalingStatusLabel() const
+{
+	if (mScalingMode == q1::ImageScalingMode::Smooth)
+		return _T("Smooth");
+	if (mScalingMode == q1::ImageScalingMode::PixelExact)
+		return _T("Pixel");
+
+	CString label(_T("Auto"));
+	if (mN >= ZOOM_GRID_START) {
+		label.AppendChar(0x2192);
+		label += _T("Pixel");
+	}
+	return label;
+}
+
+void CViewerView::ShowScalingFeedback()
+{
+	switch (mScalingMode) {
+	case q1::ImageScalingMode::Smooth:
+		mScalingToast = _T("Scaling: Smooth (Bilinear)");
+		break;
+	case q1::ImageScalingMode::PixelExact:
+		mScalingToast = _T("Scaling: Pixel Exact");
+		break;
+	default:
+		mScalingToast = _T("Scaling: Auto");
+		break;
+	}
+	KillTimer(SCALING_TOAST_TIMER);
+	SetTimer(SCALING_TOAST_TIMER, 1500, NULL);
+}
+
+void CViewerView::SetScalingMode(q1::ImageScalingMode mode, bool showFeedback,
+	bool broadcast)
+{
+	const bool changed = mScalingMode != mode;
+	mScalingMode = mode;
+	mStaticScaleValid = false;
+
+	CMainFrame *pMainFrm = DYNAMIC_DOWNCAST(CMainFrame, GetParentFrame());
+	if (pMainFrm) {
+		pMainFrm->CheckScalingRadio(static_cast<int>(mScalingMode));
+		pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
+	}
+	if (showFeedback)
+		ShowScalingFeedback();
+	Invalidate(FALSE);
+
+	if (changed && broadcast)
+		BroadcastDisplayOptions();
+}
+
+void CViewerView::CycleScalingMode()
+{
+	SetScalingMode(q1::NextImageScalingMode(mScalingMode));
+}
+
+void CViewerView::DrawScalingToast(CDC *pDC)
+{
+	if (mScalingToast.IsEmpty() || mWCanvas <= 0 || mHCanvas <= 0)
+		return;
+
+	LOGFONT lf;
+	mProgressFont.GetLogFont(&lf);
+	lf.lfHeight = 16;
+	lf.lfWeight = FW_SEMIBOLD;
+	CFont font;
+	font.CreateFontIndirect(&lf);
+	CFont *oldFont = pDC->SelectObject(&font);
+	pDC->SetBkMode(TRANSPARENT);
+	pDC->SetTextColor(Q1UI_COLOR_OVERLAY_TEXT);
+
+	CRect textRect(0, 0, 0, 0);
+	pDC->DrawText(mScalingToast, &textRect, DT_SINGLELINE | DT_CALCRECT);
+	textRect.OffsetRect((mWCanvas - textRect.Width()) / 2, 16);
+	CRect bgRect(textRect);
+	bgRect.InflateRect(12, 7);
+	pDC->FillSolidRect(bgRect, Q1UI_COLOR_OVERLAY);
+	pDC->DrawText(mScalingToast, &textRect, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+	pDC->SelectObject(oldFont);
 }
 
 void CViewerView::BroadcastDisplayOptions()
@@ -2234,7 +2325,18 @@ void CViewerView::ApplySyncInput(const ViewerSyncInputState &input)
 	case VIEWER_SYNC_DISPLAY_OPTIONS:
 		mHexMode = (input.first & VIEWER_DISPLAY_HEX_PIXEL) != 0;
 		mYMode = (input.first & VIEWER_DISPLAY_Y_ONLY) != 0;
-		mInterpol = (input.first & VIEWER_DISPLAY_INTERPOLATE) != 0;
+		if (input.first & VIEWER_DISPLAY_PIXEL_EXACT)
+			mScalingMode = q1::ImageScalingMode::PixelExact;
+		else if (input.first & VIEWER_DISPLAY_INTERPOLATE)
+			mScalingMode = q1::ImageScalingMode::Smooth;
+		else
+			mScalingMode = q1::ImageScalingMode::Auto;
+		mStaticScaleValid = false;
+		{
+			CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
+			pMainFrm->CheckScalingRadio(static_cast<int>(mScalingMode));
+			pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
+		}
 		mShowCoord = (input.first & VIEWER_DISPLAY_COORDINATES) != 0;
 		mShowBoxInfo = (input.first & VIEWER_DISPLAY_BOX_INFO) != 0;
 		mShowSourceYuv = (input.first & VIEWER_DISPLAY_SOURCE_YUV) != 0;
@@ -2404,8 +2506,7 @@ void CViewerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		BroadcastDisplayOptions();
 		break;
 	case 'I':
-		mInterpol = !mInterpol;
-		BroadcastDisplayOptions();
+		CycleScalingMode();
 		break;
 	case 'M':
 		ToggleMute();
@@ -2497,6 +2598,12 @@ void CViewerView::OnSize(UINT nType, int cx, int cy)
 
 void CViewerView::OnTimer(UINT_PTR nIDEvent)
 {
+	if (nIDEvent == SCALING_TOAST_TIMER) {
+		KillTimer(SCALING_TOAST_TIMER);
+		mScalingToast.Empty();
+		Invalidate(FALSE);
+		return;
+	}
 	CView::OnTimer(nIDEvent);
 }
 

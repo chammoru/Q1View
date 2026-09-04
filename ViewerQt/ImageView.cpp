@@ -28,7 +28,8 @@ ImageView::ImageView(QWidget *parent)
 	  mHexMode(false),
 	  mShowSourceValues(false),
 	  mSelectionActive(false),
-	  mInterpolate(false)
+	  mScalingMode(q1::ImageScalingMode::Auto),
+	  mSingleStillImage(true)
 {
 	setMouseTracking(true);
 	setAttribute(Qt::WA_OpaquePaintEvent, true);
@@ -72,12 +73,13 @@ void ImageView::setShowSourceValues(bool on)
 	update();
 }
 
-void ImageView::setInterpolate(bool on)
+void ImageView::setScalingMode(q1::ImageScalingMode mode, bool singleStillImage)
 {
-	if (mInterpolate == on) {
+	if (mScalingMode == mode && mSingleStillImage == singleStillImage) {
 		return;
 	}
-	mInterpolate = on;
+	mScalingMode = mode;
+	mSingleStillImage = singleStillImage;
 	update();
 }
 
@@ -129,14 +131,15 @@ void ImageView::paintEvent(QPaintEvent *event)
 	const QRectF dstRect(sx0 * mScale, sy0 * mScale,
 		srcRect.width() * mScale, srcRect.height() * mScale);
 
-	// Smooth when shrinking, and when the user has turned on interpolation; the
-	// default magnified look is nearest-neighbour (a crisp pixel grid).
-	painter.setRenderHint(QPainter::SmoothPixmapTransform, mInterpolate || mScale < 1.0);
+	const q1::ImageScalingFilter filter = q1::ResolveImageScalingFilter(
+		mScalingMode, mScale, mSingleStillImage, false);
+	painter.setRenderHint(QPainter::SmoothPixmapTransform,
+		filter == q1::ImageScalingFilter::Bilinear);
 	painter.drawImage(dstRect, mImage, QRectF(srcRect));
 
 	// The per-pixel value grid is a nearest-neighbour aid; hide it while smoothly
 	// interpolating so the magnified image stays clean.
-	if (!mInterpolate && mScale >= kPixelOverlayMinScale) {
+	if (filter == q1::ImageScalingFilter::Nearest && mScale >= kPixelOverlayMinScale) {
 		paintPixelValues(painter, srcRect);
 	}
 

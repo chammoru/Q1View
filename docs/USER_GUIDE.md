@@ -36,6 +36,10 @@ identifies the active pixel-value mode and row order (`Y/U/V` or `R/G/B`)
 without adding labels to every pixel.
 Decoded images and video show RGB values only.
 
+### Image Scaling
+
+Choose **View → Image Scaling** or press `I` to cycle through **Auto**, **Smooth (Bilinear)**, and **Pixel Exact (Nearest)**. Auto uses bilinear sampling for moderate still-image reductions so thin document text remains legible, area sampling for reductions of 2x or more to suppress aliasing in large photos, and nearest sampling for pixel inspection and timed sources. The active choice appears beside the magnification readout and in the Qt status bar; at high zoom, `Auto→Pixel` confirms that Auto is displaying exact source pixels.
+
 ### Controls
 
 Viewer includes a built-in control panel, opened with `?`.
@@ -58,7 +62,7 @@ Viewer includes a built-in control panel, opened with `?`.
 | Rotate clockwise | `R` |
 | Toggle pixel coordinates | `C` |
 | Toggle box info display | `B` |
-| Toggle pixel interpolation | `I` |
+| Cycle scaling: Auto → Smooth → Pixel Exact | `I` |
 | Next color space | `N` |
 | Next preset resolution (raw input) | `D` |
 | Mute or unmute video audio | `M` |

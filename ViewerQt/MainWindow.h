@@ -4,6 +4,7 @@
 #include "RawOpenDialog.h"
 #include "SyncChannel.h"
 
+#include "QImageScaling.h"
 #include "qimage_cs.h"
 
 #include <QByteArray>
@@ -132,7 +133,10 @@ private:
 	void toggleYOnly();
 	void toggleHexValues();
 	void toggleSourceValues();
-	void toggleInterpolate();
+	void cycleScalingMode();
+	void setScalingMode(q1::ImageScalingMode mode, bool showFeedback = true,
+		bool broadcast = true);
+	QString scalingStatusLabel() const;
 	void showAbout();
 	// Maps a display-space pixel to the raw source sample (handling rotation),
 	// mirroring the MFC viewer's CViewerDoc::GetNativePixelSample. Returns false
@@ -257,11 +261,14 @@ private:
 	QAction *mHexValuesAction = nullptr;
 	QAction *mSourceYuvAction = nullptr;
 	QAction *mCoordinatesAction;
-	QAction *mInterpolateAction;
+	QActionGroup *mScalingGroup;
+	QAction *mScalingAutoAction;
+	QAction *mScalingSmoothAction;
+	QAction *mScalingPixelAction;
 	QAction *mPlayAction;
 	QMenu *mRecentMenu;
 	QStringList mRecentFiles;
-	bool mInterpolate;
+	q1::ImageScalingMode mScalingMode;
 	// MFC-style control-panel menus shown on the menu bar (raw sources only).
 	QMenu *mResolutionMenu;
 	QMenu *mColorSpaceMenu;
