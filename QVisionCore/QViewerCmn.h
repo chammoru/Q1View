@@ -65,6 +65,8 @@ void NearestNeighbor(qu8* src, int h, int w, int hDst, int wDst, int xDst, int y
 	qu8* nOffsetYBorderFlag, qu8* nOffsetXBorderFlag, qu8* dst);
 void Interpolate(qu8* src, int h, int w, int wCanvas, long xStart, long xEnd,
 	long yStart, long yEnd, qu16* nOffsetBuf, qu8* dst);
+void ResizeArea(qu8* src, int h, int w, int hDst, int wDst,
+	int dstStridePixels, qu8* dst);
 
 // resolution_info_table now lives in the dependency-free qimage_presets.h so the
 // Qt viewer can share it; it is brought into q1 via the include above.

@@ -190,6 +190,16 @@ CViewerView::CViewerView()
 , mNnOffsetBufSize(0)
 , mPreN(0.0f)
 , mPreMaxL(0)
+, mAreaScaleValid(false)
+, mAreaScaleSource(NULL)
+, mAreaScaleSourceW(0)
+, mAreaScaleSourceH(0)
+, mAreaScaleDstW(0)
+, mAreaScaleDstH(0)
+, mAreaScaleXDst(0)
+, mAreaScaleYDst(0)
+, mAreaScaleStride(0)
+, mAreaScaleClientH(0)
 , mIsPlaying(false)
 , mTimerID(0)
 , mPlaybackStartFrameID(0)
@@ -705,7 +715,8 @@ void CViewerView::DrawMuteButton(CDC *pDC, const CRect &rect)
 	pDC->SelectObject(oldPen);
 }
 
-void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
+void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, bool useArea,
+	q1::GridInfo &gi)
 {
 	long gap, yStart, yEnd, xStart, xEnd;
 
@@ -744,7 +755,9 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi)
 	const long visibleWidth = QMAX(0, xEnd - xStart);
 	gap = (sDst - visibleWidth) * QIMG_DST_RGB_BYTES;
 
-	if (mInterpol) {
+	if (useArea) {
+		q1::ResizeArea(src, mH, mW, yEnd - yStart, visibleWidth, sDst, dst);
+	} else if (mInterpol) {
 		q1::Interpolate(src, mH, mW, mWCanvas, xStart, xEnd, yStart, yEnd, mNnOffsetBuf, dst);
 	} else {
 		q1::NearestNeighbor(src, mH, mW, mHDst, mWDst, mXDst, mYDst, mN, xStart, xEnd,
@@ -978,6 +991,7 @@ void CViewerView::ScaleRgbBuf(BYTE *src, BYTE **pDst, q1::GridInfo &gi)
 
 		mRgbBufSize = rgbBufSize;
 		*pDst = static_cast<BYTE *>(_mm_malloc(mRgbBufSize, 16));
+		mAreaScaleValid = false;
 	}
 
 	int maxL = QMAX(mWDst, mHDst);
@@ -1006,7 +1020,37 @@ void CViewerView::ScaleRgbBuf(BYTE *src, BYTE **pDst, q1::GridInfo &gi)
 		mPreMaxL = maxL;
 	}
 
-	_ScaleRgb(src, *pDst, sDst, gi);
+	CViewerDoc *pDoc = GetDocument();
+	// Auto Fit is the photographic viewing path: area resampling suppresses
+	// high-frequency aliasing when a single still image is reduced. Keep the
+	// explicit I-key mode, manual zoom, raw sequences, and video playback on
+	// their existing paths so pixel inspection and playback cost do not change.
+	const bool useArea = !mInterpol && !mIsPlaying && mFitToWindow &&
+		mN < 1.0f && pDoc && pDoc->mFrames == 1 && pDoc->mFrmSrc &&
+		!pDoc->mFrmSrc->isVideo() &&
+		mXDst >= 0 && mYDst >= 0 && mWDst <= mWCanvas && mHDst <= mHCanvas;
+	const bool areaCacheHit = useArea && mAreaScaleValid &&
+		mAreaScaleSource == src && mAreaScaleSourceW == mW &&
+		mAreaScaleSourceH == mH && mAreaScaleDstW == mWDst &&
+		mAreaScaleDstH == mHDst && mAreaScaleXDst == mXDst &&
+		mAreaScaleYDst == mYDst && mAreaScaleStride == sDst &&
+		mAreaScaleClientH == mHClient;
+
+	if (!areaCacheHit) {
+		_ScaleRgb(src, *pDst, sDst, useArea, gi);
+		mAreaScaleValid = useArea;
+		if (useArea) {
+			mAreaScaleSource = src;
+			mAreaScaleSourceW = mW;
+			mAreaScaleSourceH = mH;
+			mAreaScaleDstW = mWDst;
+			mAreaScaleDstH = mHDst;
+			mAreaScaleXDst = mXDst;
+			mAreaScaleYDst = mYDst;
+			mAreaScaleStride = sDst;
+			mAreaScaleClientH = mHClient;
+		}
+	}
 
 	BITMAPINFOHEADER &bmiHeader = mBmi.bmiHeader;
 	bmiHeader.biWidth = sDst;
@@ -1330,6 +1374,7 @@ void CViewerView::OnDraw(CDC *pDC)
 	BufferInfo bi;
 	bool ok = mNewRgbBufferInfoQ->try_pop(bi);
 	if (ok && (bi.addr != mStableRgbBufferInfo.addr || bi.ID != mStableRgbBufferInfo.ID)) {
+		mAreaScaleValid = false;
 		if (bi.ID == MSG_QUIT) {
 			KillPlayTimerSafe();
 			pDoc->RefreshNativePixelSource();

@@ -133,6 +133,15 @@ public:
 	int mNnOffsetBufSize;
 	float mPreN;
 	int mPreMaxL;
+	// Cached high-quality Auto Fit result. Static images are repainted often
+	// for overlays, so do not repeat a 4K/8K area resize when only the overlay
+	// changed.
+	bool mAreaScaleValid;
+	BYTE *mAreaScaleSource;
+	int mAreaScaleSourceW, mAreaScaleSourceH;
+	int mAreaScaleDstW, mAreaScaleDstH;
+	int mAreaScaleXDst, mAreaScaleYDst;
+	int mAreaScaleStride, mAreaScaleClientH;
 
 	// Play
 	AudioPlayer mAudioPlayer;
@@ -236,7 +245,8 @@ private:
 	double GetEffectivePlaybackFps(const CViewerDoc* pDoc) const;
 	long GetDuePlaybackFrameID(const CViewerDoc* pDoc) const;
 	void SetDstSize();
-	void _ScaleRgb(BYTE *src, BYTE *dst, int sDst, q1::GridInfo &gi);
+	void _ScaleRgb(BYTE *src, BYTE *dst, int sDst, bool useArea,
+		q1::GridInfo &gi);
 	int DrawBoxInfoText(CDC *pDC, CRect &rect, COLORREF color, int hAccumGap);
 
 	CDC mBackDC;

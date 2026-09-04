@@ -8,6 +8,7 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ### Changed
 - Icons: increase the filled visual area and small-size stroke weight of the Bright Sky Q1 Viewer and Comparator marks so they match the perceived size of neighboring Windows taskbar icons while retaining the existing icon slot dimensions.
+- Viewer: Auto Fit now uses a cached area-resampling pass for oversized single-frame images, reducing downscale aliasing and moire without adding work to video playback or changing manual zoom behavior.
 
 ---
 
