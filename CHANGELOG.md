@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Changed
+- Icons: increase the filled visual area and small-size stroke weight of the Bright Sky Q1 Viewer and Comparator marks so they match the perceived size of neighboring Windows taskbar icons while retaining the existing icon slot dimensions.
+
 ---
 
 ## [2.7.13] — 2026-08-30

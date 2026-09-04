@@ -14,8 +14,8 @@
   <rect x="82" y="171" width="40" height="32" rx="7" fill="#9AF8E9"/>
   <rect x="130" y="171" width="40" height="32" rx="7" fill="#FFFFFF"/>
   <g transform="translate(82 25) scale(.34375)">
-    <rect x="5" y="8" width="194" height="208" rx="48" fill="none" stroke="url(#brand)" stroke-width="18"/>
-    <line x1="166" y1="183" x2="203" y2="220" stroke="url(#brand)" stroke-width="18" stroke-linecap="round"/>
-    <polygon points="215,48 232,29 250,29 250,207 232,207 232,57 215,70" fill="url(#brand)"/>
+    <rect x="3" y="6" width="204" height="214" rx="49" fill="none" stroke="url(#brand)" stroke-width="23"/>
+    <line x1="171" y1="184" x2="199" y2="212" stroke="url(#brand)" stroke-width="23" stroke-linecap="round"/>
+    <polygon points="207,43 226,22 249,22 249,214 226,214 226,53 207,68" fill="url(#brand)"/>
   </g>
 </svg>

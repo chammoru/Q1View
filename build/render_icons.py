@@ -84,18 +84,18 @@ def render_icon(kind, size):
     def q1_layer(small=False):
         mask = Image.new("L", (s, s), 0)
         md = ImageDraw.Draw(mask)
-        stroke = int((28 if small else 18) * k)
-        md.rounded_rectangle(tuple(int(v * k) for v in (5, 8, 199, 216)),
-                             radius=int(48 * k), outline=255,
+        stroke = int((30 if small else 23) * k)
+        md.rounded_rectangle(tuple(int(v * k) for v in (3, 6, 207, 220)),
+                             radius=int(49 * k), outline=255,
                              width=max(1, stroke))
-        md.line(_scaled_points([(166, 183), (203, 220)], k), fill=255,
+        md.line(_scaled_points([(171, 184), (199, 212)], k), fill=255,
                 width=max(1, stroke), joint="curve")
         if small:
-            one = [(207, 48), (222, 29), (250, 29), (250, 207),
-                   (222, 207), (222, 59), (207, 72)]
+            one = [(202, 43), (221, 22), (249, 22), (249, 214),
+                   (221, 214), (221, 53), (202, 68)]
         else:
-            one = [(215, 48), (232, 29), (250, 29), (250, 207),
-                   (232, 207), (232, 57), (215, 70)]
+            one = [(207, 43), (226, 22), (249, 22), (249, 214),
+                   (226, 214), (226, 53), (207, 68)]
         md.polygon(_scaled_points(one, k), fill=255)
         ramp = Image.linear_gradient("L").resize((s, s))
         upper = Image.new("RGBA", (s, s), BRAND_TOP)
@@ -131,28 +131,28 @@ def render_icon(kind, size):
         img.alpha_composite(mark, (int(82 * k), int(25 * k)))
         return img.resize((size, size), Image.Resampling.LANCZOS)
 
-    gradient_rr((22, 25, 182, 199), 34, SKY_TOP, SKY_BOTTOM)
+    gradient_rr((13, 17, 200, 211), 38, SKY_TOP, SKY_BOTTOM)
     img.alpha_composite(q1_layer(small=size <= 32))
-    holes = (43, 88, 145) if size <= 32 else (37, 75, 119, 157)
-    hole_w = 16 if size <= 32 else 13
+    holes = (38, 94, 158) if size <= 32 else (32, 74, 120, 164)
+    hole_w = 18 if size <= 32 else 16
     for x in holes:
-        rr((x, 33, x + hole_w, 45), 3, "#E5FCFF")
-        rr((x, 179, x + hole_w, 191), 3, "#E6DCFF")
+        rr((x, 27, x + hole_w, 41), 3, "#E5FCFF")
+        rr((x, 185, x + hole_w, 199), 3, "#E6DCFF")
 
     if kind == "comparator":
-        gradient_polygon([(31, 174), (68, 122), (98, 174)],
+        gradient_polygon([(22, 184), (66, 118), (104, 184)],
                          "#ECFFFA", "#B7ECE8")
-        gradient_polygon([(108, 174), (145, 122), (175, 174)],
+        gradient_polygon([(110, 184), (154, 118), (192, 184)],
                          "#EEE9FF", "#B5B2F2")
-        line([(103, 55), (103, 177)], SOFT_GOLD, 9)
+        line([(107, 51), (107, 188)], SOFT_GOLD, 10)
     else:
-        gradient_polygon([(76, 174), (131, 111), (176, 174)],
+        gradient_polygon([(72, 184), (137, 110), (192, 184)],
                          "#EEE9FF", "#B5B2F2")
-        gradient_polygon([(31, 174), (78, 119), (124, 174)],
+        gradient_polygon([(22, 184), (79, 116), (137, 184)],
                          "#ECFFFA", "#B7ECE8")
-        ellipse((45, 67, 68, 90), SUN)
-        ellipse((132, 126, 174, 168), "#4050B8")
-        polygon([(147, 136), (147, 158), (166, 147)], "#FFFFFF")
+        ellipse((38, 56, 66, 84), SUN)
+        ellipse((141, 127, 189, 175), "#4050B8")
+        polygon([(157, 138), (157, 164), (179, 151)], "#FFFFFF")
 
     # Final approved optical balance: a modest 7.6% vertical expansion. The Q
     # body remains about 1.15 times taller than wide without the distorted 1.25
@@ -235,30 +235,30 @@ def _svg_header(kind):
 
 
 def _q1_svg(indent="    "):
-    return f'''{indent}<rect x="5" y="8" width="194" height="208" rx="48" fill="none" stroke="url(#brand)" stroke-width="18"/>
-{indent}<line x1="166" y1="183" x2="203" y2="220" stroke="url(#brand)" stroke-width="18" stroke-linecap="round"/>
-{indent}<polygon points="215,48 232,29 250,29 250,207 232,207 232,57 215,70" fill="url(#brand)"/>'''
+    return f'''{indent}<rect x="3" y="6" width="204" height="214" rx="49" fill="none" stroke="url(#brand)" stroke-width="23"/>
+{indent}<line x1="171" y1="184" x2="199" y2="212" stroke="url(#brand)" stroke-width="23" stroke-linecap="round"/>
+{indent}<polygon points="207,43 226,22 249,22 249,214 226,214 226,53 207,68" fill="url(#brand)"/>'''
 
 
 def app_svg(kind):
     comparator = kind == "comparator"
     content = [_svg_header(kind),
                '  <g transform="matrix(1 0 0 1.075630 0 5.378151)">',
-               '    <rect x="22" y="25" width="160" height="174" rx="34" fill="url(#sky)"/>',
+               '    <rect x="13" y="17" width="187" height="194" rx="38" fill="url(#sky)"/>',
                _q1_svg()]
-    for x in (37, 75, 119, 157):
-        content.append(f'    <rect x="{x}" y="33" width="13" height="12" rx="3" fill="#E5FCFF"/>')
-        content.append(f'    <rect x="{x}" y="179" width="13" height="12" rx="3" fill="#E6DCFF"/>')
+    for x in (32, 74, 120, 164):
+        content.append(f'    <rect x="{x}" y="27" width="16" height="14" rx="3" fill="#E5FCFF"/>')
+        content.append(f'    <rect x="{x}" y="185" width="16" height="14" rx="3" fill="#E6DCFF"/>')
     if comparator:
-        content += ['    <polygon points="31,174 68,122 98,174" fill="url(#mint)"/>',
-                    '    <polygon points="108,174 145,122 175,174" fill="url(#lavender)"/>',
-                    f'    <line x1="103" y1="55" x2="103" y2="177" stroke="{SOFT_GOLD}" stroke-width="9"/>']
+        content += ['    <polygon points="22,184 66,118 104,184" fill="url(#mint)"/>',
+                    '    <polygon points="110,184 154,118 192,184" fill="url(#lavender)"/>',
+                    f'    <line x1="107" y1="51" x2="107" y2="188" stroke="{SOFT_GOLD}" stroke-width="10"/>']
     else:
-        content += ['    <polygon points="76,174 131,111 176,174" fill="url(#lavender)"/>',
-                    '    <polygon points="31,174 78,119 124,174" fill="url(#mint)"/>',
-                    f'    <circle cx="56.5" cy="78.5" r="11.5" fill="{SUN}"/>',
-                    '    <circle cx="153" cy="147" r="21" fill="#4050B8"/>',
-                    '    <polygon points="147,136 147,158 166,147" fill="#FFFFFF"/>']
+        content += ['    <polygon points="72,184 137,110 192,184" fill="url(#lavender)"/>',
+                    '    <polygon points="22,184 79,116 137,184" fill="url(#mint)"/>',
+                    f'    <circle cx="52" cy="70" r="14" fill="{SUN}"/>',
+                    '    <circle cx="165" cy="151" r="24" fill="#4050B8"/>',
+                    '    <polygon points="157,138 157,164 179,151" fill="#FFFFFF"/>']
     content += ['  </g>', '</svg>', '']
     return "\n".join(content)
 

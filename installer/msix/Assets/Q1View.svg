@@ -7,22 +7,22 @@
     <linearGradient id="lavender" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#EEE9FF"/><stop offset="1" stop-color="#B5B2F2"/></linearGradient>
   </defs>
   <g transform="matrix(1 0 0 1.075630 0 5.378151)">
-    <rect x="22" y="25" width="160" height="174" rx="34" fill="url(#sky)"/>
-    <rect x="5" y="8" width="194" height="208" rx="48" fill="none" stroke="url(#brand)" stroke-width="18"/>
-    <line x1="166" y1="183" x2="203" y2="220" stroke="url(#brand)" stroke-width="18" stroke-linecap="round"/>
-    <polygon points="215,48 232,29 250,29 250,207 232,207 232,57 215,70" fill="url(#brand)"/>
-    <rect x="37" y="33" width="13" height="12" rx="3" fill="#E5FCFF"/>
-    <rect x="37" y="179" width="13" height="12" rx="3" fill="#E6DCFF"/>
-    <rect x="75" y="33" width="13" height="12" rx="3" fill="#E5FCFF"/>
-    <rect x="75" y="179" width="13" height="12" rx="3" fill="#E6DCFF"/>
-    <rect x="119" y="33" width="13" height="12" rx="3" fill="#E5FCFF"/>
-    <rect x="119" y="179" width="13" height="12" rx="3" fill="#E6DCFF"/>
-    <rect x="157" y="33" width="13" height="12" rx="3" fill="#E5FCFF"/>
-    <rect x="157" y="179" width="13" height="12" rx="3" fill="#E6DCFF"/>
-    <polygon points="76,174 131,111 176,174" fill="url(#lavender)"/>
-    <polygon points="31,174 78,119 124,174" fill="url(#mint)"/>
-    <circle cx="56.5" cy="78.5" r="11.5" fill="#FFF1AE"/>
-    <circle cx="153" cy="147" r="21" fill="#4050B8"/>
-    <polygon points="147,136 147,158 166,147" fill="#FFFFFF"/>
+    <rect x="13" y="17" width="187" height="194" rx="38" fill="url(#sky)"/>
+    <rect x="3" y="6" width="204" height="214" rx="49" fill="none" stroke="url(#brand)" stroke-width="23"/>
+    <line x1="171" y1="184" x2="199" y2="212" stroke="url(#brand)" stroke-width="23" stroke-linecap="round"/>
+    <polygon points="207,43 226,22 249,22 249,214 226,214 226,53 207,68" fill="url(#brand)"/>
+    <rect x="32" y="27" width="16" height="14" rx="3" fill="#E5FCFF"/>
+    <rect x="32" y="185" width="16" height="14" rx="3" fill="#E6DCFF"/>
+    <rect x="74" y="27" width="16" height="14" rx="3" fill="#E5FCFF"/>
+    <rect x="74" y="185" width="16" height="14" rx="3" fill="#E6DCFF"/>
+    <rect x="120" y="27" width="16" height="14" rx="3" fill="#E5FCFF"/>
+    <rect x="120" y="185" width="16" height="14" rx="3" fill="#E6DCFF"/>
+    <rect x="164" y="27" width="16" height="14" rx="3" fill="#E5FCFF"/>
+    <rect x="164" y="185" width="16" height="14" rx="3" fill="#E6DCFF"/>
+    <polygon points="72,184 137,110 192,184" fill="url(#lavender)"/>
+    <polygon points="22,184 79,116 137,184" fill="url(#mint)"/>
+    <circle cx="52" cy="70" r="14" fill="#FFF1AE"/>
+    <circle cx="165" cy="151" r="24" fill="#4050B8"/>
+    <polygon points="157,138 157,164 179,151" fill="#FFFFFF"/>
   </g>
 </svg>
