@@ -6,6 +6,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.15] — 2026-09-05
+
 ### Changed
 - Viewer: replace the two-state interpolation toggle with synchronized Auto, Smooth (Bilinear), and Pixel Exact (Nearest) image-scaling modes in both MFC and Qt, with radio-menu selection, persistent magnification/status labels, 1.5-second `I`-key feedback, and updated shortcut help; Auto now uses bilinear sampling for moderate still-image reductions such as scanned documents, area sampling for reductions of 2x or more, and nearest sampling for pixel inspection and timed sources.
 
@@ -372,7 +376,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.14...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.15...HEAD
+[2.7.15]: https://github.com/chammoru/Q1View/compare/v2.7.14...v2.7.15
 [2.7.14]: https://github.com/chammoru/Q1View/compare/v2.7.13...v2.7.14
 [2.7.13]: https://github.com/chammoru/Q1View/compare/v2.7.12...v2.7.13
 [2.7.12]: https://github.com/chammoru/Q1View/compare/v2.7.11...v2.7.12
