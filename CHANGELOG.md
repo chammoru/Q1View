@@ -6,6 +6,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.14] — 2026-09-05
+
 ### Changed
 - Icons: increase the filled visual area and small-size stroke weight of the Bright Sky Q1 Viewer and Comparator marks so they match the perceived size of neighboring Windows taskbar icons while retaining the existing icon slot dimensions.
 - Viewer: Auto Fit now uses a cached area-resampling pass for oversized single-frame images, reducing downscale aliasing and moire without adding work to video playback or changing manual zoom behavior.
@@ -365,7 +369,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.13...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.14...HEAD
+[2.7.14]: https://github.com/chammoru/Q1View/compare/v2.7.13...v2.7.14
 [2.7.13]: https://github.com/chammoru/Q1View/compare/v2.7.12...v2.7.13
 [2.7.12]: https://github.com/chammoru/Q1View/compare/v2.7.11...v2.7.12
 [2.7.11]: https://github.com/chammoru/Q1View/compare/v2.7.10...v2.7.11
