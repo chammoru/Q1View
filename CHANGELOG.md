@@ -6,6 +6,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.16] — 2026-09-05
+
 ### Changed
 - Windows Viewer: gallery thumbnail sizes now transition on a dedicated Direct2D/D3D11 canvas, reusing bounded thumbnail caches and preserving selection across repeated Ctrl+wheel input without rebuilding the folder; compact list mode remains available. (issue #81; physical 4K/DPI validation pending)
 
@@ -379,7 +383,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.15...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.16...HEAD
+[2.7.16]: https://github.com/chammoru/Q1View/compare/v2.7.15...v2.7.16
 [2.7.15]: https://github.com/chammoru/Q1View/compare/v2.7.14...v2.7.15
 [2.7.14]: https://github.com/chammoru/Q1View/compare/v2.7.13...v2.7.14
 [2.7.13]: https://github.com/chammoru/Q1View/compare/v2.7.12...v2.7.13

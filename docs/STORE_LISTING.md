@@ -37,7 +37,7 @@ For raw YUV sources, Viewer can show native Y, U, and V values sampled directly 
 
 Raw input can be reinterpreted quickly without reopening the file. Press N to cycle color spaces and D to cycle preset resolutions. This is useful when debugging raw YUV/RGB dumps whose format, size, or color interpretation must be checked quickly.
 
-Viewer also supports image-sequence navigation, video playback, frame/time progress display, clipboard paste, screen capture, and a resizable left-side thumbnail browser for browsing the current folder (drag the divider to widen it for long file names without changing the window size). Open multiple Viewer windows and enable Sync Input to keep navigation, zoom, pan, rotation, playback, and display settings synchronized across them.
+Viewer also supports image-sequence navigation, video playback, frame/time progress display, clipboard paste, screen capture, and a resizable left-side thumbnail browser for browsing the current folder. Its GPU-rendered gallery smoothly animates thumbnail size changes while preserving selection and active playback; drag the divider to widen the browser without changing the window size. Open multiple Viewer windows and enable Sync Input to keep navigation, zoom, pan, rotation, playback, and display settings synchronized across them.
 
 Choose Auto, Smooth (Bilinear), or Pixel Exact (Nearest) image scaling from the View menu. Auto keeps scanned text clear at moderate reductions, suppresses aliasing when large photos are reduced substantially, and preserves exact pixels during close inspection.
 
@@ -101,7 +101,7 @@ TECHNICAL NOTES
 15. Allow Different Resolution mode for cross-resolution comparisons
 16. Portable ZIP available alongside the installer
 17. Cycle raw color space (N) and preset resolutions (D) without reopening the file
-18. Resizable left-side thumbnail drawer — drag the divider to read long file names without changing the window size
+18. GPU-rendered thumbnail gallery with smooth size transitions, bounded caching, and a resizable left-side drawer
 19. Coordinated Viewer, Comparator, photo, video, and raw-file icons designed for clear recognition across Windows taskbar, Start, and File Explorer surfaces
 ```
 
