@@ -232,6 +232,9 @@
     </ClCompile>
     <ClCompile Include="ThumbnailPane.cpp" />
     <ClCompile Include="GalleryGridCanvas.cpp" />
+    <ClCompile Include="HdrToneMap.cpp"><PrecompiledHeader>NotUsing</PrecompiledHeader></ClCompile>
+    <ClCompile Include="VideoColorInfo.cpp"><PrecompiledHeader>NotUsing</PrecompiledHeader></ClCompile>
+    <ClCompile Include="VideoOrientation.cpp"><PrecompiledHeader>NotUsing</PrecompiledHeader></ClCompile>
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -258,6 +261,9 @@
     <ClInclude Include="ThumbnailPane.h" />
     <ClInclude Include="GalleryGridCanvas.h" />
     <ClInclude Include="GalleryLayout.h" />
+    <ClInclude Include="HdrToneMap.h" />
+    <ClInclude Include="VideoColorInfo.h" />
+    <ClInclude Include="VideoOrientation.h" />
     <ClInclude Include="FrmSrc.h" />
     <ClInclude Include="MatFrmSrc.h" />
     <ClInclude Include="RawFrmSrc.h" />

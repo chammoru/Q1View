@@ -39,6 +39,8 @@ Raw input can be reinterpreted quickly without reopening the file. Press N to cy
 
 Viewer also supports image-sequence navigation, video playback, frame/time progress display, clipboard paste, screen capture, and a resizable left-side thumbnail browser for browsing the current folder. Its GPU-rendered gallery smoothly animates thumbnail size changes while preserving selection and active playback; drag the divider to widen the browser without changing the window size. Open multiple Viewer windows and enable Sync Input to keep navigation, zoom, pan, rotation, playback, and display settings synchronized across them.
 
+BT.2020 HLG videos are tone-mapped for accurate color and contrast on standard SDR Windows displays instead of being shown with a washed-out legacy color conversion.
+
 Choose Auto, Smooth (Bilinear), or Pixel Exact (Nearest) image scaling from the View menu. Auto keeps scanned text clear at moderate reductions, suppresses aliasing when large photos are reduced substantially, and preserves exact pixels during close inspection.
 
 COMPARATOR
@@ -103,6 +105,7 @@ TECHNICAL NOTES
 17. Cycle raw color space (N) and preset resolutions (D) without reopening the file
 18. GPU-rendered thumbnail gallery with smooth size transitions, bounded caching, and a resizable left-side drawer
 19. Coordinated Viewer, Comparator, photo, video, and raw-file icons designed for clear recognition across Windows taskbar, Start, and File Explorer surfaces
+20. BT.2020 HLG video tone mapping for accurate color and contrast on standard SDR displays
 ```
 
 ---

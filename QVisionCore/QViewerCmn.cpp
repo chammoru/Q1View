@@ -8,6 +8,48 @@ using namespace std;
 
 namespace q1 {
 
+	void RotateBgr(const qu8* src, int h, int w, int clockwiseDegrees,
+		int dstStridePixels, qu8* dst)
+	{
+		const size_t sourceStride = size_t(w) * 3;
+		const size_t destinationStride = size_t(dstStridePixels) * 3;
+		if (clockwiseDegrees == 90 || clockwiseDegrees == 270) {
+			// OpenCV 4.3's generic transpose path is single-threaded for this
+			// layout. Parallelize independent destination rows so metadata-rotated
+			// 60 fps videos do not lose their frame budget.
+			constexpr int tile = 8;
+			const int tileColumns = (w + tile - 1) / tile;
+			cv::parallel_for_(cv::Range(0, tileColumns), [&](const cv::Range& range) {
+				for (int tileIndex = range.start; tileIndex < range.end; ++tileIndex) {
+					const int xBegin = tileIndex * tile;
+					const int xEnd = std::min(w, xBegin + tile);
+					for (int yBegin = 0; yBegin < h; yBegin += tile) {
+						const int yEnd = std::min(h, yBegin + tile);
+						for (int sourceX = xBegin; sourceX < xEnd; ++sourceX) {
+							const int outputY = clockwiseDegrees == 90 ? sourceX : w - sourceX - 1;
+							const int firstSourceY = clockwiseDegrees == 90 ? yEnd - 1 : yBegin;
+							const int firstOutputX = clockwiseDegrees == 90 ? h - yEnd : yBegin;
+							const ptrdiff_t inputStep = clockwiseDegrees == 90 ?
+								-ptrdiff_t(sourceStride) : ptrdiff_t(sourceStride);
+							const qu8* input = src + size_t(firstSourceY) * sourceStride + size_t(sourceX) * 3;
+							qu8* output = dst + size_t(outputY) * destinationStride + size_t(firstOutputX) * 3;
+							for (int sourceY = yBegin; sourceY < yEnd; ++sourceY, input += inputStep, output += 3) {
+								output[0] = input[0];
+								output[1] = input[1];
+								output[2] = input[2];
+							}
+						}
+					}
+				}
+			});
+			return;
+		}
+
+		cv::Mat source(h, w, CV_8UC3, const_cast<qu8*>(src), sourceStride);
+		cv::Mat destination(h, w, CV_8UC3, dst, destinationStride);
+		cv::rotate(source, destination, cv::ROTATE_180);
+	}
+
 	int DeterminDestPos(int lenCanvas, int lenDst, float& offset, float ratio)
 	{
 		int posDst;

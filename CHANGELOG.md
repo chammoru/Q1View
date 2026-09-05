@@ -6,6 +6,11 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Fixed
+- Windows Viewer: honor cardinal MP4/MOV video-track display matrices so portrait videos open, play, seek, and step at the intended orientation, with a cache-tiled parallel BGR rotation path that keeps the added per-frame cost low.
+- Windows Viewer: detect studio-range BT.2020 HLG video metadata and apply an ITU-R BT.2446-based HDR-to-SDR color transform with 203-to-100-nit reference-white adaptation, correcting the washed-out OpenCV 4.3 output while a fused tone-map/rotation path limits the cost for portrait video.
+- Windows Viewer: stop and join the active decoder before releasing its video capture when a playing document is replaced through drag-and-drop, File Open, recent files, or thumbnail activation, preventing an intermittent use-after-release crash.
+
 ---
 
 ## [2.7.16] — 2026-09-05

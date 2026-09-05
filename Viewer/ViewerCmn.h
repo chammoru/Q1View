@@ -4,6 +4,7 @@
 #include "ViewerDoc.h"
 #include <QOcv.h>
 #include <QCvUtil.h>
+#include "../QVisionCore/QViewerCmn.h"
 
 static inline BufferInfo PostProcess(
 	int colorSpace, q1::ImageProcessor *bgr888Processor,
@@ -13,6 +14,15 @@ static inline BufferInfo PostProcess(
 	QROTATION rot, QIMAGE_CSC_FN csc2Rgb888,
 	long frameID)
 {
+	if (colorSpace == QIMAGE_CS_BGR888 && bgr888Processor == nullptr && rot != QROT_000) {
+		const int outputWidth = (rot == QROT_090 || rot == QROT_270) ? h : w;
+		q1::RotateBgr(src, h, w, int(rot) * 90, ROUNDUP_DWORD(outputWidth), dst);
+		BufferInfo rotatedInfo;
+		rotatedInfo.ID = frameID;
+		rotatedInfo.addr = dst;
+		return rotatedInfo;
+	}
+
 	if (colorSpace == QIMAGE_CS_BGR888 && bgr888Processor) {
 		cv::Mat src(h, w, CV_8UC3, src, w * QIMG_DST_RGB_BYTES);
 		cv::Mat dst(h, w, CV_8UC3, dst, ROUNDUP_DWORD(w) * QIMG_DST_RGB_BYTES);

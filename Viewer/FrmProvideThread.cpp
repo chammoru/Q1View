@@ -26,8 +26,8 @@ bool FrmProvideThread::threadLoop()
 
 	long frameID = GetNextFrameID();
 	const bool directRgb = mColorSpace == QIMAGE_CS_BGR888 &&
-		mBgr888Processor == NULL && mRot == QROT_000 &&
-		supportsDirectRgbLoad();
+		mBgr888Processor == NULL && supportsDirectRgbLoad() &&
+		(mRot == QROT_000 || supportsDirectRgbLoadWithRotation());
 	LARGE_INTEGER loadStart = {};
 	LARGE_INTEGER loadEnd = {};
 	if (mTraceEnabled)

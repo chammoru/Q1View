@@ -102,6 +102,10 @@ jobs:
           & ".\Tests\bin\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\CoreRegressionTests.exe"
           msbuild Tests\ImageScalingTests.vcxproj /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
           & ".\Tests\bin\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\ImageScalingTests.exe"
+          msbuild Tests\VideoOrientationTests.vcxproj /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
+          & ".\Tests\bin\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\VideoOrientationTests.exe"
+          msbuild Tests\HdrToneMapTests.vcxproj /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143
+          & ".\Tests\bin\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\HdrToneMapTests.exe"
 
       - name: Build Viewer
         run: msbuild Viewer\Viewer.sln /m /restore /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:PlatformToolset=v143

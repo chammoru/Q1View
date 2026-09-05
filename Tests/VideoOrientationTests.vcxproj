@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals"><ProjectGuid>{AFD5CC5B-30D7-4054-B412-C18C2D1887B6}</ProjectGuid><Keyword>Win32Proj</Keyword></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration"><ConfigurationType>Application</ConfigurationType><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup><OutDir>$(ProjectDir)bin\$(Platform)\$(Configuration)\</OutDir><IntDir>$(ProjectDir)obj\$(Platform)\$(Configuration)\VideoOrientationTests\</IntDir></PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile><WarningLevel>Level4</WarningLevel><Optimization>MaxSpeed</Optimization><RuntimeLibrary>MultiThreaded</RuntimeLibrary><LanguageStandard>stdcpp14</LanguageStandard></ClCompile>
+    <Link><SubSystem>Console</SubSystem></Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="VideoOrientationTests.cpp" />
+    <ClCompile Include="..\Viewer\VideoOrientation.cpp"><PrecompiledHeader>NotUsing</PrecompiledHeader></ClCompile>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

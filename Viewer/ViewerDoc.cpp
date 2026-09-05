@@ -396,6 +396,19 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	explicitOpen = explicitOpen || mPendingExplicitOpen;
 	mPendingExplicitOpen = false;
 
+	// A one-file drag/drop reuses this SDI document. Quiesce playback before
+	// releasing the current decoder: VidCapThread may otherwise still be inside
+	// VideoCapture::read() while Release() destroys the same capture object.
+	// Destroying the queues first also wakes workers blocked on a full queue or
+	// an unavailable output buffer, allowing KillPlayTimer() to join them.
+	CViewerView *pView = static_cast<CViewerView *>(pMainFrm->GetActiveView());
+	if (mFrmSrc) {
+		mBufferPool->disable();
+		mBufferQueue->destroy();
+		pView->KillPlayTimer();
+		pView->mAudioPlayer.Close();
+	}
+
 	mPathName = pathName;
 	mPurePathName = mPathName.Left(mPathName.ReverseFind('\\') + 1);
 	mPurePathRegex = mPurePathName + _T("*");

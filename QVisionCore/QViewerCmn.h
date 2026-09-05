@@ -70,6 +70,8 @@ void ResizeArea(qu8* src, int h, int w, int hDst, int wDst,
 	int dstStridePixels, qu8* dst);
 void ResizeLinear(qu8* src, int h, int w, int hDst, int wDst,
 	int dstStridePixels, qu8* dst);
+void RotateBgr(const qu8* src, int h, int w, int clockwiseDegrees,
+	int dstStridePixels, qu8* dst);
 
 // resolution_info_table now lives in the dependency-free qimage_presets.h so the
 // Qt viewer can share it; it is brought into q1 via the include above.

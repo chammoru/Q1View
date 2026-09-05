@@ -5,9 +5,11 @@
 #include "../Viewer/MainFrm.h"
 #include "../Viewer/ViewerDoc.h"
 #include "../Viewer/ViewerView.h"
+#include "../Viewer/FrmSrc.h"
 #include "../Viewer/ThumbnailPane.h"
 #include "../Viewer/GalleryGridCanvas.h"
 #include "QViewerCmn.h"
+#include "QCvUtil.h"
 #include <cstdio>
 #include <stdexcept>
 #include <functional>
@@ -145,6 +147,52 @@ struct GalleryIntegrationTests {
             Require(AfxGetApp()->OpenDocumentFile(video) != nullptr, "representative video opened");
             view = static_cast<CViewerView*>(frame->GetActiveView());
             doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
+			if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_TEST_EXPECT_HLG_TONE_MAP",
+				nullptr, 0))
+				Require(doc->mFrmSrc->usesHlgToneMapping(), "BT.2020 HLG metadata enables SDR tone mapping");
+			wchar_t dumpFrame[32768] = {};
+			if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_TEST_DUMP_FRAME", dumpFrame,
+				_countof(dumpFrame))) {
+				doc->mAutoplayAfterPresent = false;
+				Pump(.2);
+				Await([&] { return view->mStableRgbBufferInfo.ID == 0; },
+					"initial video frame presented before deterministic dump");
+				wchar_t dumpFrameIdText[32] = {};
+				const long dumpFrameId = GetEnvironmentVariableW(
+					L"Q1VIEW_GALLERY_TEST_DUMP_FRAME_ID", dumpFrameIdText,
+					_countof(dumpFrameIdText)) ? _wtol(dumpFrameIdText) : 0;
+				if (dumpFrameId != 0) {
+					Require(doc->SeekScene(dumpFrameId) == dumpFrameId,
+						"deterministic dump frame queued");
+					view->Invalidate(FALSE);
+					Pump(.2);
+					Await([&] { return view->mStableRgbBufferInfo.ID == dumpFrameId; },
+						"deterministic dump frame presented");
+				}
+				cv::Mat displayed(doc->mH, doc->mW, CV_8UC3,
+					view->mStableRgbBufferInfo.addr,
+					ROUNDUP_DWORD(doc->mW) * QIMG_DST_RGB_BYTES);
+				Require(q1::imwriteW(dumpFrame, displayed), "displayed video frame dumped");
+				if (dumpFrameId != 0) {
+					Require(doc->SeekScene(0) == 0, "playback restart frame queued after dump");
+					view->Invalidate(FALSE);
+					Pump(.2);
+					Await([&] { return view->mStableRgbBufferInfo.ID == 0; },
+						"playback restart frame presented after dump");
+				}
+				view->SetPlayTimer(doc);
+			}
+			wchar_t expectedRotationText[16] = {};
+			if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_TEST_EXPECT_ROTATION", expectedRotationText,
+				_countof(expectedRotationText))) {
+				const int expectedRotation = _wtoi(expectedRotationText);
+				Require(int(doc->mRot) * 90 == expectedRotation,
+					"video display matrix initializes document rotation");
+				const bool swapsAxes = expectedRotation == 90 || expectedRotation == 270;
+				Require((!swapsAxes && doc->mW == doc->mOrigW && doc->mH == doc->mOrigH) ||
+					(swapsAxes && doc->mW == doc->mOrigH && doc->mH == doc->mOrigW),
+					"display dimensions follow video orientation");
+			}
             pane.NavigateTo(folder); Pump(1);
             Require(view->mIsPlaying, "video is playing");
             std::vector<double> gaps;
@@ -164,8 +212,12 @@ struct GalleryIntegrationTests {
                 }
                 gaps.clear(); lastFrame = grid.Now();
             };
+            // Leave enough media after the performance samples for the drawer
+            // and divider checks when a short representative clip is supplied.
+            const double duration = doc->mFps > 0 ? double(doc->mFrames) / doc->mFps : 0;
+            const double sampleSeconds = suppliedVideo && duration > 0 && duration < 15 ? 3.0 : 5.0;
             long start = doc->mCurFrameID; int paints = view->mPlayFrameCount;
-            auto t = grid.Now(); Pump(5); double elapsed = grid.Now()-t;
+            auto t = grid.Now(); Pump(sampleSeconds); double elapsed = grid.Now()-t;
             double baseline = (view->mPlayFrameCount-paints)/elapsed;
             Require(baseline > 1, "presentation timing counters are active");
             fprintf(report,"baseline: %.3f presented fps, frame %ld -> %ld\n", baseline,start,doc->mCurFrameID);
@@ -173,7 +225,7 @@ struct GalleryIntegrationTests {
             summarizeGaps("baseline");
             paints = view->mPlayFrameCount; start = doc->mCurFrameID; t = grid.Now();
             double next = t; int step = 0; double longest = 0, previous = t;
-            Pump(5,[&] {
+            Pump(sampleSeconds,[&] {
                 double now = grid.Now(); longest = std::max(longest,now-previous); previous = now;
                 if (now >= next) { pane.ApplyViewStep(step++%5+1,false); next = now+.08; }
             });
@@ -183,6 +235,23 @@ struct GalleryIntegrationTests {
             Require(zoomFps >= baseline*.90, "grid zoom presentation rate within 10 percent of baseline");
             summarizeGaps("zoom");
             afterMessage = {};
+			const long pausedFrame = view->mStableRgbBufferInfo.ID;
+			BYTE* pausedBuffer = view->mStableRgbBufferInfo.addr;
+			view->KillPlayTimerSafe();
+			Pump(.2);
+			Require(!view->mIsPlaying && view->mStableRgbBufferInfo.ID == pausedFrame &&
+				view->mStableRgbBufferInfo.addr == pausedBuffer,
+				"pause preserves the exact last-presented RGB buffer");
+			const long steppedFrame = pausedFrame + 1;
+			Require(doc->NextScene() == steppedFrame, "paused frame step queues the following frame");
+			view->Invalidate(FALSE);
+			Await([&] { return view->mStableRgbBufferInfo.ID == steppedFrame; },
+				"paused frame step presents the requested frame");
+			Require(!view->mIsPlaying, "frame stepping does not resume playback");
+			view->SetPlayTimer(doc);
+			Pump(.4);
+			Require(view->mIsPlaying && view->mStableRgbBufferInfo.ID > steppedFrame,
+				"playback resumes from the decoder's following frame");
             CRect bounds; frame->GetWindowRect(&bounds);
             for (int i=0;i<6;++i) { frame->OnToggleDrawer(); Pump(.2); }
             CRect after; frame->GetWindowRect(&after);
@@ -191,6 +260,33 @@ struct GalleryIntegrationTests {
             pane.MoveWindow(0,0,350,750); pane.MoveWindow(0,0,600,750); pane.SetResizing(false); Pump(.3);
             Require(grid.mLayout.width > 500 && view->mIsPlaying, "grid refits after divider resizing without stopping playback");
             frame->RecalcLayout();
+			wchar_t replacementVideo[MAX_PATH] = {};
+			if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_TEST_REPLACEMENT_VIDEO",
+				replacementVideo, _countof(replacementVideo))) {
+				// A single-file shell drop reaches CViewerApp::OpenDocumentFile and
+				// reuses this SDI document. Alternate active videos repeatedly so the
+				// test exercises decoder teardown while VideoCapture::read is busy.
+				for (int replacement = 0; replacement < 12; ++replacement) {
+					const wchar_t* target = (replacement & 1) ? video : replacementVideo;
+					Require(view->mIsPlaying, "video is active before document replacement");
+					Require(AfxGetApp()->OpenDocumentFile(target) != nullptr,
+						"playing document replaced through the shell-open path");
+					view = static_cast<CViewerView*>(frame->GetActiveView());
+					doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
+					Await([&] { return view->mIsPlaying && doc->mCurFrameID > 0; },
+						"replacement video presents and resumes playback");
+				}
+			}
+			view->KillPlayTimerSafe();
+			const long eofStart = std::max(0L, doc->mFrames - 2);
+			Require(doc->SeekScene(eofStart) == eofStart, "near-EOF frame queued");
+			view->Invalidate(FALSE);
+			Await([&] { return view->mStableRgbBufferInfo.ID == eofStart; },
+				"near-EOF frame presented");
+			view->SetPlayTimer(doc);
+			Await([&] { return !view->mIsPlaying; }, "playback stops cleanly at EOF");
+			Require(view->mStableRgbBufferInfo.ID == doc->mFrames - 1,
+				"last valid frame remains presented at EOF");
         }
         wchar_t hold[16];
         if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_TEST_HOLD_SECONDS",hold,_countof(hold))) {

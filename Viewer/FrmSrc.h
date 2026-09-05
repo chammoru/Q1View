@@ -21,6 +21,7 @@ public:
 	virtual void Release() = 0;
 	inline bool isFixed() { return mFixedResolution; }
 	virtual bool isVideo() const { return false; }
+	virtual bool usesHlgToneMapping() const { return false; }
 
 private:
 	bool mFixedResolution;

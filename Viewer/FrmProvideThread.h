@@ -82,6 +82,7 @@ protected:
 	virtual void sendQuitMsg(long frameID) = 0;
 	virtual bool loadOrigBuf(long frameID, BYTE *buf) = 0;
 	virtual bool supportsDirectRgbLoad() const { return false; }
+	virtual bool supportsDirectRgbLoadWithRotation() const { return false; }
 	virtual bool loadRgbBuf(long frameID, BYTE *buf) { return false; }
 	virtual void cancelFrameReservation(long) {}
 
