@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Changed
+- Windows Viewer: gallery thumbnail sizes now transition on a dedicated Direct2D/D3D11 canvas, reusing bounded thumbnail caches and preserving selection across repeated Ctrl+wheel input without rebuilding the folder; compact list mode remains available. (issue #81; physical 4K/DPI validation pending)
+
 ---
 
 ## [2.7.15] — 2026-09-05

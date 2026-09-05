@@ -1,6 +1,7 @@
 // ThumbnailPane.h : left-side thumbnail explorer drawer for the Viewer.
 //
-// A CListCtrl (icon view) that lists every file in the folder of the current
+// A compact CListCtrl hosting a separate GPU gallery canvas. Lists every file in
+// the folder of the current
 // document -- the same set the main view pages through with PgUp/PgDn -- so the
 // drawer selection always tracks the current file. Images and videos get an
 // asynchronously decoded thumbnail; raw formats (whose pixel layout can't be
@@ -19,6 +20,9 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <memory>
+
+class CGalleryGridCanvas;
 
 // Worker -> UI notification carrying a decoded thumbnail (see Result).
 #define WM_THUMB_READY (WM_APP + 200)
@@ -50,8 +54,8 @@ public:
 	void BeginSlide(int targetWidth);
 	void EndSlide();
 
-	// While the user live-drags the splitter, skip the per-resize grid re-fit; the
-	// tiles just reflow. Passing false re-fits once at the final width.
+	// While live-dragging the splitter, clip the existing grid layout; passing
+	// false re-fits once at the final width without rebuilding folder entries.
 	void SetResizing(bool on);
 
 	// Owner-drawn rows: thumbnail / extension badge / plain folder text.
@@ -62,9 +66,9 @@ protected:
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg void OnDestroy();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg void OnSetFocus(CWnd* oldWnd);
 	afx_msg void OnItemActivate(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnGetInfoTip(NMHDR *pNMHDR, LRESULT *pResult);
-	afx_msg void OnCustomDraw(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
 	afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar);
 	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
@@ -73,11 +77,13 @@ protected:
 	afx_msg LRESULT OnActivatePosted(WPARAM wParam, LPARAM lParam);
 
 private:
+	friend class CGalleryGridCanvas;
+	friend struct GalleryIntegrationTests;
+	std::unique_ptr<CGalleryGridCanvas> mGrid;
 	struct Task { unsigned gen; int index; int size; bool crop; CString path; };
 	struct Result { unsigned gen; int index; int size; HBITMAP hbmp; };
 
 	void Populate(const CString &folder, const CString &current);
-	void FreezeGridLayout();               // pin tiles to the N-column grid (no auto-arrange)
 	void StepFile(bool next);              // PgUp/PgDn: select prev/next file (no open)
 	void NavigateTo(const CString &folder);
 	void ActivateIndex(int index, bool allowNavigate);
@@ -93,17 +99,15 @@ private:
 	void ScheduleVisibleScan();        // debounced QueueVisibleThumbs
 
 	// View-size steps: step 0 is the compact list (report view, names + folders);
-	// steps 1..N are gallery grids (icon view) of image thumbnails only -- no
-	// folders, names, or borders -- packed N columns wide (step 1 = 4 columns,
+	// steps 1..N are GPU gallery grids of thumbnails and extension badges -- no
+	// folders or names -- packed N columns wide (step 1 = 5 columns,
 	// each higher step one fewer, down to a single full-width column). Ctrl+wheel
 	// moves between steps; the chosen step is remembered across sessions.
 	static int  ViewStepCount();
-	static int  GridColsForStep(int step);   // columns for a grid step (4,3,2,1)
-	void        RecalcThumbSize();           // mThumb: list = fixed, grid = width/cols
+	static int  GridColsForStep(int step);   // columns for a grid step (5,4,3,2,1)
 	bool        IsGrid() const { return mViewStep > 0; }
 	void        ApplyViewStep(int step, bool persist);
-	void        RelayoutGrid();              // debounced re-fit of the grid after a resize
-	void        ScheduleRelayout();
+	void        RelayoutGrid();              // re-fit geometry after a divider drag
 	void        LoadViewStep();
 	void        SaveViewStep() const;
 
@@ -155,4 +159,5 @@ private:
 	bool                     mStop;
 	std::atomic<unsigned>    mGen;
 	bool                     mWorkerStarted;
+	int                      mOutstanding = 0; // decoding + posted results, bounded independently of folder size
 };

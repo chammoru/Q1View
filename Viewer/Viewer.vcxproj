@@ -209,6 +209,12 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Q1ViewGalleryTests)'=='true'">
+    <ClCompile><PreprocessorDefinitions>Q1VIEW_GALLERY_TESTS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup Condition="'$(Q1ViewGalleryTests)'=='true'">
+    <ClCompile Include="..\Tests\GalleryIntegrationTests.cpp"><PrecompiledHeader>NotUsing</PrecompiledHeader></ClCompile>
+  </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CscThread.cpp" />
     <ClCompile Include="CustomFpsDlg.cpp" />
@@ -225,6 +231,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="ThumbnailPane.cpp" />
+    <ClCompile Include="GalleryGridCanvas.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -249,6 +256,8 @@
     <ClInclude Include="MainFrm.h" />
     <ClInclude Include="StoreUpdate.h" />
     <ClInclude Include="ThumbnailPane.h" />
+    <ClInclude Include="GalleryGridCanvas.h" />
+    <ClInclude Include="GalleryLayout.h" />
     <ClInclude Include="FrmSrc.h" />
     <ClInclude Include="MatFrmSrc.h" />
     <ClInclude Include="RawFrmSrc.h" />

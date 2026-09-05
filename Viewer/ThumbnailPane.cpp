@@ -1,9 +1,9 @@
 // ThumbnailPane.cpp : implementation of CThumbnailPane
 //
-// A CListCtrl thumbnail browser with two layouts driven by one Ctrl+wheel
+// A thumbnail browser with two layouts driven by one Ctrl+wheel
 // "view size" control: step 0 is the compact list (report view, small thumb at
 // the left of each row); steps >= 1 are gallery grids (icon view) with growing
-// thumbnails. Thumbnails are produced on a small worker pool, preferring the
+// thumbnails on a dedicated Direct2D canvas. Thumbnails are produced on a small worker pool, preferring the
 // Windows shell thumbnail cache (IShellItemImageFactory -- EXIF thumbnails and
 // thumbcache.db, the same path Explorer uses) and falling back to an OpenCV
 // decode. Only the thumbnails on (or near) screen are decoded, so a folder with
@@ -12,6 +12,7 @@
 #include "stdafx.h"
 #include "Viewer.h"
 #include "ThumbnailPane.h"
+#include "GalleryGridCanvas.h"
 #include "ViewerDoc.h"
 
 #include "QViewerCmn.h"
@@ -26,7 +27,6 @@
 #include <algorithm>
 
 #pragma comment(lib, "shell32.lib")
-#pragma comment(lib, "msimg32.lib")   // AlphaBlend (selected-tile lift)
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -41,20 +41,17 @@ static const int kListThumb = 44;
 // thumbnails stay visually separated (issue #80). Index 0 is the list step
 // (unused here); higher steps zoom in by showing fewer, larger columns.
 static const int kGridCols[] = { 0, 5, 4, 3, 2, 1 };
-// Hairline gutter (px) between grid tiles -- a thin separator in the surface
-// colour so similar-coloured neighbours don't blend (issue #80).
-static const int kGridGutter = 1;
 // Default step 0 = the compact list (smallest thumbnail). Ctrl+wheel up grows
 // into the gallery grids.
 static const int kDefaultStep = 0;
 // Debounced timers: rescan visible after scrolling; re-fit the grid after a resize.
 static const UINT_PTR kScanTimerId = 0x7100;
-static const UINT_PTR kRelayoutTimerId = 0x7101;
 
 BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_WM_CREATE()
 	ON_WM_DESTROY()
 	ON_WM_SIZE()
+	ON_WM_SETFOCUS()
 	ON_WM_MOUSEWHEEL()
 	ON_WM_VSCROLL()
 	ON_WM_KEYDOWN()
@@ -62,7 +59,6 @@ BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_NOTIFY_REFLECT(NM_DBLCLK, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(NM_RETURN, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(LVN_GETINFOTIP, &CThumbnailPane::OnGetInfoTip)
-	ON_NOTIFY_REFLECT(NM_CUSTOMDRAW, &CThumbnailPane::OnCustomDraw)
 	ON_MESSAGE(WM_THUMB_READY, &CThumbnailPane::OnThumbReady)
 	ON_MESSAGE(WM_DRAWER_ACTIVATE, &CThumbnailPane::OnActivatePosted)
 END_MESSAGE_MAP()
@@ -99,36 +95,7 @@ int CThumbnailPane::GridColsForStep(int step)
 	return kGridCols[step];
 }
 
-// List: a fixed small edge. Grid: divide the current pane width evenly among the
-// step's columns so the tiles fill the width and butt together.
-void CThumbnailPane::RecalcThumbSize()
-{
-	if (!IsGrid()) {
-		mThumb = kListThumb;
-		return;
-	}
-	int cols = GridColsForStep(mViewStep);
-	// While sliding open/closed, lay out for the drawer's final width so the tile
-	// size stays fixed and the content isn't repopulated at each intermediate width.
-	// Otherwise use the full pane width (the window rect spans the scrollbar region,
-	// so it doesn't change when the scrollbar shows or hides).
-	int w = mSlideWidth;
-	if (w <= 0) {
-		CRect rc;
-		GetWindowRect(&rc);
-		w = rc.Width();
-	}
-	if (w <= 0)
-		w = cols * 96;                       // no window yet; pick a sane default
-	// Always reserve the vertical scrollbar's width so the tile size and column count
-	// don't change when the scrollbar appears or disappears -- e.g. a view-step change
-	// that alters the row count would otherwise reflow the whole grid by a
-	// scrollbar-width as the bar toggled, a visible jolt.
-	w = std::max(cols * 16, w - ::GetSystemMetrics(SM_CXVSCROLL));
-	// The cell (tile + one gutter) tiles the width; the image fills the cell minus
-	// the gutter, so a hairline of background shows between neighbours.
-	mThumb = std::max(16, w / cols - kGridGutter);
-}
+
 
 void CThumbnailPane::LoadViewStep()
 {
@@ -136,7 +103,7 @@ void CThumbnailPane::LoadViewStep()
 	if (step < 0) step = 0;
 	if (step >= ViewStepCount()) step = ViewStepCount() - 1;
 	mViewStep = step;
-	// mThumb is finalized by RecalcThumbSize() once the pane has a width.
+	// The canvas chooses grid decode size once its viewport is known.
 }
 
 void CThumbnailPane::SaveViewStep() const
@@ -146,13 +113,9 @@ void CThumbnailPane::SaveViewStep() const
 
 BOOL CThumbnailPane::CreatePane(CWnd *pParent, UINT nID)
 {
-	// Owner-draw report rows for the list step; icon view (standard draw) for the
-	// grid steps. The view style is finalized in ApplyViewStep() after creation.
-	// LVS_AUTOARRANGE keeps the grid (icon view) items reflowed into as many
-	// columns as the drawer width allows; it is ignored in the report (list) step.
-	DWORD style = WS_CHILD | WS_VISIBLE | LVS_OWNERDRAWFIXED |
-		LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOCOLUMNHEADER |
-		LVS_AUTOARRANGE;
+	// Keep the compact report list as the host; the grid has its own child canvas.
+	DWORD style = WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | LVS_OWNERDRAWFIXED |
+		LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOCOLUMNHEADER;
 	return Create(style, CRect(0, 0, 0, 0), pParent, nID);
 }
 
@@ -197,7 +160,9 @@ int CThumbnailPane::OnCreate(LPCREATESTRUCT lpCreateStruct)
 		mWorkers.emplace_back(&CThumbnailPane::WorkerLoop, this);
 	mWorkerStarted = true;
 
-	// Apply the persisted step (sets report/icon style + spacing).
+	// Apply the persisted list/grid choice.
+	mGrid.reset(new CGalleryGridCanvas(*this));
+	if (!mGrid->CreateCanvas()) return -1;
 	ApplyViewStep(mViewStep, false);
 
 	return 0;
@@ -205,20 +170,21 @@ int CThumbnailPane::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 void CThumbnailPane::OnSize(UINT nType, int cx, int cy)
 {
-	CListCtrl::OnSize(nType, cx, cy);
-	if (!IsGrid()) {
-		// Single column fills the client width so there is no horizontal scrollbar.
-		SetColumnWidth(0, cx);
-	} else if (mSlideWidth <= 0 && !mResizing) {
-		// The drawer is user-resizable, so the per-tile width (= pane width / cols)
-		// changes with it; re-fit the tiles once the resize settles. Suppressed while
-		// an open/close slide is in flight (the tiles are already sized for the final
-		// width) or while the user is live-dragging the splitter (re-fit once at the
-		// end, in SetResizing) -- otherwise the grid repopulates on every frame.
-		ScheduleRelayout();
-	}
-	ShowScrollBar(SB_HORZ, FALSE);
-	ScheduleVisibleScan();
+    CListCtrl::OnSize(nType, cx, cy);
+    if (mGrid && mGrid->GetSafeHwnd() && IsGrid()) {
+        mGrid->MoveWindow(0, 0, cx, cy, FALSE);
+        if (cx <= 0 || cy <= 0) mGrid->PauseAnimation();
+        return;
+    }
+    SetColumnWidth(0, cx);
+    ShowScrollBar(SB_HORZ, FALSE);
+    ScheduleVisibleScan();
+}
+
+void CThumbnailPane::OnSetFocus(CWnd* oldWnd)
+{
+	CListCtrl::OnSetFocus(oldWnd);
+	if (IsGrid() && mGrid && mGrid->GetSafeHwnd()) mGrid->SetFocus();
 }
 
 // ---------------------------------------------------------------------------
@@ -232,9 +198,17 @@ void CThumbnailPane::ApplyViewStep(int step, bool persist)
 	if (step < 0) step = 0;
 	if (step >= ViewStepCount()) step = ViewStepCount() - 1;
 
+	if (IsGrid() && step > 0 && mGrid && mGrid->GetSafeHwnd() && (mGrid->GetStyle() & WS_VISIBLE)) {
+		if (step == mViewStep) return;
+		mViewStep = step;
+		if (persist) SaveViewStep();
+		mGrid->Relayout(true);
+		return;
+	}
+
 	// Remember the selected image so it stays selected across the mode switch.
 	CString current;
-	int sel = GetNextItem(-1, LVNI_SELECTED);
+	int sel = IsGrid() && mGrid ? mGrid->Selection() : GetNextItem(-1, LVNI_SELECTED);
 	if (sel >= 0 && sel < (int)mEntries.size() && mEntries[sel].kind == ENTRY_FILE)
 		current = mEntries[sel].path;
 
@@ -250,21 +224,28 @@ void CThumbnailPane::ApplyViewStep(int step, bool persist)
 		mTasks.clear();
 	}
 
-	// Report view owns its row layout via owner-draw; icon view draws standard
-	// tiles (thumbnail only), so the owner-draw bit must be off there.
-	if (IsGrid())
-		ModifyStyle(LVS_TYPEMASK | LVS_OWNERDRAWFIXED, LVS_ICON | LVS_AUTOARRANGE);
-	else
-		ModifyStyle(LVS_TYPEMASK, LVS_REPORT | LVS_OWNERDRAWFIXED);
+	// Only list mode uses the host control's rows; grid mode covers it with its canvas.
+	ModifyStyle(LVS_TYPEMASK, LVS_REPORT | LVS_OWNERDRAWFIXED);
+	if (mGrid) {
+		mGrid->ShowWindow(IsGrid() ? SW_SHOW : SW_HIDE);
+		if (!IsGrid()) mGrid->PauseAnimation();
+	}
 
 	// Re-list the folder: the grid steps show only image tiles (no folders or
 	// names) while the list step shows folders + names, and the tile size differs
 	// per step, so the simplest correct refresh is a full repopulate.
 	Populate(mFolder, current);
+	if (IsGrid()) {
+		ShowScrollBar(SB_BOTH, FALSE);
+		CRect rc; GetClientRect(&rc); mGrid->MoveWindow(rc, FALSE);
+		mGrid->SetFocus();
+	} else SetFocus();
 }
 
 BOOL CThumbnailPane::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 {
+	if (IsGrid() && mGrid && mGrid->GetSafeHwnd())
+		return BOOL(mGrid->SendMessage(WM_MOUSEWHEEL, MAKEWPARAM(nFlags, zDelta), MAKELPARAM(pt.x, pt.y)));
 	if (nFlags & MK_CONTROL) {
 		// Ctrl+wheel grows/shrinks the thumbnails (and crosses list<->grid),
 		// like Explorer. One step per notch.
@@ -352,113 +333,38 @@ void CThumbnailPane::OnTimer(UINT_PTR nIDEvent)
 		QueueVisibleThumbs();
 		return;
 	}
-	if (nIDEvent == kRelayoutTimerId) {
-		KillTimer(kRelayoutTimerId);
-		RelayoutGrid();
-		return;
-	}
 	CListCtrl::OnTimer(nIDEvent);
 }
 
-void CThumbnailPane::ScheduleRelayout()
-{
-	if (GetSafeHwnd())
-		SetTimer(kRelayoutTimerId, 120, NULL);   // coalesce rapid resizes into one re-fit
-}
-
-// The drawer is user-resizable, so the grid's column width (and thus tile size)
-// changes as it is dragged. Repopulate at the new tile size only when the edge
-// actually changed; otherwise just reflow.
+// Re-fit only the grid geometry; retain entries and cached thumbnails.
 void CThumbnailPane::RelayoutGrid()
 {
-	if (!IsGrid() || !GetSafeHwnd())
-		return;
-
-	int old = mThumb;
-	RecalcThumbSize();
-	if (mThumb == old) {
-		Arrange(LVA_DEFAULT);
-		QueueVisibleThumbs();
-		return;
-	}
-
-	CString current;
-	int sel = GetNextItem(-1, LVNI_SELECTED);
-	if (sel >= 0 && sel < (int)mEntries.size() && mEntries[sel].kind == ENTRY_FILE)
-		current = mEntries[sel].path;
-	Populate(mFolder, current);
+    if (IsGrid() && mGrid && GetSafeHwnd()) mGrid->Relayout(false);
 }
 
-// Pin every grid tile to its final N-column position and stop the icon view from
-// auto-arranging, so that resizing the pane no longer reflows the columns. The
-// open/close slide then just reveals or clips this fixed layout instead of
-// re-packing the tiles into 1, 2, 3 ... N columns as the width passes through.
-void CThumbnailPane::FreezeGridLayout()
-{
-	if (!IsGrid() || !GetSafeHwnd())
-		return;
-	int n = GetItemCount();
-	if (n == 0) {
-		ModifyStyle(LVS_AUTOARRANGE, 0);
-		return;
-	}
-	// The items are still auto-arranged here, so item 0 sits at the icon view's own
-	// top-left inset. Anchor the frozen grid to that same inset so it lines up
-	// exactly with the auto-arranged layout EndSlide restores -- otherwise every row
-	// snapped by the inset (a couple of px) when the slide ended.
-	CPoint base(0, 0);
-	GetItemPosition(0, &base);
-	ModifyStyle(LVS_AUTOARRANGE, 0);
-	int cols = GridColsForStep(mViewStep);
-	int cell = mThumb + kGridGutter;          // same pitch SetIconSpacing uses
-	for (int i = 0; i < n; i++)
-		SetItemPosition(i, CPoint(base.x + (i % cols) * cell, base.y + (i / cols) * cell));
-}
-
-// The drawer is about to slide open or closed. Lock the grid to its final width and
-// column layout for the whole animation: the tiles keep one size (mSlideWidth feeds
-// RecalcThumbSize) and one column count (FreezeGridLayout pins them), so the slide
-// reveals/hides a stable grid instead of resizing and reflowing it frame by frame.
+// Use the final drawer width while it slides, revealing/clipping stable tiles.
 void CThumbnailPane::BeginSlide(int targetWidth)
 {
-	// The drawer's final pane width; RecalcThumbSize reserves the scrollbar from it,
-	// the same way it does at rest, so the slide and resting layouts match exactly.
-	mSlideWidth = std::max(1, targetWidth);
-	// Freeze now if the grid already holds items (reopen / closing). On a fresh open
-	// the items are inserted right after, by SetCurrentFile -> Populate, which
-	// freezes them itself while sliding (mSlideWidth > 0).
-	if (IsGrid() && GetSafeHwnd() && GetItemCount() > 0)
-		FreezeGridLayout();
+    mSlideWidth = std::max(1, targetWidth);
+    if (IsGrid() && mGrid) mGrid->Relayout(false);
 }
 
-// The slide finished: drop the locks and settle into the real (now final) width,
-// restoring normal auto-arrange so later resizes (divider drags) reflow as usual.
-// Bracket a live splitter drag: while resizing, OnSize skips the grid re-fit so the
-// tiles only reflow; when it ends, re-fit once to the final width.
+// Clip the existing layout during live splitter dragging, then re-fit once.
 void CThumbnailPane::SetResizing(bool on)
 {
 	mResizing = on;
-	if (on) {
-		KillTimer(kRelayoutTimerId);   // cancel any pending re-fit
-	} else if (IsGrid() && GetSafeHwnd()) {
+	if (!on && IsGrid() && GetSafeHwnd()) {
 		RelayoutGrid();
 	}
 }
 
 void CThumbnailPane::EndSlide()
 {
-	mSlideWidth = 0;
-	if (IsGrid() && GetSafeHwnd()) {
-		// Re-enable auto-arrange for later resizes. The frozen tiles already sit at
-		// their canonical positions, so no Arrange() is needed here. Scroll the
-		// current image into view now that the pane is full width -- the
-		// EnsureVisible during the (zero-width) slide couldn't.
-		ModifyStyle(0, LVS_AUTOARRANGE);
-		int sel = GetNextItem(-1, LVNI_SELECTED);
-		if (sel >= 0)
-			EnsureVisible(sel, FALSE);
-		QueueVisibleThumbs();
-	}
+    mSlideWidth = 0;
+    if (IsGrid() && mGrid) {
+        mGrid->Relayout(false);
+        mGrid->QueueVisible();
+    }
 }
 
 // Queue decodes only for files at (or one screen beyond) the visible region, so
@@ -466,6 +372,7 @@ void CThumbnailPane::EndSlide()
 // applied inline; raw/folders never decode.
 void CThumbnailPane::QueueVisibleThumbs()
 {
+	if (IsGrid() && mGrid) { mGrid->QueueVisible(); return; }
 	int n = (int)mEntries.size();
 	if (n == 0 || !GetSafeHwnd())
 		return;
@@ -477,23 +384,11 @@ void CThumbnailPane::QueueVisibleThumbs()
 	CRect client;
 	GetClientRect(&client);
 
-	// Row/column pitch used to map the scroll offset to a band of item indices.
-	// In the grid (icon view) the LVIR_BOUNDS height includes the empty label line
-	// below each tile, which is taller than the actual cell pitch; using it as the
-	// row stride undercounts firstRow, so after a large Home/End jump the queued
-	// band lands above the real viewport and the newly revealed tiles never decode
-	// (issue #84). The grid lays tiles out on the square spacing we set, so use that
-	// pitch. The list (report) step has one column whose row height is the bounds
-	// height, so keep rc0 there.
-	int cw, chh;
-	if (IsGrid()) {
-		cw = chh = std::max(1, mThumb + kGridGutter);
-	} else {
-		cw = std::max(1, (int)rc0.Width());
-		chh = std::max(1, (int)rc0.Height());
-	}
+    // The report list has one column; grid visibility is owned by its canvas.
+    int chh = std::max(1, (int)rc0.Height());
+
 	int scrollY = std::max(0, (int)-rc0.top);        // pixels scrolled past item 0
-	int cols = IsGrid() ? std::max(1, client.Width() / cw) : 1;
+	int cols = 1;
 	int firstRow = scrollY / chh;
 	int rowsVisible = client.Height() / chh + 2;
 	int look = rowsVisible;                           // ~one screen of lookahead
@@ -659,7 +554,7 @@ void CThumbnailPane::SetCurrentFile(LPCTSTR lpszPath)
 		return;
 	CString folder = path.Left(slash + 1);
 
-	if (folder.CompareNoCase(mFolder) == 0 && GetItemCount() > 0) {
+	if (folder.CompareNoCase(mFolder) == 0 && !mEntries.empty()) {
 		SelectByPath(path);
 		return;
 	}
@@ -700,8 +595,7 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 	DeleteAllItems();
 	mEntries.clear();
 	// Size the tiles for the current mode/width before (re)building the image list.
-	RecalcThumbSize();
-	ResetImageList();
+	if (!IsGrid()) { mThumb = kListThumb; ResetImageList(); }
 	mFolder = folder;
 
 	// The grid steps are a pure image gallery: no parent (".."), folders, or names
@@ -776,7 +670,9 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 			// type (documents, archives, ...) show an extension badge so the file is
 			// still listed and stays selectable during PgUp/PgDn navigation.
 			int img;
-			if (thumbable) {
+			if (grid) {
+				img = -1; // Grid owns bounded CPU/GPU caches, never a folder-sized image list.
+			} else if (thumbable) {
 				HBITMAP cached = CacheFind(full);
 				img = cached ? AddImageCopy(cached) : mLoadingImg;
 			} else {
@@ -785,7 +681,7 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 
 			// The grid hides names; the list step draws the name itself (owner-draw)
 			// so its item text is only needed for keyboard type-ahead.
-			InsertItem(row, grid ? _T("") : PathFindFileName(full), img);
+			if (!grid) InsertItem(row, PathFindFileName(full), img);
 			Entry e; e.kind = ENTRY_FILE; e.path = full;
 			e.badge = !thumbable;
 			e.img = thumbable ? img : -1; e.queued = false;
@@ -795,19 +691,14 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 	}
 
 	if (grid) {
-		// Cell = tile + a hairline gutter, so a thin background separator shows
-		// between tiles (issue #80); then reflow into as many columns as fit.
-		SetIconSpacing(mThumb + kGridGutter, mThumb + kGridGutter);
-		if (mSlideWidth > 0)
-			FreezeGridLayout();    // mid-slide: pin the N-column layout, don't reflow
-		else
-			Arrange(LVA_DEFAULT);
+		mGrid->Reset();
 	} else {
 		CRect rc; GetClientRect(&rc);
 		SetColumnWidth(0, rc.Width());
 	}
 
 	SetRedraw(TRUE);
+	if (grid) ShowScrollBar(SB_BOTH, FALSE);
 	Invalidate();
 
 	SelectByPath(current);
@@ -868,6 +759,7 @@ void CThumbnailPane::SelectByPath(const CString &path)
 	for (size_t i = 0; i < mEntries.size(); i++) {
 		if (mEntries[i].kind == ENTRY_FILE &&
 				mEntries[i].path.CompareNoCase(path) == 0) {
+			if (IsGrid() && mGrid) { mGrid->Select(int(i), true); return; }
 			SetItemState((int)i, LVIS_SELECTED | LVIS_FOCUSED,
 				LVIS_SELECTED | LVIS_FOCUSED);
 			EnsureVisible((int)i, FALSE);
@@ -875,6 +767,7 @@ void CThumbnailPane::SelectByPath(const CString &path)
 		}
 	}
 	// Current file is not in this folder list; clear selection.
+	if (IsGrid() && mGrid) { mGrid->Select(-1, false); return; }
 	SetItemState(-1, 0, LVIS_SELECTED | LVIS_FOCUSED);
 }
 
@@ -917,64 +810,7 @@ void CThumbnailPane::OnGetInfoTip(NMHDR *pNMHDR, LRESULT *pResult)
 	lstrcpyn(tip->pszText, name, tip->cchTextMax);
 }
 
-// Selected grid tile "lift": a subtle accent-soft wash over the chosen tile (no
-// frame), consistent with the accent-soft selection fill the list step uses
-// (issue #80). Tiles are opaque full-bleed images, so the only way to show
-// selection is to draw over the tile -- done here in custom-draw post-paint
-// (icon view can't be owner-drawn). The list step keeps its own owner-draw.
-void CThumbnailPane::OnCustomDraw(NMHDR *pNMHDR, LRESULT *pResult)
-{
-	LPNMLVCUSTOMDRAW cd = reinterpret_cast<LPNMLVCUSTOMDRAW>(pNMHDR);
-	switch (cd->nmcd.dwDrawStage) {
-	case CDDS_PREPAINT:
-		*pResult = IsGrid() ? CDRF_NOTIFYITEMDRAW : CDRF_DODEFAULT;
-		return;
-	case CDDS_ITEMPREPAINT: {
-		int i = (int)cd->nmcd.dwItemSpec;
-		bool sel = (GetItemState(i, LVIS_SELECTED) & LVIS_SELECTED) != 0;
-		*pResult = sel ? CDRF_NOTIFYPOSTPAINT : CDRF_DODEFAULT;
-		return;
-	}
-	case CDDS_ITEMPOSTPAINT: {
-		int i = (int)cd->nmcd.dwItemSpec;
-		CRect rc;
-		if (GetItemRect(i, &rc, LVIR_ICON)) {
-			// Constant-alpha blend of accent-soft over the tile (stretch a 1x1
-			// source); ~38% reads as selected while staying gentle.
-			BITMAPINFO bmi = {};
-			bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-			bmi.bmiHeader.biWidth = 1;
-			bmi.bmiHeader.biHeight = 1;
-			bmi.bmiHeader.biPlanes = 1;
-			bmi.bmiHeader.biBitCount = 32;
-			bmi.bmiHeader.biCompression = BI_RGB;
-			void *bits = NULL;
-			HDC dst = cd->nmcd.hdc;
-			HDC mem = ::CreateCompatibleDC(dst);
-			HBITMAP dib = ::CreateDIBSection(dst, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
-			if (mem && dib && bits) {
-				BYTE *p = static_cast<BYTE *>(bits);
-				p[0] = GetBValue(Q1UI_COLOR_ACCENT_SOFT);
-				p[1] = GetGValue(Q1UI_COLOR_ACCENT_SOFT);
-				p[2] = GetRValue(Q1UI_COLOR_ACCENT_SOFT);
-				p[3] = 0;
-				HBITMAP old = (HBITMAP)::SelectObject(mem, dib);
-				BLENDFUNCTION bf = { AC_SRC_OVER, 0, 96, 0 };
-				::AlphaBlend(dst, rc.left, rc.top, rc.Width(), rc.Height(),
-					mem, 0, 0, 1, 1, bf);
-				::SelectObject(mem, old);
-			}
-			if (dib) ::DeleteObject(dib);
-			if (mem) ::DeleteDC(mem);
-		}
-		*pResult = CDRF_DODEFAULT;
-		return;
-	}
-	default:
-		*pResult = CDRF_DODEFAULT;
-		return;
-	}
-}
+
 
 // ---------------------------------------------------------------------------
 // Image list helpers
@@ -1104,10 +940,22 @@ LRESULT CThumbnailPane::OnThumbReady(WPARAM wParam, LPARAM /*lParam*/)
 	Result *r = reinterpret_cast<Result *>(wParam);
 	if (r == NULL)
 		return 0;
+	{
+		std::lock_guard<std::mutex> lock(mMutex);
+		--mOutstanding;
+	}
+	mCv.notify_all();
 
-	bool current = r->gen == mGen.load() && r->size == mThumb &&
+	bool current = r->gen == mGen.load() && (IsGrid() || r->size == mThumb) &&
 		r->index >= 0 && r->index < (int)mEntries.size() &&
 		mEntries[r->index].kind == ENTRY_FILE;
+	if (current && IsGrid() && mGrid) {
+		mEntries[r->index].queued = false;
+		if (r->hbmp) mGrid->Accept(r->index, r->hbmp, r->size);
+		else { mEntries[r->index].badge = true; mGrid->Invalidate(FALSE); }
+		delete r;
+		return 0;
+	}
 	if (r->hbmp && current) {
 		int img = AddImageCopy(r->hbmp);                // image list keeps its own copy
 		CacheStore(mEntries[r->index].path, r->hbmp);   // cache takes ownership
@@ -1429,21 +1277,31 @@ void CThumbnailPane::WorkerLoop()
 		Task task;
 		{
 			std::unique_lock<std::mutex> lk(mMutex);
-			mCv.wait(lk, [this] { return mStop || !mTasks.empty(); });
+			mCv.wait(lk, [this] { return mStop || (!mTasks.empty() && mOutstanding < 4); });
 			if (mStop)
 				break;
 			task = mTasks.front();
 			mTasks.pop_front();
+			++mOutstanding;
+		}
+		auto releaseSlot = [this] {
+			{ std::lock_guard<std::mutex> lock(mMutex); --mOutstanding; }
+			mCv.notify_all();
+		};
+
+		if (task.gen != mGen.load()) {
+			releaseSlot();
+			continue;
 		}
 
-		if (task.gen != mGen.load())
-			continue;
-
-		HBITMAP hbmp = DecodeThumbnail(task.path, task.size, task.crop, Q1UI_COLOR_SURFACE_ALT);
+		HBITMAP hbmp = NULL;
+		try { hbmp = DecodeThumbnail(task.path, task.size, task.crop, Q1UI_COLOR_SURFACE_ALT); }
+		catch (...) { LOGWRN("%s", "Thumbnail decode failed; retaining placeholder"); }
 
 		if (task.gen != mGen.load() || !GetSafeHwnd() || !::IsWindow(m_hWnd)) {
 			if (hbmp)
 				::DeleteObject(hbmp);
+			releaseSlot();
 			continue;
 		}
 
@@ -1456,6 +1314,7 @@ void CThumbnailPane::WorkerLoop()
 			if (hbmp)
 				::DeleteObject(hbmp);
 			delete r;
+			releaseSlot();
 		}
 	}
 

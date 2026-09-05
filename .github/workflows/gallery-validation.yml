@@ -1,0 +1,73 @@
+name: Gallery validation build
+
+on:
+  push:
+    branches: [feature/81-gpu-gallery]
+  pull_request:
+    paths:
+      - 'Viewer/Gallery*'
+      - 'Viewer/ThumbnailPane.*'
+      - 'Tests/Gallery*'
+      - '.github/workflows/gallery-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gallery:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: microsoft/setup-msbuild@v3
+      - name: Generate test version
+        run: ./build/Write-Q1ViewVersion.ps1 -Version '0.0.0-gallery81'
+      - name: Layout and core regression tests
+        run: |
+          msbuild Tests/GalleryLayoutTests.vcxproj /m /p:Configuration=Release /p:Platform=x64
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ./Tests/bin/x64/Release/GalleryLayoutTests.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          msbuild Tests/CoreRegressionTests.vcxproj /m /p:Configuration=Release /p:Platform=x64
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ./Tests/bin/x64/Release/CoreRegressionTests.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Build integration-test Viewer
+        run: |
+          msbuild Viewer/Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:Q1ViewGalleryTests=true
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Real pane, GPU cache and playback integration tests
+        timeout-minutes: 5
+        run: |
+          $env:Q1VIEW_GALLERY_TEST_REPORT = "$env:RUNNER_TEMP/gallery-integration.txt"
+          $test = Start-Process ./Viewer/x64/Release/Viewer.exe -ArgumentList '"Tests/fixtures/sample_16x16.png"' -PassThru -WindowStyle Hidden
+          if (-not $test.WaitForExit(240000)) { throw 'Gallery integration test timed out' }
+          Get-Content $env:Q1VIEW_GALLERY_TEST_REPORT
+          if ($test.ExitCode -ne 0) { throw "Gallery integration tests failed ($($test.ExitCode))" }
+      - name: Build normal test-distribution binaries
+        run: |
+          msbuild Viewer/Viewer.sln /m /p:Configuration=Release /p:Platform=x64 /p:Q1ViewGalleryTests=false
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          msbuild Comparator/Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Prepare portable test package
+        run: |
+          ./build/Package-Q1View.ps1 -OutputDir dist/gallery81
+          Copy-Item docs/GALLERY_81_VALIDATION.md dist/gallery81/TESTING.md
+          git rev-parse HEAD | Out-File dist/gallery81/COMMIT.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Q1View-gallery81-windows-x64-${{ github.run_number }}
+          path: dist/gallery81/
+          retention-days: 60
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gallery81-test-report-${{ github.run_number }}
+          path: ${{ runner.temp }}/gallery-integration.txt

@@ -50,6 +50,11 @@ BOOL CViewerApp::InitInstance()
 	CWinApp::InitInstance();
 
 	SetRegistryKey(_T("Chammoru"));
+#ifdef Q1VIEW_GALLERY_TESTS
+	// Test binaries use isolated preferences and never modify the user's settings.
+	SetRegistryKey(_T("Q1ViewGalleryTests"));
+	SetEnvironmentVariableW(L"Q1VIEW_TRACE_PLAYBACK", L"1");
+#endif
 	LoadStdProfileSettings(10);  // Load standard INI file options (including MRU)
 	// Register the application's document templates.  Document templates
 	//  serve as the connection between documents, frame windows and views
@@ -87,6 +92,12 @@ BOOL CViewerApp::InitInstance()
 	//  In an SDI app, this should occur after ProcessShellCommand
 	// Enable drag/drop open
 	m_pMainWnd->DragAcceptFiles();
+#ifdef Q1VIEW_GALLERY_TESTS
+	extern int RunGalleryIntegrationTests();
+	int testResult = RunGalleryIntegrationTests();
+	m_pMainWnd->SendMessage(WM_CLOSE);
+	PostQuitMessage(testResult);
+#endif
 	return TRUE;
 }
 
