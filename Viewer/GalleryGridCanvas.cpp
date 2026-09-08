@@ -342,8 +342,13 @@ void CGalleryGridCanvas::OnLButtonDblClk(UINT flags, CPoint point) {
 void CGalleryGridCanvas::OnContextMenu(CWnd*, CPoint point) {
     int index = mSelected;
     if (point == CPoint(-1, -1)) {
-        const auto rect = mLayout.Rect(std::max(0, index), Now());
-        point = CPoint(int(rect.x + 8), int(rect.y + 8)); ClientToScreen(&point);
+        if (index >= 0 && mLayout.count > 0) {
+            const auto rect = mLayout.Rect(index, Now());
+            point = CPoint(int(rect.x + 8), int(rect.y + 8));
+        } else {
+            point = CPoint(8, 8);
+        }
+        ClientToScreen(&point);
     } else {
         CPoint local = point; ScreenToClient(&local);
         index = mLayout.Hit(float(local.x), float(local.y), Now());

@@ -155,6 +155,26 @@ struct GalleryIntegrationTests {
             DragQueryFileW(drop, 0, copied, _countof(copied));
             CloseClipboard();
             Require(count == 1 && unicodeFile == copied, "Explorer-compatible clipboard retains exact Unicode file path");
+            // Consume the actual clipboard IDataObject with the Windows Shell
+            // copy engine, as an Explorer paste does. Only temporary fixtures
+            // are written, and the user's original clipboard is restored.
+            const CString pasteFolder = folder + L"paste-target\\";
+            Require(CreateDirectoryW(pasteFolder, nullptr) != FALSE, "temporary paste destination created");
+            Microsoft::WRL::ComPtr<IDataObject> fileClipboard;
+            Microsoft::WRL::ComPtr<IShellItem> destination;
+            Microsoft::WRL::ComPtr<IFileOperation> operation;
+            Require(SUCCEEDED(OleGetClipboard(&fileClipboard)) &&
+                SUCCEEDED(SHCreateItemFromParsingName(pasteFolder, nullptr, IID_PPV_ARGS(&destination))) &&
+                SUCCEEDED(CoCreateInstance(__uuidof(FileOperation), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&operation))),
+                "Windows Shell accepts file clipboard and paste target");
+            operation->SetOperationFlags(FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMATION | FOF_NOCONFIRMMKDIR);
+            Require(SUCCEEDED(operation->CopyItems(fileClipboard.Get(), destination.Get())) &&
+                SUCCEEDED(operation->PerformOperations()), "native Shell paste completes");
+            BOOL aborted = FALSE;
+            Require(SUCCEEDED(operation->GetAnyOperationsAborted(&aborted)) && !aborted,
+                "native Shell paste is not aborted");
+            Require(GetFileAttributesW(pasteFolder + L"\xC0AC\xC9C4 name.png") != INVALID_FILE_ATTRIBUTES &&
+                GetFileAttributesW(unicodeFile) != INVALID_FILE_ATTRIBUTES, "paste copies Unicode file and preserves original");
             Require(q1view::ClipboardText(frame->m_hWnd, unicodeFile.GetString()), "copy path writes Unicode text");
             OpenClipboard(frame->m_hWnd);
             HANDLE text = GetClipboardData(CF_UNICODETEXT);

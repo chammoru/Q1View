@@ -587,6 +587,14 @@ BOOL CMainFrame::PreTranslateMessage(MSG *pMsg)
 			return TRUE;
 		}
 	}
+	if (pMsg != NULL && pMsg->message == WM_SYSKEYDOWN && pMsg->wParam == VK_UP &&
+		mDrawerVisible && mpDrawer != NULL && ::IsWindow(mpDrawer->GetSafeHwnd())) {
+		HWND focus = ::GetFocus();
+		if (focus == mpDrawer->GetSafeHwnd() || ::IsChild(mpDrawer->GetSafeHwnd(), focus)) {
+			mpDrawer->GoToParent();
+			return TRUE;
+		}
+	}
 
 	return CFrameWnd::PreTranslateMessage(pMsg);
 }
