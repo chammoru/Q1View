@@ -71,7 +71,8 @@ struct GalleryIntegrationTests {
         }
         pane.NavigateTo(folder);
         Pump(2);
-        Require(pane.mEntries.size() == 3000 && pane.GetItemCount() == 0, "large grid does not create list-control rows or image-list copies");
+        Require(pane.mEntries.size() == 3001 && pane.mEntries.front().kind == CThumbnailPane::ENTRY_PARENT &&
+            pane.GetItemCount() == 0, "large grid keeps one parent tile without list-control rows or image-list copies");
         Require(grid.mDevice && grid.mContext && grid.mTarget, "actual Direct2D/D3D11 render target created");
         Require(!grid.mCache.empty(), "worker results populate CPU thumbnail cache");
         bool uploaded = false;
@@ -88,17 +89,18 @@ struct GalleryIntegrationTests {
         Require(!grid.mLayout.Animating(grid.Now()), "transition settles at latest layout");
         grid.Scroll(grid.mLayout.MaxScroll()); Pump(1);
         auto visible = grid.mLayout.Visible(grid.Now());
-        Require(!visible.empty() && visible.back() == 2999, "last item visible after scroll to end");
-        Await([&] { return grid.mCache.find(2999) != grid.mCache.end(); }, "end-of-folder thumbnail decoded");
+        Require(!visible.empty() && visible.back() == 3000, "last item visible after scroll to end");
+        Await([&] { return grid.mCache.find(3000) != grid.mCache.end(); }, "end-of-folder thumbnail decoded");
         pane.ApplyViewStep(0, false); Pump(.2);
         Require(pane.GetItemCount() >= 3000, "compact list retained");
         pane.ApplyViewStep(1, false); Pump(.2);
         Require(grid.IsWindowVisible(), "list-to-grid switch restores canvas");
         MSG key = {}; key.hwnd = grid.GetSafeHwnd(); key.message = WM_KEYDOWN; key.wParam = VK_END;
-        Require(grid.PreTranslateMessage(&key) && grid.Selection() == 2999, "End selects final grid item");
+        Require(grid.PreTranslateMessage(&key) && grid.Selection() == 3000, "End selects final grid item");
         key.wParam = VK_HOME; grid.PreTranslateMessage(&key);
+        Require(grid.Selection() == 0 && grid.Label(0) == L"..", "Home selects the visible parent-folder tile");
         key.wParam = VK_RIGHT; grid.PreTranslateMessage(&key);
-        Require(grid.Selection() == 1, "Home and arrow selection work in grid");
+        Require(grid.Selection() == 1, "arrow navigation moves from parent tile to first file");
 
         // Fill with large thumbnails to force eviction and verify ownership.
         pane.mThumb = 16;
@@ -123,7 +125,7 @@ struct GalleryIntegrationTests {
         CString missing = folder + L"missing\\";
         const auto beforeMissing = pane.mGen.load();
         pane.NavigateTo(missing); Pump(.1);
-        Require(pane.mGen == beforeMissing && pane.mEntries.size() == 3000, "missing folder leaves navigation and cache intact");
+        Require(pane.mGen == beforeMissing && pane.mEntries.size() == 3001, "missing folder leaves navigation and cache intact");
         pane.NavigateTo(folder); pane.NavigateTo(missing); pane.NavigateTo(folder); Pump(1);
         Require(pane.mOutstanding <= 4, "decode plus posted-result backlog bounded to four");
         CRect beforeOpen; frame->GetWindowRect(&beforeOpen);
@@ -359,18 +361,22 @@ struct GalleryIntegrationTests {
             const UINT openGeneration = doc->mOpenGeneration;
             for (int mode = 0; mode < pane.ViewStepCount(); ++mode) {
                 pane.NavigateTo(child); pane.ApplyViewStep(mode, false);
-                MSG up = {}; up.hwnd = pane.GetSafeHwnd(); up.message = WM_KEYDOWN; up.wParam = VK_BACK;
-                Require(pane.PreTranslateMessage(&up), "Backspace handled within drawer");
+                Require(!pane.mEntries.empty() && pane.mEntries.front().kind == CThumbnailPane::ENTRY_PARENT &&
+                    (!pane.IsGrid() || grid.Label(0) == L".."), "visible parent tile is first at every thumbnail size");
+                CMenu parentMenu; pane.BuildContextMenu(parentMenu, 0);
+                Require(parentMenu.GetMenuItemCount() == 0, "parent navigation is represented by the tile, not a context command");
+                pane.ActivateIndex(0, true); Pump(.05);
                 const int selected = pane.IsGrid() ? grid.Selection() : pane.GetNextItem(-1, LVNI_SELECTED);
                 Require(pane.mFolder == folder && pane.mViewStep == mode && selected >= 0 &&
-                    pane.mEntries[selected].path == child, "parent reveals child folder at every thumbnail size");
+                    pane.mEntries[selected].path == child, "parent tile reveals child folder at every thumbnail size");
                 CMenu folderMenu; pane.BuildContextMenu(folderMenu, selected);
                 Require(folderMenu.GetMenuState(CThumbnailPane::CMD_COPY, MF_BYCOMMAND) != UINT(-1), "folder menu provides real file copy");
                 pane.ActivateIndex(selected, true); Pump(.05);
                 Require(pane.mFolder == child, "folder activation navigates without opening media");
-                pane.GoToParent();
+                MSG up = {}; up.hwnd = pane.GetSafeHwnd(); up.message = WM_KEYDOWN; up.wParam = VK_BACK;
+                Require(pane.PreTranslateMessage(&up) && pane.mFolder == folder, "Backspace remains a parent-navigation shortcut");
                 CMenu background; pane.BuildContextMenu(background, -1);
-                Require(background.GetMenuItemCount() == 1, "background menu exposes only parent navigation");
+                Require(background.GetMenuItemCount() == 0, "empty background has no redundant parent context command");
                 Require(view->mIsPlaying && doc->mPathName == media && doc->mOpenGeneration == openGeneration,
                     "folder navigation never opens, seeks, or restarts active media");
             }

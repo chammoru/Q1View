@@ -41,7 +41,7 @@ Viewer also supports image-sequence navigation, video playback, frame/time progr
 
 BT.2020 HLG videos are tone-mapped for accurate color and contrast on standard SDR Windows displays instead of being shown with a washed-out legacy color conversion.
 
-Right-click a thumbnail to open it, copy the file or its path, reveal it in File Explorer, or view Windows properties. Browse folders and use Backspace or Alt+Up to go to the parent without interrupting the photo or video in the main view; folder tiles remain available at every thumbnail size.
+Right-click a thumbnail to open it, copy the file or its path, reveal it in File Explorer, or view Windows properties. Browse folders with child-folder cards and a consistent **..** parent card at every thumbnail size; Backspace and Alt+Up also go to the parent without interrupting the photo or video in the main view.
 
 Choose Auto, Smooth (Bilinear), or Pixel Exact (Nearest) image scaling from the View menu. Auto keeps scanned text clear at moderate reductions, suppresses aliasing when large photos are reduced substantially, and preserves exact pixels during close inspection.
 

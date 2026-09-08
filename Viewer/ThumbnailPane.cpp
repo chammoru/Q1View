@@ -631,11 +631,12 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		std::sort(dirs.begin(), dirs.end(), q1view::LessFileNameOrdinal);
 		std::sort(files.begin(), files.end(), q1view::LessFileNameOrdinal);
 
-		// Keep the parent row in list mode; folders also appear as grid tiles.
-		if (!grid && !ParentFolderOf(folder).IsEmpty()) {
-			// A filesystem root has no parent row.
-			InsertItem(row, _T(".."), FolderIconIndex());
-			Entry pe; pe.kind = ENTRY_PARENT; pe.path = ParentFolderOf(folder); pe.img = -1; pe.queued = false; pe.badge = false;
+		// Keep the conventional ".." entry first in every mode. In grids it is
+		// rendered as the same folder card as child directories, with a restrained
+		// upward cue; at filesystem roots it is absent rather than disabled.
+		if (!ParentFolderOf(folder).IsEmpty()) {
+			if (!grid) InsertItem(row, _T(".."), FolderIconIndex());
+			Entry pe; pe.kind = ENTRY_PARENT; pe.path = ParentFolderOf(folder); pe.img = -1; pe.queued = false; pe.badge = true;
 			mEntries.push_back(pe);
 			row++;
 		}
@@ -749,8 +750,6 @@ void CThumbnailPane::BuildContextMenu(CMenu& menu, int index)
 	CMenu names; menu.CreatePopupMenu(); names.CreatePopupMenu();
 	if (normalItem) menu.AppendMenu(MF_STRING | (exists ? 0 : MF_GRAYED), CMD_OPEN,
 		entry.kind == ENTRY_DIR ? _T("Open folder") : _T("Open"));
-	menu.AppendMenu(MF_STRING | (CanGoToParent() ? 0 : MF_GRAYED), CMD_UP,
-		_T("Go to parent folder\tBackspace / Alt+Up"));
 	if (normalItem) {
 		menu.AppendMenu(MF_STRING | (exists ? 0 : MF_GRAYED), CMD_EXPLORER, _T("Show in File Explorer"));
 		menu.AppendMenu(MF_SEPARATOR);
@@ -774,6 +773,7 @@ void CThumbnailPane::ShowContextMenu(int index, CPoint screenPoint)
 	}
 	const std::wstring path = q1view::TrimDirectorySeparator(entry.path.GetString());
 	CMenu menu; BuildContextMenu(menu, index);
+	if (menu.GetMenuItemCount() == 0) return;
 	const UINT command = menu.TrackPopupMenu(TPM_RETURNCMD | TPM_RIGHTBUTTON,
 		screenPoint.x, screenPoint.y, this);
 	// The popup runs a nested message loop: a watcher/new document may have
@@ -782,7 +782,6 @@ void CThumbnailPane::ShowContextMenu(int index, CPoint screenPoint)
 	bool ok = true;
 	switch (command) {
 	case CMD_OPEN: ActivateIndex(index, true); break;
-	case CMD_UP: GoToParent(); break;
 	case CMD_EXPLORER: ok = q1view::ShowInExplorer(path); break;
 	case CMD_COPY: ok = q1view::ClipboardFile(m_hWnd, path); break;
 	case CMD_PATH: ok = q1view::ClipboardText(m_hWnd, path); break;

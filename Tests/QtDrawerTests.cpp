@@ -55,6 +55,9 @@ struct QtDrawerTests {
         QObject::connect(&pane, &ThumbnailPane::fileActivated, [&] { ++activations; });
         pane.setCurrentFile(file); pump(50);
         check(pane.currentItem() != nullptr, "current file selected");
+        check(pane.item(0) && pane.item(0)->text() == "..", "visible parent entry is first in Qt drawer");
+        std::unique_ptr<QMenu> parentMenu(pane.createContextMenu(pane.item(0)));
+        check(parentMenu->isEmpty(), "Qt parent navigation uses the entry, not a context command");
         std::unique_ptr<QMenu> menu(pane.createContextMenu(pane.currentItem()));
         check(action(menu.get(), "Open") && action(menu.get(), "Copy") && action(menu.get(), "Copy full path"), "file menu actions available");
         check(activations == 0, "context menu construction never activates a file");
@@ -91,6 +94,11 @@ struct QtDrawerTests {
         menu.reset(pane.createContextMenu(pane.currentItem()));
         action(menu.get(), "Open folder")->trigger();
         check(pane.mFolder == child && activations == 0, "folder action never activates media");
+        check(pane.item(0) && pane.item(0)->text() == "..", "parent entry remains visible after folder navigation");
+        pane.onItemActivated(pane.item(0));
+        check(pane.mFolder == fixture.path() && pane.currentItem() &&
+            pane.currentItem()->data(Qt::UserRole + 1).toString() == child, "Qt parent entry returns and reveals child");
+        pane.navigateTo(child);
         QKeyEvent up(QEvent::KeyPress, Qt::Key_Up, Qt::AltModifier);
         QApplication::sendEvent(&pane, &up);
         check(pane.mFolder == fixture.path(), "Alt+Up parent navigation");
@@ -99,7 +107,7 @@ struct QtDrawerTests {
         check(activations == 0, "rapid navigation and thumbnail decoding never activate media");
         pane.navigateTo(QDir::rootPath());
         menu.reset(pane.createContextMenu(nullptr));
-        check(!pane.canGoToParent() && menu->actions().size() == 1 && !menu->actions().first()->isEnabled(), "root background disables parent");
+        check(!pane.canGoToParent() && menu->isEmpty(), "root omits parent entry and redundant background command");
         pane.setCurrentFile(file); QFile::remove(file);
         menu.reset(pane.createContextMenu(pane.currentItem()));
         check(!action(menu.get(), "Open")->isEnabled() && !action(menu.get(), "Copy")->isEnabled(), "removed item disables file actions");

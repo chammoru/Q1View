@@ -61,6 +61,8 @@ private:
     void DropDevice();
     bool PaintGpu(const std::vector<int>& visible, double now, bool& pending);
     void PaintFallback(CDC& dc, const std::vector<int>& visible, double now);
+    void DrawFolderCardGpu(int index, const q1view::GalleryRect& rect);
+    void DrawFolderCardFallback(CDC& dc, int index, const CRect& rect);
     CString Label(int index) const;
     CThumbnailPane& mOwner;
     q1view::GalleryLayout mLayout;

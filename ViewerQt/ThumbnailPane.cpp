@@ -229,15 +229,12 @@ QMenu* ThumbnailPane::createContextMenu(QListWidgetItem *item)
 		return action;
 	};
 	const bool exists = QFileInfo::exists(path);
-	if (item && kind != ParentDir) {
-		add(kind == SubDir ? tr("Open folder") : tr("Open"), exists, [this, kind, path] {
-			if (kind == SubDir) return navigateTo(path);
-			if (!QFileInfo::exists(path)) return false;
-			emit fileActivated(path); return true;
-		});
-	}
-	add(tr("Go to parent folder\tBackspace / Alt+Up"), canGoToParent(), [this] { return goToParent(); });
 	if (!item || kind == ParentDir) return menu;
+	add(kind == SubDir ? tr("Open folder") : tr("Open"), exists, [this, kind, path] {
+		if (kind == SubDir) return navigateTo(path);
+		if (!QFileInfo::exists(path)) return false;
+		emit fileActivated(path); return true;
+	});
 #ifdef Q_OS_WIN
 	add(tr("Show in File Explorer"), exists, [path] { return q1view::ShowInExplorer(path.toStdWString()); });
 #else
@@ -280,7 +277,7 @@ void ThumbnailPane::contextMenuEvent(QContextMenuEvent *event)
 		currentItem() : itemAt(viewport()->mapFromGlobal(event->globalPos()));
 	if (target) setCurrentItem(target);
 	QMenu* menu = createContextMenu(target);
-	menu->exec(event->globalPos());
+	if (!menu->isEmpty()) menu->exec(event->globalPos());
 	delete menu;
 }
 

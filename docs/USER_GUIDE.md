@@ -81,7 +81,7 @@ remembered between sessions.
 
 Right-click a file for **Open**, **Copy** (a real file clipboard item), **Copy full path**, **Copy file name**, **Show in File Explorer**, or **Properties**. Folder menus offer **Open folder**, file/path copy, Explorer, and properties. On non-Windows Qt, **Open containing folder** replaces Explorer and the Windows properties command is hidden.
 
-With focus in the drawer, press **Backspace** or **Alt+Up** to move to the filesystem parent; the same command is available from item and empty-background context menus. It is disabled at drive/UNC share roots. The MFC grid also includes named folder tiles. Going upward retains the thumbnail size and selects/reveals the folder you just left. Folder browsing does not open or seek media, resize the window, or broadcast synchronized playback changes. Missing/unavailable folders leave the existing drawer unchanged. Rename, cut, paste, move and delete are not part of these actions.
+The first entry is **..** whenever the current folder has a filesystem parent. It uses the same folder-card visual language as child directories in every MFC thumbnail size; double-click it or press Enter to move upward. With focus in the drawer, **Backspace** and **Alt+Up** remain keyboard shortcuts for the same action. Drive and UNC share roots omit the entry. Going upward retains the thumbnail size and selects/reveals the folder you just left. Folder browsing does not open or seek media, resize the window, or broadcast synchronized playback changes. Missing/unavailable folders leave the existing drawer unchanged. Rename, cut, paste, move and delete are not part of these actions.
 
 ### Synchronized Viewer Windows
 

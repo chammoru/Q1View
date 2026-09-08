@@ -84,7 +84,7 @@ protected:
 private:
 	friend class CGalleryGridCanvas;
 	friend struct GalleryIntegrationTests;
-	enum ContextCommand { CMD_OPEN = 1, CMD_UP, CMD_EXPLORER, CMD_COPY, CMD_PATH, CMD_NAME, CMD_PROPERTIES };
+	enum ContextCommand { CMD_OPEN = 1, CMD_EXPLORER, CMD_COPY, CMD_PATH, CMD_NAME, CMD_PROPERTIES };
 	void BuildContextMenu(CMenu& menu, int index);
 	std::unique_ptr<CGalleryGridCanvas> mGrid;
 	struct Task { unsigned gen; int index; int size; bool crop; CString path; };

@@ -149,13 +149,88 @@ void CGalleryGridCanvas::QueueVisible() {
 }
 CString CGalleryGridCanvas::Label(int index) const {
     const auto& entry = mOwner.mEntries[index];
+    if (entry.kind == CThumbnailPane::ENTRY_PARENT) return _T("..");
     if (entry.kind == CThumbnailPane::ENTRY_DIR) {
         CString path = entry.path; path.TrimRight(_T("\\"));
-        return CString(_T("Folder\n")) + PathFindFileName(path);
+        CString name = PathFindFileName(path);
+        return name.IsEmpty() ? path : name;
     }
     CString ext = PathFindExtension(mOwner.mEntries[index].path);
     if (!ext.IsEmpty()) ext = ext.Mid(1);
     ext.MakeUpper(); return ext.Left(12);
+}
+void CGalleryGridCanvas::DrawFolderCardGpu(int index, const q1view::GalleryRect& r) {
+    const bool parent = mOwner.mEntries[index].kind == CThumbnailPane::ENTRY_PARENT;
+    const float pad = std::max(4.0f, r.size * .13f);
+    const float labelTop = r.y + r.size * .70f;
+    const float bodyTop = r.y + r.size * .28f;
+    const float bodyBottom = r.y + r.size * .64f;
+    const float radius = std::max(2.0f, r.size * .045f);
+    const D2D1_RECT_F bodyRect = D2D1::RectF(r.x + pad, bodyTop, r.x + r.size - pad, bodyBottom);
+    const D2D1_RECT_F tabRect = D2D1::RectF(r.x + pad + r.size * .04f, r.y + r.size * .20f,
+        r.x + pad + r.size * .34f, bodyTop + radius);
+    const auto body = D2D1::RoundedRect(bodyRect, radius, radius);
+    const auto tab = D2D1::RoundedRect(tabRect, radius, radius);
+
+    // Parent and child directories share one quiet, thumbnail-sized folder card.
+    // The only distinction is the small vector up-arrow inside the parent card.
+    mBrush->SetColor(Color(Q1UI_COLOR_SURFACE)); mContext->FillRectangle(Bounds(r), mBrush.Get());
+    mBrush->SetColor(Color(Q1UI_COLOR_ACCENT_SOFT));
+    mContext->FillRoundedRectangle(tab, mBrush.Get());
+    mContext->FillRoundedRectangle(body, mBrush.Get());
+    mBrush->SetColor(Color(Q1UI_COLOR_ACCENT));
+    const float stroke = std::max(1.0f, r.size * .014f);
+    mContext->DrawRoundedRectangle(tab, mBrush.Get(), stroke);
+    mContext->DrawRoundedRectangle(body, mBrush.Get(), stroke);
+    if (parent) {
+        const float cx = r.x + r.size * .5f;
+        const float top = bodyTop + r.size * .08f;
+        const float bottom = bodyBottom - r.size * .08f;
+        const float wing = r.size * .075f;
+        mContext->DrawLine(D2D1::Point2F(cx, bottom), D2D1::Point2F(cx, top), mBrush.Get(), stroke * 1.5f);
+        mContext->DrawLine(D2D1::Point2F(cx, top), D2D1::Point2F(cx - wing, top + wing), mBrush.Get(), stroke * 1.5f);
+        mContext->DrawLine(D2D1::Point2F(cx, top), D2D1::Point2F(cx + wing, top + wing), mBrush.Get(), stroke * 1.5f);
+    }
+    CString label = Label(index);
+    mBrush->SetColor(Color(Q1UI_COLOR_TEXT));
+    const D2D1_RECT_F labelRect = D2D1::RectF(r.x + pad * .5f, labelTop,
+        r.x + r.size - pad * .5f, r.y + r.size - std::max(2.0f, r.size * .04f));
+    mContext->DrawText(label, label.GetLength(), mText.Get(), labelRect, mBrush.Get(), D2D1_DRAW_TEXT_OPTIONS_CLIP);
+}
+void CGalleryGridCanvas::DrawFolderCardFallback(CDC& dc, int index, const CRect& rect) {
+    const bool parent = mOwner.mEntries[index].kind == CThumbnailPane::ENTRY_PARENT;
+    const int size = std::max(1, rect.Width());
+    const int pad = std::max(4, int(size * .13f));
+    const int radius = std::max(2, int(size * .045f));
+    const int bodyTop = rect.top + int(size * .28f);
+    const int bodyBottom = rect.top + int(size * .64f);
+    CRect body(rect.left + pad, bodyTop, rect.right - pad, bodyBottom);
+    CRect tab(rect.left + pad + int(size * .04f), rect.top + int(size * .20f),
+        rect.left + pad + int(size * .34f), bodyTop + radius);
+
+    dc.FillSolidRect(rect, Q1UI_COLOR_SURFACE);
+    CBrush fill(Q1UI_COLOR_ACCENT_SOFT);
+    CPen outline(PS_SOLID, std::max(1, int(size * .014f)), Q1UI_COLOR_ACCENT);
+    CBrush* oldBrush = dc.SelectObject(&fill);
+    CPen* oldPen = dc.SelectObject(&outline);
+    dc.RoundRect(tab, CPoint(radius, radius));
+    dc.RoundRect(body, CPoint(radius, radius));
+    if (parent) {
+        const int cx = rect.left + size / 2;
+        const int top = bodyTop + int(size * .08f);
+        const int bottom = bodyBottom - int(size * .08f);
+        const int wing = std::max(3, int(size * .075f));
+        dc.MoveTo(cx, bottom); dc.LineTo(cx, top);
+        dc.MoveTo(cx, top); dc.LineTo(cx - wing, top + wing);
+        dc.MoveTo(cx, top); dc.LineTo(cx + wing, top + wing);
+    }
+    dc.SelectObject(oldBrush); dc.SelectObject(oldPen);
+    dc.SetBkMode(TRANSPARENT); dc.SetTextColor(Q1UI_COLOR_TEXT);
+    CFont* oldFont = dc.SelectObject(&mOwner.mLabelFont);
+    CRect label(rect.left + pad / 2, rect.top + int(size * .70f), rect.right - pad / 2,
+        rect.bottom - std::max(2, int(size * .04f)));
+    dc.DrawText(Label(index), label, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+    dc.SelectObject(oldFont);
 }
 void CGalleryGridCanvas::DropDevice() {
     for (auto& p : mCache) p.second.gpu.Reset();
@@ -238,7 +313,10 @@ bool CGalleryGridCanvas::PaintGpu(const std::vector<int>& visible, double now, b
             if (!bitmap) pending = true;
         }
         if (bitmap) mContext->DrawBitmap(bitmap, Bounds(r), 1, D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC);
-        else {
+        else if (mOwner.mEntries[i].kind == CThumbnailPane::ENTRY_DIR ||
+            mOwner.mEntries[i].kind == CThumbnailPane::ENTRY_PARENT) {
+            DrawFolderCardGpu(i, r);
+        } else {
             mBrush->SetColor(Color(Q1UI_COLOR_SURFACE)); mContext->FillRectangle(Bounds(r), mBrush.Get());
             CString label = Label(i); mBrush->SetColor(Color(Q1UI_COLOR_TEXT));
             auto rect = Bounds(r);
@@ -274,7 +352,13 @@ void CGalleryGridCanvas::PaintFallback(CDC& dc, const std::vector<int>& visible,
             BITMAPINFO info = {}; info.bmiHeader = dib.dsBmih;
             StretchDIBits(memory, rect.left, rect.top, rect.Width(), rect.Height(), 0, 0,
                 it->second.size, it->second.size, dib.dsBm.bmBits, &info, DIB_RGB_COLORS, SRCCOPY);
-        } else { memory.FillSolidRect(rect, Q1UI_COLOR_SURFACE); memory.DrawText(Label(i), rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE); }
+        } else if (mOwner.mEntries[i].kind == CThumbnailPane::ENTRY_DIR ||
+            mOwner.mEntries[i].kind == CThumbnailPane::ENTRY_PARENT) {
+            DrawFolderCardFallback(memory, i, rect);
+        } else {
+            memory.FillSolidRect(rect, Q1UI_COLOR_SURFACE);
+            memory.DrawText(Label(i), rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
         if (i == mSelected || i == mHover) {
             COLORREF color = i == mSelected ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_TEXT;
             int stroke = std::max(1, MulDiv(i == mSelected ? 3 : 1, GetDpiForWindow(m_hWnd), 96));
