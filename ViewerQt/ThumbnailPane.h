@@ -8,6 +8,9 @@
 #include <QVector>
 
 class QTimer;
+class QMenu;
+class QContextMenuEvent;
+class QKeyEvent;
 
 // Side "drawer" folder explorer, the cross-platform analogue of the MFC viewer's
 // CThumbnailPane. It lists the supported image/raw files in the current
@@ -29,6 +32,13 @@ public:
 	// Show the folder containing `path`, repopulating only when the folder
 	// changes, and select the matching item. An empty path clears the list.
 	void setCurrentFile(const QString &path);
+	bool goToParent();
+	bool canGoToParent() const;
+	bool navigateTo(const QString &folder, const QString &select = QString());
+
+protected:
+	void contextMenuEvent(QContextMenuEvent *event) override;
+	void keyPressEvent(QKeyEvent *event) override;
 
 signals:
 	// A file row was activated (double-click / Enter); the owner should open it.
@@ -39,6 +49,8 @@ private slots:
 	void decodeNextThumb();
 
 private:
+	friend struct QtDrawerTests;
+	QMenu* createContextMenu(QListWidgetItem *item);
 	enum EntryKind { ParentDir, SubDir, FileEntry };
 
 	void populate(const QString &folder, const QString &currentPath);

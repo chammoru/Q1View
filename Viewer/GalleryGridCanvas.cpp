@@ -31,6 +31,7 @@ BEGIN_MESSAGE_MAP(CGalleryGridCanvas, CWnd)
     ON_WM_LBUTTONDOWN()
     ON_WM_LBUTTONDBLCLK()
     ON_WM_RBUTTONDOWN()
+    ON_WM_CONTEXTMENU()
     ON_WM_MOUSEMOVE()
     ON_WM_DESTROY()
     ON_MESSAGE(WM_MOUSELEAVE, OnMouseLeave)
@@ -147,6 +148,11 @@ void CGalleryGridCanvas::QueueVisible() {
     }
 }
 CString CGalleryGridCanvas::Label(int index) const {
+    const auto& entry = mOwner.mEntries[index];
+    if (entry.kind == CThumbnailPane::ENTRY_DIR) {
+        CString path = entry.path; path.TrimRight(_T("\\"));
+        return CString(_T("Folder\n")) + PathFindFileName(path);
+    }
     CString ext = PathFindExtension(mOwner.mEntries[index].path);
     if (!ext.IsEmpty()) ext = ext.Mid(1);
     ext.MakeUpper(); return ext.Left(12);
@@ -331,7 +337,18 @@ void CGalleryGridCanvas::OnLButtonDown(UINT, CPoint point) {
 }
 void CGalleryGridCanvas::OnRButtonDown(UINT flags, CPoint point) { OnLButtonDown(flags, point); }
 void CGalleryGridCanvas::OnLButtonDblClk(UINT flags, CPoint point) {
-    OnLButtonDown(flags, point); mOwner.ActivateIndex(mSelected, false);
+    OnLButtonDown(flags, point); mOwner.ActivateIndex(mSelected, true);
+}
+void CGalleryGridCanvas::OnContextMenu(CWnd*, CPoint point) {
+    int index = mSelected;
+    if (point == CPoint(-1, -1)) {
+        const auto rect = mLayout.Rect(std::max(0, index), Now());
+        point = CPoint(int(rect.x + 8), int(rect.y + 8)); ClientToScreen(&point);
+    } else {
+        CPoint local = point; ScreenToClient(&local);
+        index = mLayout.Hit(float(local.x), float(local.y), Now());
+    }
+    mOwner.ShowContextMenu(index, point);
 }
 void CGalleryGridCanvas::OnMouseMove(UINT, CPoint point) {
     mPointer = point; mTracking = true;
@@ -346,6 +363,10 @@ LRESULT CGalleryGridCanvas::OnMouseLeave(WPARAM, LPARAM) { mTracking = false; mH
 LRESULT CGalleryGridCanvas::OnDpiChanged(WPARAM, LPARAM) { DropDevice(); Relayout(false); return 0; }
 void CGalleryGridCanvas::OnDestroy() { PauseAnimation(); ClearCache(); DropDevice(); CWnd::OnDestroy(); }
 BOOL CGalleryGridCanvas::PreTranslateMessage(MSG* message) {
+    if ((message->message == WM_KEYDOWN && message->wParam == VK_BACK) ||
+        (message->message == WM_SYSKEYDOWN && message->wParam == VK_UP)) {
+        mOwner.GoToParent(); return TRUE;
+    }
     if (mTooltip.GetSafeHwnd()) mTooltip.RelayEvent(message);
     if (message->message == WM_KEYDOWN) {
         int target = mSelected < 0 ? 0 : mSelected;
@@ -356,7 +377,7 @@ BOOL CGalleryGridCanvas::PreTranslateMessage(MSG* message) {
         case VK_DOWN: target += mLayout.columns; break;
         case VK_HOME: target = 0; break;
         case VK_END: target = mLayout.count - 1; break;
-        case VK_RETURN: mOwner.ActivateIndex(mSelected, false); return TRUE;
+        case VK_RETURN: mOwner.ActivateIndex(mSelected, true); return TRUE;
         default: return CWnd::PreTranslateMessage(message);
         }
         Select(std::max(0, std::min(mLayout.count - 1, target)), true); return TRUE;

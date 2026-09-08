@@ -10,6 +10,7 @@
 #include "../Viewer/GalleryGridCanvas.h"
 #include "QViewerCmn.h"
 #include "QCvUtil.h"
+#include "QFileActionsWin.h"
 #include <cstdio>
 #include <stdexcept>
 #include <functional>
@@ -120,8 +121,9 @@ struct GalleryIntegrationTests {
         grid.mRetryAt = 0; grid.Invalidate(FALSE); Pump(.2);
         Require(grid.mDevice != nullptr, "GPU rendering recovers after fallback");
         CString missing = folder + L"missing\\";
+        const auto beforeMissing = pane.mGen.load();
         pane.NavigateTo(missing); Pump(.1);
-        Require(pane.mEntries.empty() && grid.mCache.empty(), "folder switch discards stale entries and cached textures");
+        Require(pane.mGen == beforeMissing && pane.mEntries.size() == 3000, "missing folder leaves navigation and cache intact");
         pane.NavigateTo(folder); pane.NavigateTo(missing); pane.NavigateTo(folder); Pump(1);
         Require(pane.mOutstanding <= 4, "decode plus posted-result backlog bounded to four");
         CRect beforeOpen; frame->GetWindowRect(&beforeOpen);
@@ -129,6 +131,42 @@ struct GalleryIntegrationTests {
         pane.ActivateIndex(3,false); Pump(.3);
         CRect afterOpen; frame->GetWindowRect(&afterOpen);
         Require(doc->GetPathName() == expected && beforeOpen == afterOpen, "deferred grid activation loads the selected file without resizing the outer window");
+
+        Require(q1view::ParentDirectory(L"C:\\").empty() &&
+            q1view::ParentDirectory(L"\\\\server\\share\\").empty(), "drive and UNC share roots have no parent");
+        Require(q1view::ParentDirectory(L"\\\\server\\share\\child\\") == L"\\\\server\\share\\",
+            "UNC parent stops at share boundary");
+        Require(q1view::ParentDirectory(L"\\\\?\\UNC\\server\\share\\").empty() &&
+            q1view::ParentDirectory(L"\\\\?\\C:\\child\\") == L"\\\\?\\C:\\", "extended-length paths respect roots");
+        const CString unicodeFile = folder + L"\xC0AC\xC9C4 name.png";
+        Require(CopyFileW(fixture, unicodeFile, FALSE) != FALSE, "Unicode clipboard fixture created");
+        {
+            Microsoft::WRL::ComPtr<IDataObject> previousClipboard;
+            OleGetClipboard(&previousClipboard);
+            struct RestoreClipboard {
+                IDataObject* previous;
+                ~RestoreClipboard() { OleSetClipboard(previous); OleFlushClipboard(); }
+            } restore{previousClipboard.Get()};
+            Require(q1view::ClipboardFile(frame->m_hWnd, unicodeFile.GetString()), "file copy writes native CF_HDROP");
+            Require(OpenClipboard(frame->m_hWnd) != FALSE, "read file clipboard");
+            HDROP drop = static_cast<HDROP>(GetClipboardData(CF_HDROP));
+            wchar_t copied[32768] = {};
+            const UINT count = DragQueryFileW(drop, 0xFFFFFFFF, nullptr, 0);
+            DragQueryFileW(drop, 0, copied, _countof(copied));
+            CloseClipboard();
+            Require(count == 1 && unicodeFile == copied, "Explorer-compatible clipboard retains exact Unicode file path");
+            Require(q1view::ClipboardText(frame->m_hWnd, unicodeFile.GetString()), "copy path writes Unicode text");
+            OpenClipboard(frame->m_hWnd);
+            HANDLE text = GetClipboardData(CF_UNICODETEXT);
+            const wchar_t* contents = static_cast<const wchar_t*>(GlobalLock(text));
+            const bool matches = contents && unicodeFile == contents;
+            if (contents) GlobalUnlock(text);
+            CloseClipboard();
+            Require(matches, "copied path text is exact");
+            Require(!q1view::ClipboardFile(frame->m_hWnd, missing.GetString()) &&
+                !q1view::ShowInExplorer(missing.GetString()) &&
+                !q1view::ShowFileProperties(frame->m_hWnd, missing.GetString()), "missing shell items fail gracefully");
+        }
 
         // Actual application playback, not an isolated decoder benchmark.
         wchar_t video[32768];
@@ -287,6 +325,45 @@ struct GalleryIntegrationTests {
 			Await([&] { return !view->mIsPlaying; }, "playback stops cleanly at EOF");
 			Require(view->mStableRgbBufferInfo.ID == doc->mFrames - 1,
 				"last valid frame remains presented at EOF");
+
+            Require(doc->SeekScene(0) == 0, "restart frame queued for drawer navigation validation");
+            view->Invalidate(FALSE);
+            Await([&] { return view->mStableRgbBufferInfo.ID == 0; }, "restart frame presented");
+            view->SetPlayTimer(doc);
+            Await([&] { return view->mIsPlaying; }, "video active for folder-only navigation");
+            const CString child = folder + L"\xD558\xC704 folder\\";
+            Require(CreateDirectoryW(child, nullptr) != FALSE, "Unicode child folder created");
+            CRect playbackBounds; frame->GetWindowRect(&playbackBounds);
+            const float zoom = view->mN, xOffset = view->mXOff, yOffset = view->mYOff;
+            const CString media = doc->mPathName;
+            const UINT openGeneration = doc->mOpenGeneration;
+            for (int mode = 0; mode < pane.ViewStepCount(); ++mode) {
+                pane.NavigateTo(child); pane.ApplyViewStep(mode, false);
+                MSG up = {}; up.hwnd = pane.GetSafeHwnd(); up.message = WM_KEYDOWN; up.wParam = VK_BACK;
+                Require(pane.PreTranslateMessage(&up), "Backspace handled within drawer");
+                const int selected = pane.IsGrid() ? grid.Selection() : pane.GetNextItem(-1, LVNI_SELECTED);
+                Require(pane.mFolder == folder && pane.mViewStep == mode && selected >= 0 &&
+                    pane.mEntries[selected].path == child, "parent reveals child folder at every thumbnail size");
+                CMenu folderMenu; pane.BuildContextMenu(folderMenu, selected);
+                Require(folderMenu.GetMenuState(CThumbnailPane::CMD_COPY, MF_BYCOMMAND) != UINT(-1), "folder menu provides real file copy");
+                pane.ActivateIndex(selected, true); Pump(.05);
+                Require(pane.mFolder == child, "folder activation navigates without opening media");
+                pane.GoToParent();
+                CMenu background; pane.BuildContextMenu(background, -1);
+                Require(background.GetMenuItemCount() == 1, "background menu exposes only parent navigation");
+                Require(view->mIsPlaying && doc->mPathName == media && doc->mOpenGeneration == openGeneration,
+                    "folder navigation never opens, seeks, or restarts active media");
+            }
+            CRect finalBounds; frame->GetWindowRect(&finalBounds);
+            Require(finalBounds == playbackBounds && view->mN == zoom && view->mXOff == xOffset && view->mYOff == yOffset,
+                "folder navigation preserves window geometry, zoom and focal point");
+            pane.ApplyViewStep(0, false); pane.SelectByPath(unicodeFile);
+            const int fileIndex = pane.GetNextItem(-1, LVNI_SELECTED);
+            CMenu fileMenu; pane.BuildContextMenu(fileMenu, fileIndex);
+            Require(fileMenu.GetMenuState(CThumbnailPane::CMD_PROPERTIES, MF_BYCOMMAND) != UINT(-1), "file menu includes native properties");
+            pane.ActivateIndex(fileIndex, true); pane.NavigateTo(child); Pump(.05);
+            Require(doc->mPathName == media, "stale deferred activation cannot open an item after folder change");
+            view->KillPlayTimerSafe();
         }
         wchar_t hold[16];
         if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_TEST_HOLD_SECONDS",hold,_countof(hold))) {

@@ -72,12 +72,16 @@ Viewer includes a built-in control panel, opened with `?`.
 ### Thumbnail Browser
 
 Press `E` (or **File ▸ Thumbnail Browser**) to slide out a thumbnail drawer on
-the right. It is hidden by default, so the window is unchanged until you open
+the left. It is hidden by default, so the window is unchanged until you open
 it. The drawer is a small explorer for the current file's folder: a `..` entry
 and sub-folders let you browse with a double-click, and the supported image and
 raw files are listed with thumbnails (raw formats show a labeled placeholder).
 Double-click an image to open it in the main view. The drawer's visibility is
 remembered between sessions.
+
+Right-click a file for **Open**, **Copy** (a real file clipboard item), **Copy full path**, **Copy file name**, **Show in File Explorer**, or **Properties**. Folder menus offer **Open folder**, file/path copy, Explorer, and properties. On non-Windows Qt, **Open containing folder** replaces Explorer and the Windows properties command is hidden.
+
+With focus in the drawer, press **Backspace** or **Alt+Up** to move to the filesystem parent; the same command is available from item and empty-background context menus. It is disabled at drive/UNC share roots. The MFC grid also includes named folder tiles. Going upward retains the thumbnail size and selects/reveals the folder you just left. Folder browsing does not open or seek media, resize the window, or broadcast synchronized playback changes. Missing/unavailable folders leave the existing drawer unchanged. Rename, cut, paste, move and delete are not part of these actions.
 
 ### Synchronized Viewer Windows
 

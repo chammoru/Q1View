@@ -38,6 +38,10 @@ public:
 
 	// Create the list control as a child of pParent with control id nID.
 	BOOL CreatePane(CWnd *pParent, UINT nID);
+	virtual BOOL PreTranslateMessage(MSG* message);
+	bool GoToParent();
+	bool CanGoToParent() const;
+	void ShowContextMenu(int index, CPoint screenPoint);
 
 	// Show the folder containing lpszPath (repopulating only when the folder
 	// changes) and select the matching item.
@@ -67,6 +71,7 @@ protected:
 	afx_msg void OnDestroy();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnSetFocus(CWnd* oldWnd);
+	afx_msg void OnContextMenu(CWnd*, CPoint point);
 	afx_msg void OnItemActivate(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnGetInfoTip(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
@@ -79,6 +84,8 @@ protected:
 private:
 	friend class CGalleryGridCanvas;
 	friend struct GalleryIntegrationTests;
+	enum ContextCommand { CMD_OPEN = 1, CMD_UP, CMD_EXPLORER, CMD_COPY, CMD_PATH, CMD_NAME, CMD_PROPERTIES };
+	void BuildContextMenu(CMenu& menu, int index);
 	std::unique_ptr<CGalleryGridCanvas> mGrid;
 	struct Task { unsigned gen; int index; int size; bool crop; CString path; };
 	struct Result { unsigned gen; int index; int size; HBITMAP hbmp; };
@@ -100,7 +107,7 @@ private:
 
 	// View-size steps: step 0 is the compact list (report view, names + folders);
 	// steps 1..N are GPU gallery grids of thumbnails and extension badges -- no
-	// folders or names -- packed N columns wide (step 1 = 5 columns,
+	// media names, plus named folder tiles -- packed N columns wide (step 1 = 5 columns,
 	// each higher step one fewer, down to a single full-width column). Ctrl+wheel
 	// moves between steps; the chosen step is remembered across sessions.
 	static int  ViewStepCount();
@@ -143,6 +150,7 @@ private:
 	};
 	std::vector<Entry> mEntries;       // item index -> entry
 	Entry      mPending;               // deferred load/navigate target
+	unsigned   mPendingGeneration = 0;
 	CString    mFolder;                // folder currently listed (trailing '\\')
 	int        mLoadingImg;            // image index shown while a thumb decodes
 	int        mFolderImg;             // image index for folder/parent tiles (grid)

@@ -19,6 +19,7 @@
 #include "QCvUtil.h"
 #include "ViewerFileOrder.h"
 #include "ViewerFileTypes.h"
+#include "QFileActionsWin.h"
 
 #include <opencv2/imgproc/imgproc.hpp>
 
@@ -52,6 +53,7 @@ BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_WM_DESTROY()
 	ON_WM_SIZE()
 	ON_WM_SETFOCUS()
+	ON_WM_CONTEXTMENU()
 	ON_WM_MOUSEWHEEL()
 	ON_WM_VSCROLL()
 	ON_WM_KEYDOWN()
@@ -209,7 +211,7 @@ void CThumbnailPane::ApplyViewStep(int step, bool persist)
 	// Remember the selected image so it stays selected across the mode switch.
 	CString current;
 	int sel = IsGrid() && mGrid ? mGrid->Selection() : GetNextItem(-1, LVNI_SELECTED);
-	if (sel >= 0 && sel < (int)mEntries.size() && mEntries[sel].kind == ENTRY_FILE)
+	if (sel >= 0 && sel < (int)mEntries.size())
 		current = mEntries[sel].path;
 
 	mViewStep = step;
@@ -566,20 +568,7 @@ void CThumbnailPane::SetCurrentFile(LPCTSTR lpszPath)
 // none (e.g. a drive root such as "C:\").
 static CString ParentFolderOf(const CString &folder)
 {
-	CString f = folder;
-	if (f.GetLength() > 0 && f[f.GetLength() - 1] == _T('\\'))
-		f = f.Left(f.GetLength() - 1);
-	int slash = f.ReverseFind(_T('\\'));
-	if (slash < 0)
-		return _T("");
-	// "C:" -> no parent (it's a drive root once the leaf is removed).
-	if (slash == f.GetLength() - 1)
-		return _T("");
-	CString parent = f.Left(slash + 1);
-	// A bare "C:\" has no navigable parent.
-	if (parent.GetLength() <= 3)
-		return parent.CompareNoCase(folder) == 0 ? _T("") : parent;
-	return parent;
+	return CString(q1view::ParentDirectory(folder.GetString()).c_str());
 }
 
 void CThumbnailPane::Populate(const CString &folder, const CString &current)
@@ -598,8 +587,8 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 	if (!IsGrid()) { mThumb = kListThumb; ResetImageList(); }
 	mFolder = folder;
 
-	// The grid steps are a pure image gallery: no parent (".."), folders, or names
-	// -- only image thumbnails. Folder navigation lives in the list step.
+	// Grids retain media thumbnails and add named folder tiles for navigation.
+	// The parent command is available through the menu/keyboard in every mode.
 	const bool grid = IsGrid();
 	int row = 0;
 
@@ -643,22 +632,21 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		std::sort(dirs.begin(), dirs.end(), q1view::LessFileNameOrdinal);
 		std::sort(files.begin(), files.end(), q1view::LessFileNameOrdinal);
 
-		// Parent ("..") and sub-folders appear in the list step only; the grid is
-		// images-only.
-		if (!grid) {
-			// ".." goes to the parent folder, or to the drive list at a drive root.
+		// Keep the parent row in list mode; folders also appear as grid tiles.
+		if (!grid && !ParentFolderOf(folder).IsEmpty()) {
+			// A filesystem root has no parent row.
 			InsertItem(row, _T(".."), FolderIconIndex());
 			Entry pe; pe.kind = ENTRY_PARENT; pe.path = ParentFolderOf(folder); pe.img = -1; pe.queued = false; pe.badge = false;
 			mEntries.push_back(pe);
 			row++;
+		}
 
 			for (size_t i = 0; i < dirs.size(); i++) {
-				InsertItem(row, PathFindFileName(dirs[i]), FolderIconIndex());
-				Entry e; e.kind = ENTRY_DIR; e.path = dirs[i] + _T("\\"); e.img = -1; e.queued = false; e.badge = false;
+				if (!grid) InsertItem(row, PathFindFileName(dirs[i]), FolderIconIndex());
+				Entry e; e.kind = ENTRY_DIR; e.path = dirs[i] + _T("\\"); e.img = -1; e.queued = false; e.badge = true;
 				mEntries.push_back(e);
 				row++;
 			}
-		}
 
 		for (size_t i = 0; i < files.size(); i++) {
 			const CString &full = files[i];
@@ -709,7 +697,101 @@ void CThumbnailPane::NavigateTo(const CString &folder)
 {
 	// Browse to another folder without changing the main view; selecting a file
 	// there loads it.
-	Populate(folder, _T(""));
+	if (folder.IsEmpty() || PathIsDirectory(folder)) Populate(folder, _T(""));
+}
+
+bool CThumbnailPane::CanGoToParent() const
+{
+	return !ParentFolderOf(mFolder).IsEmpty();
+}
+
+bool CThumbnailPane::GoToParent()
+{
+	const CString child = mFolder;
+	const CString parent = ParentFolderOf(child);
+	if (parent.IsEmpty() || !PathIsDirectory(parent)) return false;
+	Populate(parent, child);
+	return true;
+}
+
+BOOL CThumbnailPane::PreTranslateMessage(MSG* message)
+{
+	if ((message->message == WM_KEYDOWN && message->wParam == VK_BACK) ||
+		(message->message == WM_SYSKEYDOWN && message->wParam == VK_UP)) {
+		GoToParent();
+		return TRUE;
+	}
+	return CListCtrl::PreTranslateMessage(message);
+}
+
+void CThumbnailPane::OnContextMenu(CWnd*, CPoint point)
+{
+	int index = -1;
+	if (point == CPoint(-1, -1)) {
+		index = GetNextItem(-1, LVNI_SELECTED);
+		CRect rect;
+		if (index >= 0 && GetItemRect(index, rect, LVIR_BOUNDS)) point = rect.CenterPoint();
+		else point = CPoint(12, 12);
+		ClientToScreen(&point);
+	} else {
+		CPoint local = point; ScreenToClient(&local);
+		index = HitTest(local);
+	}
+	ShowContextMenu(index, point);
+}
+
+void CThumbnailPane::BuildContextMenu(CMenu& menu, int index)
+{
+	const bool item = index >= 0 && index < int(mEntries.size());
+	const Entry entry = item ? mEntries[index] : Entry{};
+	const bool normalItem = item && entry.kind != ENTRY_PARENT;
+	const std::wstring path = q1view::TrimDirectorySeparator(entry.path.GetString());
+	const bool exists = normalItem && GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES;
+	CMenu names; menu.CreatePopupMenu(); names.CreatePopupMenu();
+	if (normalItem) menu.AppendMenu(MF_STRING | (exists ? 0 : MF_GRAYED), CMD_OPEN,
+		entry.kind == ENTRY_DIR ? _T("Open folder") : _T("Open"));
+	menu.AppendMenu(MF_STRING | (CanGoToParent() ? 0 : MF_GRAYED), CMD_UP,
+		_T("Go to parent folder\tBackspace / Alt+Up"));
+	if (normalItem) {
+		menu.AppendMenu(MF_STRING | (exists ? 0 : MF_GRAYED), CMD_EXPLORER, _T("Show in File Explorer"));
+		menu.AppendMenu(MF_SEPARATOR);
+		menu.AppendMenu(MF_STRING | (exists ? 0 : MF_GRAYED), CMD_COPY, _T("Copy"));
+		names.AppendMenu(MF_STRING, CMD_PATH, _T("Copy full path"));
+		if (entry.kind == ENTRY_FILE) names.AppendMenu(MF_STRING, CMD_NAME, _T("Copy file name"));
+		menu.AppendMenu(MF_POPUP, reinterpret_cast<UINT_PTR>(names.Detach()), _T("Copy path/name"));
+		menu.AppendMenu(MF_SEPARATOR);
+		menu.AppendMenu(MF_STRING | (exists ? 0 : MF_GRAYED), CMD_PROPERTIES, _T("Properties"));
+	}
+}
+
+void CThumbnailPane::ShowContextMenu(int index, CPoint screenPoint)
+{
+	const bool item = index >= 0 && index < int(mEntries.size());
+	const Entry entry = item ? mEntries[index] : Entry{};
+	const unsigned generation = mGen.load();
+	if (item) {
+		if (IsGrid()) mGrid->Select(index, false);
+		else SetItemState(index, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+	}
+	const std::wstring path = q1view::TrimDirectorySeparator(entry.path.GetString());
+	CMenu menu; BuildContextMenu(menu, index);
+	const UINT command = menu.TrackPopupMenu(TPM_RETURNCMD | TPM_RIGHTBUTTON,
+		screenPoint.x, screenPoint.y, this);
+	// The popup runs a nested message loop: a watcher/new document may have
+	// changed the entries. Never act on a recycled index or a different folder.
+	if (!command || generation != mGen.load()) return;
+	bool ok = true;
+	switch (command) {
+	case CMD_OPEN: ActivateIndex(index, true); break;
+	case CMD_UP: GoToParent(); break;
+	case CMD_EXPLORER: ok = q1view::ShowInExplorer(path); break;
+	case CMD_COPY: ok = q1view::ClipboardFile(m_hWnd, path); break;
+	case CMD_PATH: ok = q1view::ClipboardText(m_hWnd, path); break;
+	case CMD_NAME: ok = q1view::ClipboardText(m_hWnd, PathFindFileNameW(path.c_str())); break;
+	case CMD_PROPERTIES: ok = q1view::ShowFileProperties(m_hWnd, path); break;
+	}
+	if (!ok) MessageBox(_T("The operation could not be completed. The item may be unavailable or the clipboard may be in use."),
+		_T("Thumbnail browser"), MB_OK | MB_ICONINFORMATION);
 }
 
 void CThumbnailPane::ActivateIndex(int index, bool allowNavigate)
@@ -725,12 +807,16 @@ void CThumbnailPane::ActivateIndex(int index, bool allowNavigate)
 	// click/return notification) would repopulate the list while it is still
 	// using the clicked item, which can crash. Capture by value, run after.
 	mPending = e;
-	PostMessage(WM_DRAWER_ACTIVATE);
+	mPendingGeneration = mGen.load();
+	PostMessage(WM_DRAWER_ACTIVATE, mPendingGeneration);
 }
 
-LRESULT CThumbnailPane::OnActivatePosted(WPARAM /*wParam*/, LPARAM /*lParam*/)
+LRESULT CThumbnailPane::OnActivatePosted(WPARAM wParam, LPARAM /*lParam*/)
 {
+	if (wParam != mGen.load() || wParam != mPendingGeneration) return 0;
 	Entry e = mPending;
+	mPendingGeneration = 0;
+	if (GetFileAttributes(e.path) == INVALID_FILE_ATTRIBUTES) return 0;
 	if (e.kind == ENTRY_FILE) {
 		// Opening routes through CViewerDoc::OnOpenDocument (raw files included).
 		// Thumbnail selection keeps the current window size and fits the image
@@ -749,7 +835,8 @@ LRESULT CThumbnailPane::OnActivatePosted(WPARAM /*wParam*/, LPARAM /*lParam*/)
 			AfxGetApp()->OpenDocumentFile(e.path);
 		}
 	} else {
-		NavigateTo(e.path);
+		if (e.kind == ENTRY_PARENT) GoToParent();
+		else NavigateTo(e.path);
 	}
 	return 0;
 }
@@ -757,7 +844,7 @@ LRESULT CThumbnailPane::OnActivatePosted(WPARAM /*wParam*/, LPARAM /*lParam*/)
 void CThumbnailPane::SelectByPath(const CString &path)
 {
 	for (size_t i = 0; i < mEntries.size(); i++) {
-		if (mEntries[i].kind == ENTRY_FILE &&
+		if (mEntries[i].kind != ENTRY_PARENT &&
 				mEntries[i].path.CompareNoCase(path) == 0) {
 			if (IsGrid() && mGrid) { mGrid->Select(int(i), true); return; }
 			SetItemState((int)i, LVIS_SELECTED | LVIS_FOCUSED,

@@ -48,8 +48,14 @@ int main(int argc, char *argv[])
 	parser.addOption(heightOption);
 	parser.addOption(formatOption);
 	parser.addOption(selfTestOption);
+	parser.addOption(QCommandLineOption(QStringLiteral("selftest-drawer"), QStringLiteral("Run drawer integration checks.")));
 	parser.addPositionalArgument(QStringLiteral("file"), QStringLiteral("Image or raw frame file to open."));
 	parser.process(app);
+	if (parser.isSet(QStringLiteral("selftest-drawer"))) {
+		QCoreApplication::setApplicationName(QStringLiteral("Q1ViewQtDrawerTests"));
+		extern int RunQtDrawerTests();
+		return RunQtDrawerTests();
+	}
 
 	MainWindow window;
 	const bool selfTest = parser.isSet(selfTestOption);

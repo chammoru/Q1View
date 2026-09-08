@@ -55,6 +55,7 @@ public:
 	void setQuiet(bool quiet) { mQuiet = quiet; }
 
 private:
+	friend struct QtDrawerTests;
 	// Which part of an existing selection a press or hover lands on, so the
 	// rectangle can be grabbed and resized by an edge/corner or moved by its
 	// interior (mirroring the MFC viewer's resizable selection).

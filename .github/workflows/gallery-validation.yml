@@ -2,7 +2,7 @@ name: Gallery validation build
 
 on:
   push:
-    branches: [feature/81-gpu-gallery]
+    branches: [feature/81-gpu-gallery, feature/99-safe-drawer-actions]
   pull_request:
     paths:
       - 'Viewer/Gallery*'

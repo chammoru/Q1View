@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Added
+- Viewer: add safe thumbnail-drawer context actions for opening files/folders, copying files or paths, revealing items in File Explorer, and showing native Windows properties; Backspace or Alt+Up navigates to the parent without disturbing active playback, zoom, or window geometry. Named folder tiles keep the child folder selected when returning upward in every MFC grid size, with equivalent navigation and platform-appropriate actions in Qt. (issue #99)
+
 ---
 
 ## [2.7.17] — 2026-09-06

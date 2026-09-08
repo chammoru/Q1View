@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - feature/99-safe-drawer-actions
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -31,7 +32,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-13
+          - macos-15-intel
           - windows-2022
 
     steps:

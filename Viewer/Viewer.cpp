@@ -94,12 +94,20 @@ BOOL CViewerApp::InitInstance()
 	m_pMainWnd->DragAcceptFiles();
 #ifdef Q1VIEW_GALLERY_TESTS
 	extern int RunGalleryIntegrationTests();
-	int testResult = RunGalleryIntegrationTests();
+	mTestExitCode = RunGalleryIntegrationTests();
 	m_pMainWnd->SendMessage(WM_CLOSE);
-	PostQuitMessage(testResult);
+	return FALSE;
 #endif
 	return TRUE;
 }
+
+#ifdef Q1VIEW_GALLERY_TESTS
+int CViewerApp::ExitInstance()
+{
+	CWinApp::ExitInstance();
+	return mTestExitCode;
+}
+#endif
 
 CDocument* CViewerApp::OpenDocumentFile(LPCTSTR lpszFileName)
 {

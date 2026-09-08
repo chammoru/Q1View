@@ -23,6 +23,10 @@ public:
 // Overrides
 public:
 	virtual BOOL InitInstance();
+#ifdef Q1VIEW_GALLERY_TESTS
+	virtual int ExitInstance() override;
+	int mTestExitCode = 2;
+#endif
 	virtual CDocument* OpenDocumentFile(LPCTSTR lpszFileName) override;
 
 // Implementation

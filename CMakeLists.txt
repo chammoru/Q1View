@@ -106,6 +106,7 @@ if(Q1VIEW_BUILD_QT_VIEWER)
         # Side thumbnail/folder drawer (the cross-platform CThumbnailPane).
         ViewerQt/ThumbnailPane.cpp
         ViewerQt/ThumbnailPane.h
+        Tests/QtDrawerTests.cpp
         # Multi-window Sync Input over loopback UDP multicast (replaces the
         # Windows WM_COPYDATA broadcast).
         ViewerQt/SyncChannel.cpp
@@ -140,6 +141,14 @@ if(Q1VIEW_BUILD_QT_VIEWER)
     # C++11 and fail. Require C++17 on this target explicitly (Qt 5.15 supports
     # it) so both the Qt6 and Qt5 paths compile.
     target_compile_features(q1view_viewer_qt PRIVATE cxx_std_17)
+    enable_testing()
+    add_test(NAME q1view_qt_drawer COMMAND q1view_viewer_qt --selftest-drawer)
+    if(WIN32)
+        # CF_HDROP needs a real HWND; offscreen supplies no native owner.
+        set_tests_properties(q1view_qt_drawer PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=windows;QT_FORCE_STDERR_LOGGING=1" TIMEOUT 60)
+    else()
+        set_tests_properties(q1view_qt_drawer PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60)
+    endif()
 
     # --- Optional video playback via Qt6::Multimedia -----------------------
     # When the Multimedia / MultimediaWidgets modules are present, the viewer
@@ -249,6 +258,9 @@ if(Q1VIEW_BUILD_QT_VIEWER)
     # on any developer machine, matching CI.
     if(WIN32 AND TARGET Qt6::QOffscreenIntegrationPlugin)
         set(_q1_qpa_plugins Qt6::QOffscreenIntegrationPlugin)
+        if(TARGET Qt6::QWindowsIntegrationPlugin)
+            list(APPEND _q1_qpa_plugins Qt6::QWindowsIntegrationPlugin)
+        endif()
         if(TARGET Qt6::QMinimalIntegrationPlugin)
             list(APPEND _q1_qpa_plugins Qt6::QMinimalIntegrationPlugin)
         endif()

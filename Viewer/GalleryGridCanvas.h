@@ -37,6 +37,7 @@ protected:
     afx_msg void OnLButtonDown(UINT, CPoint);
     afx_msg void OnLButtonDblClk(UINT, CPoint);
     afx_msg void OnRButtonDown(UINT, CPoint);
+    afx_msg void OnContextMenu(CWnd*, CPoint);
     afx_msg void OnMouseMove(UINT, CPoint);
     afx_msg LRESULT OnMouseLeave(WPARAM, LPARAM);
     afx_msg LRESULT OnDpiChanged(WPARAM, LPARAM);
