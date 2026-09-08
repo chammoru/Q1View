@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - feature/99-safe-drawer-actions
     paths-ignore:
       - '**.md'
       - 'docs/**'

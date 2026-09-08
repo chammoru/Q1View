@@ -233,9 +233,8 @@ void CThumbnailPane::ApplyViewStep(int step, bool persist)
 		if (!IsGrid()) mGrid->PauseAnimation();
 	}
 
-	// Re-list the folder: the grid steps show only image tiles (no folders or
-	// names) while the list step shows folders + names, and the tile size differs
-	// per step, so the simplest correct refresh is a full repopulate.
+	// Re-list the folder because the list and grid use different presentation and
+	// tile sizes. Folder entries and their names remain available in both modes.
 	Populate(mFolder, current);
 	if (IsGrid()) {
 		ShowScrollBar(SB_BOTH, FALSE);
@@ -667,8 +666,8 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 				img = BadgeForExt(ext);
 			}
 
-			// The grid hides names; the list step draws the name itself (owner-draw)
-			// so its item text is only needed for keyboard type-ahead.
+			// The grid canvas reads names directly from mEntries; the list step draws
+			// its item text itself (owner-draw) and also uses it for type-ahead.
 			if (!grid) InsertItem(row, PathFindFileName(full), img);
 			Entry e; e.kind = ENTRY_FILE; e.path = full;
 			e.badge = !thumbable;

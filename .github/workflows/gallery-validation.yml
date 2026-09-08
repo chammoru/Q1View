@@ -2,14 +2,26 @@ name: Gallery validation build
 
 on:
   push:
-    branches: [feature/81-gpu-gallery, feature/99-safe-drawer-actions]
+    branches: [master, feature/81-gpu-gallery]
+    paths:
+      - 'Viewer/Gallery*'
+      - 'Viewer/ThumbnailPane.*'
+      - 'Viewer/MainFrm.*'
+      - 'Viewer/ViewerDoc.*'
+      - 'Viewer/ViewerView.*'
+      - 'Viewer/VidCap*'
+      - 'QCommon/inc/QFileActionsWin.h'
+      - 'Tests/Gallery*'
+      - '.github/workflows/gallery-validation.yml'
   pull_request:
     paths:
       - 'Viewer/Gallery*'
       - 'Viewer/ThumbnailPane.*'
+      - 'Viewer/MainFrm.*'
       - 'Viewer/ViewerDoc.*'
       - 'Viewer/ViewerView.*'
       - 'Viewer/VidCap*'
+      - 'QCommon/inc/QFileActionsWin.h'
       - 'Tests/Gallery*'
       - '.github/workflows/gallery-validation.yml'
   workflow_dispatch:
