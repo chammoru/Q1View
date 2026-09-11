@@ -1,5 +1,7 @@
 <!DOCTYPE RCC><RCC version="1.0">
 <qresource prefix="/">
     <file>Viewer.ico</file>
+    <file alias="fonts/PretendardVariable.ttf">../assets/fonts/PretendardVariable.ttf</file>
+    <file alias="fonts/Pretendard-LICENSE.txt">../assets/fonts/Pretendard-LICENSE.txt</file>
 </qresource>
 </RCC>

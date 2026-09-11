@@ -212,6 +212,13 @@
   <ItemDefinitionGroup Condition="'$(Q1ViewGalleryTests)'=='true'">
     <ClCompile><PreprocessorDefinitions>Q1VIEW_GALLERY_TESTS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
+    <PostBuildEvent>
+      <Command>if not exist "$(TargetDir)Fonts" mkdir "$(TargetDir)Fonts"
+copy /Y "$(ProjectDir)..\assets\fonts\PretendardVariable.ttf" "$(TargetDir)Fonts\PretendardVariable.ttf" &gt;nul
+copy /Y "$(ProjectDir)..\assets\fonts\Pretendard-LICENSE.txt" "$(TargetDir)Fonts\Pretendard-LICENSE.txt" &gt;nul</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
   <ItemGroup Condition="'$(Q1ViewGalleryTests)'=='true'">
     <ClCompile Include="..\Tests\GalleryIntegrationTests.cpp"><PrecompiledHeader>NotUsing</PrecompiledHeader></ClCompile>
   </ItemGroup>
@@ -289,6 +296,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
+    <None Include="..\assets\fonts\PretendardVariable.ttf" />
+    <None Include="..\assets\fonts\Pretendard-LICENSE.txt" />
     <None Include="res\Viewer.rc2" />
   </ItemGroup>
   <ItemGroup>

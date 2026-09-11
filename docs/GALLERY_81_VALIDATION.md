@@ -10,7 +10,7 @@ This branch adds a Direct2D/D3D11 gallery canvas to the Windows MFC Viewer. The 
 - CPU bitmap storage is limited to 64 MiB and 512 entries (also bounding GDI handles for tiny thumbnails). GPU bitmaps share the same cache-entry lifetimes and cannot exceed another 64 MiB of source pixels. At most four thumbnails can be decoding or waiting for UI consumption. Decoder-internal buffers, render targets and driver allocations are additional memory, not part of these cache budgets.
 - GPU uploads are limited to two thumbnails per paint. The gallery uses nonblocking Present without waiting for another vertical sync on the video's UI thread. If GPU initialization/rendering fails, the canvas uses a GDI fallback; CPU thumbnails survive device recreation.
 - Selection, keyboard navigation, pointer hit testing, hover and DPI-scaled borders belong to the canvas. File activation still uses the existing deferred Viewer document-opening path and fixed-window behavior.
-- The gallery continues to omit folder entries and preserve extension badges for non-previewable files. Parent navigation and context actions remain #99; resolving its hidden-folder selection requirement is deferred to that issue.
+- This document records the issue #81 baseline. Issues #99 and #100 subsequently added folder navigation, typographic directory tiles, and media-focused filtering that removes non-previewable files from grid modes while preserving the complete compact list.
 
 ## Automated checks
 

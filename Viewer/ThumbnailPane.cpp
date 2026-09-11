@@ -58,6 +58,7 @@ BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_WM_VSCROLL()
 	ON_WM_KEYDOWN()
 	ON_WM_TIMER()
+	ON_MESSAGE(WM_DPICHANGED_AFTERPARENT, &CThumbnailPane::OnDpiChanged)
 	ON_NOTIFY_REFLECT(NM_DBLCLK, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(NM_RETURN, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(LVN_GETINFOTIP, &CThumbnailPane::OnGetInfoTip)
@@ -71,7 +72,6 @@ CThumbnailPane::CThumbnailPane()
 , mSlideWidth(0)
 , mResizing(false)
 , mLoadingImg(-1)
-, mFolderImg(-1)
 , mCacheCap(512)
 , mStop(false)
 , mGen(0)
@@ -140,14 +140,14 @@ int CThumbnailPane::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	InsertColumn(0, _T(""), LVCFMT_LEFT, 0);
 
-	mLabelFont.CreatePointFont(85, _T("Segoe UI"));
-	SetFont(&mLabelFont);
+	TCHAR module[MAX_PATH] = {};
+	GetModuleFileName(nullptr, module, _countof(module));
+	PathRemoveFileSpec(module);
+	mFontPath.Format(_T("%s\\Fonts\\PretendardVariable.ttf"), module);
+	mPrivateFontLoaded = AddFontResourceEx(mFontPath, FR_PRIVATE, nullptr) > 0;
+	mFontFamily = mPrivateFontLoaded ? _T("Pretendard Variable") : Q1UI_FONT_TEXT;
 
-	LOGFONT lf = {};
-	lstrcpyn(lf.lfFaceName, _T("Segoe UI"), LF_FACESIZE);
-	lf.lfHeight = -(mThumb / 4);
-	lf.lfWeight = FW_BOLD;
-	mExtFont.CreateFontIndirect(&lf);
+	RebuildFonts(GetDpiForWindow(m_hWnd));
 
 	SetBkColor(Q1UI_COLOR_SURFACE_ALT);
 	SetTextBkColor(Q1UI_COLOR_SURFACE_ALT);
@@ -167,6 +167,38 @@ int CThumbnailPane::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	if (!mGrid->CreateCanvas()) return -1;
 	ApplyViewStep(mViewStep, false);
 
+	return 0;
+}
+
+void CThumbnailPane::RebuildFonts(UINT dpi)
+{
+	SetFont(nullptr);
+	mLabelFont.DeleteObject();
+	mFolderFont.DeleteObject();
+	mExtFont.DeleteObject();
+
+	LOGFONT label = {};
+	lstrcpyn(label.lfFaceName, mFontFamily, LF_FACESIZE);
+	label.lfHeight = -MulDiv(13, dpi, 96);
+	label.lfWeight = FW_NORMAL;
+	label.lfQuality = CLEARTYPE_NATURAL_QUALITY;
+	mLabelFont.CreateFontIndirect(&label);
+	SetFont(&mLabelFont);
+	label.lfWeight = FW_MEDIUM;
+	mFolderFont.CreateFontIndirect(&label);
+
+	LOGFONT lf = {};
+	lstrcpyn(lf.lfFaceName, mFontFamily, LF_FACESIZE);
+	lf.lfHeight = -MulDiv(12, dpi, 96);
+	lf.lfWeight = FW_SEMIBOLD;
+	lf.lfQuality = CLEARTYPE_NATURAL_QUALITY;
+	mExtFont.CreateFontIndirect(&lf);
+}
+
+LRESULT CThumbnailPane::OnDpiChanged(WPARAM, LPARAM)
+{
+	RebuildFonts(GetDpiForWindow(m_hWnd));
+	Invalidate(FALSE);
 	return 0;
 }
 
@@ -370,7 +402,7 @@ void CThumbnailPane::EndSlide()
 
 // Queue decodes only for files at (or one screen beyond) the visible region, so
 // scrolling never waits behind a folder-sized backlog. Cached thumbnails are
-// applied inline; raw/folders never decode.
+// applied inline; raw files and folders never decode.
 void CThumbnailPane::QueueVisibleThumbs()
 {
 	if (IsGrid() && mGrid) { mGrid->QueueVisible(); return; }
@@ -471,21 +503,22 @@ void CThumbnailPane::DrawItem(LPDRAWITEMSTRUCT dis)
 			DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 		pDC->SelectObject(of);
 	} else {
-		// Folders/parent: no left box, so the name fills the row; the accent
-		// colour and bold weight distinguish folders from files.
+		// Typographic directory notation maximizes usable name width and avoids
+		// presenting decorative artwork as though it were a media thumbnail.
 		CString name;
 		if (e.kind == ENTRY_PARENT) {
-			name = _T("..");
+			name = _T("[..]");
 		} else {
 			name = e.path;
 			if (!name.IsEmpty() && name[name.GetLength() - 1] == _T('\\'))
 				name = name.Left(name.GetLength() - 1);
 			CString leaf = PathFindFileName(name);
 			name = leaf.IsEmpty() ? e.path : leaf;
+			name = _T("[") + name + _T("]");
 		}
 
 		pDC->SetTextColor(Q1UI_COLOR_ACCENT);
-		CFont *of = pDC->SelectObject(&mExtFont);
+		CFont *of = pDC->SelectObject(&mFolderFont);
 		CRect tr(rc.left + pad, rc.top, rc.right - 2, rc.bottom);
 		pDC->DrawText(name, tr,
 			DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
@@ -496,6 +529,10 @@ void CThumbnailPane::DrawItem(LPDRAWITEMSTRUCT dis)
 void CThumbnailPane::OnDestroy()
 {
 	Shutdown();
+	if (mPrivateFontLoaded) {
+		RemoveFontResourceEx(mFontPath, FR_PRIVATE, nullptr);
+		mPrivateFontLoaded = false;
+	}
 	CListCtrl::OnDestroy();
 }
 
@@ -579,6 +616,8 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		mTasks.clear();
 	}
 
+	if (folder.CompareNoCase(mFolder) != 0)
+		mRejectedPreviews.clear();
 	SetRedraw(FALSE);
 	DeleteAllItems();
 	mEntries.clear();
@@ -586,8 +625,9 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 	if (!IsGrid()) { mThumb = kListThumb; ResetImageList(); }
 	mFolder = folder;
 
-	// Grids retain media thumbnails and add named folder tiles for navigation.
-	// The parent command is available through the menu/keyboard in every mode.
+	// Grids are visual media browsers: they retain thumbnail-capable image/video
+	// entries and folder navigation, while the compact list remains the complete
+	// folder view needed for raw files and exact current-file synchronization.
 	const bool grid = IsGrid();
 	int row = 0;
 
@@ -598,7 +638,8 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 			TCHAR buf[512] = {0, };
 			::GetLogicalDriveStrings(_countof(buf) - 1, buf);
 			for (TCHAR *d = buf; *d; d += lstrlen(d) + 1) {
-				InsertItem(row, d, FolderIconIndex());
+				CString label = _T("[") + CString(d) + _T("]");
+				InsertItem(row, label, -1);
 				Entry e; e.kind = ENTRY_DIR; e.path = d; e.img = -1; e.queued = false; e.badge = false;
 				mEntries.push_back(e);
 				row++;
@@ -631,18 +672,20 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		std::sort(dirs.begin(), dirs.end(), q1view::LessFileNameOrdinal);
 		std::sort(files.begin(), files.end(), q1view::LessFileNameOrdinal);
 
-		// Keep the conventional ".." entry first in every mode. In grids it is
-		// rendered as the same folder card as child directories, with a restrained
-		// upward cue; at filesystem roots it is absent rather than disabled.
+		// Keep parent navigation first in every mode. At filesystem roots it is
+		// absent rather than disabled.
 		if (!ParentFolderOf(folder).IsEmpty()) {
-			if (!grid) InsertItem(row, _T(".."), FolderIconIndex());
+			if (!grid) InsertItem(row, _T("[..]"), -1);
 			Entry pe; pe.kind = ENTRY_PARENT; pe.path = ParentFolderOf(folder); pe.img = -1; pe.queued = false; pe.badge = true;
 			mEntries.push_back(pe);
 			row++;
 		}
 
 			for (size_t i = 0; i < dirs.size(); i++) {
-				if (!grid) InsertItem(row, PathFindFileName(dirs[i]), FolderIconIndex());
+				if (!grid) {
+					CString label = _T("[") + CString(PathFindFileName(dirs[i])) + _T("]");
+					InsertItem(row, label, -1);
+				}
 				Entry e; e.kind = ENTRY_DIR; e.path = dirs[i] + _T("\\"); e.img = -1; e.queued = false; e.badge = true;
 				mEntries.push_back(e);
 				row++;
@@ -652,11 +695,12 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 			const CString &full = files[i];
 			CString ext = ExtensionOf(full);
 			bool thumbable = q1view::IsViewerThumbnailableExt(ext);
+			if (grid && (!thumbable || PreviewRejected(full)))
+				continue;
 
-			// Images and videos get a thumbnail (a light placeholder until decoded,
-			// applied lazily as the row scrolls into view); raw formats and any other
-			// type (documents, archives, ...) show an extension badge so the file is
-			// still listed and stays selectable during PgUp/PgDn navigation.
+			// Images and videos get a light placeholder until decoded. In compact
+			// mode, raw formats and other files get an extension badge so the list
+			// remains synchronized with PgUp/PgDn navigation.
 			int img;
 			if (grid) {
 				img = -1; // Grid owns bounded CPU/GPU caches, never a folder-sized image list.
@@ -691,6 +735,12 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 
 	SelectByPath(current);
 	QueueVisibleThumbs();
+}
+
+bool CThumbnailPane::PreviewRejected(const CString &path) const
+{
+	return std::any_of(mRejectedPreviews.begin(), mRejectedPreviews.end(),
+		[&](const CString &candidate) { return candidate.CompareNoCase(path) == 0; });
 }
 
 void CThumbnailPane::NavigateTo(const CString &folder)
@@ -911,7 +961,6 @@ void CThumbnailPane::ResetImageList()
 
 	// Image-list indices are invalidated by the recreate; re-seed the shared
 	// placeholder and forget the per-extension badge cache.
-	mFolderImg = -1;
 	mBadgeByExt.clear();
 
 	HBITMAP loading = MakePlaceholder(_T(""));
@@ -929,65 +978,6 @@ int CThumbnailPane::AddImageCopy(HBITMAP hbmp)
 	int idx = mImages.Add(&bmp, (CBitmap *)NULL);
 	bmp.Detach();      // the image list copied the pixels; keep the source alive
 	return idx;
-}
-
-int CThumbnailPane::FolderIconIndex()
-{
-	if (mFolderImg >= 0)
-		return mFolderImg;
-
-	// A simple folder tile: an accent-tinted card. The name underneath (icon
-	// view) or beside it (list) identifies the folder.
-	void *bits = NULL;
-	HBITMAP hbmp = NULL;
-	{
-		BITMAPINFO bmi = {};
-		bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-		bmi.bmiHeader.biWidth = mThumb;
-		bmi.bmiHeader.biHeight = -mThumb;
-		bmi.bmiHeader.biPlanes = 1;
-		bmi.bmiHeader.biBitCount = 32;
-		bmi.bmiHeader.biCompression = BI_RGB;
-		HDC screen = ::GetDC(NULL);
-		hbmp = ::CreateDIBSection(screen, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
-		::ReleaseDC(NULL, screen);
-	}
-	if (!hbmp)
-		return mLoadingImg;
-
-	HDC screen = ::GetDC(NULL);
-	HDC mem = ::CreateCompatibleDC(screen);
-	HBITMAP old = (HBITMAP)::SelectObject(mem, hbmp);
-	CDC dc; dc.Attach(mem);
-
-	CRect rc(0, 0, mThumb, mThumb);
-	dc.FillSolidRect(rc, Q1UI_COLOR_SURFACE_ALT);
-
-	// Folder glyph: a tab + body rounded rectangle.
-	CRect body = rc; body.DeflateRect(mThumb / 6, mThumb / 4);
-	body.top += mThumb / 12;
-	CBrush fill(Q1UI_COLOR_ACCENT_SOFT);
-	CPen   pen(PS_SOLID, std::max(1, mThumb / 48), Q1UI_COLOR_ACCENT);
-	CBrush *ob = dc.SelectObject(&fill);
-	CPen   *op = dc.SelectObject(&pen);
-	CRect tab(body.left, body.top - mThumb / 12, body.left + body.Width() / 2, body.top + mThumb / 16);
-	dc.RoundRect(tab, CPoint(mThumb / 16, mThumb / 16));
-	dc.RoundRect(body, CPoint(mThumb / 12, mThumb / 12));
-	dc.SelectObject(ob);
-	dc.SelectObject(op);
-
-	dc.Detach();
-	::SelectObject(mem, old);
-	::DeleteDC(mem);
-	::ReleaseDC(NULL, screen);
-
-	BYTE *p = static_cast<BYTE *>(bits);
-	for (int i = 0; i < mThumb * mThumb; i++)
-		p[i * 4 + 3] = 255;
-
-	mFolderImg = AddImageCopy(hbmp);
-	::DeleteObject(hbmp);
-	return mFolderImg;
 }
 
 int CThumbnailPane::BadgeForExt(const CString &ext)
@@ -1036,8 +1026,24 @@ LRESULT CThumbnailPane::OnThumbReady(WPARAM wParam, LPARAM /*lParam*/)
 		mEntries[r->index].kind == ENTRY_FILE;
 	if (current && IsGrid() && mGrid) {
 		mEntries[r->index].queued = false;
-		if (r->hbmp) mGrid->Accept(r->index, r->hbmp, r->size);
-		else { mEntries[r->index].badge = true; mGrid->Invalidate(FALSE); }
+		if (r->hbmp) {
+			mGrid->Accept(r->index, r->hbmp, r->size);
+		} else if (q1view::IsViewerVideoExt(ExtensionOf(mEntries[r->index].path))) {
+			// A video belongs in the visual grid only when extraction produced a
+			// meaningful preview. A new generation prevents outstanding results
+			// from landing on indices shifted by the removal.
+			const CString rejected = mEntries[r->index].path;
+			const int selected = mGrid->Selection();
+			const CString selection = selected >= 0 && selected < (int)mEntries.size()
+				? mEntries[selected].path : CString();
+			if (!PreviewRejected(rejected)) mRejectedPreviews.push_back(rejected);
+			Populate(mFolder, selection);
+		} else {
+			// Supported images remain discoverable even when their pixels are
+			// damaged or the installed decoder cannot produce a preview.
+			mEntries[r->index].badge = true;
+			mGrid->Invalidate(FALSE);
+		}
 		delete r;
 		return 0;
 	}
@@ -1238,7 +1244,14 @@ HBITMAP CThumbnailPane::DecodeThumbnailShell(const CString &path, int size, bool
 // any format the shell declines to thumbnail).
 HBITMAP CThumbnailPane::DecodeThumbnailCv(const CString &path, int size, bool crop, COLORREF bg)
 {
-	cv::Mat img = q1::imreadW(path.GetString());
+	cv::Mat img;
+	if (q1view::IsViewerVideoExt(ExtensionOf(path))) {
+		cv::VideoCapture capture;
+		if (q1::openVideoCaptureW(capture, path.GetString()))
+			capture.read(img);
+	} else {
+		img = q1::imreadW(path.GetString());
+	}
 	if (img.empty())
 		return NULL;
 

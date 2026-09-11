@@ -100,6 +100,7 @@ jobs:
             }
 
             Copy-Item $exe.FullName $package
+            Copy-Item assets/fonts/Pretendard-LICENSE.txt $package
 
             # Ship the libheif runtime (heif.dll + its codec DLLs) alongside the
             # exe. windeployqt only handles Qt's own libraries.
@@ -117,6 +118,7 @@ jobs:
 
             macdeployqt $app.FullName -verbose=1
             Copy-Item $app.FullName $package -Recurse
+            Copy-Item assets/fonts/Pretendard-LICENSE.txt "$package/q1view_viewer_qt.app/Contents/Resources/"
           }
 
       - name: Package viewer (Linux AppImage)
@@ -130,6 +132,7 @@ jobs:
           mkdir -p "${appdir}/usr/bin"
           mkdir -p "${appdir}/usr/share/applications"
           mkdir -p "${appdir}/usr/share/icons/hicolor/scalable/apps"
+          mkdir -p "${appdir}/usr/share/licenses/Q1View"
 
           exe_path="$(find build -type f -name q1view_viewer_qt -perm -111 | head -n 1)"
           if [[ -z "${exe_path}" ]]; then
@@ -141,6 +144,7 @@ jobs:
           cp "${exe_path}" "${appdir}/usr/bin/q1view_viewer_qt"
           cp packaging/linux/q1view-viewer-qt.desktop "${appdir}/usr/share/applications/"
           cp packaging/linux/q1view-viewer-qt.svg "${appdir}/usr/share/icons/hicolor/scalable/apps/"
+          cp assets/fonts/Pretendard-LICENSE.txt "${appdir}/usr/share/licenses/Q1View/"
 
           qmake_path="$(command -v qmake6 || command -v qmake || true)"
           if [[ -z "${qmake_path}" ]]; then

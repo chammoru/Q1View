@@ -44,6 +44,16 @@ New-Item -ItemType Directory -Force $outputPath | Out-Null
 Copy-Item -LiteralPath $viewerExe -Destination $outputPath -Force
 Copy-Item -LiteralPath $comparerExe -Destination $outputPath -Force
 
+$fontOutputPath = Join-Path $outputPath "Fonts"
+New-Item -ItemType Directory -Force $fontOutputPath | Out-Null
+foreach ($fontFile in @("PretendardVariable.ttf", "Pretendard-LICENSE.txt")) {
+    $fontSource = Join-Path $repoRoot "assets\fonts\$fontFile"
+    if (-not (Test-Path $fontSource)) {
+        throw "Missing bundled thumbnail-browser font asset: $fontSource"
+    }
+    Copy-Item -LiteralPath $fontSource -Destination $fontOutputPath -Force
+}
+
 # Standalone file-association icons are consumed by the Inno installer. Keep
 # them in the portable package too so every distribution contains the exact
 # assets referenced by its registration metadata.
@@ -86,6 +96,6 @@ if (-not [string]::IsNullOrWhiteSpace($ChangelogPath)) {
 }
 
 Write-Host "Packaged Q1View files into $outputPath"
-Get-ChildItem -LiteralPath $outputPath -File | Sort-Object Name | ForEach-Object {
+Get-ChildItem -LiteralPath $outputPath -File -Recurse | Sort-Object FullName | ForEach-Object {
     Write-Host (" - {0}" -f $_.Name)
 }

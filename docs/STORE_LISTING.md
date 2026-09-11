@@ -41,7 +41,7 @@ Viewer also supports image-sequence navigation, video playback, frame/time progr
 
 BT.2020 HLG videos are tone-mapped for accurate color and contrast on standard SDR Windows displays instead of being shown with a washed-out legacy color conversion.
 
-Right-click a thumbnail to open it, copy the file or its path, reveal it in File Explorer, or view Windows properties. Browse folders with child-folder cards and a consistent **..** parent card at every thumbnail size; Backspace and Alt+Up also go to the parent without interrupting the photo or video in the main view.
+Right-click a thumbnail to open it, copy the file or its path, reveal it in File Explorer, or view Windows properties. Gallery grids focus on useful image and video previews, while compact mode keeps the complete folder list. Directories use clean **[Folder name]** and **[..]** notation with balanced Pretendard typography instead of decorative folder artwork; Backspace and Alt+Up also go to the parent without interrupting the photo or video in the main view.
 
 Choose Auto, Smooth (Bilinear), or Pixel Exact (Nearest) image scaling from the View menu. Auto keeps scanned text clear at moderate reductions, suppresses aliasing when large photos are reduced substantially, and preserves exact pixels during close inspection.
 
@@ -105,7 +105,7 @@ TECHNICAL NOTES
 15. Allow Different Resolution mode for cross-resolution comparisons
 16. Portable ZIP available alongside the installer
 17. Cycle raw color space (N) and preset resolutions (D) without reopening the file
-18. GPU-rendered thumbnail gallery with smooth size transitions, bounded caching, and a resizable left-side drawer
+18. Media-focused thumbnail gallery with smooth sizing, bounded caching, compact folder notation, and modern Korean/Latin typography
 19. Coordinated Viewer, Comparator, photo, video, and raw-file icons designed for clear recognition across Windows taskbar, Start, and File Explorer surfaces
 20. BT.2020 HLG video tone mapping for accurate color and contrast on standard SDR displays
 ```

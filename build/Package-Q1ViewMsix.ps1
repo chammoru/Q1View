@@ -165,6 +165,12 @@ Get-ChildItem -LiteralPath $SourceDir -File |
         Copy-Item -LiteralPath $_.FullName -Destination $stagingDir -Force
     }
 
+$sourceFonts = Join-Path $SourceDir "Fonts"
+if (-not (Test-Path $sourceFonts)) {
+    throw "Bundled font directory not found: $sourceFonts"
+}
+Copy-Item -LiteralPath $sourceFonts -Destination (Join-Path $stagingDir "Fonts") -Recurse -Force
+
 # Logo assets
 foreach ($asset in $requiredAssets) {
     Copy-Item -LiteralPath (Join-Path $AssetsDir $asset) `

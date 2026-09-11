@@ -57,6 +57,8 @@ Source: "{#SourceDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#SourceDir}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#SourceDir}\README.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#SourceDir}\Fonts\PretendardVariable.ttf"; DestDir: "{app}\Fonts"; Flags: ignoreversion
+Source: "{#SourceDir}\Fonts\Pretendard-LICENSE.txt"; DestDir: "{app}\Fonts"; Flags: ignoreversion
 Source: "{#SourceDir}\Icons\Q1ViewPhoto.ico"; DestDir: "{app}\Icons"; Flags: ignoreversion
 Source: "{#SourceDir}\Icons\Q1ViewVideo.ico"; DestDir: "{app}\Icons"; Flags: ignoreversion
 Source: "{#SourceDir}\Icons\Q1ViewRaw.ico"; DestDir: "{app}\Icons"; Flags: ignoreversion
@@ -71,6 +73,9 @@ Type: files; Name: "{app}\*.dll"
 Type: files; Name: "{app}\CHANGELOG.md"
 Type: files; Name: "{app}\LICENSE"
 Type: files; Name: "{app}\README.md"
+Type: files; Name: "{app}\Fonts\PretendardVariable.ttf"
+Type: files; Name: "{app}\Fonts\Pretendard-LICENSE.txt"
+Type: dirifempty; Name: "{app}\Fonts"
 Type: files; Name: "{app}\Icons\Q1ViewPhoto.ico"
 Type: files; Name: "{app}\Icons\Q1ViewVideo.ico"
 Type: files; Name: "{app}\Icons\Q1ViewRaw.ico"

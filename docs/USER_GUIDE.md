@@ -73,15 +73,17 @@ Viewer includes a built-in control panel, opened with `?`.
 
 Press `E` (or **File ▸ Thumbnail Browser**) to slide out a thumbnail drawer on
 the left. It is hidden by default, so the window is unchanged until you open
-it. The drawer is a small explorer for the current file's folder: a `..` entry
-and sub-folders let you browse with a double-click, and the supported image and
-raw files are listed with thumbnails (raw formats show a labeled placeholder).
-Double-click an image to open it in the main view. The drawer's visibility is
-remembered between sessions.
+it. The compact list is a complete view of the current folder, with thumbnails
+or labeled placeholders as appropriate. In the Windows Viewer, Ctrl+wheel over
+the drawer changes to gallery grids that keep folders and useful image/video
+previews while hiding documents, archives, raw files, and videos whose preview
+cannot be extracted. A damaged supported image remains visible with a restrained
+preview-unavailable badge. Double-click a file to open it in the main view. The
+drawer's visibility and thumbnail size are remembered between sessions.
 
 Right-click a file for **Open**, **Copy** (a real file clipboard item), **Copy full path**, **Copy file name**, **Show in File Explorer**, or **Properties**. Folder menus offer **Open folder**, file/path copy, Explorer, and properties. On non-Windows Qt, **Open containing folder** replaces Explorer and the Windows properties command is hidden.
 
-The first entry is **..** whenever the current folder has a filesystem parent. It uses the same folder-card visual language as child directories in every MFC thumbnail size; double-click it or press Enter to move upward. With focus in the drawer, **Backspace** and **Alt+Up** remain keyboard shortcuts for the same action. Drive and UNC share roots omit the entry. Going upward retains the thumbnail size and selects/reveals the folder you just left. Folder browsing does not open or seek media, resize the window, or broadcast synchronized playback changes. Missing/unavailable folders leave the existing drawer unchanged. Rename, cut, paste, move and delete are not part of these actions.
+The first entry is **[..]** whenever the current folder has a filesystem parent. Child directories use the same compact **[Folder name]** notation, accent color, and medium-weight Pretendard text in both Viewer implementations, without a decorative folder picture. Double-click the parent entry or press Enter to move upward. With focus in the drawer, **Backspace** and **Alt+Up** remain keyboard shortcuts for the same action. Drive and UNC share roots omit the entry. Going upward retains the thumbnail size and selects/reveals the folder you just left. Folder browsing does not open or seek media, resize the window, or broadcast synchronized playback changes. Missing/unavailable folders leave the existing drawer unchanged. Rename, cut, paste, move and delete are not part of these actions.
 
 ### Synchronized Viewer Windows
 

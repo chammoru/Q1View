@@ -55,6 +55,20 @@ struct GalleryIntegrationTests {
         if (!frame->mDrawerVisible) frame->OnToggleDrawer();
         Pump(.4);
         auto& pane = *frame->mpDrawer;
+        Require(pane.mPrivateFontLoaded && pane.mFontFamily == L"Pretendard Variable",
+            "bundled Pretendard typography loaded for the MFC drawer");
+        for (UINT dpi : { 96u, 144u, 192u }) {
+            pane.RebuildFonts(dpi);
+            LOGFONT regular = {}, folderFont = {}, badge = {};
+            pane.mLabelFont.GetLogFont(&regular);
+            pane.mFolderFont.GetLogFont(&folderFont);
+            pane.mExtFont.GetLogFont(&badge);
+            Require(regular.lfHeight == -MulDiv(13, dpi, 96) && regular.lfWeight == FW_NORMAL &&
+                folderFont.lfHeight == -MulDiv(13, dpi, 96) && folderFont.lfWeight == FW_MEDIUM &&
+                badge.lfHeight == -MulDiv(12, dpi, 96) && badge.lfWeight == FW_SEMIBOLD,
+                "MFC drawer typography scales at 100, 150, and 200 percent DPI");
+        }
+        pane.RebuildFonts(GetDpiForWindow(pane.m_hWnd));
         pane.ApplyViewStep(1, false);
         auto& grid = *pane.mGrid;
 
@@ -73,7 +87,8 @@ struct GalleryIntegrationTests {
         Pump(2);
         Require(pane.mEntries.size() == 3001 && pane.mEntries.front().kind == CThumbnailPane::ENTRY_PARENT &&
             pane.GetItemCount() == 0, "large grid keeps one parent tile without list-control rows or image-list copies");
-        Require(grid.mDevice && grid.mContext && grid.mTarget, "actual Direct2D/D3D11 render target created");
+        Require(grid.mDevice && grid.mContext && grid.mTarget && grid.mFontCollection && grid.mBadgeText,
+            "actual Direct2D/D3D11 target uses the bundled font collection");
         Require(!grid.mCache.empty(), "worker results populate CPU thumbnail cache");
         bool uploaded = false;
         for (auto& p : grid.mCache) if (p.second.gpu) uploaded = true;
@@ -98,7 +113,7 @@ struct GalleryIntegrationTests {
         MSG key = {}; key.hwnd = grid.GetSafeHwnd(); key.message = WM_KEYDOWN; key.wParam = VK_END;
         Require(grid.PreTranslateMessage(&key) && grid.Selection() == 3000, "End selects final grid item");
         key.wParam = VK_HOME; grid.PreTranslateMessage(&key);
-        Require(grid.Selection() == 0 && grid.Label(0) == L"..", "Home selects the visible parent-folder tile");
+        Require(grid.Selection() == 0 && grid.Label(0) == L"[..]", "Home selects the typographic parent-folder tile");
         key.wParam = VK_RIGHT; grid.PreTranslateMessage(&key);
         Require(grid.Selection() == 1, "arrow navigation moves from parent tile to first file");
 
@@ -355,20 +370,85 @@ struct GalleryIntegrationTests {
             Await([&] { return view->mIsPlaying; }, "video active for folder-only navigation");
             const CString child = folder + L"\xD558\xC704 folder\\";
             Require(CreateDirectoryW(child, nullptr) != FALSE, "Unicode child folder created");
+            const CString nonMedia = folder + L"notes.txt";
+            HANDLE note = CreateFileW(nonMedia, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            Require(note != INVALID_HANDLE_VALUE, "non-media filtering fixture created");
+            CloseHandle(note);
+            const CString rawInput = folder + L"frame.yuv";
+            HANDLE raw = CreateFileW(rawInput, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            Require(raw != INVALID_HANDLE_VALUE, "raw-input filtering fixture created");
+            CloseHandle(raw);
+            const CString archive = folder + L"archive.zip";
+            HANDLE zip = CreateFileW(archive, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            Require(zip != INVALID_HANDLE_VALUE, "archive filtering fixture created");
+            CloseHandle(zip);
+            const CString brokenImage = folder + L"broken.png";
+            HANDLE badImage = CreateFileW(brokenImage, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            Require(badImage != INVALID_HANDLE_VALUE, "broken-image fixture created");
+            CloseHandle(badImage);
+            const CString brokenVideo = folder + L"broken.mp4";
+            HANDLE badVideo = CreateFileW(brokenVideo, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            Require(badVideo != INVALID_HANDLE_VALUE, "failed-video-preview fixture created");
+            CloseHandle(badVideo);
+            const CString previewVideo = folder + L"preview.avi";
+            cv::VideoWriter previewWriter(std::string(CW2A(previewVideo, CP_UTF8)),
+                cv::VideoWriter::fourcc('M','J','P','G'), 24, cv::Size(64, 64));
+            Require(previewWriter.isOpened(), "video-thumbnail fixture created");
+            for (int i = 0; i < 3; ++i)
+                previewWriter.write(cv::Mat(64, 64, CV_8UC3, cv::Scalar(30 + i * 20, 90, 180)));
+            previewWriter.release();
             CRect playbackBounds; frame->GetWindowRect(&playbackBounds);
             const float zoom = view->mN, xOffset = view->mXOff, yOffset = view->mYOff;
             const CString media = doc->mPathName;
             const UINT openGeneration = doc->mOpenGeneration;
             for (int mode = 0; mode < pane.ViewStepCount(); ++mode) {
+                pane.NavigateTo(folder); pane.ApplyViewStep(mode, false);
+                const auto containsPath = [&](const CString& path) {
+                    return std::any_of(pane.mEntries.begin(), pane.mEntries.end(),
+                        [&](const CThumbnailPane::Entry& entry) { return entry.path.CompareNoCase(path) == 0; });
+                };
+                Require(containsPath(nonMedia) == (mode == 0) && containsPath(rawInput) == (mode == 0) &&
+                    containsPath(archive) == (mode == 0),
+                    "documents, raw inputs, and archives remain in compact navigation but not thumbnail grids");
+                Require(containsPath(brokenImage), "supported broken image remains discoverable");
+                if (mode == 0) {
+                    Require(containsPath(brokenVideo) && containsPath(previewVideo),
+                        "compact navigation retains videos regardless of preview availability");
+                } else {
+                    Await([&] { return !containsPath(brokenVideo); },
+                        "video without a meaningful preview leaves the thumbnail grid");
+                    Await([&] {
+                        return std::any_of(pane.mEntries.begin(), pane.mEntries.end(),
+                            [&](const CThumbnailPane::Entry& entry) {
+                                return entry.path.CompareNoCase(brokenImage) == 0 && entry.badge;
+                            });
+                    }, "broken image remains with preview-unavailable treatment");
+                    Await([&] {
+                        for (int i = 0; i < (int)pane.mEntries.size(); ++i) {
+                            if (pane.mEntries[i].path.CompareNoCase(previewVideo) != 0) continue;
+                            if (grid.mCache.find(i) != grid.mCache.end()) return true;
+                            grid.Select(i, true);
+                            grid.QueueVisible();
+                            return false;
+                        }
+                        return false;
+                    }, "video with a meaningful thumbnail remains in the grid");
+                }
                 pane.NavigateTo(child); pane.ApplyViewStep(mode, false);
                 Require(!pane.mEntries.empty() && pane.mEntries.front().kind == CThumbnailPane::ENTRY_PARENT &&
-                    (!pane.IsGrid() || grid.Label(0) == L".."), "visible parent tile is first at every thumbnail size");
+                    (pane.IsGrid() ? grid.Label(0) == L"[..]" : pane.GetItemText(0, 0) == L"[..]"),
+                    "typographic parent entry is first at every thumbnail size");
                 CMenu parentMenu; pane.BuildContextMenu(parentMenu, 0);
                 Require(parentMenu.GetMenuItemCount() == 0, "parent navigation is represented by the tile, not a context command");
                 pane.ActivateIndex(0, true); Pump(.05);
                 const int selected = pane.IsGrid() ? grid.Selection() : pane.GetNextItem(-1, LVNI_SELECTED);
                 Require(pane.mFolder == folder && pane.mViewStep == mode && selected >= 0 &&
                     pane.mEntries[selected].path == child, "parent tile reveals child folder at every thumbnail size");
+                Require((pane.IsGrid() ? grid.Label(selected) : pane.GetItemText(selected, 0)) == L"[\xD558\xC704 folder]",
+                    "Unicode child directory uses bracket notation without decorative artwork");
+                if (pane.IsGrid())
+                    Require(grid.Tooltip(selected) == L"\xD558\xC704 folder",
+                        "grid folder tooltip preserves the original unadorned name");
                 CMenu folderMenu; pane.BuildContextMenu(folderMenu, selected);
                 Require(folderMenu.GetMenuState(CThumbnailPane::CMD_COPY, MF_BYCOMMAND) != UINT(-1), "folder menu provides real file copy");
                 pane.ActivateIndex(selected, true); Pump(.05);

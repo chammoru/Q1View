@@ -149,86 +149,43 @@ void CGalleryGridCanvas::QueueVisible() {
 }
 CString CGalleryGridCanvas::Label(int index) const {
     const auto& entry = mOwner.mEntries[index];
+    if (entry.kind == CThumbnailPane::ENTRY_PARENT) return _T("[..]");
+    if (entry.kind == CThumbnailPane::ENTRY_DIR) {
+        CString path = entry.path; path.TrimRight(_T("\\"));
+        CString name = PathFindFileName(path);
+        name = name.IsEmpty() ? path : name;
+        return _T("[") + name + _T("]");
+    }
+    CString ext = PathFindExtension(mOwner.mEntries[index].path);
+    if (!ext.IsEmpty()) ext = ext.Mid(1);
+    ext.MakeUpper(); return ext.Left(12);
+}
+CString CGalleryGridCanvas::Tooltip(int index) const {
+    const auto& entry = mOwner.mEntries[index];
     if (entry.kind == CThumbnailPane::ENTRY_PARENT) return _T("..");
     if (entry.kind == CThumbnailPane::ENTRY_DIR) {
         CString path = entry.path; path.TrimRight(_T("\\"));
         CString name = PathFindFileName(path);
         return name.IsEmpty() ? path : name;
     }
-    CString ext = PathFindExtension(mOwner.mEntries[index].path);
-    if (!ext.IsEmpty()) ext = ext.Mid(1);
-    ext.MakeUpper(); return ext.Left(12);
+    return entry.path;
 }
 void CGalleryGridCanvas::DrawFolderCardGpu(int index, const q1view::GalleryRect& r) {
-    const bool parent = mOwner.mEntries[index].kind == CThumbnailPane::ENTRY_PARENT;
-    const float pad = std::max(4.0f, r.size * .13f);
-    const float labelTop = r.y + r.size * .70f;
-    const float bodyTop = r.y + r.size * .28f;
-    const float bodyBottom = r.y + r.size * .64f;
-    const float radius = std::max(2.0f, r.size * .045f);
-    const D2D1_RECT_F bodyRect = D2D1::RectF(r.x + pad, bodyTop, r.x + r.size - pad, bodyBottom);
-    const D2D1_RECT_F tabRect = D2D1::RectF(r.x + pad + r.size * .04f, r.y + r.size * .20f,
-        r.x + pad + r.size * .34f, bodyTop + radius);
-    const auto body = D2D1::RoundedRect(bodyRect, radius, radius);
-    const auto tab = D2D1::RoundedRect(tabRect, radius, radius);
-
-    // Parent and child directories share one quiet, thumbnail-sized folder card.
-    // The only distinction is the small vector up-arrow inside the parent card.
-    mBrush->SetColor(Color(Q1UI_COLOR_SURFACE)); mContext->FillRectangle(Bounds(r), mBrush.Get());
-    mBrush->SetColor(Color(Q1UI_COLOR_ACCENT_SOFT));
-    mContext->FillRoundedRectangle(tab, mBrush.Get());
-    mContext->FillRoundedRectangle(body, mBrush.Get());
-    mBrush->SetColor(Color(Q1UI_COLOR_ACCENT));
-    const float stroke = std::max(1.0f, r.size * .014f);
-    mContext->DrawRoundedRectangle(tab, mBrush.Get(), stroke);
-    mContext->DrawRoundedRectangle(body, mBrush.Get(), stroke);
-    if (parent) {
-        const float cx = r.x + r.size * .5f;
-        const float top = bodyTop + r.size * .08f;
-        const float bottom = bodyBottom - r.size * .08f;
-        const float wing = r.size * .075f;
-        mContext->DrawLine(D2D1::Point2F(cx, bottom), D2D1::Point2F(cx, top), mBrush.Get(), stroke * 1.5f);
-        mContext->DrawLine(D2D1::Point2F(cx, top), D2D1::Point2F(cx - wing, top + wing), mBrush.Get(), stroke * 1.5f);
-        mContext->DrawLine(D2D1::Point2F(cx, top), D2D1::Point2F(cx + wing, top + wing), mBrush.Get(), stroke * 1.5f);
-    }
+    const float pad = std::max(4.0f, r.size * .08f);
+    mBrush->SetColor(Color(Q1UI_COLOR_SURFACE));
+    mContext->FillRectangle(Bounds(r), mBrush.Get());
     CString label = Label(index);
-    mBrush->SetColor(Color(Q1UI_COLOR_TEXT));
-    const D2D1_RECT_F labelRect = D2D1::RectF(r.x + pad * .5f, labelTop,
-        r.x + r.size - pad * .5f, r.y + r.size - std::max(2.0f, r.size * .04f));
+    mBrush->SetColor(Color(Q1UI_COLOR_ACCENT));
+    const D2D1_RECT_F labelRect = D2D1::RectF(r.x + pad, r.y + pad,
+        r.x + r.size - pad, r.y + r.size - pad);
     mContext->DrawText(label, label.GetLength(), mText.Get(), labelRect, mBrush.Get(), D2D1_DRAW_TEXT_OPTIONS_CLIP);
 }
 void CGalleryGridCanvas::DrawFolderCardFallback(CDC& dc, int index, const CRect& rect) {
-    const bool parent = mOwner.mEntries[index].kind == CThumbnailPane::ENTRY_PARENT;
-    const int size = std::max(1, rect.Width());
-    const int pad = std::max(4, int(size * .13f));
-    const int radius = std::max(2, int(size * .045f));
-    const int bodyTop = rect.top + int(size * .28f);
-    const int bodyBottom = rect.top + int(size * .64f);
-    CRect body(rect.left + pad, bodyTop, rect.right - pad, bodyBottom);
-    CRect tab(rect.left + pad + int(size * .04f), rect.top + int(size * .20f),
-        rect.left + pad + int(size * .34f), bodyTop + radius);
-
     dc.FillSolidRect(rect, Q1UI_COLOR_SURFACE);
-    CBrush fill(Q1UI_COLOR_ACCENT_SOFT);
-    CPen outline(PS_SOLID, std::max(1, int(size * .014f)), Q1UI_COLOR_ACCENT);
-    CBrush* oldBrush = dc.SelectObject(&fill);
-    CPen* oldPen = dc.SelectObject(&outline);
-    dc.RoundRect(tab, CPoint(radius, radius));
-    dc.RoundRect(body, CPoint(radius, radius));
-    if (parent) {
-        const int cx = rect.left + size / 2;
-        const int top = bodyTop + int(size * .08f);
-        const int bottom = bodyBottom - int(size * .08f);
-        const int wing = std::max(3, int(size * .075f));
-        dc.MoveTo(cx, bottom); dc.LineTo(cx, top);
-        dc.MoveTo(cx, top); dc.LineTo(cx - wing, top + wing);
-        dc.MoveTo(cx, top); dc.LineTo(cx + wing, top + wing);
-    }
-    dc.SelectObject(oldBrush); dc.SelectObject(oldPen);
-    dc.SetBkMode(TRANSPARENT); dc.SetTextColor(Q1UI_COLOR_TEXT);
-    CFont* oldFont = dc.SelectObject(&mOwner.mLabelFont);
-    CRect label(rect.left + pad / 2, rect.top + int(size * .70f), rect.right - pad / 2,
-        rect.bottom - std::max(2, int(size * .04f)));
+    dc.SetBkMode(TRANSPARENT); dc.SetTextColor(Q1UI_COLOR_ACCENT);
+    CFont* oldFont = dc.SelectObject(&mOwner.mFolderFont);
+    const int pad = std::max(4, int(rect.Width() * .08f));
+    CRect label = rect; label.DeflateRect(pad, pad);
     dc.DrawText(Label(index), label, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
     dc.SelectObject(oldFont);
 }
@@ -237,7 +194,7 @@ void CGalleryGridCanvas::DropDevice() {
     if (mContext) mContext->SetTarget(nullptr);
     mTarget.Reset(); mBrush.Reset(); mContext.Reset(); mD2Device.Reset();
     mSwapChain.Reset(); mImmediate.Reset(); mDevice.Reset(); mFactory.Reset();
-    mText.Reset(); mWriteFactory.Reset(); mWidth = mHeight = 0;
+    mText.Reset(); mBadgeText.Reset(); mFontCollection.Reset(); mWriteFactory.Reset(); mWidth = mHeight = 0;
 }
 bool CGalleryGridCanvas::EnsureDevice(int width, int height) {
     if (width <= 0 || height <= 0) return false;
@@ -266,10 +223,33 @@ bool CGalleryGridCanvas::EnsureDevice(int width, int height) {
         if (FAILED(mContext->CreateSolidColorBrush(Color(Q1UI_COLOR_ACCENT), &mBrush))) return false;
         if (FAILED(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
             reinterpret_cast<IUnknown**>(mWriteFactory.GetAddressOf())))) return false;
-        if (FAILED(mWriteFactory->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_SEMI_BOLD,
-            DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 13 * GetDpiForWindow(m_hWnd) / 96.0f, L"en-us", &mText))) return false;
+        const wchar_t* family = Q1UI_FONT_TEXT;
+        IDWriteFontCollection* collection = nullptr;
+        if (mOwner.mPrivateFontLoaded && !mOwner.mFontPath.IsEmpty()) {
+            Ptr<IDWriteFactory3> factory3;
+            Ptr<IDWriteFontFile> file;
+            Ptr<IDWriteFontFaceReference> face;
+            Ptr<IDWriteFontSetBuilder> builder;
+            Ptr<IDWriteFontSet> set;
+            if (SUCCEEDED(mWriteFactory.As(&factory3)) &&
+                SUCCEEDED(factory3->CreateFontFileReference(mOwner.mFontPath, nullptr, &file)) &&
+                SUCCEEDED(factory3->CreateFontFaceReference(file.Get(), 0, DWRITE_FONT_SIMULATIONS_NONE, &face)) &&
+                SUCCEEDED(factory3->CreateFontSetBuilder(&builder)) &&
+                SUCCEEDED(builder->AddFontFaceReference(face.Get())) &&
+                SUCCEEDED(builder->CreateFontSet(&set)) &&
+                SUCCEEDED(factory3->CreateFontCollectionFromFontSet(set.Get(), &mFontCollection))) {
+                family = mOwner.mFontFamily;
+                collection = mFontCollection.Get();
+            }
+        }
+        if (FAILED(mWriteFactory->CreateTextFormat(family, collection, DWRITE_FONT_WEIGHT_MEDIUM,
+            DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 13 * GetDpiForWindow(m_hWnd) / 96.0f, L"ko-kr", &mText))) return false;
         mText->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
         mText->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+        if (FAILED(mWriteFactory->CreateTextFormat(family, collection, DWRITE_FONT_WEIGHT_SEMI_BOLD,
+            DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 12 * GetDpiForWindow(m_hWnd) / 96.0f, L"ko-kr", &mBadgeText))) return false;
+        mBadgeText->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+        mBadgeText->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
         mContext->SetDpi(96, 96); // layout and pointer coordinates are physical pixels
         LOGINF("%s", "Gallery Direct2D/D3D11 renderer active");
     }
@@ -320,7 +300,7 @@ bool CGalleryGridCanvas::PaintGpu(const std::vector<int>& visible, double now, b
             mBrush->SetColor(Color(Q1UI_COLOR_SURFACE)); mContext->FillRectangle(Bounds(r), mBrush.Get());
             CString label = Label(i); mBrush->SetColor(Color(Q1UI_COLOR_TEXT));
             auto rect = Bounds(r);
-            mContext->DrawText(label, label.GetLength(), mText.Get(), rect, mBrush.Get(), D2D1_DRAW_TEXT_OPTIONS_CLIP);
+            mContext->DrawText(label, label.GetLength(), mBadgeText.Get(), rect, mBrush.Get(), D2D1_DRAW_TEXT_OPTIONS_CLIP);
         }
         if (i == mSelected || i == mHover) {
             mBrush->SetColor(Color(i == mSelected ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_TEXT));
@@ -357,7 +337,9 @@ void CGalleryGridCanvas::PaintFallback(CDC& dc, const std::vector<int>& visible,
             DrawFolderCardFallback(memory, i, rect);
         } else {
             memory.FillSolidRect(rect, Q1UI_COLOR_SURFACE);
+            CFont* oldFont = memory.SelectObject(&mOwner.mExtFont);
             memory.DrawText(Label(i), rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            memory.SelectObject(oldFont);
         }
         if (i == mSelected || i == mHover) {
             COLORREF color = i == mSelected ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_TEXT;
@@ -444,7 +426,7 @@ void CGalleryGridCanvas::OnMouseMove(UINT, CPoint point) {
     int hit = mLayout.Hit(float(point.x), float(point.y), Now());
     if (hit != mHover) {
         mHover = hit; Invalidate(FALSE);
-        mTooltip.UpdateTipText(hit >= 0 ? mOwner.mEntries[hit].path.GetString() : _T(""), this, 1);
+        mTooltip.UpdateTipText(hit >= 0 ? Tooltip(hit).GetString() : _T(""), this, 1);
     }
     TRACKMOUSEEVENT track = { sizeof(track), TME_LEAVE, m_hWnd, 0 }; TrackMouseEvent(&track);
 }
