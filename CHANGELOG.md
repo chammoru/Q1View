@@ -8,6 +8,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.19] — 2026-09-11
+
+### Changed
+- Viewer: make thumbnail grids media-focused by hiding documents, archives, raw inputs, and videos that cannot produce a useful preview while retaining broken supported images and the complete compact list; replace decorative folder artwork with accent-colored `[Folder name]` and `[..]` typography; and bundle Pretendard Variable for balanced 13 px Korean/Latin labels with DPI-aware sizing in the MFC and Qt drawers. (issue #100)
+
+---
+
 ## [2.7.18] — 2026-09-09
 
 ### Added
@@ -399,7 +406,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.18...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.19...HEAD
+[2.7.19]: https://github.com/chammoru/Q1View/compare/v2.7.18...v2.7.19
 [2.7.18]: https://github.com/chammoru/Q1View/compare/v2.7.17...v2.7.18
 [2.7.17]: https://github.com/chammoru/Q1View/compare/v2.7.16...v2.7.17
 [2.7.16]: https://github.com/chammoru/Q1View/compare/v2.7.15...v2.7.16
