@@ -451,8 +451,12 @@ struct GalleryIntegrationTests {
                         "grid folder tooltip preserves the original unadorned name");
                 CMenu folderMenu; pane.BuildContextMenu(folderMenu, selected);
                 Require(folderMenu.GetMenuState(CThumbnailPane::CMD_COPY, MF_BYCOMMAND) != UINT(-1), "folder menu provides real file copy");
-                pane.ActivateIndex(selected, true); Pump(.05);
-                Require(pane.mFolder == child, "folder activation navigates without opening media");
+                pane.ActivateIndex(selected, true);
+                // Model the same-folder rebuild caused when an asynchronous
+                // video preview is rejected between the click and its posted
+                // activation message. The captured folder action must survive.
+                pane.Populate(pane.mFolder, child); Pump(.05);
+                Require(pane.mFolder == child, "folder activation survives a same-folder asynchronous refresh");
                 MSG up = {}; up.hwnd = pane.GetSafeHwnd(); up.message = WM_KEYDOWN; up.wParam = VK_BACK;
                 Require(pane.PreTranslateMessage(&up) && pane.mFolder == folder, "Backspace remains a parent-navigation shortcut");
                 CMenu background; pane.BuildContextMenu(background, -1);

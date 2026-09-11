@@ -154,6 +154,7 @@ private:
 	};
 	std::vector<Entry> mEntries;       // item index -> entry
 	Entry      mPending;               // deferred load/navigate target
+	CString    mPendingFolder;         // source folder, distinguishes refresh from navigation
 	unsigned   mPendingGeneration = 0;
 	CString    mFolder;                // folder currently listed (trailing '\\')
 	int        mLoadingImg;            // image index shown while a thumb decodes

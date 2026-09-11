@@ -855,15 +855,33 @@ void CThumbnailPane::ActivateIndex(int index, bool allowNavigate)
 	// click/return notification) would repopulate the list while it is still
 	// using the clicked item, which can crash. Capture by value, run after.
 	mPending = e;
+	mPendingFolder = mFolder;
 	mPendingGeneration = mGen.load();
 	PostMessage(WM_DRAWER_ACTIVATE, mPendingGeneration);
 }
 
 LRESULT CThumbnailPane::OnActivatePosted(WPARAM wParam, LPARAM /*lParam*/)
 {
-	if (wParam != mGen.load() || wParam != mPendingGeneration) return 0;
+	if (wParam != mPendingGeneration) return 0;
+	if (wParam != mGen.load()) {
+		// An asynchronous preview failure can rebuild this same folder before the
+		// deferred click is dispatched. The captured entry is still safe when it
+		// remains in that folder; a real navigation (or a removed entry) must keep
+		// invalidating the old request.
+		const bool sameFolder = mPendingFolder.CompareNoCase(mFolder) == 0;
+		const bool stillPresent = sameFolder && std::any_of(mEntries.begin(), mEntries.end(),
+			[this](const Entry &entry) {
+				return entry.kind == mPending.kind && entry.path.CompareNoCase(mPending.path) == 0;
+			});
+		if (!stillPresent) {
+			mPendingGeneration = 0;
+			mPendingFolder.Empty();
+			return 0;
+		}
+	}
 	Entry e = mPending;
 	mPendingGeneration = 0;
+	mPendingFolder.Empty();
 	if (GetFileAttributes(e.path) == INVALID_FILE_ATTRIBUTES) return 0;
 	if (e.kind == ENTRY_FILE) {
 		// Opening routes through CViewerDoc::OnOpenDocument (raw files included).
