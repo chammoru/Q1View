@@ -1,12 +1,10 @@
 // ThumbnailPane.h : left-side thumbnail explorer drawer for the Viewer.
 //
-// A compact CListCtrl hosting a separate GPU gallery canvas. Lists every file in
-// the folder of the current
-// document -- the same set the main view pages through with PgUp/PgDn -- so the
-// drawer selection always tracks the current file. Images and videos get an
-// asynchronously decoded thumbnail; raw formats (whose pixel layout can't be
-// guessed) and any other type get a labeled extension badge. Clicking / pressing
-// Enter on an item opens it in the main view.
+// A compact CListCtrl hosting a separate GPU gallery canvas. Compact mode lists
+// every file in the current document's folder so selection tracks PgUp/PgDn.
+// Grid modes retain folders, supported images, and only videos for which an
+// asynchronous decode produces a useful preview. Clicking / pressing Enter on
+// a file opens it in the main view.
 
 #pragma once
 
@@ -62,7 +60,7 @@ public:
 	// false re-fits once at the final width without rebuilding folder entries.
 	void SetResizing(bool on);
 
-	// Owner-drawn rows: thumbnail / extension badge / plain folder text.
+	// Owner-drawn rows: thumbnail / extension badge / bracketed folder text.
 	virtual void DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct);
 
 protected:
@@ -78,6 +76,7 @@ protected:
 	afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar);
 	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	afx_msg LRESULT OnDpiChanged(WPARAM, LPARAM);
 	afx_msg LRESULT OnThumbReady(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnActivatePosted(WPARAM wParam, LPARAM lParam);
 
@@ -91,6 +90,8 @@ private:
 	struct Result { unsigned gen; int index; int size; HBITMAP hbmp; };
 
 	void Populate(const CString &folder, const CString &current);
+	void RebuildFonts(UINT dpi);
+	bool PreviewRejected(const CString &path) const;
 	void StepFile(bool next);              // PgUp/PgDn: select prev/next file (no open)
 	void NavigateTo(const CString &folder);
 	void ActivateIndex(int index, bool allowNavigate);
@@ -106,8 +107,8 @@ private:
 	void ScheduleVisibleScan();        // debounced QueueVisibleThumbs
 
 	// View-size steps: step 0 is the compact list (report view, names + folders);
-	// steps 1..N are GPU gallery grids of thumbnails and extension badges -- no
-	// media names, plus named folder tiles -- packed N columns wide (step 1 = 5 columns,
+	// steps 1..N are GPU gallery grids of useful media previews plus typographic
+	// folder tiles -- packed N columns wide (step 1 = 5 columns,
 	// each higher step one fewer, down to a single full-width column). Ctrl+wheel
 	// moves between steps; the chosen step is remembered across sessions.
 	static int  ViewStepCount();
@@ -126,7 +127,6 @@ private:
 
 	HBITMAP MakePlaceholder(const CString &ext);            // UI thread
 	int     BadgeForExt(const CString &ext);                // image-list index for a raw badge
-	int     FolderIconIndex();                              // image-list index for a folder tile
 	// crop = fill the square tile (center-crop, no letterbox); else fit + center.
 	static HBITMAP DecodeThumbnail(const CString &path, int size, bool crop, COLORREF bg); // worker
 	static HBITMAP DecodeThumbnailShell(const CString &path, int size, bool crop, COLORREF bg);
@@ -134,7 +134,11 @@ private:
 
 	CImageList mImages;
 	CFont      mLabelFont;
+	CFont      mFolderFont;
 	CFont      mExtFont;
+	CString    mFontPath;
+	CString    mFontFamily;
+	bool       mPrivateFontLoaded = false;
 	int        mThumb;                 // icon edge size in px (follows mViewStep)
 	int        mViewStep;              // 0 = list, >=1 = grid step
 	int        mSlideWidth;            // >0 while open/close sliding: lay out for this width
@@ -150,11 +154,12 @@ private:
 	};
 	std::vector<Entry> mEntries;       // item index -> entry
 	Entry      mPending;               // deferred load/navigate target
+	CString    mPendingFolder;         // source folder, distinguishes refresh from navigation
 	unsigned   mPendingGeneration = 0;
 	CString    mFolder;                // folder currently listed (trailing '\\')
 	int        mLoadingImg;            // image index shown while a thumb decodes
-	int        mFolderImg;             // image index for folder/parent tiles (grid)
 	std::map<CString, int> mBadgeByExt; // extension -> image-list badge index
+	std::vector<CString>   mRejectedPreviews; // non-image media that failed extraction in this folder
 
 	std::map<CString, HBITMAP> mCache;
 	std::list<CString>         mCacheOrder;

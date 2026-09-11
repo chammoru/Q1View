@@ -111,7 +111,8 @@ if(Q1VIEW_BUILD_QT_VIEWER)
         # Windows WM_COPYDATA broadcast).
         ViewerQt/SyncChannel.cpp
         ViewerQt/SyncChannel.h
-        # Qt resource bundle: ships the window/taskbar icon (see main.cpp).
+        # Qt resource bundle: ships the window/taskbar icon and the private
+        # Pretendard drawer font (see main.cpp).
         ViewerQt/q1view.qrc
     )
 
@@ -142,13 +143,21 @@ if(Q1VIEW_BUILD_QT_VIEWER)
     # it) so both the Qt6 and Qt5 paths compile.
     target_compile_features(q1view_viewer_qt PRIVATE cxx_std_17)
     enable_testing()
-    add_test(NAME q1view_qt_drawer COMMAND q1view_viewer_qt --selftest-drawer)
-    if(WIN32)
-        # CF_HDROP needs a real HWND; offscreen supplies no native owner.
-        set_tests_properties(q1view_qt_drawer PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=windows;QT_FORCE_STDERR_LOGGING=1" TIMEOUT 60)
-    else()
-        set_tests_properties(q1view_qt_drawer PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60)
-    endif()
+    foreach(_scale IN ITEMS 100 150 200)
+        math(EXPR _scale_percent "${_scale} / 100")
+        if(_scale EQUAL 150)
+            set(_scale_factor "1.5")
+        else()
+            set(_scale_factor "${_scale_percent}")
+        endif()
+        add_test(NAME q1view_qt_drawer_${_scale}pct COMMAND q1view_viewer_qt --selftest-drawer)
+        if(WIN32)
+            # CF_HDROP needs a real HWND; offscreen supplies no native owner.
+            set_tests_properties(q1view_qt_drawer_${_scale}pct PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=windows;QT_FORCE_STDERR_LOGGING=1;QT_SCALE_FACTOR=${_scale_factor}" TIMEOUT 60)
+        else()
+            set_tests_properties(q1view_qt_drawer_${_scale}pct PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=${_scale_factor}" TIMEOUT 60)
+        endif()
+    endforeach()
 
     # --- Optional video playback via Qt6::Multimedia -----------------------
     # When the Multimedia / MultimediaWidgets modules are present, the viewer

@@ -4,7 +4,7 @@
 #include <d3d11.h>
 #include <dxgi1_2.h>
 #include <d2d1_1.h>
-#include <dwrite.h>
+#include <dwrite_3.h>
 #include <wrl/client.h>
 #include <map>
 
@@ -64,6 +64,7 @@ private:
     void DrawFolderCardGpu(int index, const q1view::GalleryRect& rect);
     void DrawFolderCardFallback(CDC& dc, int index, const CRect& rect);
     CString Label(int index) const;
+    CString Tooltip(int index) const;
     CThumbnailPane& mOwner;
     q1view::GalleryLayout mLayout;
     int mSelected = -1, mHover = -1, mWheel = 0;
@@ -84,7 +85,9 @@ private:
     Ptr<ID2D1Bitmap1> mTarget;
     Ptr<ID2D1SolidColorBrush> mBrush;
     Ptr<IDWriteFactory> mWriteFactory;
+    Ptr<IDWriteFontCollection1> mFontCollection;
     Ptr<IDWriteTextFormat> mText;
+    Ptr<IDWriteTextFormat> mBadgeText;
     int mWidth = 0, mHeight = 0;
     double mRetryAt = 0;
 };

@@ -15,6 +15,7 @@ inline QColor surface()    { return QColor(0xff, 0xff, 0xff); } // Q1UI_COLOR_SU
 inline QColor surfaceAlt() { return QColor(0xf8, 0xfa, 0xfd); } // Q1UI_COLOR_SURFACE_ALT
 inline QColor border()     { return QColor(0xd8, 0xe0, 0xea); } // Q1UI_COLOR_BORDER
 inline QColor text()       { return QColor(0x1f, 0x29, 0x37); } // Q1UI_COLOR_TEXT
+inline QColor accent()     { return QColor(0x25, 0x66, 0xd9); } // Q1UI_COLOR_ACCENT
 inline QColor accentSoft() { return QColor(0xdb, 0xe7, 0xff); } // Q1UI_COLOR_ACCENT_SOFT
 inline QColor warning()    { return QColor(0xf5, 0x9e, 0x0b); } // Q1UI_COLOR_WARNING
 inline QColor success()    { return QColor(0x16, 0x9b, 0x62); } // Q1UI_COLOR_SUCCESS

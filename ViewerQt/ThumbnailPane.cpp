@@ -54,14 +54,20 @@ ThumbnailPane::ThumbnailPane(QWidget *parent)
 	setSpacing(1);
 	setSelectionMode(QAbstractItemView::SingleSelection);
 	setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	QFont drawerFont(QStringLiteral("Pretendard Variable"));
+	drawerFont.setPixelSize(13);
+	drawerFont.setWeight(QFont::Normal);
+	setFont(drawerFont);
+	QPalette drawerPalette = palette();
+	drawerPalette.setColor(QPalette::Text, q1theme::text());
+	setPalette(drawerPalette);
 	// Drawer colours mirror the MFC pane: a light surface, the accent-soft
 	// selection highlight, and the shared text colour (from q1theme).
 	setStyleSheet(QStringLiteral(
 		"QListWidget { background:%1; border:none; outline:none; }"
-		"QListWidget::item { color:%2; padding:2px 4px; }"
-		"QListWidget::item:selected { background:%3; color:%2; }")
+		"QListWidget::item { padding:2px 4px; }"
+		"QListWidget::item:selected { background:%2; }")
 		.arg(q1theme::hex(q1theme::surfaceAlt()),
-			q1theme::hex(q1theme::text()),
 			q1theme::hex(q1theme::accentSoft())));
 
 	// Decode thumbnails one at a time off the event loop, so opening a folder of
@@ -102,15 +108,23 @@ void ThumbnailPane::populate(const QString &folder, const QString &currentPath)
 	Q_UNUSED(generation);
 
 	QDir dir(folder);
-	const QIcon dirIcon = style()->standardIcon(QStyle::SP_DirIcon);
+	const auto styleDirectory = [](QListWidgetItem *item, const QString &plainName) {
+		QFont font(QStringLiteral("Pretendard Variable"));
+		font.setPixelSize(13);
+		font.setWeight(QFont::Medium);
+		item->setFont(font);
+		item->setForeground(q1theme::accent());
+		item->setToolTip(plainName);
+	};
 
 	// ".." parent entry, unless this is a filesystem root.
 	if (canGoToParent()) {
 		QDir up(folder);
 		if (up.cdUp()) {
-			QListWidgetItem *item = new QListWidgetItem(dirIcon, QStringLiteral(".."), this);
+			QListWidgetItem *item = new QListWidgetItem(QStringLiteral("[..]"), this);
 			item->setData(kKindRole, ParentDir);
 			item->setData(kPathRole, up.absolutePath());
+			styleDirectory(item, QStringLiteral(".."));
 		}
 	}
 
@@ -118,9 +132,10 @@ void ThumbnailPane::populate(const QString &folder, const QString &currentPath)
 	const QFileInfoList dirs = dir.entryInfoList(
 		QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase);
 	for (const QFileInfo &sub : dirs) {
-		QListWidgetItem *item = new QListWidgetItem(dirIcon, sub.fileName(), this);
+		QListWidgetItem *item = new QListWidgetItem(QStringLiteral("[%1]").arg(sub.fileName()), this);
 		item->setData(kKindRole, SubDir);
 		item->setData(kPathRole, sub.absoluteFilePath());
+		styleDirectory(item, sub.fileName());
 	}
 
 	const QFileInfoList files = dir.entryInfoList(
@@ -327,8 +342,9 @@ QIcon ThumbnailPane::placeholderIcon(const QString &label) const
 	p.setPen(QColor(0x5a, 0x60, 0x6e));
 	p.drawRect(0, 0, mThumb - 1, mThumb - 1);
 	QFont f = p.font();
-	f.setBold(true);
-	f.setPixelSize(label.size() > 5 ? 14 : 18);
+	f.setFamily(QStringLiteral("Pretendard Variable"));
+	f.setWeight(QFont::DemiBold);
+	f.setPixelSize(12);
 	p.setFont(f);
 	p.setPen(QColor(0xe5, 0xe7, 0xeb));
 	p.drawText(pm.rect(), Qt::AlignCenter, label);

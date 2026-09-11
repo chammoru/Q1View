@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QFontInfo>
 #include <QUrl>
 #include <QKeyEvent>
 #include <QMenu>
@@ -55,7 +56,14 @@ struct QtDrawerTests {
         QObject::connect(&pane, &ThumbnailPane::fileActivated, [&] { ++activations; });
         pane.setCurrentFile(file); pump(50);
         check(pane.currentItem() != nullptr, "current file selected");
-        check(pane.item(0) && pane.item(0)->text() == "..", "visible parent entry is first in Qt drawer");
+        check(QFontInfo(pane.font()).family().contains("Pretendard", Qt::CaseInsensitive),
+            "bundled Pretendard typography loaded for Qt drawer");
+        check(pane.font().pixelSize() == 13 && pane.font().weight() == QFont::Normal,
+            "Qt file labels use the 13 px regular typography target");
+        check(pane.item(0) && pane.item(0)->text() == "[..]" && pane.item(0)->toolTip() == "..",
+            "typographic parent entry is first in Qt drawer");
+        check(pane.item(0)->font().pixelSize() == 13 && pane.item(0)->font().weight() == QFont::Medium,
+            "Qt directory labels use the 13 px medium typography target");
         std::unique_ptr<QMenu> parentMenu(pane.createContextMenu(pane.item(0)));
         check(parentMenu->isEmpty(), "Qt parent navigation uses the entry, not a context command");
         std::unique_ptr<QMenu> menu(pane.createContextMenu(pane.currentItem()));
@@ -94,10 +102,13 @@ struct QtDrawerTests {
         menu.reset(pane.createContextMenu(pane.currentItem()));
         action(menu.get(), "Open folder")->trigger();
         check(pane.mFolder == child && activations == 0, "folder action never activates media");
-        check(pane.item(0) && pane.item(0)->text() == "..", "parent entry remains visible after folder navigation");
+        check(pane.item(0) && pane.item(0)->text() == "[..]", "parent entry remains visible after folder navigation");
         pane.onItemActivated(pane.item(0));
         check(pane.mFolder == fixture.path() && pane.currentItem() &&
             pane.currentItem()->data(Qt::UserRole + 1).toString() == child, "Qt parent entry returns and reveals child");
+        check(pane.currentItem()->text() == QString::fromUtf8("[\xED\x95\x98\xEC\x9C\x84 folder]") &&
+            pane.currentItem()->toolTip() == QString::fromUtf8("\xED\x95\x98\xEC\x9C\x84 folder"),
+            "Qt Unicode folder uses bracket notation while tooltip keeps its original name");
         pane.navigateTo(child);
         QKeyEvent up(QEvent::KeyPress, Qt::Key_Up, Qt::AltModifier);
         QApplication::sendEvent(&pane, &up);
