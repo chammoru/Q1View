@@ -23,3 +23,7 @@ python build/render_icons.py
 ```
 
 These are original Q1View geometric assets. No third-party artwork is included.
+
+## Windows small-size optical profile
+
+Issue #102 adds an application-only optical profile to the same renderer. Native Viewer and Comparator ICO frames at 16, 24, 32, 48, and 64 px use a slightly stronger Q/1 stroke and roughly five-percent larger inner sky field; 128 and 256 px frames retain the approved proportions above. Store/MSIX application-logo variants use the optical profile consistently at every scale. Photo, video, and raw file-association artwork remains unchanged.
