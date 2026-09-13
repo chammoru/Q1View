@@ -31,8 +31,14 @@ def _scaled_points(points, k):
     return [(int(x * k), int(y * k)) for x, y in points]
 
 
-def render_icon(kind, size):
-    """Render viewer/comparator/photo/video/raw directly at ``size`` pixels."""
+def render_icon(kind, size, app_emphasis=None):
+    """Render viewer/comparator/photo/video/raw directly at ``size`` pixels.
+
+    Native application ICOs use stronger optical geometry through 64 px while
+    retaining the approved 128/256 px proportions. Store application assets use
+    the emphasized geometry at every scale so their logical-size variants match.
+    File-association artwork never enables this profile.
+    """
     if kind not in {"viewer", "comparator", "photo", "video", "raw"}:
         raise ValueError(f"Unknown icon kind: {kind}")
 
@@ -81,16 +87,26 @@ def render_icon(kind, size):
         fill.putalpha(mask)
         img.alpha_composite(fill)
 
-    def q1_layer(small=False):
+    is_app = kind in {"viewer", "comparator"}
+    emphasized = is_app and (size <= 64 if app_emphasis is None else app_emphasis)
+
+    def q1_layer(small=False, emphasize=False):
         mask = Image.new("L", (s, s), 0)
         md = ImageDraw.Draw(mask)
-        stroke = int((30 if small else 23) * k)
+        stroke = int(((32 if small else 25) if emphasize else
+                      (30 if small else 23)) * k)
         md.rounded_rectangle(tuple(int(v * k) for v in (3, 6, 207, 220)),
                              radius=int(49 * k), outline=255,
                              width=max(1, stroke))
         md.line(_scaled_points([(171, 184), (199, 212)], k), fill=255,
                 width=max(1, stroke), joint="curve")
-        if small:
+        if emphasize and small:
+            one = [(199, 41), (219, 20), (249, 20), (249, 216),
+                   (219, 216), (219, 52), (199, 68)]
+        elif emphasize:
+            one = [(204, 41), (224, 20), (249, 20), (249, 216),
+                   (224, 216), (224, 52), (204, 68)]
+        elif small:
             one = [(202, 43), (221, 22), (249, 22), (249, 214),
                    (221, 214), (221, 53), (202, 68)]
         else:
@@ -131,10 +147,15 @@ def render_icon(kind, size):
         img.alpha_composite(mark, (int(82 * k), int(25 * k)))
         return img.resize((size, size), Image.Resampling.LANCZOS)
 
-    gradient_rr((13, 17, 200, 211), 38, SKY_TOP, SKY_BOTTOM)
-    img.alpha_composite(q1_layer(small=size <= 32))
-    holes = (38, 94, 158) if size <= 32 else (32, 74, 120, 164)
-    hole_w = 18 if size <= 32 else 16
+    sky = (8, 12, 205, 216) if emphasized else (13, 17, 200, 211)
+    gradient_rr(sky, 40 if emphasized else 38, SKY_TOP, SKY_BOTTOM)
+    img.alpha_composite(q1_layer(small=size <= 32, emphasize=emphasized))
+    if emphasized:
+        holes = (35, 93, 159) if size <= 32 else (28, 72, 119, 166)
+        hole_w = 19 if size <= 32 else 17
+    else:
+        holes = (38, 94, 158) if size <= 32 else (32, 74, 120, 164)
+        hole_w = 18 if size <= 32 else 16
     for x in holes:
         rr((x, 27, x + hole_w, 41), 3, "#E5FCFF")
         rr((x, 185, x + hole_w, 199), 3, "#E6DCFF")
@@ -197,19 +218,19 @@ def write_msix_assets():
     }
     for base, variants in square.items():
         for pixels, suffix in variants:
-            render_icon("viewer", pixels).save(ASSETS / f"{base}{suffix}.png")
+            render_icon("viewer", pixels, app_emphasis=True).save(ASSETS / f"{base}{suffix}.png")
 
     for width, height, suffix in ((310, 150, ""), (388, 188, ".scale-125"),
                                   (465, 225, ".scale-150"),
                                   (620, 300, ".scale-200"),
                                   (1240, 600, ".scale-400")):
-        tile = render_icon("viewer", height)
+        tile = render_icon("viewer", height, app_emphasis=True)
         canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         canvas.alpha_composite(tile, ((width - height) // 2, 0))
         canvas.save(ASSETS / f"Wide310x150Logo{suffix}.png")
 
     for pixels in (16, 24, 32, 48, 256):
-        icon = render_icon("viewer", pixels)
+        icon = render_icon("viewer", pixels, app_emphasis=True)
         for suffix in ("", "_altform-unplated", "_altform-lightunplated"):
             icon.save(ASSETS / f"Square44x44Logo.targetsize-{pixels}{suffix}.png")
 
@@ -240,15 +261,21 @@ def _q1_svg(indent="    "):
 {indent}<polygon points="207,43 226,22 249,22 249,214 226,214 226,53 207,68" fill="url(#brand)"/>'''
 
 
+def _app_q1_svg(indent="    "):
+    return f'''{indent}<rect x="3" y="6" width="204" height="214" rx="49" fill="none" stroke="url(#brand)" stroke-width="25"/>
+{indent}<line x1="171" y1="184" x2="199" y2="212" stroke="url(#brand)" stroke-width="25" stroke-linecap="round"/>
+{indent}<polygon points="204,41 224,20 249,20 249,216 224,216 224,52 204,68" fill="url(#brand)"/>'''
+
+
 def app_svg(kind):
     comparator = kind == "comparator"
     content = [_svg_header(kind),
                '  <g transform="matrix(1 0 0 1.075630 0 5.378151)">',
-               '    <rect x="13" y="17" width="187" height="194" rx="38" fill="url(#sky)"/>',
-               _q1_svg()]
-    for x in (32, 74, 120, 164):
-        content.append(f'    <rect x="{x}" y="27" width="16" height="14" rx="3" fill="#E5FCFF"/>')
-        content.append(f'    <rect x="{x}" y="185" width="16" height="14" rx="3" fill="#E6DCFF"/>')
+               '    <rect x="8" y="12" width="197" height="204" rx="40" fill="url(#sky)"/>',
+               _app_q1_svg()]
+    for x in (28, 72, 119, 166):
+        content.append(f'    <rect x="{x}" y="27" width="17" height="14" rx="3" fill="#E5FCFF"/>')
+        content.append(f'    <rect x="{x}" y="185" width="17" height="14" rx="3" fill="#E6DCFF"/>')
     if comparator:
         content += ['    <polygon points="22,184 66,118 104,184" fill="url(#mint)"/>',
                     '    <polygon points="110,184 154,118 192,184" fill="url(#lavender)"/>',
@@ -312,6 +339,24 @@ def verify_outputs():
         for size in ICO_SIZES:
             if render_icon(kind, size).getchannel("A").getbbox() is None:
                 raise RuntimeError(f"{kind} {size}px rendered empty")
+
+    # Native app icons intentionally use the optical profile only where Windows
+    # presents them small. Large inspection masters retain the approved shape,
+    # and document icons ignore the app-only flag at every size.
+    for kind in ("viewer", "comparator"):
+        for size in (16, 24, 32, 48, 64):
+            if png_bytes(render_icon(kind, size)) == png_bytes(
+                    render_icon(kind, size, app_emphasis=False)):
+                raise RuntimeError(f"{kind} {size}px missed optical emphasis")
+        for size in (128, 256):
+            if png_bytes(render_icon(kind, size)) != png_bytes(
+                    render_icon(kind, size, app_emphasis=False)):
+                raise RuntimeError(f"{kind} {size}px should retain approved proportions")
+    for kind in ("photo", "video", "raw"):
+        for size in ICO_SIZES:
+            if png_bytes(render_icon(kind, size)) != png_bytes(
+                    render_icon(kind, size, app_emphasis=True)):
+                raise RuntimeError(f"{kind} {size}px received app-only emphasis")
 
     required = ("Square44x44Logo.png", "Square150x150Logo.png",
                 "Wide310x150Logo.png", "StoreLogo.png", "FilePhotoLogo.png",

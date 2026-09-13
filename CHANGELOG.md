@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Changed
+- Windows: increase the optical weight of the Viewer and Comparator Q1 application marks at native 16–64 px sizes and across Store/MSIX app-logo variants, while preserving the approved 128/256 px proportions and leaving photo, video, and raw file-association icons unchanged. (issue #102)
+
 ---
 
 ## [2.7.19] — 2026-09-11
