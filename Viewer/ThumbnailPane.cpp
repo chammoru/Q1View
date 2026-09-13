@@ -13,6 +13,7 @@
 #include "Viewer.h"
 #include "ThumbnailPane.h"
 #include "GalleryGridCanvas.h"
+#include "MainFrm.h"
 #include "ViewerDoc.h"
 
 #include "QViewerCmn.h"
@@ -632,18 +633,18 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 	int row = 0;
 
 	if (folder.IsEmpty()) {
-		// Top level: list the logical drives so any directory is reachable (list
-		// step only -- there are no images to show in a grid here).
-		if (!grid) {
-			TCHAR buf[512] = {0, };
-			::GetLogicalDriveStrings(_countof(buf) - 1, buf);
-			for (TCHAR *d = buf; *d; d += lstrlen(d) + 1) {
+		// The drive chooser is available in both presentation modes.  This makes
+		// switching volumes possible even when the drawer is currently a grid.
+		TCHAR buf[512] = {0, };
+		::GetLogicalDriveStrings(_countof(buf) - 1, buf);
+		for (TCHAR *d = buf; *d; d += lstrlen(d) + 1) {
+			if (!grid) {
 				CString label = _T("[") + CString(d) + _T("]");
 				InsertItem(row, label, -1);
-				Entry e; e.kind = ENTRY_DIR; e.path = d; e.img = -1; e.queued = false; e.badge = false;
-				mEntries.push_back(e);
-				row++;
 			}
+			Entry e; e.kind = ENTRY_DIR; e.path = d; e.img = -1; e.queued = false; e.badge = true;
+			mEntries.push_back(e);
+			row++;
 		}
 	} else {
 		// Collect sub-directories and supported files separately.
@@ -680,7 +681,6 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 			mEntries.push_back(pe);
 			row++;
 		}
-
 			for (size_t i = 0; i < dirs.size(); i++) {
 				if (!grid) {
 					CString label = _T("[") + CString(PathFindFileName(dirs[i])) + _T("]");
@@ -759,13 +759,25 @@ bool CThumbnailPane::GoToParent()
 {
 	const CString child = mFolder;
 	const CString parent = ParentFolderOf(child);
-	if (parent.IsEmpty() || !PathIsDirectory(parent)) return false;
+	if (parent.IsEmpty()) {
+		// A drive/share root has no filesystem parent, but Backspace/Alt+Up can
+		// still return to the logical-drive chooser to switch volumes.
+		if (!child.IsEmpty()) {
+			Populate(_T(""), child);
+			return true;
+		}
+		return false;
+	}
+	if (!PathIsDirectory(parent)) return false;
 	Populate(parent, child);
 	return true;
 }
 
 BOOL CThumbnailPane::PreTranslateMessage(MSG* message)
 {
+	CMainFrame *frame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd());
+	if (frame != NULL && frame->TranslateGlobalAccelerator(message))
+		return TRUE;
 	if ((message->message == WM_KEYDOWN && message->wParam == VK_BACK) ||
 		(message->message == WM_SYSKEYDOWN && message->wParam == VK_UP)) {
 		GoToParent();

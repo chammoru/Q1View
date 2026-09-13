@@ -10,6 +10,7 @@
 #include "FileScanThread.h"
 #include "MainFrm.h"
 #include "QViewerCmn.h"
+#include "Q1UiFontWin.h"
 
 // CPosInfoView
 
@@ -30,7 +31,7 @@ CPosInfoView::CPosInfoView()
 	::ZeroMemory(&lf, sizeof(lf));
 	lf.lfHeight = POS_NUM_FONT_H;
 	lf.lfWeight = FW_SEMIBOLD;
-	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
+	::lstrcpy(lf.lfFaceName, q1view::WindowsUiTextFontFamily());
 
 	mPosNumFont.CreateFontIndirect(&lf);
 }
@@ -201,7 +202,7 @@ void CPosInfoView::OnDraw(CDC* pDC)
 	if (!paneL->isAvail() && !paneR->isAvail() || !hasVideo) {
 		LOGFONT lf;
 		mPosNumFont.GetLogFont(&lf);
-		::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
+		::lstrcpy(lf.lfFaceName, q1view::WindowsUiTextFontFamily());
 		lf.lfHeight = 14;
 		lf.lfWeight = FW_SEMIBOLD;
 		CFont labelFont;

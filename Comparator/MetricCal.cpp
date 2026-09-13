@@ -5,6 +5,7 @@
 #include "MetricCal.h"
 
 #include "QMath.h"
+#include "Q1UiFontWin.h"
 
 #include "qimage_metrics.h"
 
@@ -20,7 +21,7 @@ MetricCal::MetricCal()
 , mFrameIdx(0)
 , mViewStartFrame(0)
 , mViewEndFrame(0)
-, mAvgFont(new Font(&FontFamily(Q1UI_FONT_TEXT), 9))
+, mAvgFont(new Font(&FontFamily(q1view::WindowsUiTextFontFamily()), 9))
 , mMetricIdx(METRIC_PSNR_IDX)
 {
 	for (int i = 0; i < QPLANES; i++) {

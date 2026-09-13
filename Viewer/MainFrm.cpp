@@ -599,6 +599,15 @@ BOOL CMainFrame::PreTranslateMessage(MSG *pMsg)
 	return CFrameWnd::PreTranslateMessage(pMsg);
 }
 
+BOOL CMainFrame::TranslateGlobalAccelerator(MSG *pMsg)
+{
+	if (pMsg == NULL || m_hAccelTable == NULL)
+		return FALSE;
+	if (pMsg->message != WM_KEYDOWN && pMsg->message != WM_SYSKEYDOWN)
+		return FALSE;
+	return ::TranslateAccelerator(m_hWnd, m_hAccelTable, pMsg);
+}
+
 void CMainFrame::OnUpdateFrameTitle(BOOL bAddToTitle)
 {
 	if ((GetStyle() & FWS_ADDTOTITLE) == 0)

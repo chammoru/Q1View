@@ -12,6 +12,7 @@
 #include "FileScanThread.h"
 #include "FrmCmpStrategy.h"
 #include "MetricCal.h"
+#include "Q1UiFontWin.h"
 
 #include "QDebug.h"
 
@@ -31,7 +32,7 @@ CFrmsInfoView::CFrmsInfoView()
 
 	::ZeroMemory(&lf, sizeof(lf));
 	lf.lfHeight = LABEL_FONT_H;
-	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
+	::lstrcpy(lf.lfFaceName, q1view::WindowsUiTextFontFamily());
 
 	mLabelFont.CreateFontIndirect(&lf);
 
