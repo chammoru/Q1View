@@ -14,6 +14,7 @@
 #include "QDebug.h"
 
 #include "QViewerCmn.h"
+#include "Q1UiFontWin.h"
 #include "QViewerShortcuts.h"
 #include "qimage_cs.h"
 #include "qimage_util.h"
@@ -246,7 +247,7 @@ CViewerView::CViewerView()
 	lf.lfHeight = PROGRESS_FONT_H;
 	lf.lfWeight = FW_SEMIBOLD;
 
-	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
+	::lstrcpy(lf.lfFaceName, q1view::WindowsUiTextFontFamily());
 	mProgressFont.CreateFontIndirect(&lf);
 
 	lf.lfWeight = FW_NORMAL;
@@ -1212,7 +1213,7 @@ void CViewerView::DrawEmptyState(CDC *pDC)
 
 	LOGFONT lf;
 	mConsolasFont.GetLogFont(&lf);
-	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
+	::lstrcpy(lf.lfFaceName, q1view::WindowsUiTextFontFamily());
 
 	CFont titleFont;
 	lf.lfHeight = 22;

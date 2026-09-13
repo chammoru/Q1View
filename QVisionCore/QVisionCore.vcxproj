@@ -42,6 +42,7 @@
     <ClInclude Include="QDerivative.h" />
     <ClInclude Include="QOcv.h" />
     <ClInclude Include="QImageStr.h" />
+    <ClInclude Include="Q1UiFontWin.h" />
     <ClInclude Include="QViewerCmn.h" />
     <ClInclude Include="qimage_cs.h" />
     <ClInclude Include="qimage_metrics.h" />

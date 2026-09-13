@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "GalleryGridCanvas.h"
 #include "ThumbnailPane.h"
+#include "MainFrm.h"
 #include "QViewerCmn.h"
 #include "QDebug.h"
 #include <shlwapi.h>
@@ -178,7 +179,16 @@ void CGalleryGridCanvas::DrawFolderCardGpu(int index, const q1view::GalleryRect&
     mBrush->SetColor(Color(Q1UI_COLOR_ACCENT));
     const D2D1_RECT_F labelRect = D2D1::RectF(r.x + pad, r.y + pad,
         r.x + r.size - pad, r.y + r.size - pad);
-    mContext->DrawText(label, label.GetLength(), mText.Get(), labelRect, mBrush.Get(), D2D1_DRAW_TEXT_OPTIONS_CLIP);
+    Ptr<IDWriteTextLayout> layout;
+    if (SUCCEEDED(mWriteFactory->CreateTextLayout(label, label.GetLength(), mText.Get(),
+        labelRect.right - labelRect.left, labelRect.bottom - labelRect.top, &layout))) {
+        DWRITE_TRIMMING trimming = { DWRITE_TRIMMING_GRANULARITY_CHARACTER, 0, 0 };
+        Ptr<IDWriteInlineObject> ellipsis;
+        if (SUCCEEDED(mWriteFactory->CreateEllipsisTrimmingSign(mText.Get(), &ellipsis)))
+            layout->SetTrimming(&trimming, ellipsis.Get());
+        layout->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+        mContext->DrawTextLayout(D2D1::Point2F(labelRect.left, labelRect.top), layout.Get(), mBrush.Get());
+    }
 }
 void CGalleryGridCanvas::DrawFolderCardFallback(CDC& dc, int index, const CRect& rect) {
     dc.FillSolidRect(rect, Q1UI_COLOR_SURFACE);
@@ -434,6 +444,8 @@ LRESULT CGalleryGridCanvas::OnMouseLeave(WPARAM, LPARAM) { mTracking = false; mH
 LRESULT CGalleryGridCanvas::OnDpiChanged(WPARAM, LPARAM) { DropDevice(); Relayout(false); return 0; }
 void CGalleryGridCanvas::OnDestroy() { PauseAnimation(); ClearCache(); DropDevice(); CWnd::OnDestroy(); }
 BOOL CGalleryGridCanvas::PreTranslateMessage(MSG* message) {
+    CMainFrame *frame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd());
+    if (frame != NULL && frame->TranslateGlobalAccelerator(message)) return TRUE;
     if ((message->message == WM_KEYDOWN && message->wParam == VK_BACK) ||
         (message->message == WM_SYSKEYDOWN && message->wParam == VK_UP)) {
         mOwner.GoToParent(); return TRUE;

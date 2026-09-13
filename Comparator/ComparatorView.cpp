@@ -14,6 +14,7 @@
 #include "QMath.h"
 
 #include <QViewerCmn.h>
+#include <Q1UiFontWin.h>
 #include <QImageStr.h>
 
 #include <gdiplus.h>
@@ -800,7 +801,7 @@ void CComparatorView::DrawEmptyPane(CDC *pDC, CComparatorDoc *pDoc)
 
 	LOGFONT lf;
 	mDefPixelTextFont.GetLogFont(&lf);
-	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
+	::lstrcpy(lf.lfFaceName, q1view::WindowsUiTextFontFamily());
 
 	CFont titleFont;
 	lf.lfHeight = 18;

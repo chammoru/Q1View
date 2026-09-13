@@ -208,6 +208,11 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
     </Link>
+    <PostBuildEvent>
+      <Command>if not exist "$(TargetDir)Fonts" mkdir "$(TargetDir)Fonts"
+copy /Y "$(ProjectDir)..\assets\fonts\PretendardVariable.ttf" "$(TargetDir)Fonts\PretendardVariable.ttf" &gt;nul
+copy /Y "$(ProjectDir)..\assets\fonts\Pretendard-LICENSE.txt" "$(TargetDir)Fonts\Pretendard-LICENSE.txt" &gt;nul</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Comparator.cpp" />
@@ -289,6 +294,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
+    <None Include="..\assets\fonts\PretendardVariable.ttf" />
+    <None Include="..\assets\fonts\Pretendard-LICENSE.txt" />
     <None Include="res\Comparator.rc2" />
   </ItemGroup>
   <ItemGroup>

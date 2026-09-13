@@ -220,6 +220,10 @@ public:
 	void OnDrawerDividerDragged();
 	// Show/hide the full-window help overlay ('?' key or the Help menu).
 	void ToggleHelpOverlay();
+	// Child controls in the drawer receive keyboard messages before the frame.
+	// Give them a safe route to this accelerator table so app shortcuts remain
+	// available while browsing folders or using the gallery grid.
+	BOOL TranslateGlobalAccelerator(MSG *pMsg);
 
 // Generated message map functions
 protected:

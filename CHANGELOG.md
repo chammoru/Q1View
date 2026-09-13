@@ -6,8 +6,14 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.20] — 2026-09-13
+
 ### Changed
 - Windows: increase the optical weight of the Viewer and Comparator Q1 application marks at native 16–64 px sizes and across Store/MSIX app-logo variants, while preserving the approved 128/256 px proportions and leaving photo, video, and raw file-association icons unchanged. (issue #102)
+- Windows Viewer and Comparator: use bundled Pretendard Variable for directly drawn interface text such as empty states, progress, controls, status, timeline, and metric labels; retain the fixed-width font for pixel values, coordinates, and shortcut tables where column alignment is functional.
+- Windows Viewer: route drawer-list and gallery-grid keyboard messages through the frame accelerator table so application shortcuts, including `E` and `?`, remain available while browsing; show logical drives in the top-level list and grid, while Backspace or Alt+Up at a drive root returns to that chooser.
 
 ---
 
@@ -409,7 +415,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.19...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.20...HEAD
+[2.7.20]: https://github.com/chammoru/Q1View/compare/v2.7.19...v2.7.20
 [2.7.19]: https://github.com/chammoru/Q1View/compare/v2.7.18...v2.7.19
 [2.7.18]: https://github.com/chammoru/Q1View/compare/v2.7.17...v2.7.18
 [2.7.17]: https://github.com/chammoru/Q1View/compare/v2.7.16...v2.7.17

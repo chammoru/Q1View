@@ -116,6 +116,20 @@ struct GalleryIntegrationTests {
         Require(grid.Selection() == 0 && grid.Label(0) == L"[..]", "Home selects the typographic parent-folder tile");
         key.wParam = VK_RIGHT; grid.PreTranslateMessage(&key);
         Require(grid.Selection() == 1, "arrow navigation moves from parent tile to first file");
+        key.wParam = 'E';
+        Require(grid.PreTranslateMessage(&key), "grid forwards Viewer accelerators to the frame");
+        Pump(.8);
+        Require(!frame->mDrawerVisible, "E toggles the drawer while the grid has focus");
+        Require(frame->TranslateGlobalAccelerator(&key), "frame accelerator can restore drawer focus path");
+        Pump(.8);
+        Require(frame->mDrawerVisible, "global drawer shortcut restores the drawer");
+
+        CString driveRoot = folder.Left(3);
+        pane.NavigateTo(driveRoot); Pump(.2);
+        Require(pane.GoToParent() && pane.mFolder.IsEmpty() && !pane.mEntries.empty() &&
+            pane.mEntries.front().kind == CThumbnailPane::ENTRY_DIR,
+            "drive chooser opens after navigating above a drive root");
+        pane.NavigateTo(folder); Pump(.5);
 
         // Fill with large thumbnails to force eviction and verify ownership.
         pane.mThumb = 16;
@@ -418,10 +432,15 @@ struct GalleryIntegrationTests {
                     Await([&] { return !containsPath(brokenVideo); },
                         "video without a meaningful preview leaves the thumbnail grid");
                     Await([&] {
-                        return std::any_of(pane.mEntries.begin(), pane.mEntries.end(),
-                            [&](const CThumbnailPane::Entry& entry) {
-                                return entry.path.CompareNoCase(brokenImage) == 0 && entry.badge;
-                            });
+                        for (int i = 0; i < (int)pane.mEntries.size(); ++i) {
+                            const CThumbnailPane::Entry& entry = pane.mEntries[i];
+                            if (entry.path.CompareNoCase(brokenImage) != 0) continue;
+                            if (entry.badge) return true;
+                            grid.Select(i, true);
+                            grid.QueueVisible();
+                            return false;
+                        }
+                        return false;
                     }, "broken image remains with preview-unavailable treatment");
                     Await([&] {
                         for (int i = 0; i < (int)pane.mEntries.size(); ++i) {

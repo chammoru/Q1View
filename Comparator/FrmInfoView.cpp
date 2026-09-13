@@ -6,6 +6,7 @@
 #include "ComparatorDoc.h"
 #include "FrmInfoView.h"
 #include "QViewerCmn.h"
+#include "Q1UiFontWin.h"
 
 // CFrmInfoView
 
@@ -20,7 +21,7 @@ CFrmInfoView::CFrmInfoView()
 	::ZeroMemory(&lf, sizeof(lf));
 	lf.lfHeight = FRM_STATE_FONT_H;
 	lf.lfWeight = FW_SEMIBOLD;
-	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
+	::lstrcpy(lf.lfFaceName, q1view::WindowsUiTextFontFamily());
 
 	mStateFont.CreateFontIndirect(&lf);
 }

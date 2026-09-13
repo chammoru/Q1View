@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include "QMenuItem.h"
 #include "QViewerCmn.h"
+#include "Q1UiFontWin.h"
 
 
 // CQMenuItem
@@ -43,7 +44,7 @@ CQMenuItem::CQMenuItem()
 	SystemParametersInfo(SPI_GETICONTITLELOGFONT, sizeof(LOGFONT), &lf, 0);
 	lf.lfHeight = 14;
 	lf.lfWeight = FW_SEMIBOLD;
-	::lstrcpy(lf.lfFaceName, Q1UI_FONT_TEXT);
+	::lstrcpy(lf.lfFaceName, q1view::WindowsUiTextFontFamily());
 	mFont.CreateFontIndirect(&lf);
 
 	mNormBkBrush.CreateSolidBrush(Q1UI_COLOR_SURFACE_ALT);
