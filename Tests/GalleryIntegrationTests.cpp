@@ -89,6 +89,16 @@ struct GalleryIntegrationTests {
             pane.GetItemCount() == 0, "large grid keeps one parent tile without list-control rows or image-list copies");
         Require(grid.mDevice && grid.mContext && grid.mTarget && grid.mFontCollection && grid.mBadgeText,
             "actual Direct2D/D3D11 target uses the bundled font collection");
+        Microsoft::WRL::ComPtr<IDWriteTextLayout> longFolderLayout;
+        Require(grid.CreateFolderTextLayout(
+            L"[This is a deliberately very long folder name that must wrap before it is trimmed]",
+            110.0f, 52.0f, longFolderLayout), "long-folder DirectWrite layout created");
+        UINT32 lineCount = 0;
+        longFolderLayout->GetLineMetrics(nullptr, 0, &lineCount);
+        std::vector<DWRITE_LINE_METRICS> lineMetrics(lineCount);
+        Require(lineCount > 1 && SUCCEEDED(longFolderLayout->GetLineMetrics(
+            lineMetrics.data(), lineCount, &lineCount)) && lineMetrics.back().isTrimmed,
+            "long folder name wraps before the final visible line is ellipsized");
         Require(!grid.mCache.empty(), "worker results populate CPU thumbnail cache");
         bool uploaded = false;
         for (auto& p : grid.mCache) if (p.second.gpu) uploaded = true;
