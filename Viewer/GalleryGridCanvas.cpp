@@ -180,15 +180,26 @@ void CGalleryGridCanvas::DrawFolderCardGpu(int index, const q1view::GalleryRect&
     const D2D1_RECT_F labelRect = D2D1::RectF(r.x + pad, r.y + pad,
         r.x + r.size - pad, r.y + r.size - pad);
     Ptr<IDWriteTextLayout> layout;
-    if (SUCCEEDED(mWriteFactory->CreateTextLayout(label, label.GetLength(), mText.Get(),
-        labelRect.right - labelRect.left, labelRect.bottom - labelRect.top, &layout))) {
-        DWRITE_TRIMMING trimming = { DWRITE_TRIMMING_GRANULARITY_CHARACTER, 0, 0 };
-        Ptr<IDWriteInlineObject> ellipsis;
-        if (SUCCEEDED(mWriteFactory->CreateEllipsisTrimmingSign(mText.Get(), &ellipsis)))
-            layout->SetTrimming(&trimming, ellipsis.Get());
-        layout->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+    if (CreateFolderTextLayout(label, labelRect.right - labelRect.left,
+        labelRect.bottom - labelRect.top, layout)) {
         mContext->DrawTextLayout(D2D1::Point2F(labelRect.left, labelRect.top), layout.Get(), mBrush.Get());
     }
+}
+
+bool CGalleryGridCanvas::CreateFolderTextLayout(const CString& label, float width, float height,
+    Ptr<IDWriteTextLayout>& layout) {
+    layout.Reset();
+    if (!mWriteFactory || !mText || width <= 0 || height <= 0 ||
+        FAILED(mWriteFactory->CreateTextLayout(label, label.GetLength(), mText.Get(), width, height, &layout)))
+        return false;
+    DWRITE_TRIMMING trimming = { DWRITE_TRIMMING_GRANULARITY_CHARACTER, 0, 0 };
+    Ptr<IDWriteInlineObject> ellipsis;
+    if (SUCCEEDED(mWriteFactory->CreateEllipsisTrimmingSign(mText.Get(), &ellipsis)))
+        layout->SetTrimming(&trimming, ellipsis.Get());
+    // Fill the card with wrapped text first. DirectWrite applies the trimming
+    // sign only to the final visible line when the layout height overflows.
+    layout->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+    return true;
 }
 void CGalleryGridCanvas::DrawFolderCardFallback(CDC& dc, int index, const CRect& rect) {
     dc.FillSolidRect(rect, Q1UI_COLOR_SURFACE);
@@ -196,7 +207,12 @@ void CGalleryGridCanvas::DrawFolderCardFallback(CDC& dc, int index, const CRect&
     CFont* oldFont = dc.SelectObject(&mOwner.mFolderFont);
     const int pad = std::max(4, int(rect.Width() * .08f));
     CRect label = rect; label.DeflateRect(pad, pad);
-    dc.DrawText(Label(index), label, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+    const CString text = Label(index);
+    CRect measured(0, 0, label.Width(), 0);
+    dc.DrawText(text, measured, DT_CENTER | DT_WORDBREAK | DT_CALCRECT | DT_NOPREFIX);
+    if (measured.Height() < label.Height())
+        label.top += (label.Height() - measured.Height()) / 2;
+    dc.DrawText(text, label, DT_CENTER | DT_WORDBREAK | DT_END_ELLIPSIS | DT_NOPREFIX);
     dc.SelectObject(oldFont);
 }
 void CGalleryGridCanvas::DropDevice() {

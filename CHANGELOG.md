@@ -8,6 +8,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.21] — 2026-09-16
+
+### Changed
+- Windows Viewer: wrap long folder names across the available gallery-card height and add an ellipsis only at the end of the final visible line, matching the DirectWrite and GDI fallback renderers.
+
+---
+
 ## [2.7.20] — 2026-09-13
 
 ### Changed
@@ -415,7 +422,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.20...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.21...HEAD
+[2.7.21]: https://github.com/chammoru/Q1View/compare/v2.7.20...v2.7.21
 [2.7.20]: https://github.com/chammoru/Q1View/compare/v2.7.19...v2.7.20
 [2.7.19]: https://github.com/chammoru/Q1View/compare/v2.7.18...v2.7.19
 [2.7.18]: https://github.com/chammoru/Q1View/compare/v2.7.17...v2.7.18
