@@ -8,6 +8,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.22] — 2026-09-16
+
+### Fixed
+- Windows Comparator: opening multiple still images from the same folder now skips pairwise image-sequence detection and treats each selected file as a single comparison image, avoiding repeated full-folder decoding while preserving sequence comparison for representative images selected from different folders. (issue #107)
+
+---
+
 ## [2.7.21] — 2026-09-16
 
 ### Changed
@@ -422,7 +429,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.21...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.22...HEAD
+[2.7.22]: https://github.com/chammoru/Q1View/compare/v2.7.21...v2.7.22
 [2.7.21]: https://github.com/chammoru/Q1View/compare/v2.7.20...v2.7.21
 [2.7.20]: https://github.com/chammoru/Q1View/compare/v2.7.19...v2.7.20
 [2.7.19]: https://github.com/chammoru/Q1View/compare/v2.7.18...v2.7.19

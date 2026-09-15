@@ -30,6 +30,11 @@ static bool IsLikelyImageFile(const CString& path)
 		|| ext == _T("exr") || ext == _T("hdr") || ext == _T("pic");
 }
 
+bool MatFrmSrc::IsStillImagePath(const CString& pathName)
+{
+	return IsLikelyImageFile(pathName);
+}
+
 static bool GetImageResolution(const CString& pathName, int* w, int* h)
 {
 	Mat ocvMat = q1::imreadW(pathName.GetString());

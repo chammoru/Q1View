@@ -10,6 +10,7 @@ public:
 	MatFrmSrc(SQPane *pane);
 
 	virtual ~MatFrmSrc();
+	static bool IsStillImagePath(const CString& pathName);
 	static bool AreInSameImageSequence(const CString& filePathA, int srcWA, int srcHA,
 		const CString& filePathB, int srcWB, int srcHB);
 	virtual bool Open(const CString& filePath, const struct qcsc_info* sortedCscInfo,

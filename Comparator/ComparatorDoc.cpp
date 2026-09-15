@@ -495,6 +495,37 @@ static std::vector<CString> parseFileList(const CString& fileList)
 	return filenames;
 }
 
+static CString NormalizeParentDirectory(const CString& pathName)
+{
+	CString fullPath;
+	DWORD capacity = MAX_PATH;
+	for (;;) {
+		std::vector<TCHAR> buffer(capacity);
+		DWORD length = GetFullPathName(pathName, capacity, buffer.data(), NULL);
+		if (length == 0)
+			break;
+		if (length < capacity) {
+			fullPath.SetString(buffer.data(), static_cast<int>(length));
+			break;
+		}
+		capacity = length + 1;
+	}
+
+	if (fullPath.IsEmpty())
+		fullPath = pathName;
+
+	fullPath.Replace(_T('/'), _T('\\'));
+	int slash = fullPath.ReverseFind(_T('\\'));
+	if (slash < 0)
+		return fullPath;
+
+	CString parent = fullPath.Left(slash);
+	if (parent.IsEmpty())
+		parent = _T("\\");
+	parent.MakeLower();
+	return parent;
+}
+
 BOOL CComparatorDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 
@@ -529,12 +560,17 @@ BOOL CComparatorDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 	vector<int> srcWidths(numOfFiles);
 	vector<int> srcHeights(numOfFiles);
 	vector<bool> disableImageSequences(numOfFiles, false);
+	vector<bool> isStillImage(numOfFiles, false);
+	vector<CString> parentDirectories(numOfFiles);
 	int prevSrcW = 0, prevSrcH = 0;
 	bool isDiffRes = false;
 	for (int i = 0; i < numOfFiles; i++) {
 		ComparatorPane* pane = mPane + IMG_VIEW_1 + i;
 		pane->pathName = filenames[i];
 		pane->disableImageSequence = false;
+		isStillImage[i] = MatFrmSrc::IsStillImagePath(filenames[i]);
+		if (isStillImage[i])
+			parentDirectories[i] = NormalizeParentDirectory(filenames[i]);
 		AfxGetApp()->AddToRecentFileList(filenames[i]);
 		int srcW = 0, srcH = 0;
 		bool success = pane->GetResolution(pane->pathName, &srcW, &srcH);
@@ -553,14 +589,23 @@ BOOL CComparatorDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 		}
 	}
 
+	// Multiple still images selected from one directory are comparison inputs,
+	// not independent anchors into the same image sequence. Decide this from
+	// the selected paths so sequence detection never scans unselected files
+	// merely to discover that the inputs belong to the same folder.
 	for (int i = 0; i < numOfFiles; i++) {
-		for (int j = i + 1; j < numOfFiles; j++) {
-			if (MatFrmSrc::AreInSameImageSequence(filenames[i], srcWidths[i], srcHeights[i],
-					filenames[j], srcWidths[j], srcHeights[j])) {
-				disableImageSequences[i] = true;
-				disableImageSequences[j] = true;
-			}
+		if (!isStillImage[i])
+			continue;
+
+		int sameDirectoryCount = 0;
+		for (int j = 0; j < numOfFiles; j++) {
+			if (isStillImage[j] &&
+				parentDirectories[i].CompareNoCase(parentDirectories[j]) == 0)
+				sameDirectoryCount++;
 		}
+
+		if (sameDirectoryCount >= 2)
+			disableImageSequences[i] = true;
 	}
 	stable_sort(imageProperties.begin(), imageProperties.end(), ImagePropertyCompare());
 
