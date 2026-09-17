@@ -136,6 +136,13 @@ struct GalleryIntegrationTests {
 
         CString driveRoot = folder.Left(3);
         pane.NavigateTo(driveRoot); Pump(.2);
+        Require(!pane.mEntries.empty() && pane.mEntries.front().kind == CThumbnailPane::ENTRY_PARENT &&
+            grid.Label(0) == L"[..]", "drive roots show a visible parent tile");
+        pane.ActivateIndex(0, true); Pump(.2);
+        Require(pane.mFolder.IsEmpty() && !pane.mEntries.empty() &&
+            pane.mEntries.front().kind == CThumbnailPane::ENTRY_DIR,
+            "activating the drive-root parent tile opens the drive chooser");
+        pane.NavigateTo(driveRoot); Pump(.2);
         Require(pane.GoToParent() && pane.mFolder.IsEmpty() && !pane.mEntries.empty() &&
             pane.mEntries.front().kind == CThumbnailPane::ENTRY_DIR,
             "drive chooser opens after navigating above a drive root");

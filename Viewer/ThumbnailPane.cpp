@@ -673,9 +673,10 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		std::sort(dirs.begin(), dirs.end(), q1view::LessFileNameOrdinal);
 		std::sort(files.begin(), files.end(), q1view::LessFileNameOrdinal);
 
-		// Keep parent navigation first in every mode. At filesystem roots it is
-		// absent rather than disabled.
-		if (!ParentFolderOf(folder).IsEmpty()) {
+		// Keep parent navigation first in every mode. A drive/share root also
+		// gets a visible [..] entry; activating it opens the logical-drive
+		// chooser instead of requiring a keyboard shortcut.
+		if (!folder.IsEmpty()) {
 			if (!grid) InsertItem(row, _T("[..]"), -1);
 			Entry pe; pe.kind = ENTRY_PARENT; pe.path = ParentFolderOf(folder); pe.img = -1; pe.queued = false; pe.badge = true;
 			mEntries.push_back(pe);
@@ -894,7 +895,7 @@ LRESULT CThumbnailPane::OnActivatePosted(WPARAM wParam, LPARAM /*lParam*/)
 	Entry e = mPending;
 	mPendingGeneration = 0;
 	mPendingFolder.Empty();
-	if (GetFileAttributes(e.path) == INVALID_FILE_ATTRIBUTES) return 0;
+	if (e.kind != ENTRY_PARENT && GetFileAttributes(e.path) == INVALID_FILE_ATTRIBUTES) return 0;
 	if (e.kind == ENTRY_FILE) {
 		// Opening routes through CViewerDoc::OnOpenDocument (raw files included).
 		// Thumbnail selection keeps the current window size and fits the image

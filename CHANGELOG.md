@@ -8,6 +8,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.23] — 2026-09-18
+
+### Fixed
+- Windows Viewer: show a visible `[..]` parent entry at drive and UNC share roots; activating it opens the logical-drive chooser so users can switch volumes without relying on a keyboard shortcut. (issue #107 follow-up)
+
+---
+
 ## [2.7.22] — 2026-09-16
 
 ### Fixed
@@ -429,7 +436,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.22...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.23...HEAD
+[2.7.23]: https://github.com/chammoru/Q1View/compare/v2.7.22...v2.7.23
 [2.7.22]: https://github.com/chammoru/Q1View/compare/v2.7.21...v2.7.22
 [2.7.21]: https://github.com/chammoru/Q1View/compare/v2.7.20...v2.7.21
 [2.7.20]: https://github.com/chammoru/Q1View/compare/v2.7.19...v2.7.20
