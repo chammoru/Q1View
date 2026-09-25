@@ -136,6 +136,7 @@ void CViewerDoc::Rotate90()
 
 bool CViewerDoc::QueueSource2View()
 {
+	if (!mFrmSrc) return false;
 	int h = mH, w = mW;
 	if (mRot == QROT_090 || mRot == QROT_270)
 		QSWAP(h, w);
@@ -196,6 +197,7 @@ static inline void GetBezelSize(CMainFrame *pMainFrm, int &wBezel, int &hBezel)
 
 void CViewerDoc::LoadSourceImage(LoadLayout layout)
 {
+	if (!mFrmSrc) return;
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	CViewerView *pView = static_cast<CViewerView *>(pMainFrm->GetActiveView());
 
@@ -448,12 +450,39 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 
 BOOL CViewerDoc::ReloadDocument()
 {
+	if (mPathName.IsEmpty()) return FALSE;
 	LoadLayout prevLayout = mLoadLayout;
 	mLoadLayout = LOAD_PRESERVE_VIEW;
 	BOOL ok = OnOpenDocument(mPathName);
 	mLoadLayout = prevLayout;
 
 	return ok;
+}
+
+void CViewerDoc::CloseMediaForRecycle()
+{
+	mFileChangeNotiThread->Stop();
+	mAutoplayAfterPresent = mAutoplayMessagePending = mPendingExplicitOpen = false;
+	mPendingFile.Empty();
+	++mOpenGeneration;
+	mBufferPool->disable();
+	mBufferQueue->destroy();
+	auto* frame = static_cast<CMainFrame*>(AfxGetMainWnd());
+	auto* view = static_cast<CViewerView*>(frame->GetActiveView());
+	view->KillPlayTimer();
+	view->mAudioPlayer.Close();
+	for (auto* source : mFrmSrcs) { source->Stop(); source->Release(); }
+	mFrmSrc = nullptr;
+	mFrames = mCurFrameID = 0;
+	mDocState = DOC_JUSTLOAD;
+	mPathName.Empty();
+	mPurePathName.Empty();
+	mPurePathRegex.Empty();
+	m_strPathName.Empty();
+	SetTitle(_T("Viewer"));
+	view->mSelRegions.clear();
+	view->Initialize(0, ROUNDUP_DWORD(mW), mW, mH);
+	view->Invalidate(FALSE);
 }
 
 static BOOL OpenCfileForWriting(const wstring &pathName, CFile &wFile)

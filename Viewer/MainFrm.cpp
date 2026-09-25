@@ -549,6 +549,8 @@ CMainFrame::~CMainFrame()
 LRESULT CMainFrame::Reload(WPARAM wParam, LPARAM lParam)
 {
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
+	if (!pDoc || pDoc->mPathName.IsEmpty() ||
+		(lParam == 1 && wParam != pDoc->mFileChangeNotiThread->Generation())) return S_OK;
 	if (!pDoc->ReloadDocument())
 		return E_FAIL;
 

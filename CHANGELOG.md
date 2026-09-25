@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Added
+- Viewer: select multiple visible media files in the Windows compact list and gallery grid or the Qt drawer with Ctrl+click, Shift+click, or Ctrl+A, then move them to the Recycle Bin or platform trash from the count-labeled context command or Delete key after confirmation. Folder entries are excluded; active photos and playing videos release their sources before recycling and continue to the next surviving media item, while partial failures leave unsuccessful files in place. (issue #101)
+
 ---
 
 ## [2.7.23] — 2026-09-18

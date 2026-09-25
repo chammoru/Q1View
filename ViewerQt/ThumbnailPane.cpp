@@ -18,6 +18,9 @@
 #include <QContextMenuEvent>
 #include <QDesktopServices>
 #include <QKeyEvent>
+#include <QMouseEvent>
+#include <QFile>
+#include <QScopedValueRollback>
 #include <QMenu>
 #include <QMimeData>
 #include <QMessageBox>
@@ -25,6 +28,7 @@
 #include <functional>
 #ifdef Q_OS_WIN
 #include "../QCommon/inc/QFileActionsWin.h"
+#include "../QCommon/inc/QRecycleFilesWin.h"
 #endif
 
 namespace {
@@ -52,7 +56,7 @@ ThumbnailPane::ThumbnailPane(QWidget *parent)
 	setWordWrap(false);
 	setTextElideMode(Qt::ElideRight);
 	setSpacing(1);
-	setSelectionMode(QAbstractItemView::SingleSelection);
+	setSelectionMode(QAbstractItemView::ExtendedSelection);
 	setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	QFont drawerFont(QStringLiteral("Pretendard Variable"));
 	drawerFont.setPixelSize(13);
@@ -76,15 +80,36 @@ ThumbnailPane::ThumbnailPane(QWidget *parent)
 	mDecodeTimer->setInterval(0);
 	connect(mDecodeTimer, &QTimer::timeout, this, &ThumbnailPane::decodeNextThumb);
 	connect(this, &QListWidget::itemActivated, this, &ThumbnailPane::onItemActivated);
+	connect(this, &QListWidget::itemSelectionChanged, this, [this] {
+		if (mSyncingSelection) return;
+		mSelection.selected.clear();
+		for (auto* selected : selectedItems()) mSelection.selected.insert(row(selected));
+		mSelection.focus = currentRow();
+		mSelection.anchor = mSelection.focus;
+	});
+	mConfirmRecycle = [this](int count) {
+#ifdef Q_OS_WIN
+		const QString prompt = tr("Move %1 items to the Recycle Bin?").arg(count);
+#else
+		const QString prompt = tr("Move %1 items to Trash?").arg(count);
+#endif
+		return QMessageBox::question(this, tr("Move to Trash"), prompt,
+			QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel) == QMessageBox::Ok;
+	};
+	mReportRecycle = [this](const QString& message) { QMessageBox::information(this, tr("Move to Trash"), message); };
 }
 
 void ThumbnailPane::setCurrentFile(const QString &path)
 {
+	mActivePath = path.isEmpty() ? QString() : QFileInfo(path).absoluteFilePath();
 	if (path.isEmpty()) {
 		mFolder.clear();
 		mGeneration++;
 		mDecodeTimer->stop();
 		clear();
+		mSelection.clear();
+		mPendingRows.clear();
+		mPendingPos = 0;
 		return;
 	}
 
@@ -101,6 +126,7 @@ void ThumbnailPane::populate(const QString &folder, const QString &currentPath)
 {
 	mDecodeTimer->stop();
 	clear();
+	mSelection.clear();
 	mPendingRows.clear();
 	mPendingPos = 0;
 	mFolder = folder;
@@ -169,17 +195,17 @@ void ThumbnailPane::selectPath(const QString &path)
 		QListWidgetItem *it = item(i);
 		if (it->data(kKindRole).toInt() != ParentDir
 			&& it->data(kPathRole).toString() == target) {
-			setCurrentItem(it);
+			selectRow(i);
 			scrollToItem(it);
 			return;
 		}
 	}
-	setCurrentItem(nullptr);
+	selectRow(-1);
 }
 
 void ThumbnailPane::onItemActivated(QListWidgetItem *item)
 {
-	if (!item) {
+	if (!item || mRecycleBusy) {
 		return;
 	}
 	const int kind = item->data(kKindRole).toInt();
@@ -219,11 +245,139 @@ bool ThumbnailPane::goToParent()
 
 void ThumbnailPane::keyPressEvent(QKeyEvent *event)
 {
+	if (event->key() == Qt::Key_Delete) {
+		if (event->modifiers() == Qt::NoModifier) recycleSelected();
+		event->accept(); return;
+	}
+	if (mRecycleBusy) { event->accept(); return; }
+	if (event->matches(QKeySequence::SelectAll)) {
+		mSelection.all(count(), [this](int i) { return isMediaRow(i); });
+		syncSelection(false); event->accept(); return;
+	}
 	if (event->key() == Qt::Key_Backspace ||
 		(event->key() == Qt::Key_Up && event->modifiers() == Qt::AltModifier)) {
 		goToParent(); event->accept(); return;
 	}
-	QListWidget::keyPressEvent(event);
+	if ((event->key() == Qt::Key_PageUp || event->key() == Qt::Key_PageDown) &&
+		event->modifiers() == Qt::NoModifier) {
+		QListWidget::keyPressEvent(event);
+		return;
+	}
+	int target = mSelection.focus < 0 ? 0 : mSelection.focus;
+	switch (event->key()) {
+	case Qt::Key_Up: case Qt::Key_Left: case Qt::Key_PageUp: --target; break;
+	case Qt::Key_Down: case Qt::Key_Right: case Qt::Key_PageDown: ++target; break;
+	case Qt::Key_Home: target = 0; break;
+	case Qt::Key_End: target = count() - 1; break;
+	default: QListWidget::keyPressEvent(event); return;
+	}
+	target = qBound(0, target, qMax(0, count() - 1));
+	if ((event->modifiers() & Qt::ControlModifier) && !(event->modifiers() & Qt::ShiftModifier)) {
+		mSelection.focus = target; syncSelection();
+	} else selectRow(target, event->modifiers());
+	event->accept();
+}
+
+bool ThumbnailPane::isMediaRow(int r) const
+{
+	const auto* entry = item(r);
+	return entry && entry->data(kKindRole).toInt() == FileEntry;
+}
+
+void ThumbnailPane::syncSelection(bool reveal)
+{
+	QScopedValueRollback<bool> syncing(mSyncingSelection, true);
+	clearSelection();
+	setCurrentRow(mSelection.focus, QItemSelectionModel::NoUpdate);
+	for (int r : mSelection.selected) if (item(r)) item(r)->setSelected(true);
+	if (reveal && currentItem()) scrollToItem(currentItem());
+}
+
+void ThumbnailPane::selectRow(int r, Qt::KeyboardModifiers modifiers)
+{
+	mSelection.click(r, count(), modifiers.testFlag(Qt::ControlModifier), modifiers.testFlag(Qt::ShiftModifier),
+		[this](int i) { return isMediaRow(i); });
+	syncSelection();
+}
+
+void ThumbnailPane::mousePressEvent(QMouseEvent* event)
+{
+	if (mRecycleBusy) return;
+	setFocus();
+	const int r = row(itemAt(event->pos()));
+	if (event->button() == Qt::LeftButton) selectRow(r, event->modifiers());
+	else if (event->button() == Qt::RightButton && !mSelection.contains(r)) selectRow(r);
+	event->accept();
+}
+
+void ThumbnailPane::mouseDoubleClickEvent(QMouseEvent* event)
+{
+	if (mRecycleBusy) return;
+	if (event->button() == Qt::LeftButton && event->modifiers() == Qt::NoModifier) {
+		auto* target = itemAt(event->pos());
+		if (target) onItemActivated(target);
+	}
+	event->accept();
+}
+
+QStringList ThumbnailPane::selectedMediaPaths() const
+{
+	QStringList paths;
+	for (int r : mSelection.selected) if (isMediaRow(r)) paths.append(item(r)->data(kPathRole).toString());
+	return paths;
+}
+
+void ThumbnailPane::recycleSelected()
+{
+	if (mRecycleBusy) return;
+	const QStringList paths = selectedMediaPaths();
+	if (paths.isEmpty()) return;
+	const QString folder = mFolder;
+	const int generation = mGeneration;
+	QScopedValueRollback<bool> busy(mRecycleBusy, true);
+	if (!mConfirmRecycle(paths.size()) || generation != mGeneration || folder != mFolder) return;
+	QStringList before;
+	for (int r = 0; r < count(); ++r) if (isMediaRow(r)) before.append(item(r)->data(kPathRole).toString());
+	const QString active = mActivePath;
+	const bool closeActive = paths.contains(active);
+	mDecodeTimer->stop();
+	mPendingRows.clear();
+	mPendingPos = 0;
+	const int operationGeneration = ++mGeneration;
+	emit filesAboutToBeRecycled(paths);
+	QStringList failed;
+#ifdef Q_OS_WIN
+	std::vector<std::wstring> payload;
+	for (const auto& path : paths) payload.push_back(QDir::toNativeSeparators(path).toStdWString());
+	const auto results = q1view::RecycleFiles(reinterpret_cast<HWND>(winId()), payload);
+	for (int i = 0; i < paths.size(); ++i) if (!results[i].recycled) failed.append(paths[i]);
+#else
+	// QFile's platform trash operation fails if trash is unavailable; never use remove().
+	for (const auto& path : paths)
+		if (!QFileInfo(path).isFile() || !QFile::moveToTrash(path)) failed.append(path);
+#endif
+	QString next = active;
+	if (closeActive && !QFileInfo(active).isFile()) {
+		next.clear();
+		const int at = before.indexOf(active);
+		for (int i = at + 1; i < before.size(); ++i) if (QFileInfo(before[i]).isFile()) { next = before[i]; break; }
+		if (next.isEmpty()) for (int i = at - 1; i >= 0; --i) if (QFileInfo(before[i]).isFile()) { next = before[i]; break; }
+	}
+	if (operationGeneration == mGeneration && folder == mFolder) {
+		populate(folder, closeActive ? next : active);
+		if (closeActive && mActivePath == active) {
+			mActivePath = next;
+			if (!next.isEmpty()) emit fileActivated(next);
+		}
+		if (!failed.isEmpty()) {
+			mSelection.selected.clear();
+			for (int i = 0; i < count(); ++i)
+				if (isMediaRow(i) && failed.contains(item(i)->data(kPathRole).toString())) mSelection.selected.insert(i);
+			syncSelection(false);
+		}
+	}
+	if (!failed.isEmpty()) mReportRecycle(tr("Moved %1 of %2 items to Trash.\n%3 items could not be moved:\n%4")
+		.arg(paths.size() - failed.size()).arg(paths.size()).arg(failed.size()).arg(failed.mid(0, 10).join('\n')));
 }
 
 QMenu* ThumbnailPane::createContextMenu(QListWidgetItem *item)
@@ -283,6 +437,16 @@ QMenu* ThumbnailPane::createContextMenu(QListWidgetItem *item)
 		return q1view::ShowFileProperties(reinterpret_cast<HWND>(winId()), path.toStdWString());
 	});
 #endif
+	const auto paths = selectedMediaPaths();
+	if (kind == FileEntry && !paths.isEmpty()) {
+		menu->addSeparator();
+#ifdef Q_OS_WIN
+		const QString label = tr("Move %1 items to Recycle Bin").arg(paths.size());
+#else
+		const QString label = tr("Move %1 items to Trash").arg(paths.size());
+#endif
+		add(label, true, [this] { recycleSelected(); return true; });
+	}
 	return menu;
 }
 
@@ -290,7 +454,7 @@ void ThumbnailPane::contextMenuEvent(QContextMenuEvent *event)
 {
 	QListWidgetItem* target = event->reason() == QContextMenuEvent::Keyboard ?
 		currentItem() : itemAt(viewport()->mapFromGlobal(event->globalPos()));
-	if (target) setCurrentItem(target);
+	if (target && !mSelection.contains(row(target))) selectRow(row(target));
 	QMenu* menu = createContextMenu(target);
 	if (!menu->isEmpty()) menu->exec(event->globalPos());
 	delete menu;

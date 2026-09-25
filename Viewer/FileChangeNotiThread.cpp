@@ -17,6 +17,7 @@ FileChangeNotiThread::~FileChangeNotiThread(void)
 
 void FileChangeNotiThread::cleanUp()
 {
+	++mGeneration;
 	requestExit();
 
 	HANDLE changeHandle = INVALID_HANDLE_VALUE;
@@ -34,63 +35,64 @@ void FileChangeNotiThread::cleanUp()
 	requestExitAndWait();
 }
 
+void FileChangeNotiThread::Stop()
+{
+	cleanUp();
+	SMutex::Autolock lock(mStateLock);
+	mDirName.Empty();
+	mFileName.Empty();
+	mNotifyHwnd = nullptr;
+}
+
 SmpError FileChangeNotiThread::fire(CMainFrame *pFrame, CString pathName)
 {
-	CString oldDirName;
-	{
-		SMutex::Autolock lock(mStateLock);
-		oldDirName = mDirName;
-	}
-
+	Stop();
 	CString newDirName = pathName.Left(pathName.ReverseFind('\\') + 1);
 	CString newFileName = pathName.Mid(pathName.ReverseFind('\\') + 1);
 	HWND notifyHwnd = pFrame != NULL ? pFrame->GetSafeHwnd() : NULL;
 
-	if (oldDirName != newDirName) {
-		cleanUp();
-
-		HANDLE changeHandle = ::CreateFile(newDirName, FILE_LIST_DIRECTORY,
-			FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-			NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-		if (changeHandle == INVALID_HANDLE_VALUE) {
-			LOGERR("mChangeHandle is invalid");
-			return SMP_INVALID_RESOURCE;
-		}
-
-		{
-			SMutex::Autolock lock(mStateLock);
-			mNotifyHwnd = notifyHwnd;
-			mDirName = newDirName;
-			mFileName = newFileName;
-			mChangeHandle = changeHandle;
-		}
-
-		SmpError err = run();
-		if (err != SMP_OK) {
-			{
-				SMutex::Autolock lock(mStateLock);
-				changeHandle = mChangeHandle;
-				mChangeHandle = INVALID_HANDLE_VALUE;
-			}
-			::CloseHandle(changeHandle);
-			LOGWRN("failed to run FileChangeNotiThread [%d]", err);
-			return err;
-		}
-	} else {
-		SMutex::Autolock lock(mStateLock);
-		mNotifyHwnd = notifyHwnd;
-		mFileName = newFileName;
+	HANDLE changeHandle = ::CreateFile(newDirName, FILE_LIST_DIRECTORY,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+	if (changeHandle == INVALID_HANDLE_VALUE) {
+		LOGERR("mChangeHandle is invalid");
+		return SMP_INVALID_RESOURCE;
 	}
 
+	{
+		SMutex::Autolock lock(mStateLock);
+		mNotifyHwnd = notifyHwnd;
+		mDirName = newDirName;
+		mFileName = newFileName;
+		mChangeHandle = changeHandle;
+	}
+
+	SmpError err = run();
+	if (err != SMP_OK) {
+		{
+			SMutex::Autolock lock(mStateLock);
+			changeHandle = mChangeHandle;
+			mChangeHandle = INVALID_HANDLE_VALUE;
+		}
+		::CloseHandle(changeHandle);
+		LOGWRN("failed to run FileChangeNotiThread [%d]", err);
+		return err;
+	}
 	return SMP_OK;
 }
 
 bool FileChangeNotiThread::threadLoop()
 {
 	HANDLE changeHandle = INVALID_HANDLE_VALUE;
+	unsigned generation;
+	HWND notifyHwnd;
+	CString watchedFileName;
 	{
 		SMutex::Autolock lock(mStateLock);
 		changeHandle = mChangeHandle;
+		generation = mGeneration.load();
+		notifyHwnd = mNotifyHwnd;
+		watchedFileName = mFileName;
 	}
 	if (changeHandle == INVALID_HANDLE_VALUE)
 		return false;
@@ -103,14 +105,6 @@ bool FileChangeNotiThread::threadLoop()
 	if (!ok || exitPending())
 		return false;
 
-	HWND notifyHwnd = NULL;
-	CString watchedFileName;
-	{
-		SMutex::Autolock lock(mStateLock);
-		notifyHwnd = mNotifyHwnd;
-		watchedFileName = mFileName;
-	}
-
 	DWORD dwNextEntryOffset = 0;
 	PFILE_NOTIFY_INFORMATION pfni;
 	do {
@@ -121,7 +115,7 @@ bool FileChangeNotiThread::threadLoop()
 			CString changedFileName(pfni->FileName,
 				static_cast<int>(pfni->FileNameLength / sizeof(WCHAR)));
 			if (watchedFileName == changedFileName && notifyHwnd != NULL)
-				::PostMessage(notifyHwnd, WM_RELOAD, 0, 0);
+				::PostMessage(notifyHwnd, WM_RELOAD, generation, 1);
 			break;
 		}
 		default:

@@ -855,6 +855,7 @@ long CViewerView::GetDuePlaybackFrameID(const CViewerDoc* pDoc) const
 
 void CViewerView::SetPlayTimer(CViewerDoc* pDoc)
 {
+	if (!pDoc->mFrmSrc || pDoc->mFrames <= 1) return;
 	pDoc->mPlayFrameID = pDoc->mCurFrameID;
 	mBufferQueue->set_next_id(pDoc->mCurFrameID + 1);
 
@@ -1398,7 +1399,7 @@ void CViewerView::OnDraw(CDC *pDC)
 	}
 
 	BYTE *src;
-	if (!mYMode) {
+	if (!mYMode || !mStableRgbBufferInfo.addr) {
 		src = mStableRgbBufferInfo.addr;
 	} else {
 		int yBufSize = ROUNDUP_DWORD(mW) * mH * QIMG_DST_RGB_BYTES;
@@ -1947,7 +1948,7 @@ void CViewerView::KillPlayTimerSafe()
 	FrmSrc *frmSrc = pDoc->mFrmSrc;
 	// Keep the exact last-presented RGB buffer reserved across playback shutdown.
 	// Position only the source at the following frame for stepping or resuming.
-	frmSrc->SetFramePos(pDoc, mStableRgbBufferInfo.ID + 1);
+	if (frmSrc) frmSrc->SetFramePos(pDoc, mStableRgbBufferInfo.ID + 1);
 	mStableRgbBufferInfo.ID = QMIN(mStableRgbBufferInfo.ID, pDoc->mFrames - 1);
 
 	mBufferPool->enable(mStableRgbBufferInfo.addr);
@@ -1997,6 +1998,7 @@ cv::Mat CViewerView::GetRoiMat()
 
 bool CViewerView::FindFile(CViewerDoc* pDoc, UINT nChar)
 {
+	if (!pDoc || pDoc->mPathName.IsEmpty() || pDoc->mPurePathRegex.IsEmpty()) return false;
 	std::vector<CString> files;
 	q1view::CollectSortedFilePaths(pDoc->mPurePathRegex, files);
 
@@ -2360,6 +2362,7 @@ bool CViewerView::HandleNavigationKey(UINT nChar)
 {
 	CViewerDoc* pDoc = GetDocument();
 	ASSERT_VALID(pDoc);
+	if (!pDoc || pDoc->mPathName.IsEmpty()) return false;
 	ViewerSyncInputState input = {};
 	int result = -1;
 	bool stoppedPlayback = false;

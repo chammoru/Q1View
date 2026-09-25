@@ -84,7 +84,7 @@ void CGalleryGridCanvas::Relayout(bool animate) {
     SetTimer(DecodeTimer, 220, nullptr); // settle first, then replace low-resolution tiles
 }
 void CGalleryGridCanvas::Select(int index, bool reveal) {
-    mSelected = index >= 0 && index < mLayout.count ? index : -1;
+	mOwner.SelectIndex(index, false, false, reveal);
     if (reveal) { mLayout.Reveal(mSelected); UpdateScrollBar(); }
     Invalidate(FALSE);
     SetTimer(DecodeTimer, 90, nullptr);
@@ -123,6 +123,7 @@ void CGalleryGridCanvas::Accept(int index, HBITMAP bitmap, int size) {
     SetTimer(DecodeTimer, 90, nullptr);
 }
 void CGalleryGridCanvas::QueueVisible() {
+    if (mOwner.mRecycleBusy) return;
     if (!IsWindowVisible() || !mOwner.IsGrid()) return;
     // Remove obsolete queued work, but keep the <=4 tasks already decoding.
     {
@@ -328,9 +329,9 @@ bool CGalleryGridCanvas::PaintGpu(const std::vector<int>& visible, double now, b
             auto rect = Bounds(r);
             mContext->DrawText(label, label.GetLength(), mBadgeText.Get(), rect, mBrush.Get(), D2D1_DRAW_TEXT_OPTIONS_CLIP);
         }
-        if (i == mSelected || i == mHover) {
-            mBrush->SetColor(Color(i == mSelected ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_TEXT));
-            float stroke = (i == mSelected ? 3.0f : 1.0f) * dpi;
+        if (mOwner.mSelection.contains(i) || i == mHover) {
+            mBrush->SetColor(Color(mOwner.mSelection.contains(i) ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_TEXT));
+            float stroke = (mOwner.mSelection.contains(i) ? 3.0f : 1.0f) * dpi;
             mContext->DrawRectangle(Bounds(r, stroke / 2), mBrush.Get(), stroke);
         }
     }
@@ -367,9 +368,9 @@ void CGalleryGridCanvas::PaintFallback(CDC& dc, const std::vector<int>& visible,
             memory.DrawText(Label(i), rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
             memory.SelectObject(oldFont);
         }
-        if (i == mSelected || i == mHover) {
-            COLORREF color = i == mSelected ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_TEXT;
-            int stroke = std::max(1, MulDiv(i == mSelected ? 3 : 1, GetDpiForWindow(m_hWnd), 96));
+        if (mOwner.mSelection.contains(i) || i == mHover) {
+            COLORREF color = mOwner.mSelection.contains(i) ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_TEXT;
+            int stroke = std::max(1, MulDiv(mOwner.mSelection.contains(i) ? 3 : 1, GetDpiForWindow(m_hWnd), 96));
             for (int s = 0; s < stroke; ++s) { memory.Draw3dRect(rect, color, color); rect.DeflateRect(1, 1); }
         }
     }
@@ -424,12 +425,21 @@ void CGalleryGridCanvas::OnVScroll(UINT code, UINT, CScrollBar*) {
     }
     Scroll(target);
 }
-void CGalleryGridCanvas::OnLButtonDown(UINT, CPoint point) {
-    SetFocus(); Select(mLayout.Hit(float(point.x), float(point.y), Now()), false);
+void CGalleryGridCanvas::OnLButtonDown(UINT flags, CPoint point) {
+    if (mOwner.mRecycleBusy) return;
+    SetFocus();
+    mOwner.SelectIndex(mLayout.Hit(float(point.x), float(point.y), Now()),
+        (flags & MK_CONTROL) != 0, (flags & MK_SHIFT) != 0, false);
 }
-void CGalleryGridCanvas::OnRButtonDown(UINT flags, CPoint point) { OnLButtonDown(flags, point); }
+void CGalleryGridCanvas::OnRButtonDown(UINT, CPoint point) {
+    if (mOwner.mRecycleBusy) return;
+    SetFocus();
+    const int index = mLayout.Hit(float(point.x), float(point.y), Now());
+    if (!mOwner.mSelection.contains(index)) Select(index, false);
+}
 void CGalleryGridCanvas::OnLButtonDblClk(UINT flags, CPoint point) {
-    OnLButtonDown(flags, point); mOwner.ActivateIndex(mSelected, true);
+    OnLButtonDown(flags, point);
+    if (!(flags & (MK_CONTROL | MK_SHIFT))) mOwner.ActivateIndex(mSelected, true);
 }
 void CGalleryGridCanvas::OnContextMenu(CWnd*, CPoint point) {
     int index = mSelected;
@@ -460,6 +470,8 @@ LRESULT CGalleryGridCanvas::OnMouseLeave(WPARAM, LPARAM) { mTracking = false; mH
 LRESULT CGalleryGridCanvas::OnDpiChanged(WPARAM, LPARAM) { DropDevice(); Relayout(false); return 0; }
 void CGalleryGridCanvas::OnDestroy() { PauseAnimation(); ClearCache(); DropDevice(); CWnd::OnDestroy(); }
 BOOL CGalleryGridCanvas::PreTranslateMessage(MSG* message) {
+    if (message->message == WM_KEYDOWN && mOwner.HandleSelectionKey(UINT(message->wParam),
+        (GetKeyState(VK_CONTROL) & 0x8000) != 0, (GetKeyState(VK_SHIFT) & 0x8000) != 0)) return TRUE;
     CMainFrame *frame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd());
     if (frame != NULL && frame->TranslateGlobalAccelerator(message)) return TRUE;
     if ((message->message == WM_KEYDOWN && message->wParam == VK_BACK) ||

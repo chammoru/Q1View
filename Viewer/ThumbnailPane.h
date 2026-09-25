@@ -19,6 +19,8 @@
 #include <thread>
 #include <vector>
 #include <memory>
+#include <functional>
+#include "QBrowserSelection.h"
 
 class CGalleryGridCanvas;
 
@@ -70,7 +72,11 @@ protected:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnSetFocus(CWnd* oldWnd);
 	afx_msg void OnContextMenu(CWnd*, CPoint point);
+	afx_msg void OnLButtonDown(UINT flags, CPoint point);
+	afx_msg void OnLButtonDblClk(UINT flags, CPoint point);
+	afx_msg void OnRButtonDown(UINT flags, CPoint point);
 	afx_msg void OnItemActivate(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnSelectionChanged(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnGetInfoTip(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
 	afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar);
@@ -83,8 +89,20 @@ protected:
 private:
 	friend class CGalleryGridCanvas;
 	friend struct GalleryIntegrationTests;
-	enum ContextCommand { CMD_OPEN = 1, CMD_EXPLORER, CMD_COPY, CMD_PATH, CMD_NAME, CMD_PROPERTIES };
+	enum ContextCommand { CMD_OPEN = 1, CMD_EXPLORER, CMD_COPY, CMD_PATH, CMD_NAME, CMD_PROPERTIES, CMD_RECYCLE };
 	void BuildContextMenu(CMenu& menu, int index);
+	bool IsMediaEntry(int index) const;
+	void SelectIndex(int index, bool control = false, bool shift = false, bool reveal = true);
+	void SyncSelection(bool reveal);
+	bool HandleSelectionKey(UINT key, bool control, bool shift);
+	std::vector<CString> SelectedMediaPaths() const;
+	void RestoreSelection(const std::vector<CString>& paths, const CString& focus);
+	void RecycleSelected();
+	q1view::BrowserSelection mSelection;
+	bool mSyncingSelection = false;
+	bool mRecycleBusy = false;
+	std::function<bool(size_t)> mConfirmRecycle;
+	std::function<void(const CString&)> mReportRecycle;
 	std::unique_ptr<CGalleryGridCanvas> mGrid;
 	struct Task { unsigned gen; int index; int size; bool crop; CString path; };
 	struct Result { unsigned gen; int index; int size; HBITMAP hbmp; };
@@ -173,4 +191,5 @@ private:
 	std::atomic<unsigned>    mGen;
 	bool                     mWorkerStarted;
 	int                      mOutstanding = 0; // decoding + posted results, bounded independently of folder size
+	int                      mDecoding = 0; // excludes posted results; wait before recycling open files
 };

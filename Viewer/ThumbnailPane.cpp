@@ -21,6 +21,7 @@
 #include "ViewerFileOrder.h"
 #include "ViewerFileTypes.h"
 #include "QFileActionsWin.h"
+#include "QRecycleFilesWin.h"
 
 #include <opencv2/imgproc/imgproc.hpp>
 
@@ -55,6 +56,9 @@ BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_WM_SIZE()
 	ON_WM_SETFOCUS()
 	ON_WM_CONTEXTMENU()
+	ON_WM_LBUTTONDOWN()
+	ON_WM_LBUTTONDBLCLK()
+	ON_WM_RBUTTONDOWN()
 	ON_WM_MOUSEWHEEL()
 	ON_WM_VSCROLL()
 	ON_WM_KEYDOWN()
@@ -63,6 +67,7 @@ BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_NOTIFY_REFLECT(NM_DBLCLK, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(NM_RETURN, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(LVN_GETINFOTIP, &CThumbnailPane::OnGetInfoTip)
+	ON_NOTIFY_REFLECT(LVN_ITEMCHANGED, &CThumbnailPane::OnSelectionChanged)
 	ON_MESSAGE(WM_THUMB_READY, &CThumbnailPane::OnThumbReady)
 	ON_MESSAGE(WM_DRAWER_ACTIVATE, &CThumbnailPane::OnActivatePosted)
 END_MESSAGE_MAP()
@@ -79,6 +84,14 @@ CThumbnailPane::CThumbnailPane()
 , mWorkerStarted(false)
 {
 	LoadViewStep();
+	mConfirmRecycle = [this](size_t count) {
+		CString prompt;
+		prompt.Format(_T("Move %zu items to the Recycle Bin?"), count);
+		return MessageBox(prompt, _T("Move to Recycle Bin"), MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2) == IDOK;
+	};
+	mReportRecycle = [this](const CString& message) {
+		MessageBox(message, _T("Move to Recycle Bin"), MB_OK | MB_ICONINFORMATION);
+	};
 }
 
 CThumbnailPane::~CThumbnailPane()
@@ -118,7 +131,7 @@ BOOL CThumbnailPane::CreatePane(CWnd *pParent, UINT nID)
 {
 	// Keep the compact report list as the host; the grid has its own child canvas.
 	DWORD style = WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | LVS_OWNERDRAWFIXED |
-		LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOCOLUMNHEADER;
+		LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOCOLUMNHEADER;
 	return Create(style, CRect(0, 0, 0, 0), pParent, nID);
 }
 
@@ -228,6 +241,7 @@ void CThumbnailPane::OnSetFocus(CWnd* oldWnd)
 
 void CThumbnailPane::ApplyViewStep(int step, bool persist)
 {
+	if (mRecycleBusy) return;
 	if (!GetSafeHwnd())
 		return;
 	if (step < 0) step = 0;
@@ -242,8 +256,9 @@ void CThumbnailPane::ApplyViewStep(int step, bool persist)
 	}
 
 	// Remember the selected image so it stays selected across the mode switch.
+	const auto selectedPaths = SelectedMediaPaths();
 	CString current;
-	int sel = IsGrid() && mGrid ? mGrid->Selection() : GetNextItem(-1, LVNI_SELECTED);
+	int sel = mSelection.focus;
 	if (sel >= 0 && sel < (int)mEntries.size())
 		current = mEntries[sel].path;
 
@@ -269,6 +284,7 @@ void CThumbnailPane::ApplyViewStep(int step, bool persist)
 	// Re-list the folder because the list and grid use different presentation and
 	// tile sizes. Folder entries and their names remain available in both modes.
 	Populate(mFolder, current);
+	if (!selectedPaths.empty()) RestoreSelection(selectedPaths, current);
 	if (IsGrid()) {
 		ShowScrollBar(SB_BOTH, FALSE);
 		CRect rc; GetClientRect(&rc); mGrid->MoveWindow(rc, FALSE);
@@ -304,6 +320,8 @@ void CThumbnailPane::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 
 void CThumbnailPane::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
+	if (HandleSelectionKey(nChar, (GetKeyState(VK_CONTROL) & 0x8000) != 0,
+		(GetKeyState(VK_SHIFT) & 0x8000) != 0)) return;
 	// PgUp/PgDn step the selection to the previous/next file, matching the main
 	// view's file navigation, instead of the list control's page scroll -- which in
 	// the grid (icon) view pages by the whole list and so just duplicated Home/End.
@@ -334,7 +352,7 @@ void CThumbnailPane::StepFile(bool next)
 	if (n == 0)
 		return;
 
-	int cur = GetNextItem(-1, LVNI_SELECTED);
+	int cur = mSelection.focus;
 	if (cur < 0)
 		cur = GetNextItem(-1, LVNI_FOCUSED);
 
@@ -350,8 +368,7 @@ void CThumbnailPane::StepFile(bool next)
 	if (target < 0)
 		return;                                     // already at the first/last file
 
-	SetItemState(target, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
-	EnsureVisible(target, FALSE);
+	SelectIndex(target);
 }
 
 void CThumbnailPane::ScheduleVisibleScan()
@@ -406,6 +423,7 @@ void CThumbnailPane::EndSlide()
 // applied inline; raw files and folders never decode.
 void CThumbnailPane::QueueVisibleThumbs()
 {
+	if (mRecycleBusy) return;
 	if (IsGrid() && mGrid) { mGrid->QueueVisible(); return; }
 	int n = (int)mEntries.size();
 	if (n == 0 || !GetSafeHwnd())
@@ -622,6 +640,7 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 	SetRedraw(FALSE);
 	DeleteAllItems();
 	mEntries.clear();
+	mSelection.clear();
 	// Size the tiles for the current mode/width before (re)building the image list.
 	if (!IsGrid()) { mThumb = kListThumb; ResetImageList(); }
 	mFolder = folder;
@@ -776,6 +795,8 @@ bool CThumbnailPane::GoToParent()
 
 BOOL CThumbnailPane::PreTranslateMessage(MSG* message)
 {
+	if (message->message == WM_KEYDOWN && HandleSelectionKey(UINT(message->wParam),
+		(GetKeyState(VK_CONTROL) & 0x8000) != 0, (GetKeyState(VK_SHIFT) & 0x8000) != 0)) return TRUE;
 	CMainFrame *frame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd());
 	if (frame != NULL && frame->TranslateGlobalAccelerator(message))
 		return TRUE;
@@ -803,6 +824,207 @@ void CThumbnailPane::OnContextMenu(CWnd*, CPoint point)
 	ShowContextMenu(index, point);
 }
 
+bool CThumbnailPane::IsMediaEntry(int index) const
+{
+	if (index < 0 || index >= int(mEntries.size()) || mEntries[index].kind != ENTRY_FILE) return false;
+	const CString ext = ExtensionOf(mEntries[index].path);
+	if (q1view::IsViewerThumbnailableExt(ext) || ext.CompareNoCase(_T("yuv")) == 0 ||
+		ext.CompareNoCase(_T("rgb")) == 0 || ext.CompareNoCase(_T("raw")) == 0 || ext.CompareNoCase(_T("y4m")) == 0) return true;
+	for (const auto& cs : qcsc_info_table)
+		if (ext.CompareNoCase(CString(cs.name)) == 0) return true;
+	return false;
+}
+
+void CThumbnailPane::SyncSelection(bool reveal)
+{
+	mSyncingSelection = true;
+	if (IsGrid() && mGrid) {
+		mGrid->mSelected = mSelection.focus;
+		if (reveal) { mGrid->mLayout.Reveal(mSelection.focus); mGrid->UpdateScrollBar(); }
+		mGrid->Invalidate(FALSE);
+	} else {
+		SetRedraw(FALSE);
+		SetItemState(-1, 0, LVIS_SELECTED | LVIS_FOCUSED);
+		for (int index : mSelection.selected) SetItemState(index, LVIS_SELECTED, LVIS_SELECTED);
+		if (mSelection.focus >= 0) {
+			SetItemState(mSelection.focus, LVIS_FOCUSED, LVIS_FOCUSED);
+			if (reveal) EnsureVisible(mSelection.focus, FALSE);
+		}
+		SetRedraw(TRUE);
+		Invalidate(FALSE);
+	}
+	ScheduleVisibleScan();
+	mSyncingSelection = false;
+}
+
+void CThumbnailPane::OnSelectionChanged(NMHDR*, LRESULT* result)
+{
+	*result = 0;
+	if (mSyncingSelection || IsGrid()) return;
+	// Native type-ahead and accessibility clients can change list selection too.
+	mSelection.selected.clear();
+	for (int index = GetNextItem(-1, LVNI_SELECTED); index >= 0; index = GetNextItem(index, LVNI_SELECTED))
+		mSelection.selected.insert(index);
+	mSelection.focus = GetNextItem(-1, LVNI_FOCUSED);
+	mSelection.anchor = mSelection.focus;
+}
+
+void CThumbnailPane::SelectIndex(int index, bool control, bool shift, bool reveal)
+{
+	mSelection.click(index, int(mEntries.size()), control, shift, [this](int i) { return IsMediaEntry(i); });
+	SyncSelection(reveal);
+}
+
+void CThumbnailPane::OnLButtonDown(UINT flags, CPoint point)
+{
+	if (mRecycleBusy) return;
+	SetFocus();
+	SelectIndex(HitTest(point), (flags & MK_CONTROL) != 0, (flags & MK_SHIFT) != 0, false);
+}
+
+void CThumbnailPane::OnLButtonDblClk(UINT flags, CPoint point)
+{
+	OnLButtonDown(flags, point);
+	if (!(flags & (MK_CONTROL | MK_SHIFT))) ActivateIndex(HitTest(point), true);
+}
+
+void CThumbnailPane::OnRButtonDown(UINT, CPoint point)
+{
+	if (mRecycleBusy) return;
+	SetFocus();
+	const int index = HitTest(point);
+	if (!mSelection.contains(index)) SelectIndex(index, false, false, false);
+}
+
+bool CThumbnailPane::HandleSelectionKey(UINT key, bool control, bool shift)
+{
+	if (!control && !shift && !IsGrid() && (key == VK_PRIOR || key == VK_NEXT)) {
+		StepFile(key == VK_NEXT);
+		return true;
+	}
+	if (key == VK_DELETE) {
+		// Shift+Delete has no permanent-delete interpretation.
+		if (!shift && !control) RecycleSelected();
+		return true;
+	}
+	if (control && key == 'A') {
+		if (!mRecycleBusy) {
+			mSelection.all(int(mEntries.size()), [this](int i) { return IsMediaEntry(i); });
+			SyncSelection(false);
+		}
+		return true;
+	}
+	int target = mSelection.focus < 0 ? 0 : mSelection.focus;
+	const int columns = IsGrid() && mGrid ? mGrid->mLayout.columns : 1;
+	switch (key) {
+	case VK_LEFT: case VK_PRIOR: --target; break;
+	case VK_RIGHT: case VK_NEXT: ++target; break;
+	case VK_UP: target -= columns; break;
+	case VK_DOWN: target += columns; break;
+	case VK_HOME: target = 0; break;
+	case VK_END: target = int(mEntries.size()) - 1; break;
+	default: return false;
+	}
+	if (mRecycleBusy) return true;
+	target = (std::max)(0, (std::min)(int(mEntries.size()) - 1, target));
+	if (control && !shift) { mSelection.focus = target; SyncSelection(true); }
+	else SelectIndex(target, control, shift);
+	return true;
+}
+
+std::vector<CString> CThumbnailPane::SelectedMediaPaths() const
+{
+	std::vector<CString> paths;
+	for (int index : mSelection.selected) if (IsMediaEntry(index)) paths.push_back(mEntries[index].path);
+	return paths;
+}
+
+void CThumbnailPane::RestoreSelection(const std::vector<CString>& paths, const CString& focus)
+{
+	mSelection.clear();
+	for (int i = 0; i < int(mEntries.size()); ++i) {
+		if (mEntries[i].path.CompareNoCase(focus) == 0) mSelection.focus = i;
+		if (IsMediaEntry(i) && std::any_of(paths.begin(), paths.end(), [&](const CString& path) {
+			return path.CompareNoCase(mEntries[i].path) == 0;
+		})) mSelection.selected.insert(i);
+	}
+	mSelection.anchor = mSelection.focus;
+	SyncSelection(false);
+}
+
+void CThumbnailPane::RecycleSelected()
+{
+	if (mRecycleBusy) return;
+	const auto paths = SelectedMediaPaths();
+	if (paths.empty()) return;
+	const CString folder = mFolder;
+	const unsigned generation = mGen.load();
+	mRecycleBusy = true;
+	struct Finish {
+		CThumbnailPane& pane;
+		~Finish() { pane.mRecycleBusy = false; pane.QueueVisibleThumbs(); }
+	} finish{*this};
+	if (!mConfirmRecycle(paths.size()) || generation != mGen.load() || folder != mFolder) return;
+
+	std::vector<CString> before;
+	for (int i = 0; i < int(mEntries.size()); ++i) if (IsMediaEntry(i)) before.push_back(mEntries[i].path);
+	const CString focused = mSelection.focus >= 0 ? mEntries[mSelection.focus].path : CString();
+	std::vector<std::wstring> payload;
+	for (const auto& path : paths) payload.emplace_back(path.GetString());
+	++mGen;
+	mPendingGeneration = 0;
+	{
+		std::unique_lock<std::mutex> lock(mMutex);
+		mTasks.clear();
+		mCv.wait(lock, [this] { return mDecoding == 0; });
+	}
+	CacheClear();
+	const unsigned operationGeneration = mGen.load();
+	auto* frame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd());
+	auto* doc = frame ? DYNAMIC_DOWNCAST(CViewerDoc, frame->GetActiveDocument()) : nullptr;
+	const CString active = doc ? doc->mPathName : CString();
+	const bool closeActive = doc && std::any_of(paths.begin(), paths.end(), [&](const CString& path) {
+		return path.CompareNoCase(active) == 0;
+	});
+	if (closeActive) doc->CloseMediaForRecycle();
+	const unsigned openGeneration = doc ? doc->mOpenGeneration : 0;
+	const auto results = q1view::RecycleFiles(m_hWnd, payload);
+	std::vector<CString> failed;
+	for (const auto& result : results) if (!result.recycled) failed.emplace_back(result.path.c_str());
+
+	CString next = active;
+	if (closeActive && GetFileAttributes(active) == INVALID_FILE_ATTRIBUTES) {
+		next.Empty();
+		auto current = std::find_if(before.begin(), before.end(), [&](const CString& path) { return path.CompareNoCase(active) == 0; });
+		const int at = int(current - before.begin());
+		auto surviving = [&](int i) {
+			const DWORD attr = GetFileAttributes(before[i]);
+			return attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY);
+		};
+		for (int i = at + 1; i < int(before.size()); ++i) if (surviving(i)) { next = before[i]; break; }
+		if (next.IsEmpty()) for (int i = at - 1; i >= 0; --i) if (surviving(i)) { next = before[i]; break; }
+	}
+	const bool sameFolder = operationGeneration == mGen.load() && folder == mFolder;
+	if (sameFolder) {
+		Populate(folder, closeActive ? next : focused);
+		if (!failed.empty()) RestoreSelection(failed, closeActive ? next : focused);
+	}
+	if (sameFolder && closeActive && doc->mOpenGeneration == openGeneration && !next.IsEmpty()) {
+		const LoadLayout layout = doc->mLoadLayout;
+		doc->mLoadLayout = LOAD_FIT_TO_WINDOW;
+		AfxGetApp()->OpenDocumentFile(next);
+		doc->mLoadLayout = layout;
+		if (folder == mFolder && !failed.empty()) RestoreSelection(failed, next);
+	}
+	if (!failed.empty()) {
+		CString message;
+		message.Format(_T("Moved %zu of %zu items to the Recycle Bin.\n%zu items could not be moved:"),
+			paths.size() - failed.size(), paths.size(), failed.size());
+		for (size_t i = 0; i < (std::min)(failed.size(), size_t(10)); ++i) message += _T("\n") + failed[i];
+		mReportRecycle(message);
+	}
+}
+
 void CThumbnailPane::BuildContextMenu(CMenu& menu, int index)
 {
 	const bool item = index >= 0 && index < int(mEntries.size());
@@ -823,6 +1045,12 @@ void CThumbnailPane::BuildContextMenu(CMenu& menu, int index)
 		menu.AppendMenu(MF_SEPARATOR);
 		menu.AppendMenu(MF_STRING | (exists ? 0 : MF_GRAYED), CMD_PROPERTIES, _T("Properties"));
 	}
+	const auto paths = SelectedMediaPaths();
+	if (item && entry.kind == ENTRY_FILE && !paths.empty()) {
+		CString label; label.Format(_T("Move %zu items to Recycle Bin"), paths.size());
+		menu.AppendMenu(MF_SEPARATOR);
+		menu.AppendMenu(MF_STRING, CMD_RECYCLE, label);
+	}
 }
 
 void CThumbnailPane::ShowContextMenu(int index, CPoint screenPoint)
@@ -831,8 +1059,7 @@ void CThumbnailPane::ShowContextMenu(int index, CPoint screenPoint)
 	const Entry entry = item ? mEntries[index] : Entry{};
 	const unsigned generation = mGen.load();
 	if (item) {
-		if (IsGrid()) mGrid->Select(index, false);
-		else SetItemState(index, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+		if (!mSelection.contains(index)) SelectIndex(index, false, false, false);
 	}
 	const std::wstring path = q1view::TrimDirectorySeparator(entry.path.GetString());
 	CMenu menu; BuildContextMenu(menu, index);
@@ -850,6 +1077,7 @@ void CThumbnailPane::ShowContextMenu(int index, CPoint screenPoint)
 	case CMD_PATH: ok = q1view::ClipboardText(m_hWnd, path); break;
 	case CMD_NAME: ok = q1view::ClipboardText(m_hWnd, PathFindFileNameW(path.c_str())); break;
 	case CMD_PROPERTIES: ok = q1view::ShowFileProperties(m_hWnd, path); break;
+	case CMD_RECYCLE: RecycleSelected(); break;
 	}
 	if (!ok) MessageBox(_T("The operation could not be completed. The item may be unavailable or the clipboard may be in use."),
 		_T("Thumbnail browser"), MB_OK | MB_ICONINFORMATION);
@@ -857,6 +1085,7 @@ void CThumbnailPane::ShowContextMenu(int index, CPoint screenPoint)
 
 void CThumbnailPane::ActivateIndex(int index, bool allowNavigate)
 {
+	if (mRecycleBusy) return;
 	if (index < 0 || index >= (int)mEntries.size())
 		return;
 
@@ -875,6 +1104,7 @@ void CThumbnailPane::ActivateIndex(int index, bool allowNavigate)
 
 LRESULT CThumbnailPane::OnActivatePosted(WPARAM wParam, LPARAM /*lParam*/)
 {
+	if (mRecycleBusy || !mPendingGeneration) return 0;
 	if (wParam != mPendingGeneration) return 0;
 	if (wParam != mGen.load()) {
 		// An asynchronous preview failure can rebuild this same folder before the
@@ -925,16 +1155,12 @@ void CThumbnailPane::SelectByPath(const CString &path)
 	for (size_t i = 0; i < mEntries.size(); i++) {
 		if (mEntries[i].kind != ENTRY_PARENT &&
 				mEntries[i].path.CompareNoCase(path) == 0) {
-			if (IsGrid() && mGrid) { mGrid->Select(int(i), true); return; }
-			SetItemState((int)i, LVIS_SELECTED | LVIS_FOCUSED,
-				LVIS_SELECTED | LVIS_FOCUSED);
-			EnsureVisible((int)i, FALSE);
+			SelectIndex(int(i));
 			return;
 		}
 	}
 	// Current file is not in this folder list; clear selection.
-	if (IsGrid() && mGrid) { mGrid->Select(-1, false); return; }
-	SetItemState(-1, 0, LVIS_SELECTED | LVIS_FOCUSED);
+	SelectIndex(-1, false, false, false);
 }
 
 // Double-click / Enter: open an image or navigate into a folder.
@@ -945,7 +1171,7 @@ void CThumbnailPane::OnItemActivate(NMHDR *pNMHDR, LRESULT *pResult)
 	if (pNMHDR->code == NM_DBLCLK)
 		index = reinterpret_cast<NMITEMACTIVATE *>(pNMHDR)->iItem;
 	else
-		index = GetNextItem(-1, LVNI_SELECTED);   // NM_RETURN
+		index = mSelection.focus;   // NM_RETURN
 	ActivateIndex(index, true);
 }
 
@@ -1028,6 +1254,7 @@ int CThumbnailPane::BadgeForExt(const CString &ext)
 
 void CThumbnailPane::QueueThumb(int index, const CString &path)
 {
+	if (mRecycleBusy) return;
 	Task t;
 	t.gen = mGen.load();
 	t.index = index;
@@ -1064,11 +1291,13 @@ LRESULT CThumbnailPane::OnThumbReady(WPARAM wParam, LPARAM /*lParam*/)
 			// meaningful preview. A new generation prevents outstanding results
 			// from landing on indices shifted by the removal.
 			const CString rejected = mEntries[r->index].path;
+			const auto selectedPaths = SelectedMediaPaths();
 			const int selected = mGrid->Selection();
 			const CString selection = selected >= 0 && selected < (int)mEntries.size()
 				? mEntries[selected].path : CString();
 			if (!PreviewRejected(rejected)) mRejectedPreviews.push_back(rejected);
 			Populate(mFolder, selection);
+			if (!selectedPaths.empty()) RestoreSelection(selectedPaths, selection);
 		} else {
 			// Supported images remain discoverable even when their pixels are
 			// damaged or the installed decoder cannot produce a preview.
@@ -1412,6 +1641,7 @@ void CThumbnailPane::WorkerLoop()
 			task = mTasks.front();
 			mTasks.pop_front();
 			++mOutstanding;
+			++mDecoding;
 		}
 		auto releaseSlot = [this] {
 			{ std::lock_guard<std::mutex> lock(mMutex); --mOutstanding; }
@@ -1419,6 +1649,7 @@ void CThumbnailPane::WorkerLoop()
 		};
 
 		if (task.gen != mGen.load()) {
+			{ std::lock_guard<std::mutex> lock(mMutex); --mDecoding; }
 			releaseSlot();
 			continue;
 		}
@@ -1426,6 +1657,8 @@ void CThumbnailPane::WorkerLoop()
 		HBITMAP hbmp = NULL;
 		try { hbmp = DecodeThumbnail(task.path, task.size, task.crop, Q1UI_COLOR_SURFACE_ALT); }
 		catch (...) { LOGWRN("%s", "Thumbnail decode failed; retaining placeholder"); }
+		{ std::lock_guard<std::mutex> lock(mMutex); --mDecoding; }
+		mCv.notify_all();
 
 		if (task.gen != mGen.load() || !GetSafeHwnd() || !::IsWindow(m_hWnd)) {
 			if (hbmp)
