@@ -236,6 +236,9 @@ MainWindow::MainWindow(QWidget *parent)
 		const auto restoreKeep = qScopeGuard([this, prevKeep]() { mKeepWindowOnLoad = prevKeep; });
 		openDroppedFile(path);
 	});
+	connect(mThumbPane, &ThumbnailPane::filesAboutToBeRecycled, this, [this](const QStringList& paths) {
+		if (paths.contains(QFileInfo(mCurrentFile).absoluteFilePath())) closeCurrentFile();
+	});
 	mThumbDock = new QDockWidget(tr("Thumbnail Browser"), this);
 	mThumbDock->setObjectName(QStringLiteral("thumbnailDrawer"));
 	mThumbDock->setWidget(mThumbPane);
@@ -2476,6 +2479,7 @@ void MainWindow::showImagePage()
 
 void MainWindow::watchCurrentFile()
 {
+	mReloadTimer->stop();
 	if (!mFileWatcher) {
 		return;
 	}
@@ -2517,12 +2521,12 @@ void MainWindow::watchCurrentFile()
 
 void MainWindow::onWatchedPathChanged(const QString &path)
 {
-	Q_UNUSED(path);
 	if (!mAutoReload || mCurrentFile.isEmpty()) {
 		return;
 	}
 
 	const QFileInfo info(mCurrentFile);
+	if (path != info.absoluteFilePath() && path != info.absolutePath()) return;
 	if (!info.exists() || !info.isFile()) {
 		// Vanished mid-save (atomic replace); let reloadCurrentSource() re-arm.
 		mReloadTimer->start();

@@ -6,6 +6,8 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <functional>
+#include "../QCommon/inc/QBrowserSelection.h"
 
 class QTimer;
 class QMenu;
@@ -39,10 +41,13 @@ public:
 protected:
 	void contextMenuEvent(QContextMenuEvent *event) override;
 	void keyPressEvent(QKeyEvent *event) override;
+	void mousePressEvent(QMouseEvent *event) override;
+	void mouseDoubleClickEvent(QMouseEvent *event) override;
 
 signals:
 	// A file row was activated (double-click / Enter); the owner should open it.
 	void fileActivated(const QString &path);
+	void filesAboutToBeRecycled(const QStringList &paths);
 
 private slots:
 	void onItemActivated(QListWidgetItem *item);
@@ -57,6 +62,17 @@ private:
 	void selectPath(const QString &path);
 	QIcon placeholderIcon(const QString &label) const;
 	bool isThumbnailable(const QString &path) const;
+	bool isMediaRow(int row) const;
+	void selectRow(int row, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
+	void syncSelection(bool reveal = true);
+	QStringList selectedMediaPaths() const;
+	void recycleSelected();
+	q1view::BrowserSelection mSelection;
+	bool mSyncingSelection = false;
+	QString mActivePath;
+	bool mRecycleBusy = false;
+	std::function<bool(int)> mConfirmRecycle;
+	std::function<void(const QString&)> mReportRecycle;
 
 	QStringList mNameFilters;
 	QString mFolder;          // folder currently listed (absolute, no trailing /)

@@ -11,6 +11,7 @@
 #include "QViewerCmn.h"
 #include "QCvUtil.h"
 #include "QFileActionsWin.h"
+#include "QRecycleFilesWin.h"
 #include <cstdio>
 #include <stdexcept>
 #include <functional>
@@ -44,6 +45,158 @@ struct GalleryIntegrationTests {
         double end = CGalleryGridCanvas::Now() + 10;
         while (!predicate() && CGalleryGridCanvas::Now() < end) Pump(.05);
         Require(predicate(), text);
+    }
+    void RecycleTests(CMainFrame* frame, const CString& fixture) {
+        auto& pane = *frame->mpDrawer;
+        auto& grid = *pane.mGrid;
+        auto* doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
+        auto* view = static_cast<CViewerView*>(frame->GetActiveView());
+        const auto confirm = pane.mConfirmRecycle;
+        const auto reportFailure = pane.mReportRecycle;
+        wchar_t temp[MAX_PATH]; GetTempPathW(MAX_PATH, temp);
+        CString root; root.Format(L"%sQ1View-recycle-%lu-%llu\\", temp, GetCurrentProcessId(), GetTickCount64());
+        Require(CreateDirectoryW(root, nullptr) != FALSE, "isolated recycle fixture created");
+        for (int mode : {0, 1}) {
+            CString folder; folder.Format(L"%s%d\\", root.GetString(), mode);
+            Require(CreateDirectoryW(folder, nullptr) != FALSE, "selection mode fixture created");
+            const CString child = folder + L"folder\\";
+            Require(CreateDirectoryW(child, nullptr) != FALSE, "directory exclusion fixture created");
+            std::vector<CString> files;
+            for (const wchar_t* name : {L"a.png", L"b.png", L"c.png", L"\xC0AC\xC9C4.png"}) {
+                files.push_back(folder + name);
+                Require(CopyFileW(fixture, files.back(), TRUE) != FALSE, "recycle photo fixture created");
+            }
+            const CString text = folder + L"document.txt";
+            Require(CopyFileW(fixture, text, TRUE) != FALSE, "non-media exclusion fixture created");
+            pane.NavigateTo(folder); pane.ApplyViewStep(mode, false); Pump(.1);
+            auto indexOf = [&](const CString& path) {
+                for (int i = 0; i < int(pane.mEntries.size()); ++i) if (pane.mEntries[i].path == path) return i;
+                return -1;
+            };
+            auto click = [&](int index, UINT flags, bool right = false) {
+                CPoint point;
+                CWnd* target = &pane;
+                if (mode) {
+                    const auto rect = grid.mLayout.Rect(index, grid.Now());
+                    point = CPoint(int(rect.x + rect.size / 2), int(rect.y + rect.size / 2));
+                    target = &grid;
+                } else {
+                    pane.EnsureVisible(index, FALSE);
+                    CRect rect; pane.GetItemRect(index, rect, LVIR_BOUNDS); point = rect.CenterPoint();
+                }
+                target->SendMessage(right ? WM_RBUTTONDOWN : WM_LBUTTONDOWN, flags, MAKELPARAM(point.x, point.y));
+            };
+            const int first = indexOf(files[0]), last = indexOf(files[3]);
+            click(first, 0); click(last, MK_CONTROL);
+            Require(pane.SelectedMediaPaths().size() == 2, "MFC Ctrl-click selects disjoint media in both views");
+            click(last, MK_CONTROL);
+            Require(pane.SelectedMediaPaths().size() == 1, "MFC Ctrl-click toggles selected media off");
+            click(first, 0); click(indexOf(files[2]), MK_SHIFT);
+            Require(pane.SelectedMediaPaths().size() == 3, "MFC Shift-click selects a contiguous media range");
+            click(last, MK_SHIFT | MK_CONTROL);
+            Require(pane.SelectedMediaPaths().size() == 4, "MFC Ctrl-Shift extends the range");
+            click(first, 0); click(last, MK_CONTROL); click(first, 0, true);
+            Require(pane.SelectedMediaPaths().size() == 2, "MFC right-click preserves multi-selection");
+            CMenu menu; pane.BuildContextMenu(menu, first);
+            CString label; menu.GetMenuString(CThumbnailPane::CMD_RECYCLE, label, MF_BYCOMMAND);
+            Require(label == L"Move 2 items to Recycle Bin", "MFC recycle menu displays selected count");
+            int confirmations = 0;
+            pane.mConfirmRecycle = [&](size_t count) { ++confirmations; Require(count == 2, "MFC confirmation captures batch count"); return false; };
+            MSG key = {}; key.message = WM_KEYDOWN; key.wParam = VK_DELETE;
+            key.hwnd = mode ? grid.m_hWnd : pane.m_hWnd;
+            Require(mode ? grid.PreTranslateMessage(&key) : pane.PreTranslateMessage(&key), "Delete reaches drawer recycle handler");
+            Require(confirmations == 1 && GetFileAttributes(files[0]) != INVALID_FILE_ATTRIBUTES && pane.SelectedMediaPaths().size() == 2,
+                "MFC cancellation preserves files and selection");
+            pane.HandleSelectionKey(VK_DELETE, false, true);
+            Require(confirmations == 1, "MFC Shift-Delete does not bypass recycling");
+            pane.HandleSelectionKey('A', true, false);
+            Require(pane.SelectedMediaPaths().size() == 4 && pane.mSelection.selected.size() == 4,
+                "MFC Ctrl-A excludes parent, directory, and non-media files");
+            if (!mode) {
+                pane.SetItemState(-1, 0, LVIS_SELECTED | LVIS_FOCUSED);
+                pane.SetItemState(first, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+                Require(pane.SelectedMediaPaths() == std::vector<CString>{files[0]},
+                    "native list selection changes keep the shared selection model in sync");
+            }
+            pane.mConfirmRecycle = [&](size_t) { pane.NavigateTo(child); return true; };
+            pane.RecycleSelected();
+            Require(pane.mFolder == child && GetFileAttributes(files[0]) != INVALID_FILE_ATTRIBUTES,
+                "MFC folder change during confirmation invalidates batch");
+            pane.NavigateTo(folder); pane.SelectByPath(files[0]); pane.SelectIndex(indexOf(files[3]), true);
+            const unsigned oldGeneration = pane.mGen.load();
+            pane.ActivateIndex(indexOf(files[0]), true);
+            pane.mConfirmRecycle = [](size_t) { return true; };
+            CString report;
+            pane.mReportRecycle = [&](const CString& message) { report = message; };
+            HANDLE locked = CreateFileW(files[0], GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                nullptr, OPEN_EXISTING, 0, nullptr);
+            Require(locked != INVALID_HANDLE_VALUE, "locked file fixture opened");
+            pane.RecycleSelected(); CloseHandle(locked); Pump(.1);
+            Require(GetFileAttributes(files[0]) != INVALID_FILE_ATTRIBUTES && GetFileAttributes(files[3]) == INVALID_FILE_ATTRIBUTES &&
+                pane.SelectedMediaPaths() == std::vector<CString>{files[0]} && report.Find(L"1 of 2") >= 0,
+                "MFC partial failure preserves locked item and successful Unicode recycle");
+            Require(GetFileAttributes(child) != INVALID_FILE_ATTRIBUTES && GetFileAttributes(text) != INVALID_FILE_ATTRIBUTES,
+                "directory and non-media files never enter deletion payload");
+            Require(pane.mPendingGeneration == 0, "deletion invalidates deferred activation");
+            auto* stale = new CThumbnailPane::Result{oldGeneration, 0, pane.mThumb, nullptr};
+            { std::lock_guard<std::mutex> lock(pane.mMutex); ++pane.mOutstanding; }
+            const CString rowZero = pane.mEntries[0].path;
+            pane.OnThumbReady(reinterpret_cast<WPARAM>(stale), 0);
+            Require(pane.mEntries[0].path == rowZero, "stale decode result cannot mutate recycled indices");
+            const auto rejectedDirectory = q1view::RecycleFiles(pane.m_hWnd, {std::wstring(child.GetString())});
+            Require(!rejectedDirectory[0].recycled && GetFileAttributes(child) != INVALID_FILE_ATTRIBUTES,
+                "native backend also rejects directory payloads");
+            Microsoft::WRL::ComPtr<IShellItem> shellItem;
+            Require(SUCCEEDED(SHCreateItemFromParsingName(files[0], nullptr, IID_PPV_ARGS(&shellItem))), "recycle guard fixture binds");
+            q1view::RecycleResult guarded;
+            auto sink = Microsoft::WRL::Make<q1view::RecycleProgress>(&guarded);
+            Require(FAILED(sink->PreDeleteItem(0, shellItem.Get())) && GetFileAttributes(files[0]) != INVALID_FILE_ATTRIBUTES,
+                "permanent-delete fallback is rejected before touching the file");
+
+            Require(AfxGetApp()->OpenDocumentFile(files[1]) != nullptr, "active recycle photo opened"); Pump(.05);
+            pane.SetCurrentFile(files[1]);
+#ifdef _WIN32
+            HANDLE activeLock = CreateFileW(files[1], GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                nullptr, OPEN_EXISTING, 0, nullptr);
+            Require(activeLock != INVALID_HANDLE_VALUE, "active recycle failure fixture opened");
+            pane.RecycleSelected(); CloseHandle(activeLock); Pump(.05);
+            Require(doc->mPathName == files[1] && doc->mFrmSrc &&
+                pane.SelectedMediaPaths() == std::vector<CString>{files[1]},
+                "failed active recycle reopens the image and preserves its selection");
+#endif
+            CRect geometry; frame->GetWindowRect(&geometry);
+            const unsigned oldWatch = doc->mFileChangeNotiThread->Generation();
+            pane.mReportRecycle = [&](const CString&) { Require(false, "active file recycling should succeed"); };
+            pane.RecycleSelected(); Pump(.1);
+            CRect after; frame->GetWindowRect(&after);
+            Require(doc->mPathName == files[2] && GetFileAttributes(files[1]) == INVALID_FILE_ATTRIBUTES && geometry == after,
+                "active photo deletion selects next survivor without resizing");
+            const unsigned opened = doc->mOpenGeneration;
+            frame->SendMessage(WM_RELOAD, oldWatch, 1);
+            Require(doc->mOpenGeneration == opened, "stale watcher notification cannot reload the next document");
+            pane.RecycleSelected(); Pump(.05);
+            Require(doc->mPathName == files[0], "last active photo deletion selects previous survivor");
+            pane.RecycleSelected(); Pump(.05);
+            Require(doc->mPathName.IsEmpty() && doc->mFrmSrc == nullptr && !view->mStableRgbBufferInfo.addr,
+                "deleting final photo leaves a safe empty view");
+        }
+        const CString video = root + L"a-playing.avi";
+        cv::VideoWriter writer(std::string(CW2A(video, CP_UTF8)), cv::VideoWriter::fourcc('M','J','P','G'), 30, cv::Size(64,48));
+        Require(writer.isOpened(), "dedicated recycle video fixture created");
+        for (int i = 0; i < 300; ++i) writer.write(cv::Mat(48,64,CV_8UC3,cv::Scalar(i%255,80,30)));
+        writer.release();
+        const CString next = root + L"b-next.png";
+        Require(CopyFileW(fixture, next, TRUE) != FALSE, "post-video survivor created");
+        Require(AfxGetApp()->OpenDocumentFile(video) != nullptr, "recycle video opens in actual Viewer");
+        Pump(.1);
+        if (!view->mIsPlaying) view->SetPlayTimer(doc);
+        Await([&] { return view->mIsPlaying && view->mStableRgbBufferInfo.ID > 0; }, "recycle video is actively playing");
+        pane.ApplyViewStep(0, false); pane.SetCurrentFile(video);
+        pane.RecycleSelected(); Pump(.1);
+        Require(GetFileAttributes(video) == INVALID_FILE_ATTRIBUTES && doc->mPathName == next && !view->mIsPlaying,
+            "playing video releases decoder/audio handles before recycling and activates survivor");
+        pane.mConfirmRecycle = confirm;
+        pane.mReportRecycle = reportFailure;
     }
     void Run() {
         auto frame = static_cast<CMainFrame*>(AfxGetMainWnd());
@@ -128,11 +281,11 @@ struct GalleryIntegrationTests {
         Require(grid.Selection() == 1, "arrow navigation moves from parent tile to first file");
         key.wParam = 'E';
         Require(grid.PreTranslateMessage(&key), "grid forwards Viewer accelerators to the frame");
-        Pump(.8);
-        Require(!frame->mDrawerVisible, "E toggles the drawer while the grid has focus");
+        Await([&] { return !frame->mDrawerVisible && !frame->mDrawerAnimating; },
+            "E toggles the drawer while the grid has focus");
         Require(frame->TranslateGlobalAccelerator(&key), "frame accelerator can restore drawer focus path");
-        Pump(.8);
-        Require(frame->mDrawerVisible, "global drawer shortcut restores the drawer");
+        Await([&] { return frame->mDrawerVisible && !frame->mDrawerAnimating; },
+            "global drawer shortcut restores the drawer");
 
         CString driveRoot = folder.Left(3);
         pane.NavigateTo(driveRoot); Pump(.2);
@@ -511,6 +664,7 @@ struct GalleryIntegrationTests {
             Require(doc->mPathName == media, "stale deferred activation cannot open an item after folder change");
             view->KillPlayTimerSafe();
         }
+        RecycleTests(frame, fixture);
         wchar_t hold[16];
         if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_TEST_HOLD_SECONDS",hold,_countof(hold))) {
             fprintf(report,"Holding test window for visual inspection\n"); fflush(report);

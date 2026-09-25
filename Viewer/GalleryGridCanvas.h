@@ -43,6 +43,7 @@ protected:
     afx_msg LRESULT OnDpiChanged(WPARAM, LPARAM);
     afx_msg void OnDestroy();
 private:
+	friend class CThumbnailPane;
 	friend struct GalleryIntegrationTests;
     template<class T> using Ptr = Microsoft::WRL::ComPtr<T>;
     struct Cached {

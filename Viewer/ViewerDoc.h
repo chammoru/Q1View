@@ -128,6 +128,7 @@ public:
 	int LastScene();
 	void LoadSourceImage(LoadLayout layout = LOAD_RESIZE_WINDOW);
 	BOOL ReloadDocument();
+	void CloseMediaForRecycle();
 	void UpdateMenu();
 	void Rotate90();
 
