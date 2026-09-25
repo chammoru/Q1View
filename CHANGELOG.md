@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Fixed
+- Windows Viewer: make `E` drawer toggles atomic so high-resolution images are not repeatedly resized and repainted alongside thumbnail loading, while preserving docked-panel refitting, manual zoom position, keyboard focus, and one-toggle-per-keypress behavior.
+
 ---
 
 ## [2.7.24] — 2026-09-25

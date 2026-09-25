@@ -200,7 +200,7 @@ public:
 	void FitToWindow();
 	bool IsFitToWindow() const { return mFitToWindow; }
 	// Keep the displayed image origin fixed in desktop coordinates when the
-	// hosting viewport moves during an in-playback drawer layout change.
+	// hosting viewport moves during a drawer layout change in manual zoom mode.
 	void RestoreImageScreenOrigin(const CPoint &screenOrigin);
 	void ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID);
 	void UpdateVolumeFromPoint(CPoint point);

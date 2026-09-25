@@ -72,8 +72,6 @@ void CGalleryGridCanvas::Relayout(bool animate) {
     CRect rc; GetClientRect(&rc);
     float dpi = GetDpiForWindow(m_hWnd) / 96.0f;
     float width = float(rc.Width());
-    if (mOwner.mSlideWidth > 0)
-        width = float(mOwner.mSlideWidth - GetSystemMetricsForDpi(SM_CXVSCROLL, GetDpiForWindow(m_hWnd)));
     mLayout.Retarget(mOwner.GridColsForStep(mOwner.mViewStep), width,
         float(rc.Height()), dpi, mSelected, Now(), animate);
     // Decode sizes are bounded even on very wide/high-DPI drawers.
@@ -222,6 +220,10 @@ void CGalleryGridCanvas::DropDevice() {
     mTarget.Reset(); mBrush.Reset(); mContext.Reset(); mD2Device.Reset();
     mSwapChain.Reset(); mImmediate.Reset(); mDevice.Reset(); mFactory.Reset();
     mText.Reset(); mBadgeText.Reset(); mFontCollection.Reset(); mWriteFactory.Reset(); mWidth = mHeight = 0;
+    // A deliberate device drop (for example, after a DPI change or test-driven
+    // recreation) should be allowed to recreate immediately. OnPaint applies its
+    // retry backoff again after an actual rendering failure.
+    mRetryAt = 0;
 }
 bool CGalleryGridCanvas::EnsureDevice(int width, int height) {
     if (width <= 0 || height <= 0) return false;

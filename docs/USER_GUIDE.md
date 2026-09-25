@@ -87,6 +87,8 @@ In the Windows compact list, gallery grid, and Qt drawer, Ctrl+click toggles ind
 
 The first entry is **[..]** in every non-empty folder, including a drive or UNC share root. In a drive/share root, activating **[..]** opens the top-level logical-drive chooser; select `[C:\]`, `[D:\]`, or another listed volume to switch drives. Child directories use the same compact **[Folder name]** notation, accent color, and medium-weight Pretendard text in both Viewer implementations, without a decorative folder picture. Double-click the parent entry or press Enter to move upward. With focus in the drawer, **Backspace** and **Alt+Up** remain keyboard shortcuts for the same action. Going upward retains the thumbnail size and selects/reveals the folder you just left. Folder browsing does not open or seek media, resize the window, or broadcast synchronized playback changes. Missing/unavailable folders leave the existing drawer unchanged. Rename, cut, paste, and moving directories are not part of these actions.
 
+In the Windows Viewer, opening or closing the docked drawer changes the image viewport in one stable layout pass. Fit-to-window images are refitted and centered in the remaining viewport (small images stay at 100%); manually zoomed or panned images retain their zoom and inspected screen position. Closing the drawer returns keyboard focus to the image view.
+
 ### Synchronized Viewer Windows
 
 To inspect related sources interactively, open more than one Viewer window,

@@ -45,11 +45,6 @@
 // image view so dragging the divider can never squeeze the picture away.
 #define DRAWER_MIN_IMAGE  160
 
-// Slide animation: ~180ms split into short timer ticks.
-#define DRAWER_ANIM_TIMER 0xD4A1
-#define DRAWER_ANIM_STEPS 12
-#define DRAWER_ANIM_MS    15
-
 // One-shot timer that kicks off the background Store update check a few seconds
 // after launch, so the check never competes with cold-start work.
 #define STORE_CHECK_TIMER 0xD4A2
@@ -80,6 +75,13 @@ static BOOL CALLBACK SendViewerSyncInput(HWND hwnd, LPARAM lParam)
 	}
 
 	return TRUE;
+}
+
+static bool IsRepeatedDrawerShortcut(const MSG *message)
+{
+	return message != NULL &&
+		(message->message == WM_KEYDOWN || message->message == WM_SYSKEYDOWN) &&
+		message->wParam == 'E' && (message->lParam & (1L << 30)) != 0;
 }
 
 // CMainFrame
@@ -508,10 +510,6 @@ CMainFrame::CMainFrame()
 , mDrawerVisible(false)
 , mDrawerWidth(DRAWER_DEF_W)
 , mSplitterReady(false)
-, mDrawerAnimating(false)
-, mDrawerAnimOpening(false)
-, mDrawerAnimStep(0)
-, mDrawerAnimSteps(DRAWER_ANIM_STEPS)
 , mUpdateMenuShown(false)
 {
 	// The drawer always starts closed -- every launch looks like the classic
@@ -582,6 +580,10 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 
 BOOL CMainFrame::PreTranslateMessage(MSG *pMsg)
 {
+	// A toggle command represents one physical key press. Ignoring keyboard
+	// auto-repeat prevents a held E from rapidly opening and closing the drawer.
+	if (IsRepeatedDrawerShortcut(pMsg))
+		return TRUE;
 	if (pMsg != NULL && pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_ESCAPE) {
 		CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
 		if (pView != NULL && pView->IsFullScreen()) {
@@ -607,6 +609,8 @@ BOOL CMainFrame::TranslateGlobalAccelerator(MSG *pMsg)
 		return FALSE;
 	if (pMsg->message != WM_KEYDOWN && pMsg->message != WM_SYSKEYDOWN)
 		return FALSE;
+	if (IsRepeatedDrawerShortcut(pMsg))
+		return TRUE;
 	return ::TranslateAccelerator(m_hWnd, m_hAccelTable, pMsg);
 }
 
@@ -886,9 +890,6 @@ void CMainFrame::PinDrawerColumn()
 {
 	if (!mSplitterReady || !::IsWindow(mwndSplitter.GetSafeHwnd()))
 		return;
-	// During the slide the timer drives the column sizes; don't fight it.
-	if (mDrawerAnimating)
-		return;
 
 	CRect rc;
 	mwndSplitter.GetClientRect(&rc);
@@ -937,23 +938,16 @@ void CMainFrame::ToggleHelpOverlay()
 
 void CMainFrame::OnToggleDrawer()
 {
-	if (!mSplitterReady || mDrawerAnimating)
+	if (!mSplitterReady)
 		return;
 
-	// A 60 fps video already consumes the UI thread once per presented frame.
-	// Animating the splitter adds twelve RecalcLayout/ResizeBuffers passes on that
-	// same thread, so timer ticks can be delayed for nearly a second and leave the
-	// drawer apparently stuck between widths. During playback, apply the resting
-	// layout atomically; the decoder and playback clock remain untouched.
-	CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
-	if (pView != NULL && pView->mIsPlaying) {
-		SetDrawerVisibleImmediately(!mDrawerVisible);
-		return;
-	}
-
-	// mDrawerWidth is the fixed target width; it is never rederived from the
-	// laid-out column, so repeated toggles can't accumulate any drift.
-	StartDrawerAnimation(!mDrawerVisible);
+	// The splitter owns two independently painted child surfaces. Animating its
+	// column used to resize and repaint a large image twelve times while the drawer
+	// also started enumerating and decoding thumbnails. On high-resolution folders
+	// those timer-driven layouts arrived unevenly and made the image visibly shake.
+	// Keep the last composed frame above the children and switch to the resting
+	// layout in one pass for both still images and video.
+	SetDrawerVisibleImmediately(!mDrawerVisible);
 }
 
 void CMainFrame::SetDrawerVisibleImmediately(bool visible)
@@ -980,12 +974,14 @@ void CMainFrame::SetDrawerVisibleImmediately(bool visible)
 	PinDrawerColumn();
 
 	if (preserveScreenPosition) {
-		// OnSize has preserved zoom and the image-space viewport anchor. For active
-		// video, compensate the viewport's desktop movement as well so the subject
-		// does not jump sideways when the left drawer appears or disappears.
+		// OnSize has preserved zoom and the image-space viewport anchor. Compensate
+		// the viewport's desktop movement as well so the subject does not jump
+		// sideways when the left drawer appears or disappears.
 		pView->RestoreImageScreenOrigin(oldImageOrigin);
 	} else {
-		SettleViewAfterDrawerResize(true);
+		// Recompute the final fit now, but let the common RedrawWindow below paint
+		// it once before the transition snapshot is removed.
+		SettleViewAfterDrawerResize();
 	}
 
 	if (pView != NULL) {
@@ -1001,115 +997,28 @@ void CMainFrame::SetDrawerVisibleImmediately(bool visible)
 	}
 
 	// Start the drawer's list/background thumbnail work only after the stable
-	// video surface is visible again, so folder setup cannot extend the frozen
+	// image surface is visible again, so folder setup cannot extend the frozen
 	// transition snapshot.
 	if (visible && mpDrawer != NULL && ::IsWindow(mpDrawer->GetSafeHwnd())) {
 		CDocument *pDoc = GetActiveDocument();
 		if (pDoc != NULL && !pDoc->GetPathName().IsEmpty())
 			mpDrawer->SetCurrentFile(pDoc->GetPathName());
+		mpDrawer->SetFocus();
+	} else if (!visible && pView != NULL && ::IsWindow(pView->GetSafeHwnd())) {
+		// A zero-width drawer can otherwise retain keyboard focus. Return it to
+		// the image so arrows and image commands operate on the visible surface.
+		pView->SetFocus();
 	}
-}
-
-void CMainFrame::StartDrawerAnimation(bool opening)
-{
-	mDrawerAnimOpening = opening;
-	mDrawerAnimStep = 0;
-	mDrawerAnimSteps = DRAWER_ANIM_STEPS;
-
-	// Lock the grid to its final width for the whole slide so its tiles don't resize
-	// or repopulate frame by frame -- they are simply revealed/hidden as the column
-	// grows/shrinks (issue #84 follow-up).
-	if (mpDrawer && ::IsWindow(mpDrawer->GetSafeHwnd()))
-		mpDrawer->BeginSlide(mDrawerWidth);
-
-	if (opening) {
-		// Show the pane and start decoding thumbnails now so they appear during
-		// the slide. The window stays fixed; the image view gives up the width.
-		mDrawerVisible = true;
-		if (mpDrawer && ::IsWindow(mpDrawer->GetSafeHwnd())) {
-			CDocument *pDoc = GetActiveDocument();
-			if (pDoc != NULL && !pDoc->GetPathName().IsEmpty())
-				mpDrawer->SetCurrentFile(pDoc->GetPathName());
-		}
-	}
-	// When closing, keep mDrawerVisible true so the pane stays drawn while it
-	// collapses; FinalizeDrawerAnimation clears it at the end.
-
-	mDrawerAnimating = true;
-	SetTimer(DRAWER_ANIM_TIMER, DRAWER_ANIM_MS, NULL);
-
-	// Paint the first frame immediately so there's no flash.
-	OnTimer(DRAWER_ANIM_TIMER);
-}
-
-void CMainFrame::ApplyDrawerColumn(int drawerCol)
-{
-	if (drawerCol < 0)
-		drawerCol = 0;
-
-	CRect rc;
-	mwndSplitter.GetClientRect(&rc);
-
-	// The divider only exists while the drawer has width; hide it at the ends of
-	// the slide so the closed state leaves no leftover gap.
-	mwndSplitter.SetBarVisible(drawerCol > 0);
-	int bar = mwndSplitter.BarWidth();
-
-	int maxDrawer = rc.Width() - bar - DRAWER_MIN_IMAGE;
-	if (maxDrawer < 0)
-		maxDrawer = 0;
-	if (drawerCol > maxDrawer)
-		drawerCol = maxDrawer;
-	int viewCol = rc.Width() - drawerCol - bar;
-	if (viewCol < 0)
-		viewCol = 0;
-
-	mwndSplitter.SetColumnInfo(0, drawerCol, 0);               // drawer, grows left
-	mwndSplitter.SetColumnInfo(1, viewCol, DRAWER_MIN_IMAGE);  // image view, shrinks
-	mwndSplitter.RecalcLayout();
 }
 
 void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 {
-	if (nIDEvent == DRAWER_ANIM_TIMER) {
-		mDrawerAnimStep++;
-		double t = (double)mDrawerAnimStep / mDrawerAnimSteps;
-		if (t > 1.0)
-			t = 1.0;
-		double eased = 1.0 - (1.0 - t) * (1.0 - t);   // ease-out
-		double frac = mDrawerAnimOpening ? eased : (1.0 - eased);
-		ApplyDrawerColumn((int)(frac * mDrawerWidth + 0.5));
-
-		if (mDrawerAnimStep >= mDrawerAnimSteps) {
-			KillTimer(DRAWER_ANIM_TIMER);
-			mDrawerAnimating = false;
-			FinalizeDrawerAnimation();
-		}
-		return;
-	}
 	if (nIDEvent == STORE_CHECK_TIMER) {
 		KillTimer(STORE_CHECK_TIMER);   // one-shot
 		q1::store::CheckForUpdatesAsync(GetSafeHwnd(), WM_STORE_UPDATE_AVAILABLE);
 		return;
 	}
 	CFrameWnd::OnTimer(nIDEvent);
-}
-
-void CMainFrame::FinalizeDrawerAnimation()
-{
-	if (!mDrawerAnimOpening)
-		mDrawerVisible = false;
-
-	// Snap to the exact resting layout, then perform at most one final fit.
-	PinDrawerColumn();
-	SettleViewAfterDrawerResize();
-
-	// Release the slide lock and settle the grid into its now-final width.
-	if (mpDrawer && ::IsWindow(mpDrawer->GetSafeHwnd()))
-		mpDrawer->EndSlide();
-
-	if (mDrawerVisible && mpDrawer && ::IsWindow(mpDrawer->GetSafeHwnd()))
-		mpDrawer->SetFocus();
 }
 
 void CMainFrame::OnUpdateToggleDrawer(CCmdUI *pCmdUI)
@@ -1144,7 +1053,7 @@ void CMainFrame::OnDrawerDividerTrackBegin()
 
 void CMainFrame::OnDrawerDividerTracking()
 {
-	if (!mSplitterReady || mDrawerAnimating)
+	if (!mSplitterReady)
 		return;
 
 	// CViewerView::OnSize preserves the current scale and image-space focal point.
@@ -1162,7 +1071,7 @@ void CMainFrame::OnDrawerDividerTracking()
 
 void CMainFrame::OnDrawerDividerDragged()
 {
-	bool commit = mSplitterReady && !mDrawerAnimating;
+	bool commit = mSplitterReady;
 	if (commit) {
 		// Adopt the width the user dragged the drawer column to, clamped to the
 		// shared bounds, then re-pin (enforces the minimum image view) and refit.
@@ -1409,12 +1318,10 @@ void CMainFrame::UpdateMagnication(float n, int wDst, int hDst)
 
 	pMenu->ModifyMenu(ID_MAGNIFY, MF_BYCOMMAND | MF_RIGHTJUSTIFY | MF_GRAYED, ID_MAGNIFY, str);
 
-	// While the drawer slides or the divider is dragged, the image refits every
-	// frame; DrawMenuBar repaints the whole (non-buffered) menu bar each time, which
-	// read as a flicker. Update the label text now but defer the repaint -- the
-	// refit after the slide/drag settles (with these flags cleared) draws the final
-	// value a single time.
-	if (!mDrawerAnimating && !mDrawerResizing)
+	// While the divider is dragged, DrawMenuBar would repaint the whole
+	// non-buffered menu bar each time. Update the label text now but defer the
+	// repaint until the drag settles.
+	if (!mDrawerResizing)
 		DrawMenuBar();
 }
 

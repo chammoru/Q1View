@@ -124,7 +124,7 @@ private:
 };
 
 // Holds the last fully composed client image above the separate MFC and DXGI
-// child surfaces while an active-video drawer toggle settles underneath it.
+// child surfaces while a drawer toggle settles underneath it.
 class CDrawerTransitionOverlay : public CWnd
 {
 public:
@@ -162,14 +162,6 @@ private:
 	int  mDrawerWidth;
 	bool mSplitterReady;
 	bool mDrawerResizing = false;   // user is live-dragging the divider
-
-	// Open/close slide animation state. The drawer column slides between 0 and
-	// mDrawerWidth while the frame size stays fixed (the image view absorbs the
-	// change), so no window-geometry bookkeeping is needed.
-	bool mDrawerAnimating;
-	bool mDrawerAnimOpening;
-	int  mDrawerAnimStep;
-	int  mDrawerAnimSteps;
 
 	// Full-window shortcut/help overlay (issue #79).
 	CHelpOverlay mHelpOverlay;
@@ -258,9 +250,6 @@ private:
 	BOOL LaunchComparator(const CString &cmperPath, const CString &quotedArgs);
 	void PinDrawerColumn();
 	void SetDrawerVisibleImmediately(bool visible);
-	void StartDrawerAnimation(bool opening);
-	void ApplyDrawerColumn(int drawerCol);
-	void FinalizeDrawerAnimation();
 	// Settle the image after a drawer resize. Active fit mode is recomputed once
 	// at the final width; manual mode only repaints its preserved transform.
 	void SettleViewAfterDrawerResize(bool updateNow = false);

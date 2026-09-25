@@ -50,14 +50,6 @@ public:
 	// Stop the worker thread and release cached bitmaps. Safe to call twice.
 	void Shutdown();
 
-	// Open/close slide bracketing. While sliding, the grid is laid out for the
-	// drawer's final width and intermediate relayouts are suppressed, so the tiles
-	// keep one size and the content is revealed/hidden smoothly instead of
-	// resizing and repopulating mid-animation. targetWidth is the resting drawer
-	// width in pixels.
-	void BeginSlide(int targetWidth);
-	void EndSlide();
-
 	// While live-dragging the splitter, clip the existing grid layout; passing
 	// false re-fits once at the final width without rebuilding folder entries.
 	void SetResizing(bool on);
@@ -159,7 +151,6 @@ private:
 	bool       mPrivateFontLoaded = false;
 	int        mThumb;                 // icon edge size in px (follows mViewStep)
 	int        mViewStep;              // 0 = list, >=1 = grid step
-	int        mSlideWidth;            // >0 while open/close sliding: lay out for this width
 	bool       mResizing;             // true while live-dragging the splitter: skip re-fit
 
 	enum EntryKind { ENTRY_PARENT, ENTRY_DIR, ENTRY_FILE };

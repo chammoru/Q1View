@@ -75,7 +75,6 @@ END_MESSAGE_MAP()
 CThumbnailPane::CThumbnailPane()
 : mThumb(kListThumb)
 , mViewStep(kDefaultStep)
-, mSlideWidth(0)
 , mResizing(false)
 , mLoadingImg(-1)
 , mCacheCap(512)
@@ -393,13 +392,6 @@ void CThumbnailPane::RelayoutGrid()
     if (IsGrid() && mGrid && GetSafeHwnd()) mGrid->Relayout(false);
 }
 
-// Use the final drawer width while it slides, revealing/clipping stable tiles.
-void CThumbnailPane::BeginSlide(int targetWidth)
-{
-    mSlideWidth = std::max(1, targetWidth);
-    if (IsGrid() && mGrid) mGrid->Relayout(false);
-}
-
 // Clip the existing layout during live splitter dragging, then re-fit once.
 void CThumbnailPane::SetResizing(bool on)
 {
@@ -407,15 +399,6 @@ void CThumbnailPane::SetResizing(bool on)
 	if (!on && IsGrid() && GetSafeHwnd()) {
 		RelayoutGrid();
 	}
-}
-
-void CThumbnailPane::EndSlide()
-{
-    mSlideWidth = 0;
-    if (IsGrid() && mGrid) {
-        mGrid->Relayout(false);
-        mGrid->QueueVisible();
-    }
 }
 
 // Queue decodes only for files at (or one screen beyond) the visible region, so

@@ -12,6 +12,7 @@
 #include "QCvUtil.h"
 #include "QFileActionsWin.h"
 #include "QRecycleFilesWin.h"
+#include <cmath>
 #include <cstdio>
 #include <stdexcept>
 #include <functional>
@@ -279,13 +280,95 @@ struct GalleryIntegrationTests {
         Require(grid.Selection() == 0 && grid.Label(0) == L"[..]", "Home selects the typographic parent-folder tile");
         key.wParam = VK_RIGHT; grid.PreTranslateMessage(&key);
         Require(grid.Selection() == 1, "arrow navigation moves from parent tile to first file");
+
+		// A docked drawer must still change the final image viewport. Fit mode
+		// recentres the whole image in that viewport and recomputes its scale once;
+		// only the former sequence of intermediate resizes has been removed.
+		view->FitToWindow();
+		Require(view->IsFitToWindow(), "drawer geometry check starts in fit-to-window mode");
+		const int openCanvasWidth = view->mWCanvas;
+		const float openFitZoom = view->mN;
+		const float expectedOpenFit = q1::GetFitRatio(1.0f, view->mW, view->mH,
+			view->mWCanvas, view->mHCanvas);
+		CRect openViewRect;
+		view->GetWindowRect(&openViewRect);
+		const int openImageCenterX = openViewRect.left + view->mXDst + view->mWDst / 2;
+		Require(std::fabs(openFitZoom - expectedOpenFit) < 0.0001f &&
+			view->mWDst <= view->mWCanvas && view->mHDst <= view->mHCanvas,
+			"fit mode keeps small images at 100 percent and fits larger images with the drawer open");
+
         key.wParam = 'E';
         Require(grid.PreTranslateMessage(&key), "grid forwards Viewer accelerators to the frame");
-        Await([&] { return !frame->mDrawerVisible && !frame->mDrawerAnimating; },
-            "E toggles the drawer while the grid has focus");
+		Require(!frame->mDrawerVisible, "E closes the drawer in one stable layout pass while the grid has focus");
+		CRect closedViewRect;
+		view->GetWindowRect(&closedViewRect);
+		const int closedImageCenterX = closedViewRect.left + view->mXDst + view->mWDst / 2;
+		const float expectedClosedFit = q1::GetFitRatio(1.0f, view->mW, view->mH,
+			view->mWCanvas, view->mHCanvas);
+		Require(view->IsFitToWindow() && view->mWCanvas > openCanvasWidth &&
+			std::fabs(view->mN - expectedClosedFit) < 0.0001f &&
+			view->mN + 0.0001f >= openFitZoom && view->mWDst <= view->mWCanvas &&
+			view->mHDst <= view->mHCanvas && closedImageCenterX < openImageCenterX,
+			"closing the docked drawer expands, refits, and recentres the image viewport");
+
+		key.lParam = 1L << 30;
+		Require(frame->TranslateGlobalAccelerator(&key) && !frame->mDrawerVisible,
+			"keyboard auto-repeat does not retrigger the drawer toggle");
+		key.lParam = 0;
         Require(frame->TranslateGlobalAccelerator(&key), "frame accelerator can restore drawer focus path");
-        Await([&] { return frame->mDrawerVisible && !frame->mDrawerAnimating; },
-            "global drawer shortcut restores the drawer");
+		CRect reopenedViewRect;
+		view->GetWindowRect(&reopenedViewRect);
+		const int reopenedImageCenterX = reopenedViewRect.left + view->mXDst + view->mWDst / 2;
+		Require(frame->mDrawerVisible && view->mWCanvas == openCanvasWidth &&
+			std::fabs(view->mN - openFitZoom) < 0.0001f &&
+			reopenedImageCenterX == openImageCenterX,
+			"reopening restores the fitted drawer viewport without intermediate layouts");
+
+		// Exercise the same application message-pump path as a physical E press.
+		// Direct PreTranslateMessage calls do not cover focus moving from the drawer
+		// to the image (or back) while the key's remaining messages are still queued.
+		const CString documentBeforePhysicalE = doc->GetPathName();
+		auto PostPhysicalE = [&]() {
+			HWND target = ::GetFocus();
+			Require(target != NULL, "physical E regression has a focused target window");
+			Require(::PostMessage(target, WM_KEYDOWN, 'E', 1) != FALSE,
+				"physical E keydown posted through the Windows message queue");
+			Require(::PostMessage(target, WM_KEYUP, 'E',
+				1 | (1L << 30) | (1L << 31)) != FALSE,
+				"physical E keyup posted through the Windows message queue");
+			Pump(.2);
+		};
+		PostPhysicalE();
+		Require(!frame->mDrawerVisible && doc->GetPathName() == documentBeforePhysicalE,
+			"physical E closes the focused drawer without opening another image");
+		PostPhysicalE();
+		Require(frame->mDrawerVisible && doc->GetPathName() == documentBeforePhysicalE,
+			"physical E opens the drawer without opening another image");
+
+		// Manual zoom is inspection state rather than automatic layout. Preserve the
+		// exact on-screen image origin and zoom as the docked viewport changes.
+		CPoint zoomPoint = reopenedViewRect.CenterPoint();
+		view->ChangeZoom(WHEEL_DELTA, zoomPoint);
+		const float manualZoom = view->mN;
+		view->GetWindowRect(&reopenedViewRect);
+		const CPoint manualOrigin(reopenedViewRect.left + view->mXDst,
+			reopenedViewRect.top + view->mYDst);
+		frame->OnToggleDrawer();
+		CRect manualClosedRect;
+		view->GetWindowRect(&manualClosedRect);
+		Require(!view->IsFitToWindow() && std::fabs(view->mN - manualZoom) < 0.0001f &&
+			CPoint(manualClosedRect.left + view->mXDst,
+				manualClosedRect.top + view->mYDst) == manualOrigin,
+			"closing the drawer preserves manual zoom and the inspected screen position");
+		frame->OnToggleDrawer();
+		CRect manualReopenedRect;
+		view->GetWindowRect(&manualReopenedRect);
+		Require(!view->IsFitToWindow() && std::fabs(view->mN - manualZoom) < 0.0001f &&
+			CPoint(manualReopenedRect.left + view->mXDst,
+				manualReopenedRect.top + view->mYDst) == manualOrigin,
+			"reopening the drawer preserves manual zoom and the inspected screen position");
+		view->FitToWindow();
+		Pump(.2);
 
         CString driveRoot = folder.Left(3);
         pane.NavigateTo(driveRoot); Pump(.2);
