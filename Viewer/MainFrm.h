@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <vector>
+
 #define WM_RELOAD (WM_USER + 100)
 #define WM_APPLY_SYNC_INPUT (WM_APP + 100)
 #define WM_APPLY_SYNC_VIEW_STATE (WM_APP + 101)
@@ -203,6 +205,8 @@ public:
 	int  GetDrawerReservedWidth() const;
 	// Called by the document when the active file changes, to sync the drawer.
 	void OnDocPathChanged(LPCTSTR lpszPath);
+	// Open selected sources in Comparator (which supports up to four panes).
+	BOOL OpenComparatorFiles(const std::vector<CString>& filePaths);
 	// Called by CDrawerSplitter when the user starts/finishes dragging the divider.
 	// Track-begin pauses the grid's per-resize re-fit so it doesn't churn during the
 	// live drag; dragged adopts the new drawer width (clamped), refits the image, and

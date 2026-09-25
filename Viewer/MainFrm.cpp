@@ -1516,23 +1516,38 @@ BOOL CMainFrame::LaunchComparator(const CString &cmperPath, const CString &quote
 
 void CMainFrame::OnExecComparator()
 {
+	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
+	std::vector<CString> paths;
+	if (pDoc != NULL && !pDoc->mPathName.IsEmpty())
+		paths.push_back(pDoc->mPathName);
+	OpenComparatorFiles(paths);
+}
+
+BOOL CMainFrame::OpenComparatorFiles(const std::vector<CString>& filePaths)
+{
+	if (filePaths.empty() || filePaths.size() > 4)
+		return FALSE;
+
 	CString cmperPath;
 	if (!ResolveComparatorPath(cmperPath)) {
 		MessageBox(_T("Couldn't find 'Comparator.exe' next to Viewer.exe."), _T("Warning"), MB_ICONWARNING);
-		return;
+		return FALSE;
 	}
 
-	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
-
 	CString args;
-	if (!pDoc->mPathName.IsEmpty())
-		args.Format(_T(" \"%s\""), pDoc->mPathName.GetString());
+	for (const CString& path : filePaths) {
+		if (path.IsEmpty())
+			return FALSE;
+		args.AppendFormat(_T(" \"%s\""), path.GetString());
+	}
 
 	if (!LaunchComparator(cmperPath, args)) {
 		CString msg;
 		msg.Format(_T("Failed to execute Comparator.exe. (error %lu)"), ::GetLastError());
 		MessageBox(msg, _T("Warning"), MB_ICONWARNING);
+		return FALSE;
 	}
+	return TRUE;
 }
 
 // Store update worker reported that an update is available: surface a compact

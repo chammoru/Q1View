@@ -87,20 +87,53 @@ struct GalleryIntegrationTests {
                 }
                 target->SendMessage(right ? WM_RBUTTONDOWN : WM_LBUTTONDOWN, flags, MAKELPARAM(point.x, point.y));
             };
-            const int first = indexOf(files[0]), last = indexOf(files[3]);
-            click(first, 0); click(last, MK_CONTROL);
+            int first = indexOf(files[0]), last = indexOf(files[3]);
+            click(first, 0);
+            CMenu singleMenu; pane.BuildContextMenu(singleMenu, first);
+            CString singleRecycleLabel; singleMenu.GetMenuString(CThumbnailPane::CMD_RECYCLE, singleRecycleLabel, MF_BYCOMMAND);
+            Require(singleMenu.GetMenuState(CThumbnailPane::CMD_COMPARE, MF_BYCOMMAND) == UINT(-1) &&
+                singleRecycleLabel == L"Move to Recycle Bin", "single-file menu uses singular Recycle Bin wording without Compare");
+            click(last, MK_CONTROL);
             Require(pane.SelectedMediaPaths().size() == 2, "MFC Ctrl-click selects disjoint media in both views");
+            CMenu compareTwo; pane.BuildContextMenu(compareTwo, first);
+            Require(compareTwo.GetMenuState(CThumbnailPane::CMD_COMPARE, MF_BYCOMMAND) != UINT(-1) &&
+                compareTwo.GetMenuState(CThumbnailPane::CMD_OPEN, MF_BYCOMMAND) == UINT(-1) &&
+                compareTwo.GetMenuState(CThumbnailPane::CMD_PROPERTIES, MF_BYCOMMAND) == UINT(-1),
+                "two-file menu offers Compare and hides single-file commands");
             click(last, MK_CONTROL);
             Require(pane.SelectedMediaPaths().size() == 1, "MFC Ctrl-click toggles selected media off");
             click(first, 0); click(indexOf(files[2]), MK_SHIFT);
             Require(pane.SelectedMediaPaths().size() == 3, "MFC Shift-click selects a contiguous media range");
             click(last, MK_SHIFT | MK_CONTROL);
             Require(pane.SelectedMediaPaths().size() == 4, "MFC Ctrl-Shift extends the range");
+            CMenu compareFour; pane.BuildContextMenu(compareFour, first);
+            Require(compareFour.GetMenuState(CThumbnailPane::CMD_COMPARE, MF_BYCOMMAND) != UINT(-1),
+                "four-file menu keeps Compare available at Comparator's limit");
             click(first, 0); click(last, MK_CONTROL); click(first, 0, true);
             Require(pane.SelectedMediaPaths().size() == 2, "MFC right-click preserves multi-selection");
             CMenu menu; pane.BuildContextMenu(menu, first);
             CString label; menu.GetMenuString(CThumbnailPane::CMD_RECYCLE, label, MF_BYCOMMAND);
             Require(label == L"Move 2 items to Recycle Bin", "MFC recycle menu displays selected count");
+
+            const CString extra = folder + L"z-extra.png";
+            Require(CopyFileW(fixture, extra, TRUE) != FALSE, "fifth media fixture created for menu selection boundary");
+            pane.Populate(folder, files[0]); Pump(.1);
+            first = indexOf(files[0]);
+            pane.SelectIndex(first, false, false, false);
+            for (const CString& path : {files[1], files[2], files[3], extra})
+                pane.SelectIndex(indexOf(path), true, false, false);
+            Require(pane.SelectedMediaPaths().size() == 5, "five media files can be selected for menu boundary coverage");
+            CMenu compareFive; pane.BuildContextMenu(compareFive, first);
+            CString fiveRecycleLabel; compareFive.GetMenuString(CThumbnailPane::CMD_RECYCLE, fiveRecycleLabel, MF_BYCOMMAND);
+            Require(compareFive.GetMenuState(CThumbnailPane::CMD_COMPARE, MF_BYCOMMAND) == UINT(-1) &&
+                compareFive.GetMenuState(CThumbnailPane::CMD_OPEN, MF_BYCOMMAND) == UINT(-1) &&
+                fiveRecycleLabel == L"Move 5 items to Recycle Bin",
+                "more-than-four selection hides Compare and single-file actions but keeps batch recycling");
+            Require(DeleteFileW(extra), "fifth media menu fixture removed before recycle behavior tests");
+            pane.Populate(folder, files[0]); Pump(.1);
+            first = indexOf(files[0]); last = indexOf(files[3]);
+            pane.SelectIndex(first, false, false, false);
+            pane.SelectIndex(last, true, false, false);
             int confirmations = 0;
             pane.mConfirmRecycle = [&](size_t count) { ++confirmations; Require(count == 2, "MFC confirmation captures batch count"); return false; };
             MSG key = {}; key.message = WM_KEYDOWN; key.wParam = VK_DELETE;

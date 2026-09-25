@@ -6,6 +6,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.25] — 2026-09-25
+
+### Added
+- Windows Viewer: show Compare selected files for two to four selected media items, open them in Comparator, and hide single-file actions while multiple items are selected.
+
 ### Fixed
 - Windows Viewer: make `E` drawer toggles atomic so high-resolution images are not repeatedly resized and repainted alongside thumbnail loading, while preserving docked-panel refitting, manual zoom position, keyboard focus, and one-toggle-per-keypress behavior.
 
@@ -446,7 +453,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.24...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.25...HEAD
+[2.7.25]: https://github.com/chammoru/Q1View/compare/v2.7.24...v2.7.25
 [2.7.24]: https://github.com/chammoru/Q1View/compare/v2.7.23...v2.7.24
 [2.7.23]: https://github.com/chammoru/Q1View/compare/v2.7.22...v2.7.23
 [2.7.22]: https://github.com/chammoru/Q1View/compare/v2.7.21...v2.7.22

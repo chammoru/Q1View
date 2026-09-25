@@ -81,7 +81,7 @@ protected:
 private:
 	friend class CGalleryGridCanvas;
 	friend struct GalleryIntegrationTests;
-	enum ContextCommand { CMD_OPEN = 1, CMD_EXPLORER, CMD_COPY, CMD_PATH, CMD_NAME, CMD_PROPERTIES, CMD_RECYCLE };
+	enum ContextCommand { CMD_OPEN = 1, CMD_EXPLORER, CMD_COPY, CMD_PATH, CMD_NAME, CMD_PROPERTIES, CMD_RECYCLE, CMD_COMPARE };
 	void BuildContextMenu(CMenu& menu, int index);
 	bool IsMediaEntry(int index) const;
 	void SelectIndex(int index, bool control = false, bool shift = false, bool reveal = true);

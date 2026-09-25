@@ -85,7 +85,10 @@ CThumbnailPane::CThumbnailPane()
 	LoadViewStep();
 	mConfirmRecycle = [this](size_t count) {
 		CString prompt;
-		prompt.Format(_T("Move %zu items to the Recycle Bin?"), count);
+		if (count == 1)
+			prompt = _T("Move this item to the Recycle Bin?");
+		else
+			prompt.Format(_T("Move %zu items to the Recycle Bin?"), count);
 		return MessageBox(prompt, _T("Move to Recycle Bin"), MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2) == IDOK;
 	};
 	mReportRecycle = [this](const CString& message) {
@@ -1013,9 +1016,20 @@ void CThumbnailPane::BuildContextMenu(CMenu& menu, int index)
 	const bool item = index >= 0 && index < int(mEntries.size());
 	const Entry entry = item ? mEntries[index] : Entry{};
 	const bool normalItem = item && entry.kind != ENTRY_PARENT;
+	const auto paths = SelectedMediaPaths();
+	const bool selectedFile = item && entry.kind == ENTRY_FILE && mSelection.contains(index);
+	const bool multipleSelectedFiles = selectedFile && paths.size() > 1;
 	const std::wstring path = q1view::TrimDirectorySeparator(entry.path.GetString());
 	const bool exists = normalItem && GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES;
 	CMenu names; menu.CreatePopupMenu(); names.CreatePopupMenu();
+	if (multipleSelectedFiles) {
+		if (paths.size() <= 4 && paths.size() == mSelection.selected.size())
+			menu.AppendMenu(MF_STRING, CMD_COMPARE, _T("Compare selected files"));
+		menu.AppendMenu(MF_SEPARATOR);
+		CString label; label.Format(_T("Move %zu items to Recycle Bin"), paths.size());
+		menu.AppendMenu(MF_STRING, CMD_RECYCLE, label);
+		return;
+	}
 	if (normalItem) menu.AppendMenu(MF_STRING | (exists ? 0 : MF_GRAYED), CMD_OPEN,
 		entry.kind == ENTRY_DIR ? _T("Open folder") : _T("Open"));
 	if (normalItem) {
@@ -1028,11 +1042,9 @@ void CThumbnailPane::BuildContextMenu(CMenu& menu, int index)
 		menu.AppendMenu(MF_SEPARATOR);
 		menu.AppendMenu(MF_STRING | (exists ? 0 : MF_GRAYED), CMD_PROPERTIES, _T("Properties"));
 	}
-	const auto paths = SelectedMediaPaths();
-	if (item && entry.kind == ENTRY_FILE && !paths.empty()) {
-		CString label; label.Format(_T("Move %zu items to Recycle Bin"), paths.size());
+	if (selectedFile && paths.size() == 1) {
 		menu.AppendMenu(MF_SEPARATOR);
-		menu.AppendMenu(MF_STRING, CMD_RECYCLE, label);
+		menu.AppendMenu(MF_STRING, CMD_RECYCLE, _T("Move to Recycle Bin"));
 	}
 }
 
@@ -1044,6 +1056,7 @@ void CThumbnailPane::ShowContextMenu(int index, CPoint screenPoint)
 	if (item) {
 		if (!mSelection.contains(index)) SelectIndex(index, false, false, false);
 	}
+	const auto selectedPaths = SelectedMediaPaths();
 	const std::wstring path = q1view::TrimDirectorySeparator(entry.path.GetString());
 	CMenu menu; BuildContextMenu(menu, index);
 	if (menu.GetMenuItemCount() == 0) return;
@@ -1061,8 +1074,13 @@ void CThumbnailPane::ShowContextMenu(int index, CPoint screenPoint)
 	case CMD_NAME: ok = q1view::ClipboardText(m_hWnd, PathFindFileNameW(path.c_str())); break;
 	case CMD_PROPERTIES: ok = q1view::ShowFileProperties(m_hWnd, path); break;
 	case CMD_RECYCLE: RecycleSelected(); break;
+	case CMD_COMPARE: {
+		CMainFrame *frame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd());
+		ok = frame != NULL && frame->OpenComparatorFiles(selectedPaths);
+		break;
 	}
-	if (!ok) MessageBox(_T("The operation could not be completed. The item may be unavailable or the clipboard may be in use."),
+	}
+	if (!ok && command != CMD_COMPARE) MessageBox(_T("The operation could not be completed. The item may be unavailable or the clipboard may be in use."),
 		_T("Thumbnail browser"), MB_OK | MB_ICONINFORMATION);
 }
 
