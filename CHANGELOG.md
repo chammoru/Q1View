@@ -6,6 +6,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.24] — 2026-09-25
+
 ### Added
 - Viewer: select multiple visible media files in the Windows compact list and gallery grid or the Qt drawer with Ctrl+click, Shift+click, or Ctrl+A, then move them to the Recycle Bin or platform trash from the count-labeled context command or Delete key after confirmation. Folder entries are excluded; active photos and playing videos release their sources before recycling and continue to the next surviving media item, while partial failures leave unsuccessful files in place. (issue #101)
 
@@ -439,7 +443,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.23...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.24...HEAD
+[2.7.24]: https://github.com/chammoru/Q1View/compare/v2.7.23...v2.7.24
 [2.7.23]: https://github.com/chammoru/Q1View/compare/v2.7.22...v2.7.23
 [2.7.22]: https://github.com/chammoru/Q1View/compare/v2.7.21...v2.7.22
 [2.7.21]: https://github.com/chammoru/Q1View/compare/v2.7.20...v2.7.21
