@@ -598,11 +598,57 @@ void CThumbnailPane::SetCurrentFile(LPCTSTR lpszPath)
 	CString folder = path.Left(slash + 1);
 
 	if (folder.CompareNoCase(mFolder) == 0 && !mEntries.empty()) {
+		if (mDirectoryRefreshPending)
+			RefreshDirectoryContents();
 		SelectByPath(path);
 		return;
 	}
 
 	Populate(folder, path);
+}
+
+void CThumbnailPane::MarkDirectoryContentsChanged(LPCTSTR currentFilePath)
+{
+	if (currentFilePath == NULL || currentFilePath[0] == _T('\0') || mFolder.IsEmpty())
+		return;
+	CString changedDirectory(currentFilePath);
+	changedDirectory.Replace(_T('/'), _T('\\'));
+	const int separator = changedDirectory.ReverseFind(_T('\\'));
+	if (separator < 0)
+		return;
+	changedDirectory = changedDirectory.Left(separator + 1);
+	if (changedDirectory.Right(1) != _T("\\"))
+		changedDirectory += _T("\\");
+	if (changedDirectory.CompareNoCase(mFolder) == 0)
+		mDirectoryRefreshPending = true;
+}
+
+void CThumbnailPane::RefreshDirectoryContents()
+{
+	if (!mDirectoryRefreshPending || !GetSafeHwnd() || mFolder.IsEmpty())
+		return;
+	const CString folder = mFolder;
+	const auto selectedPaths = SelectedMediaPaths();
+	const CString focusedPath = mSelection.focus >= 0 &&
+		mSelection.focus < static_cast<int>(mEntries.size())
+		? mEntries[mSelection.focus].path : CString();
+	mDirectoryRefreshPending = false;
+	Populate(folder, focusedPath);
+	CString restoredFocus = focusedPath;
+	const bool focusStillExists = std::any_of(mEntries.begin(), mEntries.end(),
+		[&](const Entry& entry) { return entry.path.CompareNoCase(restoredFocus) == 0; });
+	if (!focusStillExists) {
+		restoredFocus.Empty();
+		for (const CString& path : selectedPaths) {
+			if (std::any_of(mEntries.begin(), mEntries.end(), [&](const Entry& entry) {
+				return entry.path.CompareNoCase(path) == 0;
+			})) {
+				restoredFocus = path;
+				break;
+			}
+		}
+	}
+	RestoreSelection(selectedPaths, restoredFocus);
 }
 
 // Returns the parent folder (with trailing '\\') of a folder, or "" if it has
@@ -614,6 +660,8 @@ static CString ParentFolderOf(const CString &folder)
 
 void CThumbnailPane::Populate(const CString &folder, const CString &current)
 {
+	if (folder.CompareNoCase(mFolder) != 0)
+		mDirectoryRefreshPending = false;
 	// Invalidate any in-flight decode tasks from the previous folder.
 	mGen++;
 	{

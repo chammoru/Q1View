@@ -46,6 +46,8 @@ public:
 	// Show the folder containing lpszPath (repopulating only when the folder
 	// changes) and select the matching item.
 	void SetCurrentFile(LPCTSTR lpszPath);
+	void MarkDirectoryContentsChanged(LPCTSTR currentFilePath);
+	void RefreshDirectoryContents();
 
 	// Stop the worker thread and release cached bitmaps. Safe to call twice.
 	void Shutdown();
@@ -93,6 +95,7 @@ private:
 	q1view::BrowserSelection mSelection;
 	bool mSyncingSelection = false;
 	bool mRecycleBusy = false;
+	bool mDirectoryRefreshPending = false;
 	std::function<bool(size_t)> mConfirmRecycle;
 	std::function<void(const CString&)> mReportRecycle;
 	std::unique_ptr<CGalleryGridCanvas> mGrid;

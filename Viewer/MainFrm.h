@@ -13,6 +13,12 @@
 #define WM_STORE_UPDATE_AVAILABLE (WM_APP + 102)
 #define WM_STORE_UPDATE_DONE (WM_APP + 103)
 
+enum ViewerReloadNotification
+{
+	VIEWER_RELOAD_ACTIVE_FILE = 1,
+	VIEWER_REFRESH_DIRECTORY = 2,
+};
+
 enum ViewerSyncInputCommand
 {
 	VIEWER_SYNC_SEEK_FRAME = 1,
@@ -161,6 +167,7 @@ private:
 	CDrawerSplitter mwndSplitter;
 	CThumbnailPane *mpDrawer;
 	bool mDrawerVisible;
+	unsigned mPendingDirectoryRefreshGeneration = 0;
 	int  mDrawerWidth;
 	bool mSplitterReady;
 	bool mDrawerResizing = false;   // user is live-dragging the divider

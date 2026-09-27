@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Fixed
+- Windows Viewer: automatically refresh the left drawer after files or folders are added, removed, or renamed in its current directory, while preserving the selection.
+
 ---
 
 ## [2.7.25] — 2026-09-25

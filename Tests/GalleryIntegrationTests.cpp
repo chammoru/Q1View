@@ -115,6 +115,39 @@ struct GalleryIntegrationTests {
             CString label; menu.GetMenuString(CThumbnailPane::CMD_RECYCLE, label, MF_BYCOMMAND);
             Require(label == L"Move 2 items to Recycle Bin", "MFC recycle menu displays selected count");
 
+            const CString refreshed = folder + L"refresh-added.png";
+            Require(CopyFileW(fixture, refreshed, TRUE) != FALSE, "directory-refresh addition fixture created");
+            pane.MarkDirectoryContentsChanged(files[0]);
+            Require(pane.mDirectoryRefreshPending, "active file path marks its containing drawer directory stale");
+            pane.RefreshDirectoryContents(); Pump(.1);
+            Require(indexOf(refreshed) >= 0 && pane.SelectedMediaPaths().size() == 2,
+                "directory refresh discovers added files and preserves multi-selection");
+            Require(DeleteFileW(refreshed), "directory-refresh addition fixture removed");
+            pane.MarkDirectoryContentsChanged(files[0]);
+            pane.RefreshDirectoryContents(); Pump(.1);
+            Require(indexOf(refreshed) < 0 && pane.SelectedMediaPaths().size() == 2,
+                "directory refresh removes deleted files and preserves selection");
+
+            Require(AfxGetApp()->OpenDocumentFile(files[0]) != nullptr,
+                "directory-notification watcher opens its active-file fixture");
+            pane.SetCurrentFile(files[0]);
+            pane.SelectByPath(files[0]); pane.SelectIndex(indexOf(files[1]), true);
+            const CString watchedAddition = folder + L"watch-added.png";
+            Require(CopyFileW(fixture, watchedAddition, TRUE) != FALSE,
+                "watched-directory addition fixture created");
+            Await([&] { return indexOf(watchedAddition) >= 0; },
+                "filesystem add notification refreshes the visible drawer automatically");
+            Require(pane.SelectedMediaPaths() == std::vector<CString>{files[0], files[1]},
+                "automatic directory refresh preserves surviving multi-selection");
+            const CString watchedRename = folder + L"watch-renamed.png";
+            Require(MoveFileW(watchedAddition, watchedRename) != FALSE,
+                "watched-directory rename fixture moved");
+            Await([&] { return indexOf(watchedAddition) < 0 && indexOf(watchedRename) >= 0; },
+                "filesystem rename notifications refresh the visible drawer automatically");
+            Require(DeleteFileW(watchedRename), "watched-directory rename fixture removed");
+            Await([&] { return indexOf(watchedRename) < 0; },
+                "filesystem remove notification refreshes the visible drawer automatically");
+
             const CString extra = folder + L"z-extra.png";
             Require(CopyFileW(fixture, extra, TRUE) != FALSE, "fifth media fixture created for menu selection boundary");
             pane.Populate(folder, files[0]); Pump(.1);

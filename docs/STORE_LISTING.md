@@ -37,7 +37,7 @@ For raw YUV sources, Viewer can show native Y, U, and V values sampled directly 
 
 Raw input can be reinterpreted quickly without reopening the file. Press N to cycle color spaces and D to cycle preset resolutions. This is useful when debugging raw YUV/RGB dumps whose format, size, or color interpretation must be checked quickly.
 
-Viewer also supports image-sequence navigation, video playback, frame/time progress display, clipboard paste, screen capture, and a resizable left-side thumbnail browser for browsing the current folder. Its GPU-rendered gallery smoothly animates thumbnail size changes while preserving selection and active playback; drag the divider to widen the browser without changing the window size. In the Windows Viewer, select two to four media files with Ctrl+click, Shift+click, or Ctrl+A and compare them in Comparator; select any number of media files and move them to the Recycle Bin after a count-based confirmation, while folders and other files stay untouched. Open multiple Viewer windows and enable Sync Input to keep navigation, zoom, pan, rotation, playback, and display settings synchronized across them.
+Viewer also supports image-sequence navigation, video playback, frame/time progress display, clipboard paste, screen capture, and a resizable left-side thumbnail browser for browsing the current folder. Its GPU-rendered gallery smoothly animates thumbnail size changes while preserving selection and active playback; drag the divider to widen the browser without changing the window size. The Windows drawer automatically refreshes after files or folders are added, removed, or renamed in its current directory. In the Windows Viewer, select two to four media files with Ctrl+click, Shift+click, or Ctrl+A and compare them in Comparator; select any number of media files and move them to the Recycle Bin after a count-based confirmation, while folders and other files stay untouched. Open multiple Viewer windows and enable Sync Input to keep navigation, zoom, pan, rotation, playback, and display settings synchronized across them.
 
 BT.2020 HLG videos are tone-mapped for accurate color and contrast on standard SDR Windows displays instead of being shown with a washed-out legacy color conversion.
 
@@ -105,7 +105,7 @@ TECHNICAL NOTES
 15. Allow Different Resolution mode for cross-resolution comparisons
 16. Portable ZIP available alongside the installer
 17. Cycle raw color space (N) and preset resolutions (D) without reopening the file
-18. Windows Viewer media thumbnail gallery with multi-selection and comparison of two to four sources in Comparator, safe batch Recycle Bin actions, smooth sizing, bounded caching, compact folder notation, modern Korean/Latin typography, global shortcuts, and top-level logical-drive switching
+18. Windows Viewer media thumbnail gallery with automatic directory refresh, multi-selection and comparison of two to four sources in Comparator, safe batch Recycle Bin actions, smooth sizing, bounded caching, compact folder notation, modern Korean/Latin typography, global shortcuts, and top-level logical-drive switching
 19. Coordinated Viewer, Comparator, photo, video, and raw-file icons designed for clear recognition across Windows taskbar, Start, and File Explorer surfaces
 20. BT.2020 HLG video tone mapping for accurate color and contrast on standard SDR displays
 ```
