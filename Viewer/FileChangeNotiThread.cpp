@@ -101,17 +101,9 @@ bool FileChangeNotiThread::threadLoop()
 	const DWORD dwBuffLength = 4096;
 	BYTE buffer[dwBuffLength];
 	BOOL ok = ::ReadDirectoryChangesW(changeHandle, buffer, dwBuffLength, FALSE,
-		FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
 		FILE_NOTIFY_CHANGE_LAST_WRITE, &dwBytesReturned, NULL, NULL);
 	if (!ok || exitPending())
 		return false;
-	if (dwBytesReturned == 0) {
-		// A zero-byte completion can mean the notification buffer overflowed.
-		// Re-enumerating is the only safe way to recover all missed add/remove/rename events.
-		if (notifyHwnd != NULL)
-			::PostMessage(notifyHwnd, WM_RELOAD, generation, VIEWER_REFRESH_DIRECTORY);
-		return true;
-	}
 
 	DWORD dwNextEntryOffset = 0;
 	PFILE_NOTIFY_INFORMATION pfni;
@@ -123,17 +115,11 @@ bool FileChangeNotiThread::threadLoop()
 			CString changedFileName(pfni->FileName,
 				static_cast<int>(pfni->FileNameLength / sizeof(WCHAR)));
 			if (watchedFileName == changedFileName && notifyHwnd != NULL)
-				::PostMessage(notifyHwnd, WM_RELOAD, generation, VIEWER_RELOAD_ACTIVE_FILE);
+				::PostMessage(notifyHwnd, WM_RELOAD, generation, 1);
 			break;
 		}
-		case FILE_ACTION_ADDED:
-		case FILE_ACTION_REMOVED:
-		case FILE_ACTION_RENAMED_OLD_NAME:
-		case FILE_ACTION_RENAMED_NEW_NAME:
-			if (notifyHwnd != NULL)
-				::PostMessage(notifyHwnd, WM_RELOAD, generation, VIEWER_REFRESH_DIRECTORY);
-			break;
 		default:
+			LOGERR("Unhandled: System Error Code [%d]", GetLastError());
 			break;
 		}
 		dwNextEntryOffset += pfni->NextEntryOffset;

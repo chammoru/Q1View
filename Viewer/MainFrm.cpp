@@ -49,8 +49,6 @@
 // after launch, so the check never competes with cold-start work.
 #define STORE_CHECK_TIMER 0xD4A2
 #define STORE_CHECK_DELAY 3000
-#define DIRECTORY_REFRESH_TIMER 0xD4A3
-#define DIRECTORY_REFRESH_DELAY 200
 
 const ULONG_PTR VIEWER_SYNC_INPUT_TOKEN =
 	static_cast<ULONG_PTR>(::RegisterWindowMessage(_T("Q1View.Viewer.SyncInput.v1")));
@@ -550,16 +548,7 @@ LRESULT CMainFrame::Reload(WPARAM wParam, LPARAM lParam)
 {
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
 	if (!pDoc || pDoc->mPathName.IsEmpty() ||
-		wParam != pDoc->mFileChangeNotiThread->Generation()) return S_OK;
-	if (lParam == VIEWER_REFRESH_DIRECTORY) {
-		if (mpDrawer != NULL)
-			mpDrawer->MarkDirectoryContentsChanged(pDoc->mPathName);
-		mPendingDirectoryRefreshGeneration = static_cast<unsigned>(wParam);
-		KillTimer(DIRECTORY_REFRESH_TIMER);
-		SetTimer(DIRECTORY_REFRESH_TIMER, DIRECTORY_REFRESH_DELAY, NULL);
-		return S_OK;
-	}
-	if (lParam != VIEWER_RELOAD_ACTIVE_FILE) return S_OK;
+		(lParam == 1 && wParam != pDoc->mFileChangeNotiThread->Generation())) return S_OK;
 	if (!pDoc->ReloadDocument())
 		return E_FAIL;
 
@@ -1024,14 +1013,6 @@ void CMainFrame::SetDrawerVisibleImmediately(bool visible)
 
 void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 {
-	if (nIDEvent == DIRECTORY_REFRESH_TIMER) {
-		KillTimer(DIRECTORY_REFRESH_TIMER);
-		CViewerDoc *pDoc = DYNAMIC_DOWNCAST(CViewerDoc, GetActiveDocument());
-		if (pDoc != NULL && mPendingDirectoryRefreshGeneration ==
-				pDoc->mFileChangeNotiThread->Generation() && mpDrawer != NULL && mDrawerVisible)
-			mpDrawer->RefreshDirectoryContents();
-		return;
-	}
 	if (nIDEvent == STORE_CHECK_TIMER) {
 		KillTimer(STORE_CHECK_TIMER);   // one-shot
 		q1::store::CheckForUpdatesAsync(GetSafeHwnd(), WM_STORE_UPDATE_AVAILABLE);

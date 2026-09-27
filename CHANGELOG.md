@@ -6,8 +6,12 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.26] — 2026-09-27
+
 ### Fixed
-- Windows Viewer: automatically refresh the left drawer after files or folders are added, removed, or renamed in its current directory, while preserving the selection.
+- Windows Viewer: automatically refresh the left drawer after files or folders are added, removed, or renamed in its current directory, while preserving the selection. (issue #109)
 
 ---
 
@@ -456,7 +460,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.25...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.26...HEAD
+[2.7.26]: https://github.com/chammoru/Q1View/compare/v2.7.25...v2.7.26
 [2.7.25]: https://github.com/chammoru/Q1View/compare/v2.7.24...v2.7.25
 [2.7.24]: https://github.com/chammoru/Q1View/compare/v2.7.23...v2.7.24
 [2.7.23]: https://github.com/chammoru/Q1View/compare/v2.7.22...v2.7.23

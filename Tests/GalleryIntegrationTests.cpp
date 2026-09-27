@@ -115,23 +115,9 @@ struct GalleryIntegrationTests {
             CString label; menu.GetMenuString(CThumbnailPane::CMD_RECYCLE, label, MF_BYCOMMAND);
             Require(label == L"Move 2 items to Recycle Bin", "MFC recycle menu displays selected count");
 
-            const CString refreshed = folder + L"refresh-added.png";
-            Require(CopyFileW(fixture, refreshed, TRUE) != FALSE, "directory-refresh addition fixture created");
-            pane.MarkDirectoryContentsChanged(files[0]);
-            Require(pane.mDirectoryRefreshPending, "active file path marks its containing drawer directory stale");
-            pane.RefreshDirectoryContents(); Pump(.1);
-            Require(indexOf(refreshed) >= 0 && pane.SelectedMediaPaths().size() == 2,
-                "directory refresh discovers added files and preserves multi-selection");
-            Require(DeleteFileW(refreshed), "directory-refresh addition fixture removed");
-            pane.MarkDirectoryContentsChanged(files[0]);
-            pane.RefreshDirectoryContents(); Pump(.1);
-            Require(indexOf(refreshed) < 0 && pane.SelectedMediaPaths().size() == 2,
-                "directory refresh removes deleted files and preserves selection");
-
-            Require(AfxGetApp()->OpenDocumentFile(files[0]) != nullptr,
-                "directory-notification watcher opens its active-file fixture");
-            pane.SetCurrentFile(files[0]);
             pane.SelectByPath(files[0]); pane.SelectIndex(indexOf(files[1]), true);
+            Require(doc->mPathName.CompareNoCase(files[0]) != 0,
+                "drawer watches its browsed folder independently of the active file");
             const CString watchedAddition = folder + L"watch-added.png";
             Require(CopyFileW(fixture, watchedAddition, TRUE) != FALSE,
                 "watched-directory addition fixture created");
@@ -147,6 +133,29 @@ struct GalleryIntegrationTests {
             Require(DeleteFileW(watchedRename), "watched-directory rename fixture removed");
             Await([&] { return indexOf(watchedRename) < 0; },
                 "filesystem remove notification refreshes the visible drawer automatically");
+            const CString watchedFolder = folder + L"watch-folder\\";
+            Require(CreateDirectoryW(watchedFolder, nullptr) != FALSE,
+                "watched-directory subfolder fixture created");
+            Await([&] { return indexOf(watchedFolder) >= 0; },
+                "filesystem subfolder notification refreshes the visible drawer automatically");
+            Require(RemoveDirectoryW(watchedFolder) != FALSE,
+                "watched-directory subfolder fixture removed");
+            Await([&] { return indexOf(watchedFolder) < 0; },
+                "filesystem subfolder removal refreshes the visible drawer automatically");
+            pane.mDirectoryRefreshPending = true;
+            pane.mRecycleBusy = true;
+            const unsigned beforeRecycleRefresh = pane.mGen.load();
+            pane.RefreshDirectoryContents();
+            Require(pane.mGen.load() == beforeRecycleRefresh && pane.mDirectoryRefreshPending,
+                "directory refresh waits until an in-progress recycle operation finishes");
+            pane.mRecycleBusy = false;
+            pane.RefreshDirectoryContents();
+            Require(!pane.mDirectoryRefreshPending && pane.SelectedMediaPaths() ==
+                std::vector<CString>{files[0], files[1]},
+                "deferred directory refresh retains selection after recycling finishes");
+            Require(AfxGetApp()->OpenDocumentFile(files[0]) != nullptr,
+                "active recycle fixture opened after independent directory-watch checks");
+            pane.SetCurrentFile(files[0]);
 
             const CString extra = folder + L"z-extra.png";
             Require(CopyFileW(fixture, extra, TRUE) != FALSE, "fifth media fixture created for menu selection boundary");

@@ -49,6 +49,7 @@ static const int kGridCols[] = { 0, 5, 4, 3, 2, 1 };
 static const int kDefaultStep = 0;
 // Debounced timers: rescan visible after scrolling; re-fit the grid after a resize.
 static const UINT_PTR kScanTimerId = 0x7100;
+static const UINT_PTR kDirectoryRefreshTimerId = 0x7101;
 
 BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_WM_CREATE()
@@ -70,6 +71,7 @@ BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_NOTIFY_REFLECT(LVN_ITEMCHANGED, &CThumbnailPane::OnSelectionChanged)
 	ON_MESSAGE(WM_THUMB_READY, &CThumbnailPane::OnThumbReady)
 	ON_MESSAGE(WM_DRAWER_ACTIVATE, &CThumbnailPane::OnActivatePosted)
+	ON_MESSAGE(WM_DRAWER_DIRECTORY_CHANGED, &CThumbnailPane::OnDirectoryChanged)
 END_MESSAGE_MAP()
 
 CThumbnailPane::CThumbnailPane()
@@ -381,6 +383,14 @@ void CThumbnailPane::ScheduleVisibleScan()
 
 void CThumbnailPane::OnTimer(UINT_PTR nIDEvent)
 {
+	if (nIDEvent == kDirectoryRefreshTimerId) {
+		KillTimer(kDirectoryRefreshTimerId);
+		CRect client;
+		GetClientRect(&client);
+		if (client.Width() > 0)
+			RefreshDirectoryContents();
+		return;
+	}
 	if (nIDEvent == kScanTimerId) {
 		KillTimer(kScanTimerId);
 		QueueVisibleThumbs();
@@ -543,6 +553,9 @@ void CThumbnailPane::OnDestroy()
 
 void CThumbnailPane::Shutdown()
 {
+	StopDirectoryWatch();
+	if (GetSafeHwnd())
+		KillTimer(kDirectoryRefreshTimerId);
 	if (mWorkerStarted) {
 		{
 			std::lock_guard<std::mutex> lk(mMutex);
@@ -607,25 +620,63 @@ void CThumbnailPane::SetCurrentFile(LPCTSTR lpszPath)
 	Populate(folder, path);
 }
 
-void CThumbnailPane::MarkDirectoryContentsChanged(LPCTSTR currentFilePath)
+void CThumbnailPane::StartDirectoryWatch(const CString& folder)
 {
-	if (currentFilePath == NULL || currentFilePath[0] == _T('\0') || mFolder.IsEmpty())
+	if (folder.IsEmpty() || !GetSafeHwnd())
 		return;
-	CString changedDirectory(currentFilePath);
-	changedDirectory.Replace(_T('/'), _T('\\'));
-	const int separator = changedDirectory.ReverseFind(_T('\\'));
-	if (separator < 0)
+	HANDLE change = ::FindFirstChangeNotificationW(folder, FALSE,
+		FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME);
+	if (change == INVALID_HANDLE_VALUE)
 		return;
-	changedDirectory = changedDirectory.Left(separator + 1);
-	if (changedDirectory.Right(1) != _T("\\"))
-		changedDirectory += _T("\\");
-	if (changedDirectory.CompareNoCase(mFolder) == 0)
+	HANDLE stop = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
+	if (stop == nullptr) {
+		::FindCloseChangeNotification(change);
+		return;
+	}
+	const HWND pane = m_hWnd;
+	const unsigned generation = ++mDirectoryWatchGeneration;
+	try {
+		mDirectoryWatchThread = std::thread([pane, stop, change, generation] {
+			const HANDLE handles[] = {stop, change};
+			while (::WaitForMultipleObjects(2, handles, FALSE, INFINITE) == WAIT_OBJECT_0 + 1) {
+				::PostMessage(pane, WM_DRAWER_DIRECTORY_CHANGED, generation, 0);
+				if (!::FindNextChangeNotification(change))
+					break;
+			}
+			::FindCloseChangeNotification(change);
+		});
+		mDirectoryWatchStop = stop;
+	} catch (...) {
+		::CloseHandle(stop);
+		::FindCloseChangeNotification(change);
+	}
+}
+
+void CThumbnailPane::StopDirectoryWatch()
+{
+	++mDirectoryWatchGeneration;
+	if (mDirectoryWatchStop != nullptr)
+		::SetEvent(mDirectoryWatchStop);
+	if (mDirectoryWatchThread.joinable())
+		mDirectoryWatchThread.join();
+	if (mDirectoryWatchStop != nullptr) {
+		::CloseHandle(mDirectoryWatchStop);
+		mDirectoryWatchStop = nullptr;
+	}
+}
+
+LRESULT CThumbnailPane::OnDirectoryChanged(WPARAM wParam, LPARAM)
+{
+	if (wParam == mDirectoryWatchGeneration.load() && !mFolder.IsEmpty()) {
 		mDirectoryRefreshPending = true;
+		SetTimer(kDirectoryRefreshTimerId, 200, nullptr);
+	}
+	return 0;
 }
 
 void CThumbnailPane::RefreshDirectoryContents()
 {
-	if (!mDirectoryRefreshPending || !GetSafeHwnd() || mFolder.IsEmpty())
+	if (!mDirectoryRefreshPending || mRecycleBusy || !GetSafeHwnd() || mFolder.IsEmpty())
 		return;
 	const CString folder = mFolder;
 	const auto selectedPaths = SelectedMediaPaths();
@@ -660,8 +711,11 @@ static CString ParentFolderOf(const CString &folder)
 
 void CThumbnailPane::Populate(const CString &folder, const CString &current)
 {
-	if (folder.CompareNoCase(mFolder) != 0)
+	if (folder.CompareNoCase(mFolder) != 0) {
+		StopDirectoryWatch();
 		mDirectoryRefreshPending = false;
+		StartDirectoryWatch(folder);
+	}
 	// Invalidate any in-flight decode tasks from the previous folder.
 	mGen++;
 	{
@@ -996,7 +1050,11 @@ void CThumbnailPane::RecycleSelected()
 	mRecycleBusy = true;
 	struct Finish {
 		CThumbnailPane& pane;
-		~Finish() { pane.mRecycleBusy = false; pane.QueueVisibleThumbs(); }
+		~Finish() {
+			pane.mRecycleBusy = false;
+			pane.RefreshDirectoryContents();
+			pane.QueueVisibleThumbs();
+		}
 	} finish{*this};
 	if (!mConfirmRecycle(paths.size()) || generation != mGen.load() || folder != mFolder) return;
 

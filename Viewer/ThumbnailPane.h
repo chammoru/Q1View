@@ -29,6 +29,7 @@ class CGalleryGridCanvas;
 // Self-post to run a load/navigate after the list's click notification returns
 // (mutating the list inside its own notification handler is unsafe).
 #define WM_DRAWER_ACTIVATE (WM_APP + 201)
+#define WM_DRAWER_DIRECTORY_CHANGED (WM_APP + 202)
 
 class CThumbnailPane : public CListCtrl
 {
@@ -46,8 +47,6 @@ public:
 	// Show the folder containing lpszPath (repopulating only when the folder
 	// changes) and select the matching item.
 	void SetCurrentFile(LPCTSTR lpszPath);
-	void MarkDirectoryContentsChanged(LPCTSTR currentFilePath);
-	void RefreshDirectoryContents();
 
 	// Stop the worker thread and release cached bitmaps. Safe to call twice.
 	void Shutdown();
@@ -79,12 +78,14 @@ protected:
 	afx_msg LRESULT OnDpiChanged(WPARAM, LPARAM);
 	afx_msg LRESULT OnThumbReady(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnActivatePosted(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnDirectoryChanged(WPARAM wParam, LPARAM lParam);
 
 private:
 	friend class CGalleryGridCanvas;
 	friend struct GalleryIntegrationTests;
 	enum ContextCommand { CMD_OPEN = 1, CMD_EXPLORER, CMD_COPY, CMD_PATH, CMD_NAME, CMD_PROPERTIES, CMD_RECYCLE, CMD_COMPARE };
 	void BuildContextMenu(CMenu& menu, int index);
+	void RefreshDirectoryContents();
 	bool IsMediaEntry(int index) const;
 	void SelectIndex(int index, bool control = false, bool shift = false, bool reveal = true);
 	void SyncSelection(bool reveal);
@@ -96,6 +97,11 @@ private:
 	bool mSyncingSelection = false;
 	bool mRecycleBusy = false;
 	bool mDirectoryRefreshPending = false;
+	std::thread mDirectoryWatchThread;
+	HANDLE mDirectoryWatchStop = nullptr;
+	std::atomic<unsigned> mDirectoryWatchGeneration{0};
+	void StartDirectoryWatch(const CString& folder);
+	void StopDirectoryWatch();
 	std::function<bool(size_t)> mConfirmRecycle;
 	std::function<void(const CString&)> mReportRecycle;
 	std::unique_ptr<CGalleryGridCanvas> mGrid;
