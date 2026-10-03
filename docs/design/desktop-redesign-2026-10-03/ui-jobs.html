@@ -1,0 +1,195 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<div id="q1-ui-jobs" aria-label="Q1View 작업별 화면 설계">
+  <div class="viz-carousel" aria-label="작업별 UI 시안" data-previous-label="이전 화면" data-next-label="다음 화면"></div>
+</div>
+<style>
+#q1-ui-jobs { --uj-scale:1; max-width:1024px; margin-inline:auto; }
+#q1-ui-jobs .uj-scene { min-height:700px; padding-bottom:8px; }
+#q1-ui-jobs .uj-product { --uj-window:light-dark(#f3f4f6,#181818); --uj-panel:light-dark(#ffffff,#202020); --uj-subtle:light-dark(#f7f8fa,#262626); --uj-text:light-dark(#202124,#f2f2f2); --uj-muted:light-dark(#58616e,#b7bec7); --uj-line:light-dark(#d7dadf,#454545); --uj-control:light-dark(#7b8490,#77818e); --uj-accent:light-dark(#2566d9,#8ab4ff); --uj-selected:light-dark(#eaf1ff,#263650); --uj-error:light-dark(#b42332,#ff9aa4); --uj-canvas:#303030; color:var(--uj-text); background:var(--uj-window); font:400 calc(14px * var(--uj-scale))/calc(20px * var(--uj-scale)) 'Pretendard Variable','Segoe UI',sans-serif; border:1px solid var(--uj-line); border-radius:8px; overflow:hidden; }
+#q1-ui-jobs .uj-product * { box-sizing:border-box; }
+#q1-ui-jobs .uj-title { min-height:56px; padding:12px 106px 12px 16px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; background:var(--uj-subtle); }
+#q1-ui-jobs .uj-caption { font-weight:500; }
+#q1-ui-jobs .uj-note { color:var(--uj-muted); font-size:calc(12px * var(--uj-scale)); line-height:calc(16px * var(--uj-scale)); }
+#q1-ui-jobs .uj-command { padding:6px 12px; min-height:44px; display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; background:var(--uj-panel); border-bottom:1px solid var(--uj-line); }
+#q1-ui-jobs .uj-product button { display:inline-flex; gap:6px; align-items:center; justify-content:center; min-height:32px; padding:5px 8px; color:var(--uj-text); background:transparent; border:1px solid transparent; border-radius:6px; font:inherit; }
+#q1-ui-jobs .uj-product button:hover { background:var(--uj-subtle); }
+#q1-ui-jobs .uj-product button[aria-pressed="true"] { color:var(--uj-accent); background:var(--uj-selected); }
+#q1-ui-jobs .uj-product button:disabled { color:var(--uj-muted); opacity:.65; }
+#q1-ui-jobs .uj-product button:focus-visible, #q1-ui-jobs .uj-product select:focus-visible, #q1-ui-jobs .uj-product input:focus-visible, #q1-ui-jobs .uj-demo-focus { outline:2px solid var(--uj-accent); outline-offset:2px; }
+#q1-ui-jobs .uj-product svg { width:16px; height:16px; flex-shrink:0; }
+#q1-ui-jobs .uj-product select, #q1-ui-jobs .uj-product input:not([type="range"]) { min-height:32px; padding:5px 8px; border:1px solid var(--uj-control); background:var(--uj-panel); color:var(--uj-text); border-radius:6px; font:inherit; max-width:100%; }
+#q1-ui-jobs .uj-product label { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+#q1-ui-jobs .uj-body { padding:20px; background:var(--uj-panel); min-height:540px; }
+#q1-ui-jobs .uj-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; }
+#q1-ui-jobs .uj-between { justify-content:space-between; }
+#q1-ui-jobs .uj-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+#q1-ui-jobs .uj-stack { display:grid; gap:12px; }
+#q1-ui-jobs .uj-section { font-weight:500; margin-bottom:12px; }
+#q1-ui-jobs .uj-divider { border-top:1px solid var(--uj-line); padding-top:16px; margin-top:16px; }
+#q1-ui-jobs .uj-number { font:400 calc(13px * var(--uj-scale))/calc(18px * var(--uj-scale)) 'Cascadia Mono',Consolas,monospace; font-variant-numeric:tabular-nums; }
+#q1-ui-jobs .uj-values { display:flex; flex-wrap:wrap; gap:16px 24px; margin:16px 0; }
+#q1-ui-jobs .uj-values b { font:400 calc(16px * var(--uj-scale))/calc(22px * var(--uj-scale)) 'Cascadia Mono',Consolas,monospace; }
+#q1-ui-jobs .uj-values span { color:var(--uj-muted); }
+#q1-ui-jobs .uj-values b { color:var(--uj-text); }
+#q1-ui-jobs .uj-dl { display:grid; grid-template-columns:104px minmax(0,1fr); gap:8px 16px; margin:0; }
+#q1-ui-jobs .uj-dl dt { color:var(--uj-muted); }
+#q1-ui-jobs .uj-dl dd { margin:0; overflow-wrap:anywhere; }
+#q1-ui-jobs .uj-path { display:flex; align-items:center; gap:8px; padding:8px; min-height:36px; border:1px solid var(--uj-control); border-radius:6px; background:var(--uj-subtle); overflow-wrap:anywhere; }
+#q1-ui-jobs .uj-list { display:grid; gap:8px; margin:12px 0; }
+#q1-ui-jobs .uj-product .uj-item { width:100%; text-align:left; justify-content:flex-start; min-height:48px; padding:8px; border:1px solid var(--uj-line); font-size:calc(13px * var(--uj-scale)); line-height:calc(18px * var(--uj-scale)); }
+#q1-ui-jobs .uj-item > span { min-width:0; flex:1; overflow-wrap:anywhere; }
+#q1-ui-jobs .uj-item > .uj-check { display:inline-flex; flex:0 0 16px; color:var(--uj-accent); }
+#q1-ui-jobs .uj-item .uj-note { display:block; }
+#q1-ui-jobs .uj-product .uj-item[aria-pressed="true"] { color:var(--uj-text); border-color:var(--uj-accent); }
+#q1-ui-jobs .uj-workspace { display:grid; grid-template-columns:280px minmax(0,1fr); min-height:490px; }
+#q1-ui-jobs .uj-browse, #q1-ui-jobs .uj-info { padding:12px; background:var(--uj-panel); min-width:0; }
+#q1-ui-jobs .uj-browse { border-right:1px solid var(--uj-line); }
+#q1-ui-jobs .uj-info { border-left:1px solid var(--uj-line); }
+#q1-ui-jobs .uj-canvas { background:var(--uj-canvas); display:flex; align-items:center; justify-content:center; padding:24px; min-width:0; min-height:380px; }
+#q1-ui-jobs .uj-picture { width:100%; height:auto; display:block; max-width:720px; aspect-ratio:8 / 5; }
+#q1-ui-jobs .uj-status { min-height:28px; padding:6px 12px; display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; color:var(--uj-muted); background:var(--uj-subtle); border-top:1px solid var(--uj-line); font-size:calc(12px * var(--uj-scale)); line-height:calc(16px * var(--uj-scale)); }
+#q1-ui-jobs .uj-gallery { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:12px 0; }
+#q1-ui-jobs .uj-product .uj-folder { height:116px; min-height:116px; padding:8px; align-items:flex-start; justify-content:flex-start; text-align:left; border-radius:4px; background:var(--uj-subtle); font:500 calc(13px * var(--uj-scale))/calc(18px * var(--uj-scale)) 'Pretendard Variable','Segoe UI',sans-serif; }
+#q1-ui-jobs .uj-folder span { overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:var(--uj-folder-lines,5); overflow:hidden; }
+#q1-ui-jobs .uj-product .uj-parent { align-items:center; justify-content:center; text-align:center; }
+#q1-ui-jobs .uj-menu { background:var(--uj-panel); border:1px solid var(--uj-control); border-radius:8px; padding:6px; margin:12px 0; }
+#q1-ui-jobs .uj-menu button { display:flex; justify-content:flex-start; width:100%; min-height:36px; }
+#q1-ui-jobs .uj-menu .uj-note { padding:6px 8px; }
+#q1-ui-jobs .uj-dialog { max-width:480px; margin:24px auto; padding:20px; background:var(--uj-panel); border:1px solid var(--uj-control); border-radius:8px; }
+#q1-ui-jobs .uj-dialog .uj-section { font-size:calc(16px * var(--uj-scale)); line-height:calc(22px * var(--uj-scale)); }
+#q1-ui-jobs .uj-file-names { margin:16px 0; padding:12px; background:var(--uj-subtle); border-radius:4px; font-size:calc(13px * var(--uj-scale)); overflow-wrap:anywhere; }
+#q1-ui-jobs .uj-info-workspace { display:grid; grid-template-columns:minmax(0,1fr) 280px; }
+#q1-ui-jobs .uj-playback { padding:12px 16px; background:var(--uj-panel); border-top:1px solid var(--uj-line); display:grid; grid-template-columns:auto minmax(100px,1fr) auto; gap:12px; align-items:center; }
+#q1-ui-jobs .uj-playback input { width:100%; accent-color:var(--uj-accent); }
+#q1-ui-jobs .uj-source-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+#q1-ui-jobs .uj-source { min-width:0; border-right:1px solid var(--uj-line); background:var(--uj-panel); }
+#q1-ui-jobs .uj-source:last-child { border-right:0; }
+#q1-ui-jobs .uj-source-head { min-height:56px; padding:10px 12px; display:flex; align-items:center; gap:10px; }
+#q1-ui-jobs .uj-source-head > div { min-width:0; }
+#q1-ui-jobs .uj-source-name { overflow-wrap:anywhere; font-size:calc(13px * var(--uj-scale)); line-height:calc(18px * var(--uj-scale)); }
+#q1-ui-jobs .uj-role { display:flex; align-items:center; justify-content:center; width:28px; height:28px; flex-shrink:0; color:var(--uj-accent); background:var(--uj-selected); border-radius:4px; font-weight:500; }
+#q1-ui-jobs .uj-source .uj-canvas { min-height:260px; padding:16px; }
+#q1-ui-jobs .uj-metric-panel { padding:16px; background:var(--uj-panel); border-top:1px solid var(--uj-line); }
+#q1-ui-jobs .uj-graph { width:100%; height:160px; display:block; }
+#q1-ui-jobs .uj-empty { padding:18px 0; color:var(--uj-muted); }
+#q1-ui-jobs .uj-error { color:var(--uj-error); }
+#q1-ui-jobs .uj-test-strip { padding:12px 16px; background:var(--uj-panel); border-top:1px solid var(--uj-line); }
+#q1-ui-jobs .uj-grid-four { grid-template-columns:repeat(2,minmax(0,1fr)); }
+#q1-ui-jobs .uj-grid-four .uj-source .uj-canvas { min-height:130px; padding:12px; }
+#q1-ui-jobs .uj-grid-four .uj-picture { max-width:260px; }
+#q1-ui-jobs .uj-grid-four.uj-four-row { grid-template-columns:repeat(4,minmax(0,1fr)); }
+#q1-ui-jobs .uj-hidden { display:none !important; }
+#q1-ui-jobs [hidden] { display:none !important; }
+@media (max-width:760px) { #q1-ui-jobs .uj-workspace { grid-template-columns:240px minmax(0,1fr); } #q1-ui-jobs .uj-info-workspace { grid-template-columns:minmax(0,1fr) 260px; } #q1-ui-jobs .uj-command [data-low-priority] { display:none; } }
+@media (max-width:560px) { #q1-ui-jobs .uj-scene { min-height:1260px; } #q1-ui-jobs .uj-columns, #q1-ui-jobs .uj-workspace, #q1-ui-jobs .uj-info-workspace, #q1-ui-jobs .uj-source-grid, #q1-ui-jobs .uj-grid-four.uj-four-row { grid-template-columns:1fr; } #q1-ui-jobs .uj-body { padding:12px; } #q1-ui-jobs .uj-title { padding-right:96px; } #q1-ui-jobs .uj-canvas { min-height:200px; padding:16px; } #q1-ui-jobs .uj-playback { grid-template-columns:1fr; } #q1-ui-jobs .uj-dl { grid-template-columns:88px minmax(0,1fr); gap:8px; } #q1-ui-jobs .uj-browse, #q1-ui-jobs .uj-info { border:0; } }
+@media (pointer:coarse) { #q1-ui-jobs .uj-product button, #q1-ui-jobs .uj-product select, #q1-ui-jobs .uj-product input:not([type="range"]) { min-height:44px; } #q1-ui-jobs .uj-product select, #q1-ui-jobs .uj-product input:not([type="range"]) { font-size:16px; } }
+</style>
+<script>
+(() => {
+  const root=document.getElementById('q1-ui-jobs');
+  const carousel=root.querySelector('.viz-carousel');
+  const state={theme:'System',textScale:'100%',layout:'grid'};
+  const selectionState={count:'2'};
+  const analysisState={state:'Completed'};
+  const icon=name=>`<i data-lucide="${name}" aria-hidden="true"></i>`;
+  const button=(label,extra='')=>`<button type="button" ${extra}>${label}</button>`;
+  const picture=()=>'<canvas class="uj-picture" width="800" height="500" role="img" aria-label="Synthetic lake and mountain preview; not a user photo"></canvas>';
+  const canvas=()=>`<div class="uj-canvas">${picture()}</div>`;
+  const command=()=>`<div class="uj-command">${button('File')}${button(icon('folder-open')+'Open')}${button(icon('panel-left')+'Browse','data-local-toggle aria-pressed="false"')}${button('Fit','aria-pressed="true"')}${button('100%')}${button('Scaling','data-low-priority')}${button('Compare','data-low-priority')}${button('Info')}${button('More')}</div>`;
+  const status=(left='JPEG · 800 × 500 · 100%')=>`<div class="uj-status"><span>${left}</span><span>Design mockup · synthetic image / sample values</span></div>`;
+  const path=(text='This PC › [D:\\] › 여행 사진')=>`<div class="uj-path">${icon('arrow-up')}<span>${text}</span></div>`;
+  const item=(name,note='',selected=false,extra='')=>button(`${icon('image')}<span>${name}<span class="uj-note">${note}</span></span><span class="uj-check" ${selected?'':'hidden'}>${icon('check')}</span>`,`class="uj-item ${extra}" aria-pressed="${selected}"`);
+  const files=()=>`<div class="uj-list">${button('[..]','class="uj-item"')}${item('15.jpg','Current image',true)}${item('15_down_mask.png','PNG image')}${item('여행 사진 2026.jpg','JPEG image')}</div>`;
+  const browse=(inside=files())=>`<aside class="uj-browse"><div class="uj-row uj-between"><span class="uj-section">Browse</span><span class="uj-note">Gallery</span></div>${path()}${inside}</aside>`;
+  const dl=rows=>`<dl class="uj-dl">${rows.map(([label,value])=>`<dt>${label}</dt><dd>${value}</dd>`).join('')}</dl>`;
+  const source=(letter,role,name)=>`<div class="uj-source"><div class="uj-source-head"><span class="uj-role">${letter}</span><div><div class="uj-note">${role}</div><div class="uj-source-name">${name}</div></div></div>${canvas()}</div>`;
+  const sources=()=>`<div class="uj-source-grid">${source('A','Reference','15.jpg')}${source('B','Compared','15_down_mask.png')}</div>`;
+  const metricValues=()=>'<div class="uj-values"><span>R <b>37.70</b> dB</span><span>G <b>38.96</b> dB</span><span>B <b>38.38</b> dB</span></div>';
+  const metrics=()=>`<div class="uj-row uj-between"><span class="uj-section">A ↔ B · Current frame</span><span class="uj-note">PSNR</span></div>${metricValues()}`;
+  const info=()=>`<aside class="uj-info"><div class="uj-section">Info</div><div class="uj-section">File</div>${dl([['Name','여행 사진 2026.jpg'],['Resolution','<span class="uj-number">800 × 500</span>']])}<div class="uj-section uj-divider">Input</div>${dl([['Format','JPEG · RGB 8-bit'],['Source Y/U/V','—']])}<div class="uj-section uj-divider">Display</div>${dl([['Scaling','Fit'],['Conversion','RGB display']])}<div class="uj-section uj-divider">Pixel</div>${dl([['Position','<span class="uj-number">X 400 · Y 250</span>'],['Display R/G/B','<span class="uj-number">128 / 160 / 192</span>']])}</aside>`;
+  const views=[
+    ['typography','Typography',`<div class="uj-body"><div class="uj-columns"><section><div class="uj-section">Viewer · 한글 / English</div>${path()}${files()}<div class="uj-divider">Move to Recycle Bin</div><div class="uj-note">App-drawn labels: Pretendard</div></section><section><div class="uj-section">Comparator · A ↔ B</div><div class="uj-source-head"><span class="uj-role">A</span><div><div class="uj-note">Reference</div><div>일상 및 캐나다 여행 사진.jpg</div></div></div><div class="uj-source-head"><span class="uj-role">B</span><div><div class="uj-note">Compared</div><div>15_down_mask.png</div></div></div><div class="uj-divider">${metrics()}</div>${dl([['Coordinates','<span class="uj-number">X 1080 · Y 1350</span>'],['Frame','<span class="uj-number">000125 / 002400</span>'],['State','Current frame · View only']])}</section></div></div>`],
+    ['themes','Appearance',`${command()}<div class="uj-body"><div class="uj-columns"><section><div class="uj-section">Appearance</div><div class="uj-stack"><label>App theme<select data-app-theme aria-label="App theme"><option>System</option><option>Light</option><option>Dark</option></select></label><label>Image background<select data-background aria-label="Image background"><option value="#303030">Neutral</option><option value="#181818">Dark</option><option value="#ececec">Light</option></select></label></div><div class="uj-divider">한국어 · English</div><div class="uj-list">${item('15.jpg','Selected file',true)}${item('15_down_mask.png','Unselected file')}</div><div class="uj-note">Windows high contrast takes precedence.</div></section><section>${canvas()}</section></div></div>`],
+    ['command-states','Command states',`<div class="uj-body"><div class="uj-section">Viewer · 1 selected</div><div class="uj-command">${button('Open')}${button('Browse','aria-pressed="true"')}${button('Fit','aria-pressed="true"')}${button('100%')}${button('Compare selected files','disabled')}${button('Info','class="uj-demo-focus"')}</div><div class="uj-divider uj-section">Viewer · 2 selected</div><div class="uj-command">${button('Open')}${button('Browse','aria-pressed="true"')}${button('Fit','aria-pressed="true"')}${button('100%')}${button('Compare selected files')}${button('Info')}</div><div class="uj-divider uj-section">Comparator</div><div class="uj-command">${button('Open')}${button('Metric')}${button('Current frame','aria-pressed="true"')}${button('Sequence average','disabled')}</div><div class="uj-divider">${dl([['Pressed','Browse / Fit'],['Unavailable','Compare with one file'],['Keyboard focus','Info outline']])}</div></div>`],
+    ['viewer-shell','Viewer shell',`${command()}${canvas()}${status()}`],
+    ['path-navigation','Parent and drives',`<div class="uj-body"><div class="uj-columns"><section><div class="uj-section">Browse · Drive root</div>${path('This PC › [D:\\]')}<div class="uj-list">${button('[..]','class="uj-item" data-root-parent')}${button('[00]','class="uj-item"')}${button('[Pictures]','class="uj-item"')}${item('sample.jpg','Image file')}</div></section><section><div class="uj-section">Browse · Drive list</div>${path('This PC')}<div class="uj-list">${button('[C:\\]','class="uj-item"')}${button('[D:\\]','class="uj-item"')}${button('[E:\\]','class="uj-item"')}</div></section></div><div class="uj-divider">${dl([['Current path','<span class="uj-number">D:\\00\\_temp</span>'],['Parent trail','D:\\00 → D:\\ → This PC'],['Failure','Keep current folder and image']])}</div></div>`],
+    ['folder-gallery','Folder names',`${command()}<div class="uj-workspace">${browse(`<div class="uj-gallery">${button('[..]','class="uj-folder uj-parent"')}${button('<span>[일상 및 캐나다 여행 사진·영상과 원본 기록을 분류한 아주 긴 폴더 이름 2026.01.28–2026.07.30]</span>','class="uj-folder" data-tooltip="일상 및 캐나다 여행 사진·영상과 원본 기록을 분류한 아주 긴 폴더 이름 2026.01.28–2026.07.30"')}${button('<span>[Original photographs and videos from the Canadian mountain and lake journey]</span>','class="uj-folder" data-tooltip="Original photographs and videos from the Canadian mountain and lake journey"')}${button('<span>[GR WORLD 사진]</span>','class="uj-folder"')}</div>`)}${canvas()}</div>${status('Gallery · Wrapped folder captions')}`],
+    ['selection-menu','Selection and menu',`${command()}<div class="uj-workspace">${browse(`<div class="uj-list">${button('[..]','class="uj-item"')}${item('15.jpg','Current image',true,'uj-selection-file')}${item('15_down_mask.png','Keyboard focus',true,'uj-demo-focus uj-selection-file')}${item('preview.png','PNG image',false,'uj-selection-file')}${item('inpaint.png','PNG image',false,'uj-selection-file')}${item('original.png','PNG image',false,'uj-selection-file')}</div><div class="uj-menu" style="min-height:88px" role="group" aria-label="Selected-file actions">${button(icon('columns-2')+'Compare selected files','data-compare')}${button(icon('trash-2')+'Move to Recycle Bin')}<div class="uj-note uj-hidden" data-selection-limit>Comparison supports 2–4 files.</div></div><div class="uj-row"><span data-selection-count aria-live="polite">2 selected</span></div>`)}${canvas()}</div>${status()}`],
+    ['info-panel','Info panel',`${command()}<div class="uj-info-workspace">${canvas()}${info()}</div>${status()}`],
+    ['raw-controls','RAW controls',`${command()}<div class="uj-info-workspace">${canvas()}<aside class="uj-info"><div class="uj-section">Info · Input</div><div class="uj-note">RAW source only</div><div class="uj-stack uj-divider"><label>Resolution<select aria-label="RAW resolution"><option>1920 × 1080</option><option>1280 × 720</option></select></label><label>Pixel format<select aria-label="RAW pixel format"><option>NV12</option><option>I420</option></select></label><label>Color space<select aria-label="RAW color space"><option>BT.709</option><option>BT.601</option></select></label></div><div class="uj-section uj-divider">Source pixel</div>${dl([['Y / U / V','<span class="uj-number">128 / 128 / 128</span>']])}<div class="uj-section uj-divider">Display</div>${dl([['Scaling','Pixel Exact'],['R / G / B','<span class="uj-number">— / — / —</span>']])}</aside></div>${status('RAW · NV12 · 1920 × 1080 · Example controls')}`],
+    ['playback','Playback',`${command()}${canvas()}<div class="uj-playback">${button(icon('play')+'Play','data-play aria-pressed="false"')}<input type="range" min="0" max="2399" value="124" data-frame aria-label="Frame position"><span class="uj-number" data-frame-label>000125 / 002400</span></div>${status('Video · 24 fps · 00:05.167')}`],
+    ['recycle-feedback','Recycle confirmation',`<div class="uj-body"><div class="uj-dialog" role="group" aria-label="Recycle Bin confirmation"><div class="uj-section">Move 4 files to Recycle Bin?</div><div class="uj-file-names">15.jpg<br>15_down_mask.png<br>inpaint.png<br>preview.png</div><div class="uj-row uj-between">${button('Cancel','class="uj-demo-focus" data-cancel')}${button('Move to Recycle Bin','data-recycle')}</div><div class="uj-note uj-divider" data-operation-result aria-live="polite">Confirmation preview · no files will be changed</div></div><div class="uj-dialog"><div class="uj-section">Partial operation result</div><div>3 files moved. 1 file could not be moved.</div><div class="uj-file-names">preview.png · File is in use</div>${button('Close')}${button('Show remaining file')}</div></div>`],
+    ['keyboard-focus','Keyboard and focus',`<div class="uj-body"><div class="uj-columns"><section><div class="uj-section">Text input keeps its keys</div><label>Folder path<input aria-label="Folder path example" value="D:\\00\\_temp\\e" class="uj-demo-focus"></label><div class="uj-note uj-divider">Typing e / Korean IME → text input</div><div class="uj-section uj-divider">Browse list keeps its arrows</div>${item('15.jpg','Current image',true)}${item('15_down_mask.png','Keyboard focus',false,'uj-demo-focus')}</section><section><div class="uj-section">Outside text / dialogs</div><div class="uj-command">${button(icon('panel-left')+'Browse','class="uj-demo-focus" data-local-toggle aria-pressed="false"')}</div><div class="uj-note uj-divider">E → Browse toggle once</div><div class="uj-section uj-divider">Accessible identity</div>${dl([['Name','Compare selected files'],['Role','Button'],['State','Enabled / focused'],['Selection','2 files selected']])}</section></div></div>`],
+    ['comparator-headers','Comparison sources',`<div class="uj-command">${button('Open')}${button('Fit','aria-pressed="true"')}${button('100%')}<span class="uj-note">A/B analysis only</span></div>${sources()}<div class="uj-metric-panel">${metrics()}<div class="uj-row uj-divider"><span class="uj-role">C</span><span>View only · preview.png</span><span class="uj-role">D</span><span>View only · inpaint.png</span></div></div>${status('Comparator · A ↔ B · Actual sync state only')}`],
+    ['metric-results','Metric results',`${sources()}<div class="uj-metric-panel"><div class="uj-row uj-between"><span>A ↔ B · Current frame · Full image · PSNR</span><span class="uj-note" data-analysis-label>Completed</span></div><div data-result-values>${metricValues()}</div><div class="uj-empty uj-hidden" data-result-message aria-live="polite"></div><div class="uj-note">Sample values · no C/D metrics · no made-up progress percentage</div></div>${status('PSNR · A ↔ B · Current frame')}`],
+    ['sequence-graph','Sequence analysis',`${sources()}<div class="uj-metric-panel"><div class="uj-row uj-between"><span>A ↔ B · Frame 125 · PSNR (dB)</span>${button('Hide graph','data-graph-toggle aria-pressed="true"')}</div><div data-graph-area><canvas class="uj-graph" width="900" height="160" role="img" aria-label="Illustrative PSNR sequence graph with current frame and uncomputed interval"></canvas></div><div class="uj-note">Frame axis · current position · uncomputed region</div></div>${status('Still images start without a temporal graph')}`],
+    ['visual-verification','Visual verification',`<div class="uj-body"><div class="uj-row uj-between"><div class="uj-section">Native screens to verify</div><span class="uj-note">Test illustration · NOT pass evidence</span></div><div class="uj-columns"><section><div class="uj-section">Light · Mixed-script labels</div>${path()}${item('일상 및 캐나다 여행 사진.jpg','Current image · 한국어 / English',true)}<div class="uj-divider">${dl([['DPI','100 / 125 / 150 / 200%'],['Text','Windows enlargement'],['Client sizes','640×480 / 960×600 / 1440×900 DIP']])}</div></section><section><div class="uj-section">Keyboard / high contrast</div>${button('Info','class="uj-demo-focus"')}${button('Compare','disabled')}<div class="uj-divider">${dl([['Themes','System / Light / Dark / high contrast'],['Input','Tab / Alt / IME / text entry'],['Evidence','Actual build screenshots required'],['Status','Not yet tested']])}</div></section></div></div>`],
+    ['performance-verification','State preservation',`${command()}<div class="uj-workspace">${browse()}${canvas()}</div><div class="uj-test-strip">${dl([['Verify','E · Fit/manual anchor · GPU recreation'],['Preserve','File/frame · zoom/pan · ROI · selection · A/B scope'],['Evidence','Pre/post baseline + builds/core tests · not yet run']])}</div>${status('Test illustration · no measured result or new product UI')}`],
+    ['documentation-readiness','Guide and readiness',`<div class="uj-body"><div class="uj-columns"><section><div class="uj-section">User guide · Browse</div>${path('This PC › [D:\\]')}<div class="uj-list">${button('[..]','class="uj-item"')}${button('[C:\\] / [D:\\]','class="uj-item"')}</div><div class="uj-section uj-divider">Selection actions</div><div class="uj-menu">${button('Compare selected files')}${button('Move to Recycle Bin')}</div></section><section><div class="uj-section">User guide · Comparison</div><div class="uj-source-head"><span class="uj-role">A</span><span>Reference</span><span class="uj-role">B</span><span>Compared</span></div><div class="uj-note">C / D: View only</div><div class="uj-divider">${dl([['Screens','Replace mockups with actual approved build captures'],['Evidence','Link verified core jobs'],['Release','Separate scope/version decision'],['State','No release authorized']])}</div></section></div></div>`],
+    ['multi-row-layout','Four-source layouts',`<div class="uj-command">${button('Open')}<label>Layout<select aria-label="Four source layout" data-layout><option value="grid">2 × 2</option><option value="row">1 × 4</option></select></label><span class="uj-note">Separate follow-up · A/B metrics only</span></div><div class="uj-source-grid uj-grid-four" data-four-grid>${source('A','Reference','15.jpg')}${source('B','Compared','15_down_mask.png')}${source('C','View only','preview.png')}${source('D','View only','inpaint.png')}</div><div class="uj-metric-panel">${metrics()}</div>${status('Future layout proposal · not in the initial release gate')}`]
+  ];
+  for(const [key,name,content] of views){
+    const section=document.createElement('section');section.className='uj-scene';section.dataset.variant=name;section.dataset.job=key;section.setAttribute('aria-label',name+' UI proposal');section.hidden=carousel.children.length>0;
+    section.innerHTML=`<div class="uj-product"><div class="uj-title"><span class="uj-caption">Q1View · ${name}</span><span class="uj-note">Proposed Windows UI</span></div>${content}</div>`;
+    section.querySelectorAll('button').forEach(el=>el.classList.add('cursor-interaction'));carousel.append(section);
+  }
+  const drawPicture=canvas=>{
+    const c=canvas.getContext('2d');const w=800,h=500;
+    const sky=c.createLinearGradient(0,0,0,h);sky.addColorStop(0,'#9dc3d8');sky.addColorStop(.5,'#dce4e5');sky.addColorStop(.51,'#559ba9');sky.addColorStop(1,'#216d81');c.fillStyle=sky;c.fillRect(0,0,w,h);
+    c.fillStyle='#7b96a4';c.beginPath();c.moveTo(0,250);c.lineTo(150,75);c.lineTo(310,255);c.lineTo(500,95);c.lineTo(660,235);c.lineTo(800,130);c.lineTo(800,290);c.lineTo(0,290);c.fill();
+    c.fillStyle='#e4e9e7';c.beginPath();c.moveTo(108,124);c.lineTo(150,75);c.lineTo(194,126);c.lineTo(167,113);c.lineTo(148,138);c.lineTo(126,115);c.fill();c.beginPath();c.moveTo(452,146);c.lineTo(500,95);c.lineTo(550,151);c.lineTo(515,132);c.lineTo(497,152);c.lineTo(477,130);c.fill();
+    c.fillStyle='#335c54';c.beginPath();c.moveTo(0,235);c.lineTo(160,274);c.lineTo(0,390);c.fill();c.beginPath();c.moveTo(800,225);c.lineTo(636,282);c.lineTo(800,365);c.fill();
+    c.fillStyle='#284b41';c.beginPath();c.moveTo(0,418);c.quadraticCurveTo(200,355,340,450);c.quadraticCurveTo(550,375,800,435);c.lineTo(800,500);c.lineTo(0,500);c.fill();
+  };
+  root.querySelectorAll('.uj-picture').forEach(drawPicture);
+  const drawGraphs=()=>root.querySelectorAll('.uj-graph').forEach(canvas=>{
+    const c=canvas.getContext('2d'),product=canvas.closest('.uj-product'),fg=getComputedStyle(product).color,muted=getComputedStyle(product.querySelector('.uj-note')).color,accent=getComputedStyle(product.querySelector('.uj-role')).color,line=getComputedStyle(product.querySelector('.uj-metric-panel')).borderTopColor,subtle=getComputedStyle(product.querySelector('.uj-title')).backgroundColor;
+    c.clearRect(0,0,900,160);c.font='12px Segoe UI';c.fillStyle=muted;c.fillText('PSNR (dB)',8,18);c.fillText('45',8,44);c.fillText('35',8,94);c.fillText('25',8,137);c.strokeStyle=line;c.lineWidth=1;for(const y of [40,88,132]){c.beginPath();c.moveTo(48,y);c.lineTo(874,y);c.stroke();}
+    c.fillStyle=subtle;c.fillRect(640,32,234,100);c.fillStyle=muted;c.fillText('Not computed',684,78);c.fillText('1',48,155);c.fillText('125',360,155);c.fillText('240',850,155);c.strokeStyle=accent;c.lineWidth=2;c.beginPath();for(let x=48;x<640;x+=4){const y=76+10*Math.sin(x/32)+5*Math.sin(x/13);if(x===48)c.moveTo(x,y);else c.lineTo(x,y);}c.stroke();c.strokeStyle=fg;c.lineWidth=1;c.beginPath();c.moveTo(376,28);c.lineTo(376,134);c.stroke();
+  });
+  const renderSelection=()=>{
+    const product=root.querySelector('[data-job="selection-menu"] .uj-product');
+    const count=product.querySelectorAll('.uj-selection-file[aria-pressed="true"]').length;
+    product.querySelector('[data-selection-count]').textContent=count+' selected';
+    product.querySelector('[data-compare]').classList.toggle('uj-hidden',count<2||count>4);
+    product.querySelector('[data-selection-limit]').classList.toggle('uj-hidden',count<=4);
+  };
+  const renderAnalysis=()=>{
+    const product=root.querySelector('[data-job="metric-results"] .uj-product');
+    const complete=analysisState.state==='Completed';product.querySelector('[data-result-values]').classList.toggle('uj-hidden',!complete);
+    product.querySelector('[data-analysis-label]').textContent=analysisState.state;
+    const message=product.querySelector('[data-result-message]');message.classList.toggle('uj-hidden',complete);
+    message.textContent=analysisState.state==='Error'?'Analysis failed · no current result':analysisState.state+' · no current result';
+  };
+  const render=()=>{
+    root.style.colorScheme=state.theme==='System'?'':state.theme.toLowerCase();root.style.setProperty('--uj-scale',state.textScale==='125%'?'1.25':'1');root.querySelectorAll('[data-app-theme]').forEach(el=>el.value=state.theme);
+    root.querySelector('[data-four-grid]').classList.toggle('uj-four-row',state.layout==='row');root.querySelector('[data-layout]').value=state.layout;
+    root.querySelectorAll('.uj-folder').forEach(el=>{const height=116-16,lineHeight=18*(state.textScale==='125%'?1.25:1);el.style.setProperty('--uj-folder-lines',String(Math.floor(height/lineHeight)));});drawGraphs();renderSelection();renderAnalysis();
+  };
+  const remember=()=>{const selected=[...root.querySelectorAll('.uj-selection-file')].flatMap((el,index)=>el.getAttribute('aria-pressed')==='true'?[index]:[]);if(window.openai?.setWidgetState)window.openai.setWidgetState({modelContent:{review:'ui-jobs',theme:state.theme,textScale:state.textScale,layout:state.layout,selectionCount:selected.length,analysisState:analysisState.state},privateContent:{selected}}).catch(()=>{});};
+  const saved=value=>{const data=value?.modelContent;if(data?.review!=='ui-jobs')return;if(['System','Light','Dark'].includes(data.theme))state.theme=data.theme;if(['100%','125%'].includes(data.textScale))state.textScale=data.textScale;if(['grid','row'].includes(data.layout))state.layout=data.layout;if(['Completed','Preparing','Calculating','Cancelled','Error'].includes(data.analysisState))analysisState.state=data.analysisState;const indices=value?.privateContent?.selected;if(Array.isArray(indices)&&indices.every(index=>Number.isInteger(index)&&index>=0&&index<5)){root.querySelectorAll('.uj-selection-file').forEach((el,index)=>{const selected=indices.includes(index);el.setAttribute('aria-pressed',String(selected));el.querySelector('.uj-check').hidden=!selected;});}render();};
+  saved(window.openai?.widgetState);render();window.addEventListener('openai:set_globals',event=>saved(event.detail?.globals?.widgetState));
+  root.addEventListener('change',event=>{
+    const el=event.target,product=el.closest('.uj-product');
+    if(el.matches('[data-app-theme]')){state.theme=el.value;render();remember();}
+    if(el.matches('[data-background]'))product.style.setProperty('--uj-canvas',el.value);
+    if(el.matches('[data-layout]')){state.layout=el.value;render();remember();}
+  });
+  root.addEventListener('input',event=>{if(event.target.matches('[data-frame]')){const value=Number(event.target.value)+1;event.target.closest('.uj-product').querySelector('[data-frame-label]').textContent=String(value).padStart(6,'0')+' / 002400';}});
+  root.addEventListener('click',event=>{
+    const el=event.target.closest('button');if(!el||!root.contains(el))return;const product=el.closest('.uj-product');if(!product)return;
+    if(el.classList.contains('uj-selection-file')){const selected=el.getAttribute('aria-pressed')!=='true';el.setAttribute('aria-pressed',String(selected));el.querySelector('.uj-check').hidden=!selected;renderSelection();remember();}
+    if(el.hasAttribute('data-local-toggle'))el.setAttribute('aria-pressed',String(el.getAttribute('aria-pressed')!=='true'));
+    if(el.hasAttribute('data-root-parent'))product.querySelector('[data-root-parent]').textContent='This PC · [C:\\] [D:\\] [E:\\]';
+    if(el.hasAttribute('data-play')){const play=el.getAttribute('aria-pressed')!=='true';el.setAttribute('aria-pressed',String(play));el.textContent=play?'Pause':'Play';}
+    if(el.hasAttribute('data-graph-toggle')){const area=product.querySelector('[data-graph-area]');area.classList.toggle('uj-hidden');el.textContent=area.classList.contains('uj-hidden')?'Show graph':'Hide graph';el.setAttribute('aria-pressed',String(!area.classList.contains('uj-hidden')));}
+    if(el.hasAttribute('data-cancel'))product.querySelector('[data-operation-result]').textContent='Cancelled · no files changed';
+    if(el.hasAttribute('data-recycle'))product.querySelector('[data-operation-result]').textContent='Mockup only · no real file operation';
+  });
+  if(globalThis.Tweak){
+    const tweak=new Tweak({container:root,onChange:()=>{render();remember();}});tweak.addSelect(state,'textScale',{label:'글자 확대',options:['100%','125%']});
+    const selectionTweak=new Tweak({container:root.querySelector('[data-job="selection-menu"] .uj-product'),onChange:()=>{root.querySelectorAll('.uj-selection-file').forEach((el,index)=>{const selected=index<Number(selectionState.count);el.setAttribute('aria-pressed',String(selected));el.querySelector('.uj-check').hidden=!selected;});renderSelection();remember();}});selectionTweak.addSelect(selectionState,'count',{label:'선택 개수 예시',options:['2','4','5']});
+    const analysisTweak=new Tweak({container:root.querySelector('[data-job="metric-results"] .uj-product'),onChange:()=>{renderAnalysis();remember();}});analysisTweak.addSelect(analysisState,'state',{label:'분석 상태 예시',options:['Completed','Preparing','Calculating','Cancelled','Error']});
+  }
+})();
+</script>
