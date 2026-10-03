@@ -2,7 +2,7 @@
 
 These are proposed Windows UI illustrations, not screenshots of an implemented Q1View build and not verification evidence. The preview uses synthetic lake/mountain imagery and illustrative numeric values; no user photographs were uploaded. Surrounding controls provide context from the roadmap; each leaf issue limits what its job may change. There is no literal before/after claim about the current native build.
 
-The original #111–#116 issues are coordination epics. Each leaf job must be discussed, agreed, implemented and verified separately. Do not infer approval from a mockup interaction or advance automatically. Verification jobs depict their targets and add no new product UI. The multi-row layout is a separate follow-up, not an initial-release blocker.
+The original #111–#115 issues are coordination epics. #116 remains one coherent optional layout job rather than receiving a redundant one-item wrapper. Each leaf job must be discussed, agreed, implemented and verified separately. Do not infer approval from a mockup interaction or advance automatically. Verification jobs depict their targets and add no new product UI. The multi-row layout is a separate follow-up, not an initial-release blocker.
 
 | Job | Coordination issue | UI illustration |
 | --- | --- | --- |
@@ -35,4 +35,5 @@ Additional state examples: [Dark appearance](assets/themes-dark.jpg), [five sele
 The prototype's theme, selection and layout interactions are local demonstration controls. They do not operate on files or prove native rendering/shortcut/performance correctness. Production verification remains a separate gate.
 
 Typography examples use [Pretendard](https://github.com/orioncactus/pretendard) v1.3.9. Icon placeholders use the [Lucide](https://lucide.dev/) family supplied by the preview runtime. Retain upstream notices if assets are bundled in production. No font/icon binary is introduced into the application by this documentation branch.
+
 
