@@ -2,6 +2,14 @@
 
 Date: 2026-10-04. Branch: `codex/issue-117-typography`. Windows MFC Viewer and Comparator only. The user approved expanding beyond a font-only edit after two non-client painting prototypes proved unsuitable. The user subsequently approved temporary Windows text-size and display-scale changes with restoration. No master merge, release tag or version bump is authorized by this work.
 
+## Snap hover acceptance and user-approved scope reduction — 2026-10-04
+
+The user requested checking only Snap and explicitly waived the remaining 200%/mixed-monitor, high-contrast and exhaustive-glyph checks. Those items remain unverified, not passed, but are no longer acceptance blockers under the revised scope. Existing results below are retained.
+
+Both final Release review executables displayed the native Windows Snap layout flyout with the pointer over their DWM maximize button. Viewer retained the repository pencil source/title and its File popup operated normally afterward. Comparer retained its two-pane layout and title/menu controls. No product changes were needed for this hover check, and no OS settings were changed in this session.
+
+Additional edge-drag attempts displayed 960×1032 half-screen layouts at screen origin (0,0), but reactivation/cancellation returned to the prior restore geometry. The automation tool refused clicks on the Snap flyout because it belongs to Explorer's unlisted popup host, not the selected app HWND. Consequently, this evidence confirms the originally pending **Snap hover/flyout** acceptance, not a committed flyout-zone selection or every Snap arrangement. Do not report those extra attempts as full placement passes. The requested hover check is complete; the issue stays open until implementation is merged, and merge/release still requires user direction.
+
 ## Live acceptance follow-up — 2026-10-04
 
 This section supersedes the earlier pending text-size/Comparer matrix notes below; earlier observations remain as historical evidence, not current results. Using Windows Settings, display scale was changed from the original 100% to 125%, 150% and 175%, and restored to 100%. The available preset list on this display stops at 175%; no custom scale requiring sign-out was applied. Live 200% and mixed-monitor movement are therefore not verified. The existing explicit 192-DPI layout matrix does not substitute for those checks.
