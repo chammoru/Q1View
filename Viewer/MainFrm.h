@@ -6,6 +6,7 @@
 
 #include <vector>
 #include "Q1UiFontWin.h"
+#include "Q1UiMenuWin.h"
 
 #define WM_RELOAD (WM_USER + 100)
 #define WM_APPLY_SYNC_INPUT (WM_APP + 100)
@@ -172,6 +173,7 @@ private:
 
 	// Full-window shortcut/help overlay (issue #79).
 	CHelpOverlay mHelpOverlay;
+	q1view::WindowsUiMenus mUiMenus;
 	CDrawerTransitionOverlay mDrawerTransitionOverlay;
 
 // Operations
@@ -232,6 +234,11 @@ protected:
 public:
 	afx_msg void OnDropFiles(HDROP hDropInfo);
 	afx_msg void OnHelp();
+	void DrawMenuBar();
+	afx_msg void OnMeasureItem(int, LPMEASUREITEMSTRUCT);
+	afx_msg void OnDrawItem(int, LPDRAWITEMSTRUCT);
+	afx_msg void OnInitMenuPopup(CMenu*, UINT, BOOL);
+	afx_msg LRESULT OnMenuChar(UINT, UINT, CMenu*);
 	afx_msg LRESULT OnTypographyChanged(WPARAM, LPARAM);
 	afx_msg void OnFileOpen();
 	afx_msg void OnExecComparator();

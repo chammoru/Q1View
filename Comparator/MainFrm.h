@@ -9,6 +9,7 @@
 
 #include "qimage_metrics.h"
 #include "Q1UiFontWin.h"
+#include "Q1UiMenuWin.h"
 
 #define FRAME_INFO_H          28
 #define FRAMES_INFO_H         84
@@ -84,6 +85,7 @@ private:
 
 	// Full-window shortcut/help overlay (issue #79).
 	CHelpOverlay mHelpOverlay;
+	q1view::WindowsUiMenus mUiMenus;
 
 public:
 	int mMetricIdx;
@@ -133,6 +135,11 @@ public:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnMove(int x, int y);
 	afx_msg void OnHelp();
+	void DrawMenuBar();
+	afx_msg void OnMeasureItem(int, LPMEASUREITEMSTRUCT);
+	afx_msg void OnDrawItem(int, LPDRAWITEMSTRUCT);
+	afx_msg void OnInitMenuPopup(CMenu*, UINT, BOOL);
+	afx_msg LRESULT OnMenuChar(UINT, UINT, CMenu*);
 	afx_msg LRESULT OnTypographyChanged(WPARAM, LPARAM);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnDestroy();

@@ -802,8 +802,11 @@ struct GalleryIntegrationTests {
                 // Model the same-folder rebuild caused when an asynchronous
                 // video preview is rejected between the click and its posted
                 // activation message. The captured folder action must survive.
-                pane.Populate(pane.mFolder, child); Pump(.05);
-                Require(pane.mFolder == child, "folder activation survives a same-folder asynchronous refresh");
+                pane.Populate(pane.mFolder, child);
+                // Activation is posted, not synchronous. Playback/decode work
+                // may consume a fixed 50 ms pump before that message is reached.
+                // Await the actual outcome, retaining the bounded failure timeout.
+                Await([&] { return pane.mFolder == child; }, "folder activation survives a same-folder asynchronous refresh");
                 MSG up = {}; up.hwnd = pane.GetSafeHwnd(); up.message = WM_KEYDOWN; up.wParam = VK_BACK;
                 Require(pane.PreTranslateMessage(&up) && pane.mFolder == folder, "Backspace remains a parent-navigation shortcut");
                 CMenu background; pane.BuildContextMenu(background, -1);

@@ -90,6 +90,10 @@ static bool IsRepeatedDrawerShortcut(const MSG *message)
 IMPLEMENT_DYNCREATE(CMainFrame, CFrameWnd)
 
 BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
+	ON_WM_MEASUREITEM()
+	ON_WM_DRAWITEM()
+	ON_WM_INITMENUPOPUP()
+	ON_WM_MENUCHAR()
 	ON_WM_DROPFILES()
 	ON_COMMAND(ID_VIEWER_HELP, &CMainFrame::OnHelp)
 	ON_COMMAND(ID_FILE_OPEN, &CMainFrame::OnFileOpen)
@@ -419,10 +423,37 @@ void CHelpOverlay::OnLButtonDown(UINT /*nFlags*/, CPoint /*point*/)
 LRESULT CMainFrame::OnTypographyChanged(WPARAM, LPARAM)
 {
 	q1view::WindowsUiSettings().Refresh();
+	DrawMenuBar();
+	SetWindowPos(nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 	SendMessageToDescendants(q1view::WM_UI_TYPOGRAPHY_CHANGED);
 	mHelpOverlay.Relayout();
 	RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN);
 	return 0;
+}
+
+void CMainFrame::DrawMenuBar()
+{
+	mUiMenus.Sync(m_hWnd, ::GetMenu(m_hWnd));
+	CFrameWnd::DrawMenuBar();
+}
+
+void CMainFrame::OnMeasureItem(int id, LPMEASUREITEMSTRUCT item)
+{ if (!mUiMenus.Measure(item)) CFrameWnd::OnMeasureItem(id, item); }
+
+void CMainFrame::OnDrawItem(int id, LPDRAWITEMSTRUCT item)
+{ if (!mUiMenus.Draw(item)) CFrameWnd::OnDrawItem(id, item); }
+
+void CMainFrame::OnInitMenuPopup(CMenu* menu, UINT index, BOOL system)
+{
+	CFrameWnd::OnInitMenuPopup(menu, index, system);
+	if (!system) mUiMenus.Sync(m_hWnd, ::GetMenu(m_hWnd));
+}
+
+LRESULT CMainFrame::OnMenuChar(UINT character, UINT flags, CMenu* menu)
+{
+	LRESULT result;
+	if (mUiMenus.MenuChar(character, menu->GetSafeHmenu(), result)) return result;
+	return CFrameWnd::OnMenuChar(character, flags, menu);
 }
 
 BOOL CHelpOverlay::OnMouseWheel(UINT, short delta, CPoint)
@@ -1168,7 +1199,7 @@ void CMainFrame::OnResolutionChange(UINT nID)
 
 	CString str;
 	CMenu *subMenu = GetMenu()->GetSubMenu(MENU_POS_RESOLUTION);
-	subMenu->GetMenuString(nID, str, MF_BYCOMMAND);
+	str = mUiMenus.Text(subMenu->GetSafeHmenu(), nID).c_str();
 
 	int w = 0, h = 0;
 	int error = q1::image_parse_w_h(CT2A(str), &w, &h);
@@ -1229,7 +1260,7 @@ void CMainFrame::OnCsChange(UINT nID)
 
 	CString str;
 	CMenu *subMenu = GetMenu()->GetSubMenu(MENU_POS_COLORSPACE);
-	subMenu->GetMenuString(nID, str, MF_BYCOMMAND);
+	str = mUiMenus.Text(subMenu->GetSafeHmenu(), nID).c_str();
 
 	str.MakeLower();
 	const struct qcsc_info * const ci =
@@ -1256,7 +1287,7 @@ void CMainFrame::OnFpsChange(UINT nID)
 
 	CString str;
 	CMenu *subMenu = GetMenu()->GetSubMenu(MENU_POS_FPS);
-	subMenu->GetMenuString(nID, str, MF_BYCOMMAND);
+	str = mUiMenus.Text(subMenu->GetSafeHmenu(), nID).c_str();
 
 	double fps = _wtof(str);
 	if (fps == 0) {

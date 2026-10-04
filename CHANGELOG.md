@@ -9,6 +9,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 ### Changed
 - Windows Viewer and Comparator: finish Pretendard typography for help prose, align shortcut columns using measured text with wrapping and scroll access, and share DPI/system-text-size-aware font roles while keeping numeric monospace and native Windows fonts. (issue #117)
 
+- Windows Viewer and Comparator: use normal-weight Pretendard in the main application menus with wider horizontal spacing and roomier dropdown rows, preserving native menu tracking, command shortcuts, selection states and accessible names. (issue #117)
+
 ---
 
 ## [2.7.26] — 2026-09-27
