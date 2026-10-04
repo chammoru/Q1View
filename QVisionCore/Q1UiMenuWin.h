@@ -135,7 +135,7 @@ public:
 		if (!item->bar) {
 			rect.left += Px(28); rect.right -= Px(24);
 			MENUITEMINFOW current = {sizeof(current)};
-			current.fMask = MIIM_FTYPE | MIIM_SUBMENU | MIIM_STATE;
+			current.fMask = MIIM_FTYPE | MIIM_STATE;
 			GetMenuItemInfoW(item->menu, item->position, TRUE, &current);
 			const int middle = (rect.top + rect.bottom) / 2;
 			HPEN pen = CreatePen(PS_SOLID, Px(2), GetTextColor(draw->hDC));
@@ -150,11 +150,8 @@ public:
 					Polyline(draw->hDC, tick, 3);
 				}
 			}
-			if (current.hSubMenu) {
-				const int x = draw->rcItem.right - Px(12);
-				POINT arrow[] = {{x - Px(2), middle - Px(4)}, {x + Px(2), middle}, {x - Px(2), middle + Px(4)}};
-				Polyline(draw->hDC, arrow, 3);
-			}
+			// Windows paints the submenu chevron after WM_DRAWITEM. Reserve
+			// its gutter, but do not overpaint it with a duplicate indicator.
 			SelectObject(draw->hDC, oldPen); SelectObject(draw->hDC, oldBrush);
 			DeleteObject(pen); DeleteObject(brush);
 		} else { rect.left += Px(8); rect.right -= Px(8); }
