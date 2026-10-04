@@ -25,6 +25,8 @@ Pixel-level viewer and frame comparer for codec, imaging, and QA work. Inspect r
 ```
 Q1View is a Windows toolkit for engineers who need to inspect image and video data at the pixel level instead of just playing it back.
 
+Viewer and Comparator use coordinated Pretendard typography for app-drawn Korean and English text, window titles, and application menus. Text follows Windows text-size and display scaling settings; narrow menu rows wrap, and help descriptions wrap and scroll for access to the full shortcut list. Native Windows window buttons and system dialogs retain their familiar behavior.
+
 It is built for codec developers, imaging engineers, computer vision engineers, researchers, and QA teams who need to verify raw buffers, decoded frames, compression artifacts, color conversion, timing behavior, and small visual differences between processing pipelines.
 
 Q1View includes two focused applications:
@@ -107,6 +109,7 @@ TECHNICAL NOTES
 17. Cycle raw color space (N) and preset resolutions (D) without reopening the file
 18. Windows Viewer media thumbnail gallery with automatic directory refresh, multi-selection and comparison of two to four sources in Comparator, safe batch Recycle Bin actions, smooth sizing, bounded caching, compact folder notation, modern Korean/Latin typography, global shortcuts, and top-level logical-drive switching
 19. Coordinated Viewer, Comparator, photo, video, and raw-file icons designed for clear recognition across Windows taskbar, Start, and File Explorer surfaces
+20. Coordinated Korean/English application typography with Windows text-size scaling, wrapping menus, and scrollable shortcut help
 20. BT.2020 HLG video tone mapping for accurate color and contrast on standard SDR displays
 ```
 

@@ -6,6 +6,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.7.27] — 2026-10-04
+
 ### Changed
 - Windows Viewer and Comparator: finish Pretendard typography for help prose, align shortcut columns using measured text with wrapping and scroll access, and share DPI/system-text-size-aware font roles while keeping numeric monospace and native Windows fonts. (issue #117)
 
@@ -471,7 +475,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.26...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.27...HEAD
+[2.7.27]: https://github.com/chammoru/Q1View/compare/v2.7.26...v2.7.27
 [2.7.26]: https://github.com/chammoru/Q1View/compare/v2.7.25...v2.7.26
 [2.7.25]: https://github.com/chammoru/Q1View/compare/v2.7.24...v2.7.25
 [2.7.24]: https://github.com/chammoru/Q1View/compare/v2.7.23...v2.7.24
