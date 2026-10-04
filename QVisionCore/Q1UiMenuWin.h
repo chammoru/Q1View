@@ -94,6 +94,8 @@ class WindowsUiMenus {
 	}
 public:
 	void Sync(HWND window, HMENU menu, bool hostedBar = false) { mWindow = window; mHostedBar = hostedBar; if (menu) SyncMenu(menu, true); }
+	// Standalone pane/context popups are not children of the frame menu.
+	void SyncPopup(HWND window, HMENU menu) { mWindow = window; if (menu) SyncMenu(menu, false); }
 	std::wstring Text(HMENU menu, UINT id, bool byPosition = false) const {
 		MENUITEMINFOW info = {sizeof(info)}; info.fMask = MIIM_DATA;
 		if (GetMenuItemInfoW(menu, id, byPosition, &info))

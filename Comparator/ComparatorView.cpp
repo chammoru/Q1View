@@ -102,6 +102,19 @@ BEGIN_MESSAGE_MAP(CComparatorView, CScrollView)
 	ON_WM_RBUTTONUP()
 END_MESSAGE_MAP()
 
+LRESULT CComparatorView::WindowProc(UINT message, WPARAM wp, LPARAM lp)
+{
+	if (message == WM_INITMENUPOPUP && !HIWORD(lp))
+		mUiPopupMenus.SyncPopup(m_hWnd, reinterpret_cast<HMENU>(wp));
+	if (message == WM_MEASUREITEM && mUiPopupMenus.Measure(reinterpret_cast<MEASUREITEMSTRUCT*>(lp))) return TRUE;
+	if (message == WM_DRAWITEM && mUiPopupMenus.Draw(reinterpret_cast<DRAWITEMSTRUCT*>(lp))) return TRUE;
+	if (message == WM_MENUCHAR) {
+		LRESULT result;
+		if (mUiPopupMenus.MenuChar(LOWORD(wp), reinterpret_cast<HMENU>(lp), result)) return result;
+	}
+	return CScrollView::WindowProc(message, wp, lp);
+}
+
 // Right-click popup items, mirroring the MFC Viewer's mouse menu. The command
 // IDs are ID_MOUSEMENU_START + this index.
 enum QMouseMenuId {
@@ -1253,7 +1266,7 @@ void CComparatorView::OnCsChange(UINT nID)
 	CComparatorDoc* pDoc = GetDocument();
 
 	CString str;
-	mCsMenu.GetMenuString(nID, str, MF_BYCOMMAND);
+	str = mUiPopupMenus.Text(mCsMenu.GetSafeHmenu(), nID).c_str();
 	str.MakeLower();
 
 	const struct qcsc_info * const ci =

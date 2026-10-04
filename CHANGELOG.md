@@ -13,6 +13,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 - Windows Viewer and Comparator: match window titles to 14 DIP Pretendard menus using a client-painted title with native DWM window buttons, accessible menu buttons, wrapped narrow-window menu rows and retained popup commands; preserve the same application menu across Viewer full-screen transitions and use the native frame in high-contrast mode. (issue #117)
 
+- Windows Comparator: apply the shared Pretendard popup typography to pane color-format selection and pane context menus, which are independent of the main application menu. (issue #117)
+
 ---
 
 ## [2.7.26] — 2026-09-27

@@ -4,6 +4,7 @@
 #include "QMenuItem.h"
 #include "QViewerCmn.h"
 #include "Q1UiFontWin.h"
+#include "Q1UiMenuWin.h"
 
 namespace Gdiplus {
 	class Pen;
@@ -30,6 +31,7 @@ public:
 protected:
 	virtual void OnDraw(CDC *pDC);      // overridden to draw this view
 	virtual void OnInitialUpdate();     // first time after construct
+	virtual LRESULT WindowProc(UINT message, WPARAM wp, LPARAM lp) override;
 	std::vector<CComparatorView *> GetOhterViews(CComparatorDoc *pDoc);
 	ComparatorPane *GetPane(CComparatorDoc* pDoc) const;
 
@@ -56,6 +58,7 @@ public:
 	BYTE *mRgbBuf;
 	CFont mDefPixelTextFont;
 	q1view::WindowsUiFontCache mUiFonts;
+	q1view::WindowsUiMenus mUiPopupMenus;
 	CFont mPixelTextFont;
 	LONG  mPixelTextFontHeight;
 	CDC mMemDC;

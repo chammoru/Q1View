@@ -18,6 +18,8 @@ The architecture follows Microsoft's [custom DWM frame guidance](https://learn.m
 
 ## Verification
 
+Follow-up to the user's screenshot: Comparator pane format selection and right-click menus were standalone popups, outside the main frame HMENU tree, and still used Windows default popup typography. Each pane now owns a shared WindowsUiMenus painter for its standalone popups and routes native initialization/measurement/drawing/mnemonic messages through it. Color-space command parsing reads the preserved menu label rather than relying on GetMenuString for an owner-drawn item. Standalone popup tests cover row measurement, accessible names, check-state preservation and modified labels. The remaining frame/mouse-capture acceptance caveat below is unchanged.
+
 The typography executable now also creates an isolated Win32 frame and checks original menu retention, accessible button names, disabled-item input, dynamic labels, wrapped/non-overlapping rows at window widths 200/320/640/1920, full-screen hide/restore, native maximize hit codes and repeated buffered caption drawing without accumulating GDI objects. Body/help tests continue to cover explicit 96/120/144/192 DPI and text factors 1/1.25/1.5/2/2.25. These explicit font/layout inputs are not a substitute for a real mixed-monitor or live Windows text-size acceptance run.
 
 The MFC gallery suite adds real chrome-reserved splitter bounds, maximize/work-area bounds, original restore rectangle, three full-screen round trips without duplicate menus and preservation of the active file. It then runs the existing E transition, zoom/pan, playback, selection, directory refresh, recycling and actual GPU recreation tests with an isolated profile and repository/temp fixtures.

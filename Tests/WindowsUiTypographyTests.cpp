@@ -58,6 +58,19 @@ static void TestMenus()
 	SetMenuItemInfoW(popup, 0, TRUE, &radio); draw.itemState = ODS_CHECKED;
 	Require(menus.Draw(&draw) && GetPixel(dc, 14, 15) == GetSysColor(COLOR_MENUTEXT), "selected radio marker is actually painted, not just stored in metadata");
 	SelectObject(dc, oldBitmap); DeleteObject(bitmap); DeleteDC(dc); DestroyMenu(root);
+	// Pane/context popups are standalone roots, not frame-bar descendants.
+	HMENU standalone = CreatePopupMenu();
+	AppendMenuW(standalone, MF_STRING | MF_CHECKED, 200, L"YUV420");
+	AppendMenuW(standalone, MF_STRING, 201, L"선택 영역 지우기\tEsc");
+	WindowsUiMenus paneMenus; paneMenus.SyncPopup(nullptr, standalone);
+	Require(GetMenuItemInfoW(standalone, 0, TRUE, &info) && (info.fType & MFT_OWNERDRAW) && (info.fState & MFS_CHECKED), "standalone format popup keeps its checked state and receives shared painting");
+	measure.itemData = info.dwItemData;
+	Require(paneMenus.Measure(&measure) && measure.itemWidth >= 64 && measure.itemHeight >= 30, "standalone popup uses popup gutter and shared body-font row size, not bar sizing");
+	accessible = reinterpret_cast<MSAAMENUINFO*>(info.dwItemData);
+	Require(accessible && wcscmp(accessible->pszWText, L"YUV420") == 0, "standalone popup retains accessible format label");
+	ModifyMenuW(standalone, 200, MF_BYCOMMAND | MF_STRING, 200, L"NV12"); paneMenus.SyncPopup(nullptr, standalone);
+	Require(paneMenus.Text(standalone, 200) == L"NV12", "standalone popup refreshes modified format text");
+	DestroyMenu(standalone);
 }
 
 struct FrameTestHost {
