@@ -324,9 +324,10 @@ struct GalleryIntegrationTests {
             pane.mLabelFont.GetLogFont(&regular);
             pane.mFolderFont.GetLogFont(&folderFont);
             pane.mExtFont.GetLogFont(&badge);
-            Require(regular.lfHeight == -MulDiv(13, dpi, 96) && regular.lfWeight == FW_NORMAL &&
-                folderFont.lfHeight == -MulDiv(13, dpi, 96) && folderFont.lfWeight == FW_MEDIUM &&
-                badge.lfHeight == -MulDiv(12, dpi, 96) && badge.lfWeight == FW_SEMIBOLD,
+            const double textScale = q1view::WindowsUiSettings().Scale();
+            Require(regular.lfHeight == -q1view::WindowsUiPixels(13, dpi, textScale) && regular.lfWeight == FW_NORMAL &&
+                folderFont.lfHeight == -q1view::WindowsUiPixels(13, dpi, textScale) && folderFont.lfWeight == FW_MEDIUM &&
+                badge.lfHeight == -q1view::WindowsUiPixels(12, dpi, textScale) && badge.lfWeight == FW_SEMIBOLD,
                 "MFC drawer typography scales at 100, 150, and 200 percent DPI");
         }
         pane.RebuildFonts(GetDpiForWindow(pane.m_hWnd));

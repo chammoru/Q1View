@@ -70,6 +70,9 @@ BOOL CComparatorApp::InitInstance()
 	Gdiplus::GdiplusStartup(&mGdiplusToken, &gdiplusStartupInput, NULL);
 
 	SetRegistryKey(_T("Chammoru"));
+#ifdef Q1VIEW_COMPARER_TESTS
+	SetRegistryKey(_T("Q1ViewComparerTests"));
+#endif
 	LoadStdProfileSettings(4);  // Load standard INI file options (including MRU)
 
 	// Register the application's document templates.  Document templates
@@ -112,13 +115,24 @@ BOOL CComparatorApp::InitInstance()
 
 	// call DragAcceptFiles only if there's a suffix
 	//  In an SDI app, this should occur after ProcessShellCommand
+#ifdef Q1VIEW_COMPARER_TESTS
+	extern int RunComparerTypographyTests();
+	mTestExitCode = RunComparerTypographyTests();
+	m_pMainWnd->SendMessage(WM_CLOSE);
+	return FALSE;
+#endif
 	return TRUE;
 }
 
 int CComparatorApp::ExitInstance()
 {
 	Gdiplus::GdiplusShutdown(mGdiplusToken);
-	return CWinApp::ExitInstance();
+	const int result = CWinApp::ExitInstance();
+#ifdef Q1VIEW_COMPARER_TESTS
+	return mTestExitCode;
+#else
+	return result;
+#endif
 }
 
 

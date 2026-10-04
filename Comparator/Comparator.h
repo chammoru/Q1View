@@ -32,6 +32,9 @@ public:
 	afx_msg void OnFileOpen();
 
 private:
+#ifdef Q1VIEW_COMPARER_TESTS
+	int mTestExitCode = 0;
+#endif
 	ULONG_PTR mGdiplusToken;
 };
 

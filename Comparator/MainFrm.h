@@ -70,6 +70,9 @@ private:
 
 class CMainFrame : public CFrameWnd
 {
+#ifdef Q1VIEW_COMPARER_TESTS
+	friend int RunComparerTypographyTests();
+#endif
 
 protected: // create from serialization only
 	CMainFrame();

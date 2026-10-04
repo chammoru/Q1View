@@ -480,9 +480,10 @@ void CMainFrame::OnSize(UINT nType, int cx, int cy)
 	const UINT dpi = q1view::WindowsUiDpi(m_hWnd);
 	const double scale = q1view::WindowsUiSettings().Scale();
 	// Enlarged text must not produce negative splitter dimensions in a small
-	// window. Prefer the requested text area while retaining a canvas strip.
+	// window. Cap the graph at one third of the content height so enlarged
+	// labels cannot consume almost all of the image canvas.
 	const int graphHeight = std::min(q1view::WindowsUiPixels(FRAMES_INFO_H, dpi, scale),
-		std::max(0, cy - MIN_SIDE - mSplitMargin));
+		std::max(0, cy / 3 - mSplitMargin));
 	const int positionWidth = std::min(q1view::WindowsUiPixels(POS_INFO_W, dpi, scale),
 		std::max(0, cx - MIN_SIDE - mSplitMargin));
 

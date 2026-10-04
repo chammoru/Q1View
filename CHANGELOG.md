@@ -15,6 +15,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 - Windows Comparator: apply the shared Pretendard popup typography to pane color-format selection and pane context menus, which are independent of the main application menu. (issue #117)
 
+- Windows Comparator: limit the metrics graph to one third of the content height so enlarged Windows text leaves useful space for the compared images. (issue #117)
+
 ---
 
 ## [2.7.26] — 2026-09-27
