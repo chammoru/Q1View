@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClCompile Include="QHeifUtil.cpp" />
     <ClCompile Include="QCvUtil.cpp" />
+    <ClCompile Include="Q1UiFontWin.cpp" />
     <ClCompile Include="QDerivative.cpp" />
     <ClCompile Include="QOcv.cpp" />
     <ClCompile Include="QImageStr.cpp" />

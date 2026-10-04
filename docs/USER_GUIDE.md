@@ -44,6 +44,8 @@ Choose **View → Image Scaling** or press `I` to cycle through **Auto**, **Smoo
 
 Viewer includes a built-in control panel, opened with `?`.
 
+In the Windows Viewer and Comparator, window titles, help descriptions and main application menus share the Pretendard UI font. Titles and menus use normal-weight 14 DIP text; the custom main-menu row and dropdown rows provide at least 30 DIP height, follow Windows text enlargement and wrap the main-menu buttons when the window is narrow. Windows still draws and operates the minimize, maximize/restore and close buttons. Drag or double-click the title to move or maximize the window, right-click it or press Alt+Space for the Windows system menu, and use F10 or Alt to access application menus. Alt mnemonics, arrow-key navigation, check/radio states and command shortcuts remain available. Menu buttons expose accessible names and retain their original popup commands. Viewer full-screen mode hides the title and menu, then restores the same menu when leaving full screen. High-contrast mode or unavailable DWM composition uses the native Windows frame instead. Shortcut columns in help are measured rather than aligned with spaces, and descriptions wrap when needed. If the panel overflows, use the mouse wheel, Up/Down, Page Up/Page Down, or Home/End to read it; these navigation keys operate on help while it is open instead of changing the underlying image. Click the panel or press Esc to close it. Numeric inspection values retain a monospaced font; system menus, other context menus and Windows dialogs retain native typography.
+
 | Action | Control |
 | --- | --- |
 | Open a file | Drag and drop or `Ctrl+O` |

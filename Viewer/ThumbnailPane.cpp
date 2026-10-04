@@ -22,6 +22,7 @@
 #include "ViewerFileTypes.h"
 #include "QFileActionsWin.h"
 #include "QRecycleFilesWin.h"
+#include "Q1UiFontWin.h"
 
 #include <opencv2/imgproc/imgproc.hpp>
 
@@ -65,6 +66,7 @@ BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_WM_KEYDOWN()
 	ON_WM_TIMER()
 	ON_MESSAGE(WM_DPICHANGED_AFTERPARENT, &CThumbnailPane::OnDpiChanged)
+	ON_MESSAGE(q1view::WM_UI_TYPOGRAPHY_CHANGED, &CThumbnailPane::OnDpiChanged)
 	ON_NOTIFY_REFLECT(NM_DBLCLK, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(NM_RETURN, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(LVN_GETINFOTIP, &CThumbnailPane::OnGetInfoTip)
@@ -195,9 +197,8 @@ void CThumbnailPane::RebuildFonts(UINT dpi)
 	mFolderFont.DeleteObject();
 	mExtFont.DeleteObject();
 
-	LOGFONT label = {};
+	LOGFONT label = q1view::WindowsUiLogFont(q1view::WindowsUiFontRole::Caption, dpi, q1view::WindowsUiSettings().Scale());
 	lstrcpyn(label.lfFaceName, mFontFamily, LF_FACESIZE);
-	label.lfHeight = -MulDiv(13, dpi, 96);
 	label.lfWeight = FW_NORMAL;
 	label.lfQuality = CLEARTYPE_NATURAL_QUALITY;
 	mLabelFont.CreateFontIndirect(&label);
@@ -205,9 +206,8 @@ void CThumbnailPane::RebuildFonts(UINT dpi)
 	label.lfWeight = FW_MEDIUM;
 	mFolderFont.CreateFontIndirect(&label);
 
-	LOGFONT lf = {};
+	LOGFONT lf = q1view::WindowsUiLogFont(q1view::WindowsUiFontRole::Supporting, dpi, q1view::WindowsUiSettings().Scale());
 	lstrcpyn(lf.lfFaceName, mFontFamily, LF_FACESIZE);
-	lf.lfHeight = -MulDiv(12, dpi, 96);
 	lf.lfWeight = FW_SEMIBOLD;
 	lf.lfQuality = CLEARTYPE_NATURAL_QUALITY;
 	mExtFont.CreateFontIndirect(&lf);

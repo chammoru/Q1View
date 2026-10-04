@@ -306,6 +306,12 @@ copy /Y "$(ProjectDir)..\assets\fonts\Pretendard-LICENSE.txt" "$(TargetDir)Fonts
       <Project>{9f2e09be-9cc5-4460-80a0-0ab612f78ba0}</Project>
     </ProjectReference>
   </ItemGroup>
+	<ItemDefinitionGroup Condition="'$(Q1ViewComparerTests)'=='true'">
+		<ClCompile><PreprocessorDefinitions>Q1VIEW_COMPARER_TESTS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+	</ItemDefinitionGroup>
+	<ItemGroup Condition="'$(Q1ViewComparerTests)'=='true'">
+		<ClCompile Include="..\Tests\ComparerTypographyIntegrationTests.cpp"><PrecompiledHeader>NotUsing</PrecompiledHeader></ClCompile>
+	</ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

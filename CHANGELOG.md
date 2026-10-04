@@ -8,6 +8,21 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.27] — 2026-10-04
+
+### Changed
+- Windows Viewer and Comparator: finish Pretendard typography for help prose, align shortcut columns using measured text with wrapping and scroll access, and share DPI/system-text-size-aware font roles while keeping numeric monospace and native Windows fonts. (issue #117)
+
+- Windows Viewer and Comparator: use normal-weight Pretendard in the main application menus with wider horizontal spacing and roomier dropdown rows, preserving native menu tracking, command shortcuts, selection states and accessible names. (issue #117)
+
+- Windows Viewer and Comparator: match window titles to 14 DIP Pretendard menus using a client-painted title with native DWM window buttons, accessible menu buttons, wrapped narrow-window menu rows and retained popup commands; preserve the same application menu across Viewer full-screen transitions and use the native frame in high-contrast mode. (issue #117)
+
+- Windows Comparator: apply the shared Pretendard popup typography to pane color-format selection and pane context menus, which are independent of the main application menu. (issue #117)
+
+- Windows Comparator: limit the metrics graph to one third of the content height so enlarged Windows text leaves useful space for the compared images. (issue #117)
+
+---
+
 ## [2.7.26] — 2026-09-27
 
 ### Fixed
@@ -460,7 +475,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.26...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.27...HEAD
+[2.7.27]: https://github.com/chammoru/Q1View/compare/v2.7.26...v2.7.27
 [2.7.26]: https://github.com/chammoru/Q1View/compare/v2.7.25...v2.7.26
 [2.7.25]: https://github.com/chammoru/Q1View/compare/v2.7.24...v2.7.25
 [2.7.24]: https://github.com/chammoru/Q1View/compare/v2.7.23...v2.7.24
