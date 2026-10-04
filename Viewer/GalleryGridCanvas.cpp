@@ -4,6 +4,7 @@
 #include "MainFrm.h"
 #include "QViewerCmn.h"
 #include "QDebug.h"
+#include "Q1UiFontWin.h"
 #include <shlwapi.h>
 
 #pragma comment(lib, "d2d1.lib")
@@ -37,6 +38,7 @@ BEGIN_MESSAGE_MAP(CGalleryGridCanvas, CWnd)
     ON_WM_DESTROY()
     ON_MESSAGE(WM_MOUSELEAVE, OnMouseLeave)
     ON_MESSAGE(WM_DPICHANGED_AFTERPARENT, OnDpiChanged)
+    ON_MESSAGE(q1view::WM_UI_TYPOGRAPHY_CHANGED, OnDpiChanged)
 END_MESSAGE_MAP()
 
 CGalleryGridCanvas::CGalleryGridCanvas(CThumbnailPane& owner) : mOwner(owner) {}
@@ -272,11 +274,13 @@ bool CGalleryGridCanvas::EnsureDevice(int width, int height) {
             }
         }
         if (FAILED(mWriteFactory->CreateTextFormat(family, collection, DWRITE_FONT_WEIGHT_MEDIUM,
-            DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 13 * GetDpiForWindow(m_hWnd) / 96.0f, L"ko-kr", &mText))) return false;
+            DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL,
+            float(q1view::WindowsUiPixels(13, GetDpiForWindow(m_hWnd), q1view::WindowsUiSettings().Scale())), L"ko-kr", &mText))) return false;
         mText->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
         mText->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
         if (FAILED(mWriteFactory->CreateTextFormat(family, collection, DWRITE_FONT_WEIGHT_SEMI_BOLD,
-            DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 12 * GetDpiForWindow(m_hWnd) / 96.0f, L"ko-kr", &mBadgeText))) return false;
+            DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL,
+            float(q1view::WindowsUiPixels(12, GetDpiForWindow(m_hWnd), q1view::WindowsUiSettings().Scale())), L"ko-kr", &mBadgeText))) return false;
         mBadgeText->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
         mBadgeText->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
         mContext->SetDpi(96, 96); // layout and pointer coordinates are physical pixels

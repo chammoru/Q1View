@@ -13,6 +13,7 @@ class DxgiPresenter;
 #include "SMutex.h"
 
 #include <QViewerCmn.h>
+#include "Q1UiFontWin.h"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -122,6 +123,7 @@ public:
 	// Progressive
 	int mHProgress;
 	CFont mProgressFont, mDefPixelTextFont, mConsolasFont;
+	q1view::WindowsUiFontCache mUiFonts;
 	COLORREF mBarColor;
 
 	// RGB buffers used by SetDIBitsToDevice.
@@ -299,6 +301,7 @@ public:
 	afx_msg void OnRButtonUp(UINT nFlags, CPoint point);
 	afx_msg LRESULT OnPlayTimer(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnAutoplayVideo(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnTypographyChanged(WPARAM, LPARAM);
 };
 
 #ifndef _DEBUG  // debug version in ViewerView.cpp

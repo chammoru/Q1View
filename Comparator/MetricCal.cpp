@@ -21,7 +21,7 @@ MetricCal::MetricCal()
 , mFrameIdx(0)
 , mViewStartFrame(0)
 , mViewEndFrame(0)
-, mAvgFont(new Font(&FontFamily(q1view::WindowsUiTextFontFamily()), 9))
+, mAvgFont(nullptr)
 , mMetricIdx(METRIC_PSNR_IDX)
 {
 	for (int i = 0; i < QPLANES; i++) {
@@ -49,6 +49,16 @@ const Color MetricCal::QMetricColors[QPLANES] =
 	Color(0xff, 0xdc, 0x26, 0x26),
 	Color(0xff, 0x16, 0x9b, 0x62),
 };
+
+void MetricCal::UpdateFont(HDC dc, HFONT font)
+{
+	LOGFONT lf = {};
+	if (!GetObject(font, sizeof(lf), &lf)) return;
+	if (mAvgFont && mAvgFontHeight == lf.lfHeight) return;
+	Font* replacement = new Font(dc, &lf);
+	if (replacement->GetLastStatus() != Ok) { delete replacement; return; }
+	delete mAvgFont; mAvgFont = replacement; mAvgFontHeight = lf.lfHeight;
+}
 
 void MetricCal::DrawFrameID(CDC* pDC, size_t frameID, LONG xPt, int hClient) const
 {
@@ -376,6 +386,7 @@ void MetricCal::DrawLines(Graphics *graphics) const
 
 void MetricCal::DrawAverages(Graphics *graphics, CRect *rect, const char **labels) const
 {
+	if (!mAvgFont) return;
 	const qmetric_info *qmi = qmetric_info_table + mMetricIdx;
 	int hUnit = rect->Height() / qmi->plane_count;
 	int wText = rect->Width();

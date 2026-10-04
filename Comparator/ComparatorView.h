@@ -3,6 +3,7 @@
 // CComparatorView view
 #include "QMenuItem.h"
 #include "QViewerCmn.h"
+#include "Q1UiFontWin.h"
 
 namespace Gdiplus {
 	class Pen;
@@ -54,6 +55,7 @@ public:
 	int mRgbBufSize;
 	BYTE *mRgbBuf;
 	CFont mDefPixelTextFont;
+	q1view::WindowsUiFontCache mUiFonts;
 	CFont mPixelTextFont;
 	LONG  mPixelTextFontHeight;
 	CDC mMemDC;

@@ -246,6 +246,7 @@ void CComparatorView::OnDraw(CDC *pDC)
 
 	if (!mMemDC.GetSafeHdc())
 		return;
+	q1view::WindowsUiDcState dcState(mMemDC.GetSafeHdc());
 
 	if (pDoc->mWDst < mWCanvas || pDoc->mHDst < mHCanvas)
 		mMemDC.FillSolidRect(CRect(0, 0, mWCanvas, mHCanvas), Q1UI_COLOR_CANVAS_BG);
@@ -628,13 +629,8 @@ void CComparatorView::DrawSelection(CDC *pDC, CComparatorDoc *pDoc)
 
 	// Size readout (width x height in source pixels) pinned just inside the
 	// rectangle's top-left corner, on a translucent plate for legibility.
-	LOGFONT lf;
-	mDefPixelTextFont.GetLogFont(&lf);
-	lf.lfHeight = 14;
-	lf.lfWeight = FW_NORMAL;
-	CFont sizeFont;
-	sizeFont.CreateFontIndirect(&lf);
-	CFont *prevFont = pDC->SelectObject(&sizeFont);
+	CFont *prevFont = pDC->SelectObject(CFont::FromHandle(
+		mUiFonts.Get(q1view::WindowsUiFontRole::Numeric, m_hWnd)));
 
 	CString label;
 	label.Format(_T("%d\x00D7%d"), r - l + 1, b - t + 1);
@@ -671,14 +667,8 @@ void CComparatorView::DrawCursorCoord(CDC *pDC, CComparatorDoc *pDoc, Comparator
 		? pDoc->mCursorY
 		: int((long long)pDoc->mCursorY * srcH / pDoc->mH);
 
-	LOGFONT lf;
-	mDefPixelTextFont.GetLogFont(&lf);
-	lf.lfHeight = 16;
-	lf.lfWeight = FW_NORMAL;
-	CFont coordFont;
-	coordFont.CreateFontIndirect(&lf);
-
-	CFont *prevFont = pDC->SelectObject(&coordFont);
+	CFont *prevFont = pDC->SelectObject(CFont::FromHandle(
+		mUiFonts.Get(q1view::WindowsUiFontRole::Numeric, m_hWnd)));
 
 	CString coord;
 	coord.Format(_T("x:%d,y:%d"), dispX, dispY);
@@ -799,19 +789,8 @@ void CComparatorView::DrawEmptyPane(CDC *pDC, CComparatorDoc *pDoc)
 	CRect canvas(0, mRcControls.bottom, mWClient, mHClient);
 	pDC->FillSolidRect(canvas, Q1UI_COLOR_CANVAS_BG);
 
-	LOGFONT lf;
-	mDefPixelTextFont.GetLogFont(&lf);
-	::lstrcpy(lf.lfFaceName, q1view::WindowsUiTextFontFamily());
-
-	CFont titleFont;
-	lf.lfHeight = 18;
-	lf.lfWeight = FW_SEMIBOLD;
-	titleFont.CreateFontIndirect(&lf);
-
-	CFont bodyFont;
-	lf.lfHeight = 13;
-	lf.lfWeight = FW_NORMAL;
-	bodyFont.CreateFontIndirect(&lf);
+	CFont *titleFont = CFont::FromHandle(mUiFonts.Get(q1view::WindowsUiFontRole::EmptyTitle, m_hWnd));
+	CFont *bodyFont = CFont::FromHandle(mUiFonts.Get(q1view::WindowsUiFontRole::Body, m_hWnd));
 
 	CString title(_T("Drop an image or video"));
 	CString body(_T("Use 2-4 panes to compare images, raw dumps, or video frames"));
@@ -824,10 +803,10 @@ void CComparatorView::DrawEmptyPane(CDC *pDC, CComparatorDoc *pDoc)
 	bodyRect.top = canvas.CenterPoint().y + 6;
 
 	pDC->SetBkMode(TRANSPARENT);
-	CFont *prevFont = pDC->SelectObject(&titleFont);
+	CFont *prevFont = pDC->SelectObject(titleFont);
 	pDC->SetTextColor(Q1UI_COLOR_TEXT);
 	pDC->DrawText(title, &titleRect, DT_SINGLELINE | DT_CENTER | DT_BOTTOM | DT_END_ELLIPSIS);
-	pDC->SelectObject(&bodyFont);
+	pDC->SelectObject(bodyFont);
 	pDC->SetTextColor(Q1UI_COLOR_TEXT_MUTED);
 	pDC->DrawText(body, &bodyRect, DT_SINGLELINE | DT_CENTER | DT_TOP | DT_END_ELLIPSIS);
 	pDC->SelectObject(prevFont);
@@ -1051,6 +1030,17 @@ void CComparatorView::OnSize(UINT nType, int cx, int cy)
 		return;
 
 	mRcControls.right = cx;
+	if (mCsQMenu.GetSafeHwnd() && mNameQMenu.GetSafeHwnd()) {
+		CRect measured(0, 0, 0, 0);
+		mCsQMenu.CalcRect(&measured);
+		const int padding = q1view::WindowsUiPixels(QMENUITEM_IN_MARGIN_H, q1view::WindowsUiDpi(m_hWnd));
+		mRcCsQMenu.SetRect(0, 0, measured.Width(), measured.Height() + padding);
+		mRcControls.bottom = mRcCsQMenu.bottom;
+		mCsQMenu.MoveWindow(mRcCsQMenu);
+		mRcNameQMenu.left = mRcCsQMenu.right;
+		mRcNameQMenu.top = 0;
+		mRcNameQMenu.bottom = mRcControls.bottom;
+	}
 
 	mWClient = cx;
 	mHClient = cy;

@@ -25,6 +25,7 @@
 #include "QViewerShortcuts.h"
 #include "Q1ViewVersion.h"
 #include "qimage_util.h"
+#include "Q1UiHelpWin.h"
 
 #include "FrmSrc.h"
 
@@ -107,6 +108,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_COMMAND(ID_EDIT_PASTE, &CMainFrame::OnEditPaste)
 	ON_WM_SIZE()
 	ON_WM_MOVE()
+	ON_MESSAGE(q1view::WM_UI_TYPOGRAPHY_CHANGED, &CMainFrame::OnTypographyChanged)
 	ON_WM_DESTROY()
 	ON_WM_TIMER()
 	ON_COMMAND(ID_TOGGLE_DRAWER, &CMainFrame::OnToggleDrawer)
@@ -244,26 +246,21 @@ void CDrawerSplitter::OnDrawSplitter(CDC *pDC, ESplitType nType, const CRect &re
 BEGIN_MESSAGE_MAP(CHelpOverlay, CWnd)
 	ON_WM_LBUTTONDOWN()
 	ON_WM_ERASEBKGND()
+	ON_WM_MOUSEWHEEL()
 END_MESSAGE_MAP()
 
 // The shortcut panel text, built from the shared table (QViewerShortcuts.h) --
 // the same source the in-view help used and the Qt viewer renders from.
-static CString BuildHelpText()
+static std::vector<q1view::WindowsUiHelpRow> BuildHelpRows()
 {
-	CString manual(Q1VIEW_SHORTCUTS_TITLE);
-	manual += _T("\nVersion ");
-	manual += Q1ViewGetProductVersion();
-	manual += _T("\n\n");
+	std::vector<q1view::WindowsUiHelpRow> rows;
 	for (int i = 0; i < ARRAY_SIZE(Q1VIEW_SHORTCUTS); i++) {
 		const Q1ViewShortcutRow &row = Q1VIEW_SHORTCUTS[i];
 		if (!(row.fe & Q1VIEW_FE_MFC))
 			continue;
-		CString line;
-		line.Format(_T("%-*hs%hs\n"),
-			Q1VIEW_SHORTCUTS_KEY_WIDTH, row.key, row.desc);
-		manual += line;
+		rows.push_back({static_cast<LPCTSTR>(CString(row.key)), static_cast<LPCTSTR>(CString(row.desc))});
 	}
-	return manual;
+	return rows;
 }
 
 BOOL CHelpOverlay::CreateOverlay(CWnd *pParent)
@@ -302,6 +299,7 @@ void CHelpOverlay::Toggle()
 	if (!OwnerScreenRect(rc))
 		return;
 	MoveWindow(&rc, FALSE);            // screen coords for a top-level window
+	mScrollOffset = 0;
 	ShowWindow(SW_SHOWNA);             // show without activating
 	Render();
 }
@@ -360,8 +358,10 @@ void CHelpOverlay::Render()
 	}
 
 	// 2) Opaque shortcut panel centered on the whole window (clamped to fit).
-	int pw = std::min(W - 24, (int)VIEWER_DEF_W);
-	int ph = std::min(H - 24, (int)VIEWER_DEF_H);
+	const UINT dpi = q1view::WindowsUiDpi(mOwner->GetSafeHwnd());
+	const double textScale = q1view::WindowsUiSettings().Scale();
+	int pw = std::min(W - 24, q1view::WindowsUiPixels(640, dpi));
+	int ph = std::min(H - 24, q1view::WindowsUiPixels(620, dpi, textScale));
 	if (pw < 80) pw = W;
 	if (ph < 80) ph = H;
 	CRect panel((W - pw) / 2, (H - ph) / 2, 0, 0);
@@ -380,19 +380,11 @@ void CHelpOverlay::Render()
 	const int W_MARGIN = 18, H_MARGIN = 14;
 	CRect textRc(panel.left + W_MARGIN, panel.top + H_MARGIN,
 		panel.right - W_MARGIN, panel.bottom - H_MARGIN);
-	LOGFONT lf = {};
-	lstrcpyn(lf.lfFaceName, _T("Consolas"), LF_FACESIZE);
-	lf.lfHeight = 14;
-	lf.lfWeight = FW_NORMAL;
-	CFont font;
-	font.CreateFontIndirect(&lf);
-	CFont *prevFont = dc.SelectObject(&font);
 	dc.SetBkMode(TRANSPARENT);
 	dc.SetTextColor(Q1UI_COLOR_TEXT);
-	// DT_NOPREFIX so a literal '&' in a key (e.g. "Drag & Drop") is drawn as-is.
-	CString manual = BuildHelpText();
-	dc.DrawText(manual, &textRc, DT_LEFT | DT_TOP | DT_NOPREFIX);
-	dc.SelectObject(prevFont);
+	CString version = _T("Version "); version += Q1ViewGetProductVersion();
+	mMaxScroll = q1view::DrawWindowsUiHelp(dc.GetSafeHdc(), textRc, L"Viewer shortcuts",
+		static_cast<LPCTSTR>(version), BuildHelpRows(), mHelpFonts, dpi, textScale, mScrollOffset);
 	dc.Detach();
 
 	// 3) GDI leaves the alpha byte at the scrim value; force the panel opaque. Its
@@ -422,6 +414,33 @@ void CHelpOverlay::Render()
 void CHelpOverlay::OnLButtonDown(UINT /*nFlags*/, CPoint /*point*/)
 {
 	Hide();   // click anywhere dismisses the overlay
+}
+
+LRESULT CMainFrame::OnTypographyChanged(WPARAM, LPARAM)
+{
+	q1view::WindowsUiSettings().Refresh();
+	SendMessageToDescendants(q1view::WM_UI_TYPOGRAPHY_CHANGED);
+	mHelpOverlay.Relayout();
+	RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN);
+	return 0;
+}
+
+BOOL CHelpOverlay::OnMouseWheel(UINT, short delta, CPoint)
+{
+	mScrollOffset = std::max(0, std::min(mMaxScroll, mScrollOffset -
+		MulDiv(delta, q1view::WindowsUiPixels(60, q1view::WindowsUiDpi(m_hWnd)), WHEEL_DELTA)));
+	Render();
+	return TRUE;
+}
+
+BOOL CHelpOverlay::HandleNavigation(MSG* message)
+{
+	if (!IsShown() || !message) return FALSE;
+	if (message->message == WM_KEYDOWN && message->wParam == VK_ESCAPE) { Hide(); return TRUE; }
+	CRect client; GetClientRect(&client);
+	if (!q1view::WindowsUiHelpNavigation(message, std::max(1, client.Height() * 2 / 3), mMaxScroll, mScrollOffset)) return FALSE;
+	Render();
+	return TRUE;
 }
 
 BOOL CHelpOverlay::OnEraseBkgnd(CDC * /*pDC*/)
@@ -580,6 +599,7 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 
 BOOL CMainFrame::PreTranslateMessage(MSG *pMsg)
 {
+	if (mHelpOverlay.HandleNavigation(pMsg)) return TRUE;
 	// A toggle command represents one physical key press. Ignoring keyboard
 	// auto-repeat prevents a held E from rapidly opening and closing the drawer.
 	if (IsRepeatedDrawerShortcut(pMsg))

@@ -172,6 +172,7 @@ void CPosInfoView::DrawFrameRect(CDC* pDC, CRect *clipBox, int w)
 
 void CPosInfoView::OnDraw(CDC* pDC)
 {
+	q1view::EnsureWindowsUiFont(mPosNumFont, q1view::WindowsUiFontRole::Numeric, m_hWnd);
 	CComparatorDoc* pDoc = GetDocument();
 
 	CRect clipBox;
@@ -200,14 +201,8 @@ void CPosInfoView::OnDraw(CDC* pDC)
 	             || (paneR->isAvail() && paneR->frames > 1);
 
 	if (!paneL->isAvail() && !paneR->isAvail() || !hasVideo) {
-		LOGFONT lf;
-		mPosNumFont.GetLogFont(&lf);
-		::lstrcpy(lf.lfFaceName, q1view::WindowsUiTextFontFamily());
-		lf.lfHeight = 14;
-		lf.lfWeight = FW_SEMIBOLD;
-		CFont labelFont;
-		labelFont.CreateFontIndirect(&lf);
-		CFont *prevFont = memDC.SelectObject(&labelFont);
+		CFont *prevFont = memDC.SelectObject(CFont::FromHandle(
+			mUiFonts.Get(q1view::WindowsUiFontRole::Command, m_hWnd)));
 		memDC.SetBkMode(TRANSPARENT);
 		memDC.SetTextColor(Q1UI_COLOR_TEXT_MUTED);
 		CRect msgRect(0, 0, mWClient, h);
@@ -272,7 +267,8 @@ void CPosInfoView::ConfigureScrollSizes(CComparatorDoc *pDoc)
 
 	int maxFrames = max(pDoc->mMaxFrames, 1);
 
-	mPosLinesPerFrame = max(mHClient / maxFrames, POS_LINE_MIN);
+	mPosLinesPerFrame = max(mHClient / maxFrames,
+		q1view::WindowsUiPixels(18, q1view::WindowsUiDpi(m_hWnd), q1view::WindowsUiSettings().Scale()));
 	if (mPosLinesPerFrame > mDiffFlagSize) {
 		delete [] mDiffFlags;
 

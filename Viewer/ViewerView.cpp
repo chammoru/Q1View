@@ -165,6 +165,7 @@ BEGIN_MESSAGE_MAP(CViewerView, CView)
 	ON_WM_RBUTTONUP()
 	ON_MESSAGE(WM_VIEWER_PLAY_TIMER, CViewerView::OnPlayTimer)
 	ON_MESSAGE(WM_VIEWER_AUTOPLAY_VIDEO, CViewerView::OnAutoplayVideo)
+	ON_MESSAGE(q1view::WM_UI_TYPOGRAPHY_CHANGED, CViewerView::OnTypographyChanged)
 END_MESSAGE_MAP()
 
 CViewerView::CViewerView()
@@ -517,9 +518,10 @@ void CViewerView::Initialize(int nFrame, size_t rgbStride, int w, int h, bool pr
 	mFitToWindow = true;
 
 	if (nFrame > 1)
-		mHProgress = PROGRESS_BAR_H;
+		mHProgress = q1view::WindowsUiPixels(22, q1view::WindowsUiDpi(m_hWnd), q1view::WindowsUiSettings().Scale());
 	else
 		mHProgress = 0;
+	mHCanvas = max(0, mHClient - mHProgress);
 
 	SetDstSize();
 
@@ -593,7 +595,7 @@ void CViewerView::ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID)
 	const int barMargin = MARGIN_PROGESS_BAR;
 	const int volWidth  = 64;
 	const int volGap    = 6;
-	const int muteSize  = PROGRESS_BAR_H - barMargin * 2; // square button inside the band
+	const int muteSize  = mHProgress - barMargin * 2; // square button inside the band
 	const int muteGap   = 6;
 
 	int frameMax = pDoc->mFrames - 1;
@@ -603,7 +605,7 @@ void CViewerView::ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID)
 	CRect progressBand(0, mHCanvas, mWClient, mHClient);
 	pDC->FillSolidRect(progressBand, Q1UI_COLOR_SURFACE_ALT);
 
-	pDC->SelectObject(&mProgressFont);
+	CFont* previousFont = pDC->SelectObject(&mProgressFont);
 	pDC->SetTextColor(COLOR_PROGRESS_TEXT);
 	pDC->SetBkMode(TRANSPARENT);
 
@@ -677,6 +679,7 @@ void CViewerView::ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID)
 	barTextRect.right  = rightEnd;
 	barTextRect.left   = 0;
 	pDC->DrawText(str, &barTextRect, DT_SINGLELINE | DT_RIGHT | DT_VCENTER);
+	pDC->SelectObject(previousFont);
 }
 
 // Draws a small speaker icon centered in |rect|. The icon is rendered from
@@ -1155,7 +1158,7 @@ void CViewerView::DrawPixelText(CDC *pDC, q1::GridInfo &gi)
 	mDefPixelTextFont.GetLogFont(&lf);
 	lf.lfHeight = LONG(mN * 4 / 15);
 	pixelTextFont.CreateFontIndirect(&lf);
-	pDC->SelectObject(&pixelTextFont);
+	CFont* previousFont = pDC->SelectObject(&pixelTextFont);
 	pDC->SetTextColor(COLOR_PIXEL_TEXT);
 	pDC->DrawText(_T("0000\n0000\n0000"), -1, refRect,
 		DT_CENTER | DT_VCENTER | DT_CALCRECT);
@@ -1206,25 +1209,15 @@ void CViewerView::DrawPixelText(CDC *pDC, q1::GridInfo &gi)
 		}
 		y += gi.Hs[i];
 	}
+	pDC->SelectObject(previousFont);
 }
 
 void CViewerView::DrawEmptyState(CDC *pDC)
 {
 	pDC->FillSolidRect(CRect(0, 0, mWClient, mHClient), Q1UI_COLOR_CANVAS_BG);
 
-	LOGFONT lf;
-	mConsolasFont.GetLogFont(&lf);
-	::lstrcpy(lf.lfFaceName, q1view::WindowsUiTextFontFamily());
-
-	CFont titleFont;
-	lf.lfHeight = 22;
-	lf.lfWeight = FW_SEMIBOLD;
-	titleFont.CreateFontIndirect(&lf);
-
-	CFont bodyFont;
-	lf.lfHeight = 14;
-	lf.lfWeight = FW_NORMAL;
-	bodyFont.CreateFontIndirect(&lf);
+	CFont *titleFont = CFont::FromHandle(mUiFonts.Get(q1view::WindowsUiFontRole::EmptyTitle, m_hWnd));
+	CFont *bodyFont = CFont::FromHandle(mUiFonts.Get(q1view::WindowsUiFontRole::Body, m_hWnd));
 
 	CString title(_T("Open or drop an image"));
 	CString body(_T("Ctrl+O to open, Ctrl+V to paste, mouse wheel to zoom"));
@@ -1237,10 +1230,10 @@ void CViewerView::DrawEmptyState(CDC *pDC)
 	bodyRect.top = rect.CenterPoint().y + 6;
 
 	pDC->SetBkMode(TRANSPARENT);
-	CFont *prevFont = pDC->SelectObject(&titleFont);
+	CFont *prevFont = pDC->SelectObject(titleFont);
 	pDC->SetTextColor(Q1UI_COLOR_TEXT);
 	pDC->DrawText(title, &titleRect, DT_SINGLELINE | DT_CENTER | DT_BOTTOM | DT_END_ELLIPSIS);
-	pDC->SelectObject(&bodyFont);
+	pDC->SelectObject(bodyFont);
 	pDC->SetTextColor(Q1UI_COLOR_TEXT_MUTED);
 	pDC->DrawText(body, &bodyRect, DT_SINGLELINE | DT_CENTER | DT_TOP | DT_END_ELLIPSIS);
 	pDC->SelectObject(prevFont);
@@ -1248,12 +1241,8 @@ void CViewerView::DrawEmptyState(CDC *pDC)
 
 void CViewerView::DrawCursorCoordinates(CDC *pDC)
 {
-	LOGFONT lf;
-	CFont cursorCoordFont;
-	mConsolasFont.GetLogFont(&lf);
-	lf.lfHeight = 16;
-	cursorCoordFont.CreateFontIndirect(&lf);
-	pDC->SelectObject(&cursorCoordFont);
+	CFont *previous = pDC->SelectObject(CFont::FromHandle(
+		mUiFonts.Get(q1view::WindowsUiFontRole::Numeric, m_hWnd)));
 
 	CString coord;
 	coord.Format(_T("x:%d,y:%d"), mXCursor, mYCursor);
@@ -1264,6 +1253,7 @@ void CViewerView::DrawCursorCoordinates(CDC *pDC)
 	pDC->FillSolidRect(bgRect, COLOR_COORDINATE_RECT);
 	pDC->SetTextColor(Q1UI_COLOR_OVERLAY_TEXT);
 	pDC->DrawText(coord, &bgRect, DT_CENTER | DT_VCENTER);
+	pDC->SelectObject(previous);
 }
 
 void CViewerView::DrawPixelValueMode(CDC *pDC)
@@ -1274,12 +1264,8 @@ void CViewerView::DrawPixelValueMode(CDC *pDC)
 		return;
 	}
 
-	LOGFONT lf;
-	CFont modeFont;
-	mConsolasFont.GetLogFont(&lf);
-	lf.lfHeight = 14;
-	modeFont.CreateFontIndirect(&lf);
-	CFont *prevFont = pDC->SelectObject(&modeFont);
+	CFont *prevFont = pDC->SelectObject(CFont::FromHandle(
+		mUiFonts.Get(q1view::WindowsUiFontRole::Body, m_hWnd)));
 
 	CString mode = mShowSourceYuv ? _T("PIXEL: Y/U/V SOURCE") :
 		_T("PIXEL: R/G/B DISPLAY");
@@ -1297,12 +1283,8 @@ void CViewerView::DrawPixelValueMode(CDC *pDC)
 
 int CViewerView::DrawBoxInfoText(CDC *pDC, CRect &rect, COLORREF color, int hAccumGap)
 {
-	LOGFONT lf;
-	CFont cursorCoordFont;
-	mConsolasFont.GetLogFont(&lf);
-	lf.lfHeight = 16;
-	cursorCoordFont.CreateFontIndirect(&lf);
-	pDC->SelectObject(&cursorCoordFont);
+	CFont *previous = pDC->SelectObject(CFont::FromHandle(
+		mUiFonts.Get(q1view::WindowsUiFontRole::Numeric, m_hWnd)));
 
 	CString coord;
 	coord.Format(_T("w:%d,h:%d"), rect.Width() + 1, rect.Height() + 1);
@@ -1314,18 +1296,12 @@ int CViewerView::DrawBoxInfoText(CDC *pDC, CRect &rect, COLORREF color, int hAcc
 	pDC->FillSolidRect(bgRect, COLOR_BOXINFO_RECT);
 	pDC->SetTextColor(Q1UI_COLOR_OVERLAY_TEXT);
 	pDC->DrawText(coord, &bgRect, DT_CENTER | DT_VCENTER);
+	pDC->SelectObject(previous);
 	return hAccumGap;
 }
 
 void CViewerView::DrawBoxInfo(CDC *pDC)
 {
-	LOGFONT lf;
-	CFont cursorCoordFont;
-	mConsolasFont.GetLogFont(&lf);
-	lf.lfHeight = 16;
-	cursorCoordFont.CreateFontIndirect(&lf);
-	pDC->SelectObject(&cursorCoordFont);
-
 	int x0, y0, xn, yn;
 	int hAccumGap = 0;
 
@@ -1360,6 +1336,7 @@ void CViewerView::DrawBoxInfo(CDC *pDC)
 
 void CViewerView::OnDraw(CDC *pDC)
 {
+	q1view::EnsureWindowsUiFont(mProgressFont, q1view::WindowsUiFontRole::Numeric, m_hWnd);
 	CViewerDoc* pDoc = GetDocument();
 	ASSERT_VALID(pDoc);
 	if (!pDoc)
@@ -1374,6 +1351,7 @@ void CViewerView::OnDraw(CDC *pDC)
 		QueryPerformanceCounter(&renderStart);
 
 	CDC &memDC = mBackDC;
+	q1view::WindowsUiDcState dcState(memDC.GetSafeHdc());
 	memDC.SetStretchBltMode(COLORONCOLOR);
 	memDC.FillSolidRect(CRect(0, 0, mWClient, mHClient), Q1UI_COLOR_CANVAS_BG);
 
@@ -2229,13 +2207,8 @@ void CViewerView::DrawScalingToast(CDC *pDC)
 	if (mScalingToast.IsEmpty() || mWCanvas <= 0 || mHCanvas <= 0)
 		return;
 
-	LOGFONT lf;
-	mProgressFont.GetLogFont(&lf);
-	lf.lfHeight = 16;
-	lf.lfWeight = FW_SEMIBOLD;
-	CFont font;
-	font.CreateFontIndirect(&lf);
-	CFont *oldFont = pDC->SelectObject(&font);
+	CFont *oldFont = pDC->SelectObject(CFont::FromHandle(
+		mUiFonts.Get(q1view::WindowsUiFontRole::Command, m_hWnd)));
 	pDC->SetBkMode(TRANSPARENT);
 	pDC->SetTextColor(Q1UI_COLOR_OVERLAY_TEXT);
 
@@ -2592,12 +2565,21 @@ void CViewerView::OnSize(UINT nType, int cx, int cy)
 	mHClient = cy;
 
 	mWCanvas = mWClient;
-	mHCanvas = mHClient - mHProgress;
+	if (mHProgress > 0)
+		mHProgress = q1view::WindowsUiPixels(22, q1view::WindowsUiDpi(m_hWnd), q1view::WindowsUiSettings().Scale());
+	mHCanvas = max(0, mHClient - mHProgress);
 
 	mXDst = q1::DeterminDestPos(mWCanvas, mWDst, mXOff, mN);
 	mYDst = q1::DeterminDestPos(mHCanvas, mHDst, mYOff, mN);
 
 	mRcProgress.SetRect(0, mHCanvas, mWClient, mHClient);
+}
+
+LRESULT CViewerView::OnTypographyChanged(WPARAM, LPARAM)
+{
+	OnSize(SIZE_RESTORED, mWClient, mHClient);
+	Invalidate(FALSE);
+	return 0;
 }
 
 void CViewerView::OnTimer(UINT_PTR nIDEvent)

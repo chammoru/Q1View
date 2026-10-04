@@ -25,6 +25,7 @@
 #include <QViewerCmn.h>
 #include <QDebug.h>
 #include "Q1ViewVersion.h"
+#include "Q1UiHelpWin.h"
 
 #include <algorithm>
 
@@ -53,6 +54,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_COMMAND(ID_COMPARATOR_HELP, &CMainFrame::OnHelp)
 	ON_WM_SIZE()
 	ON_WM_MOVE()
+	ON_MESSAGE(q1view::WM_UI_TYPOGRAPHY_CHANGED, &CMainFrame::OnTypographyChanged)
 	ON_WM_TIMER()
 	ON_WM_DESTROY()
 	ON_WM_CREATE()
@@ -67,34 +69,26 @@ END_MESSAGE_MAP()
 BEGIN_MESSAGE_MAP(CHelpOverlay, CWnd)
 	ON_WM_LBUTTONDOWN()
 	ON_WM_ERASEBKGND()
+	ON_WM_MOUSEWHEEL()
 END_MESSAGE_MAP()
 
 // Target size of the centered shortcut panel (clamped to the window).
-static const int kHelpPanelW = 460;
-static const int kHelpPanelH = 320;
-
-static CString BuildHelpText()
+static std::vector<q1view::WindowsUiHelpRow> BuildHelpRows()
 {
-	// Title + product version, then the shortcut rows -- the same shape as the
-	// Viewer's help panel (issue #79).
-	CString manual(_T("Comparator shortcuts"));
-	manual += _T("\nVersion ");
-	manual += Q1ViewGetProductVersion();
-	manual += _T("\n\n");
-	manual += CString(
-		"?              Show or hide this panel\n"
-		"Drag && Drop    Open a source in a pane\n"
-		"Mouse Wheel    Zoom in or out; high zoom shows pixel values\n"
-		"Left/Right     Previous or next video frame\n"
-		"Space          Play or pause\n"
-		"H              Toggle hex pixel values\n"
-		"I              Interpolate pixels\n"
-		"D              Toggle pink diff overlay (grid + dots)\n"
-		"C              Toggle cursor pixel coordinates\n"
-		"S              Toggle selection mode (drag a synced region)\n"
-		"Esc / RClick   Clear the selection rectangle\n"
-		"Click timeline Seek to a video frame (left/right pane)\n");
-	return manual;
+	return {
+		{L"?", L"Show or hide this panel"},
+		{L"Drag & Drop", L"Open a source in a pane"},
+		{L"Mouse Wheel", L"Zoom in or out; high zoom shows pixel values"},
+		{L"Left/Right", L"Previous or next video frame"},
+		{L"Space", L"Play or pause"},
+		{L"H", L"Toggle hex pixel values"},
+		{L"I", L"Interpolate pixels"},
+		{L"D", L"Toggle pink diff overlay (grid + dots)"},
+		{L"C", L"Toggle cursor pixel coordinates"},
+		{L"S", L"Toggle selection mode (drag a synced region)"},
+		{L"Esc / RClick", L"Clear the selection rectangle"},
+		{L"Click timeline", L"Seek to a video frame (left/right pane)"}
+	};
 }
 
 BOOL CHelpOverlay::CreateOverlay(CWnd *pParent)
@@ -128,6 +122,7 @@ void CHelpOverlay::Toggle()
 	CRect rc;
 	if (!OwnerScreenRect(rc))
 		return;
+	mScrollOffset = 0;
 	MoveWindow(&rc, FALSE);            // screen coords for a top-level window
 	ShowWindow(SW_SHOWNA);             // show without activating
 	Render();
@@ -187,8 +182,10 @@ void CHelpOverlay::Render()
 	}
 
 	// 2) Opaque shortcut panel centered on the whole window (clamped to fit).
-	int pw = std::min(W - 24, kHelpPanelW);
-	int ph = std::min(H - 24, kHelpPanelH);
+	const UINT dpi = q1view::WindowsUiDpi(mOwner->GetSafeHwnd());
+	const double textScale = q1view::WindowsUiSettings().Scale();
+	int pw = std::min(W - 24, q1view::WindowsUiPixels(640, dpi));
+	int ph = std::min(H - 24, q1view::WindowsUiPixels(420, dpi, textScale));
 	if (pw < 80) pw = W;
 	if (ph < 80) ph = H;
 	CRect panel((W - pw) / 2, (H - ph) / 2, 0, 0);
@@ -207,18 +204,11 @@ void CHelpOverlay::Render()
 	const int W_MARGIN = 18, H_MARGIN = 14;
 	CRect textRc(panel.left + W_MARGIN, panel.top + H_MARGIN,
 		panel.right - W_MARGIN, panel.bottom - H_MARGIN);
-	LOGFONT lf = {};
-	lstrcpyn(lf.lfFaceName, _T("Consolas"), LF_FACESIZE);
-	lf.lfHeight = 14;
-	lf.lfWeight = FW_NORMAL;
-	CFont font;
-	font.CreateFontIndirect(&lf);
-	CFont *prevFont = dc.SelectObject(&font);
 	dc.SetBkMode(TRANSPARENT);
 	dc.SetTextColor(Q1UI_COLOR_TEXT);
-	CString manual = BuildHelpText();
-	dc.DrawText(manual, &textRc, DT_LEFT | DT_TOP);
-	dc.SelectObject(prevFont);
+	CString version = _T("Version "); version += Q1ViewGetProductVersion();
+	mMaxScroll = q1view::DrawWindowsUiHelp(dc.GetSafeHdc(), textRc, L"Comparator shortcuts",
+		static_cast<LPCTSTR>(version), BuildHelpRows(), mHelpFonts, dpi, textScale, mScrollOffset);
 	dc.Detach();
 
 	// 3) GDI leaves the alpha byte at the scrim value; force the panel opaque. Its
@@ -248,6 +238,44 @@ void CHelpOverlay::Render()
 void CHelpOverlay::OnLButtonDown(UINT /*nFlags*/, CPoint /*point*/)
 {
 	Hide();   // click anywhere dismisses the overlay
+}
+
+LRESULT CMainFrame::OnTypographyChanged(WPARAM, LPARAM)
+{
+	q1view::WindowsUiSettings().Refresh();
+	SendMessageToDescendants(q1view::WM_UI_TYPOGRAPHY_CHANGED);
+	CRect client; GetClientRect(&client);
+	OnSize(SIZE_RESTORED, client.Width(), client.Height());
+	mHelpOverlay.Relayout();
+	if (auto doc = static_cast<CComparatorDoc*>(GetActiveDocument())) {
+		if (doc->mPosInfoView) doc->mPosInfoView->ConfigureScrollSizes(doc);
+	}
+	RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN);
+	return 0;
+}
+
+BOOL CHelpOverlay::OnMouseWheel(UINT, short delta, CPoint)
+{
+	mScrollOffset = std::max(0, std::min(mMaxScroll, mScrollOffset -
+		MulDiv(delta, q1view::WindowsUiPixels(60, q1view::WindowsUiDpi(m_hWnd)), WHEEL_DELTA)));
+	Render();
+	return TRUE;
+}
+
+BOOL CHelpOverlay::HandleNavigation(MSG* message)
+{
+	if (!IsShown() || !message) return FALSE;
+	if (message->message == WM_KEYDOWN && message->wParam == VK_ESCAPE) { Hide(); return TRUE; }
+	CRect client; GetClientRect(&client);
+	if (!q1view::WindowsUiHelpNavigation(message, std::max(1, client.Height() * 2 / 3), mMaxScroll, mScrollOffset)) return FALSE;
+	Render();
+	return TRUE;
+}
+
+BOOL CMainFrame::PreTranslateMessage(MSG* message)
+{
+	if (mHelpOverlay.HandleNavigation(message)) return TRUE;
+	return CFrameWnd::PreTranslateMessage(message);
 }
 
 BOOL CHelpOverlay::OnEraseBkgnd(CDC * /*pDC*/)
@@ -368,7 +396,7 @@ void CMainFrame::OnSize(UINT nType, int cx, int cy)
 	else
 		mHelpOverlay.Relayout();
 
-	if (cx <= 0)
+	if (cx <= 0 || cy <= 0)
 		return;
 
 	int hOutside, hInside, wOutside, wInside;
@@ -376,31 +404,41 @@ void CMainFrame::OnSize(UINT nType, int cx, int cy)
 
 	if (!mGraphSplitter.IsWindowVisible())
 		return;
+	const UINT dpi = q1view::WindowsUiDpi(m_hWnd);
+	const double scale = q1view::WindowsUiSettings().Scale();
+	// Enlarged text must not produce negative splitter dimensions in a small
+	// window. Prefer the requested text area while retaining a canvas strip.
+	const int graphHeight = std::min(q1view::WindowsUiPixels(FRAMES_INFO_H, dpi, scale),
+		std::max(0, cy - MIN_SIDE - mSplitMargin));
+	const int positionWidth = std::min(q1view::WindowsUiPixels(POS_INFO_W, dpi, scale),
+		std::max(0, cx - MIN_SIDE - mSplitMargin));
 
-	hOutside = cy - FRAMES_INFO_H - mSplitMargin;
+	hOutside = std::max(0, cy - graphHeight - mSplitMargin);
 	mGraphSplitter.SetRowInfo(0, hOutside, MIN_SIDE);
-	mGraphSplitter.SetRowInfo(1, FRAMES_INFO_H, MIN_SIDE);
+	mGraphSplitter.SetRowInfo(1, graphHeight, MIN_SIDE);
 	mGraphSplitter.RecalcLayout();
 
 	if (mSplitMargin == 0) {
 		mGraphSplitter.GetRowInfo(1, realW1, ignore);
 
-		mSplitMargin = FRAMES_INFO_H - realW1;
+		mSplitMargin = graphHeight - realW1;
 
-		hOutside = cy - FRAMES_INFO_H - mSplitMargin;
+		hOutside = std::max(0, cy - graphHeight - mSplitMargin);
 		mGraphSplitter.SetRowInfo(0, hOutside, MIN_SIDE);
-		mGraphSplitter.SetRowInfo(1, FRAMES_INFO_H, MIN_SIDE);
+		mGraphSplitter.SetRowInfo(1, graphHeight, MIN_SIDE);
 		mGraphSplitter.RecalcLayout();
 	}
 
-	wOutside = cx - POS_INFO_W - mSplitMargin;
-	mPosInfoSplitter.SetColumnInfo(0, POS_INFO_W, MIN_SIDE);
+	wOutside = std::max(0, cx - positionWidth - mSplitMargin);
+	mPosInfoSplitter.SetColumnInfo(0, positionWidth, MIN_SIDE);
 	mPosInfoSplitter.SetColumnInfo(1, wOutside, MIN_SIDE);
 	mPosInfoSplitter.RecalcLayout();
 
-	hInside = hOutside - FRAME_INFO_H - mSplitBarW;
+	const int stateHeight = std::min(q1view::WindowsUiPixels(FRAME_INFO_H, dpi, scale),
+		std::max(0, hOutside - MIN_SIDE - mSplitBarW));
+	hInside = std::max(0, hOutside - stateHeight - mSplitBarW);
 	mFrmInfoSplitter.SetRowInfo(0, hInside, MIN_SIDE);
-	mFrmInfoSplitter.SetRowInfo(1, FRAME_INFO_H, MIN_SIDE);
+	mFrmInfoSplitter.SetRowInfo(1, stateHeight, MIN_SIDE);
 	mFrmInfoSplitter.RecalcLayout();
 
 	if (mSplitBarW == 0) {
@@ -408,13 +446,13 @@ void CMainFrame::OnSize(UINT nType, int cx, int cy)
 		mFrmInfoSplitter.GetRowInfo(1, realW1, ignore);
 		mSplitBarW = hOutside - realW0 - realW1;
 
-		hInside = hOutside - FRAME_INFO_H - mSplitBarW;
+		hInside = std::max(0, hOutside - stateHeight - mSplitBarW);
 		mFrmInfoSplitter.SetRowInfo(0, hInside, MIN_SIDE);
-		mFrmInfoSplitter.SetRowInfo(1, FRAME_INFO_H, MIN_SIDE);
+		mFrmInfoSplitter.SetRowInfo(1, stateHeight, MIN_SIDE);
 		mFrmInfoSplitter.RecalcLayout();
 	}
 
-	wInside = (wOutside - mSplitBarW * (mNumOfViews - 1)) / mNumOfViews;
+	wInside = std::max(0, wOutside - mSplitBarW * (mNumOfViews - 1)) / mNumOfViews;
 	int i = 0;
 	for (; i < mNumOfViews; i++) {
 		mCompSplitter.SetColumnInfo(i, wInside, MIN_SIDE);

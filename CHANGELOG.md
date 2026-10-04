@@ -6,6 +6,9 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Changed
+- Windows Viewer and Comparator: finish Pretendard typography for help prose, align shortcut columns using measured text with wrapping and scroll access, and share DPI/system-text-size-aware font roles while keeping numeric monospace and native Windows fonts. (issue #117)
+
 ---
 
 ## [2.7.26] — 2026-09-27

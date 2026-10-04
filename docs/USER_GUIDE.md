@@ -44,6 +44,8 @@ Choose **View → Image Scaling** or press `I` to cycle through **Auto**, **Smoo
 
 Viewer includes a built-in control panel, opened with `?`.
 
+In the Windows Viewer and Comparator, help descriptions use the same Pretendard UI font as the application. Shortcut columns are measured rather than aligned with spaces, and descriptions wrap when needed. If the panel overflows, use the mouse wheel, Up/Down, Page Up/Page Down, or Home/End to read it; these navigation keys operate on help while it is open instead of changing the underlying image. Click the panel or press Esc to close it. UI text follows Windows text-size settings; numeric inspection values retain a monospaced font, and Windows-owned menus and dialogs retain their system fonts.
+
 | Action | Control |
 | --- | --- |
 | Open a file | Drag and drop or `Ctrl+O` |

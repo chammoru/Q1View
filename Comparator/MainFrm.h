@@ -8,6 +8,7 @@
 #include "QSplitterWnd.h"
 
 #include "qimage_metrics.h"
+#include "Q1UiFontWin.h"
 
 #define FRAME_INFO_H          28
 #define FRAMES_INFO_H         84
@@ -49,16 +50,20 @@ public:
 	void Toggle();
 	void Hide();
 	void Relayout();          // re-cover the owner's client; repaint if visible
+	BOOL HandleNavigation(MSG* message);
 
 protected:
 	bool OwnerScreenRect(CRect &rc) const;   // owner client rect in screen coords
 	void Render();            // build the per-pixel-alpha image and push it
+	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint point);
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 	afx_msg BOOL OnEraseBkgnd(CDC *pDC);
 	DECLARE_MESSAGE_MAP()
 
 private:
 	CWnd *mOwner = NULL;      // the frame whose client this overlay covers
+	q1view::WindowsUiFontCache mHelpFonts;
+	int mScrollOffset = 0, mMaxScroll = 0;
 };
 
 class CMainFrame : public CFrameWnd
@@ -107,6 +112,7 @@ public:
 // Overrides
 public:
 	virtual BOOL PreCreateWindow(CREATESTRUCT& cs);
+	virtual BOOL PreTranslateMessage(MSG* message);
 
 // Implementation
 public:
@@ -127,6 +133,7 @@ public:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnMove(int x, int y);
 	afx_msg void OnHelp();
+	afx_msg LRESULT OnTypographyChanged(WPARAM, LPARAM);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnDestroy();
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);

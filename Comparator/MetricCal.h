@@ -38,6 +38,7 @@ class MetricCal
 	CRect mGraphRect;
 	int mStepW;
 	Font *mAvgFont;
+	LONG mAvgFontHeight = 0;
 	int mMetricIdx;
 
 	void DrawFrameID(CDC* pDC, size_t frameID, LONG xPt, int hClient) const;
@@ -75,6 +76,7 @@ public:
 	void DrawXLabel(CDC* pDC, int hClient, CFont *font) const;
 	void DrawLines(Graphics *graphics) const;
 	void DrawAverages(Graphics *graphics, CRect *rect, const char **labels) const;
+	void UpdateFont(HDC dc, HFONT font);
 
 	inline double getMaxVal() const { return mMaxValUser; }
 	inline double getMinVal() const { return mMinValUser; }

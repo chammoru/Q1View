@@ -44,7 +44,7 @@ class CFrmsInfoView : public CView
 	int mWClient, mHClient;
 	CRect mGraphRect, mYLabelRect, mAverageRect;
 	FileScanThread *mFileScanThread;
-	CFont mLabelFont, mResultFont;
+	CFont mLabelFont, mResultFont, mBodyFont;
 	ULONG_PTR mGdiplusToken;
 	MetricCal *mPsnrCal;
 

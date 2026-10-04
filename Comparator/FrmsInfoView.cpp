@@ -81,6 +81,9 @@ static void DrawCenteredMessage(CDC *pDC, CRect rect, CFont *titleFont, CFont *b
 
 void CFrmsInfoView::OnDraw(CDC* pDC)
 {
+	q1view::EnsureWindowsUiFont(mLabelFont, q1view::WindowsUiFontRole::Numeric, m_hWnd);
+	q1view::EnsureWindowsUiFont(mResultFont, q1view::WindowsUiFontRole::Status, m_hWnd);
+	q1view::EnsureWindowsUiFont(mBodyFont, q1view::WindowsUiFontRole::Body, m_hWnd);
 	CComparatorDoc* pDoc = GetDocument();
 
 	CDC memDC;
@@ -98,7 +101,7 @@ void CFrmsInfoView::OnDraw(CDC* pDC)
 	size_t stepCount = pDoc->mMinFrames;
 	if (stepCount <= 0) {
 		DrawCenteredMessage(&memDC, CRect(0, 0, mWClient, mHClient),
-			&mResultFont, &mLabelFont, _T("Metrics"),
+			&mResultFont, &mBodyFont, _T("Metrics"),
 			_T("Open two sources to calculate PSNR or SSIM"));
 		pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
 
@@ -109,13 +112,14 @@ void CFrmsInfoView::OnDraw(CDC* pDC)
 	size_t itemCount = mPsnrCal->CalculateCoords(&mGraphRect, pMainFrm->mMetricIdx);
 	if (itemCount <= 0) {
 		DrawCenteredMessage(&memDC, CRect(0, 0, mWClient, mHClient),
-			&mResultFont, &mLabelFont, _T("Scanning"),
+			&mResultFont, &mBodyFont, _T("Scanning"),
 			_T("Per-frame measurements will appear as frames are processed"));
 		pDC->BitBlt(0, 0, mWClient, mHClient, &memDC, 0, 0, SRCCOPY);
 		return;
 	}
 
 	memDC.SetBkMode(TRANSPARENT);
+	mPsnrCal->UpdateFont(memDC.GetSafeHdc(), static_cast<HFONT>(mLabelFont.GetSafeHandle()));
 
 	mPsnrCal->DrawCmpResult(&memDC, &mResultFont);
 	mPsnrCal->DrawYLabel(&memDC, &mYLabelRect, &mLabelFont);
@@ -159,16 +163,18 @@ void CFrmsInfoView::Dump(CDumpContext& dc) const
 void CFrmsInfoView::OnSize(UINT nType, int cx, int cy)
 {
 	CView::OnSize(nType, cx, cy);
+	const UINT dpi = q1view::WindowsUiDpi(m_hWnd);
+	const double scale = q1view::WindowsUiSettings().Scale();
+	const int left = q1view::WindowsUiPixels(GRAPH_OUT_MARGIN_L, dpi, scale);
+	const int right = q1view::WindowsUiPixels(GRAPH_OUT_MARGIN_R, dpi, scale);
+	const int bottom = q1view::WindowsUiPixels(18, dpi, scale);
 
 	GetClientRect(&mGraphRect);
-	mGraphRect.DeflateRect(GRAPH_OUT_MARGIN_L,
-		GRAPH_OUT_MARGIN_T,
-		GRAPH_OUT_MARGIN_R,
-		GRAPH_OUT_MARGIN_B);
+	mGraphRect.DeflateRect(left, GRAPH_OUT_MARGIN_T, right, bottom);
 	mYLabelRect.SetRect(0,
 		Y_LABEL_MARGIN_T,
-		GRAPH_OUT_MARGIN_L,
-		cy - Y_LABEL_MARGIN_B);
+		left,
+		cy - bottom);
 	mAverageRect.SetRect(mGraphRect.right + AVG_MARGIN_L,
 		AVG_MARGIN_T,
 		cx - AVG_MARGIN_R,

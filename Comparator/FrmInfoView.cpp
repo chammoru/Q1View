@@ -49,6 +49,7 @@ int CFrmInfoView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 void CFrmInfoView::OnDraw(CDC* pDC)
 {
+	q1view::EnsureWindowsUiFont(mStateFont, q1view::WindowsUiFontRole::Body, m_hWnd);
 	CComparatorDoc *pDoc = GetDocument();
 
 	CString frameState = pDoc->mFrmState;

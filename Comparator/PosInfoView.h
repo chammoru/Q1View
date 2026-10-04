@@ -1,6 +1,7 @@
 #pragma once
 
 #include "QViewerCmn.h"
+#include "Q1UiFontWin.h"
 
 #define POS_LINE_MIN            12
 #define POS_NUM_FONT_H          POS_LINE_MIN
@@ -42,6 +43,7 @@ private:
 	int mPosLines;
 	int mPosLinesPerFrame;
 	CFont mPosNumFont;
+	q1view::WindowsUiFontCache mUiFonts;
 	FileScanThread *mFileScanThread;
 	size_t mDiffFlagSize;
 	bool *mDiffFlags;

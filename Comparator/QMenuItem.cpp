@@ -80,6 +80,8 @@ BOOL CQMenuItem::Create(LPCTSTR lpszWindowName, CRect &rect, CWnd* pParentWnd, C
 
 void CQMenuItem::DefaultSetting(CDC *pDC, CString &str)
 {
+	q1view::EnsureWindowsUiFont(mFont, mMenu ? q1view::WindowsUiFontRole::Command :
+		q1view::WindowsUiFontRole::Caption, m_hWnd);
 	pDC->SetBkMode(TRANSPARENT);
 	pDC->SetTextColor(Q1UI_COLOR_TEXT);
 	pDC->SelectObject(mFont);
@@ -91,7 +93,7 @@ void CQMenuItem::DefaultSetting(CDC *pDC, CString &str)
 
 void CQMenuItem::CalcRect(CRect *rect)
 {
-	CPaintDC dc(this);
+	CClientDC dc(this);
 	CString str;
 
 	DefaultSetting(&dc, str);

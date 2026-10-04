@@ -5,6 +5,7 @@
 #pragma once
 
 #include <vector>
+#include "Q1UiFontWin.h"
 
 #define WM_RELOAD (WM_USER + 100)
 #define WM_APPLY_SYNC_INPUT (WM_APP + 100)
@@ -113,16 +114,20 @@ public:
 	void Toggle();
 	void Hide();
 	void Relayout();          // re-cover the owner's client; repaint if visible
+	BOOL HandleNavigation(MSG* message);
 
 protected:
 	bool OwnerScreenRect(CRect &rc) const;   // owner client rect in screen coords
 	void Render();            // build the per-pixel-alpha image and push it
+	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint point);
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 	afx_msg BOOL OnEraseBkgnd(CDC *pDC);
 	DECLARE_MESSAGE_MAP()
 
 private:
 	CWnd *mOwner = NULL;      // the frame whose client this overlay covers
+	q1view::WindowsUiFontCache mHelpFonts;
+	int mScrollOffset = 0, mMaxScroll = 0;
 };
 
 // Holds the last fully composed client image above the separate MFC and DXGI
@@ -227,6 +232,7 @@ protected:
 public:
 	afx_msg void OnDropFiles(HDROP hDropInfo);
 	afx_msg void OnHelp();
+	afx_msg LRESULT OnTypographyChanged(WPARAM, LPARAM);
 	afx_msg void OnFileOpen();
 	afx_msg void OnExecComparator();
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
