@@ -110,7 +110,7 @@ bool CHelpOverlay::OwnerScreenRect(CRect &rc) const
 {
 	if (!mOwner || !::IsWindow(mOwner->GetSafeHwnd()))
 		return false;
-	mOwner->GetClientRect(&rc);
+	static_cast<CMainFrame*>(mOwner)->GetContentRect(rc);
 	mOwner->ClientToScreen(&rc);
 	return true;
 }
@@ -262,6 +262,7 @@ LRESULT CMainFrame::OnTypographyChanged(WPARAM, LPARAM)
 
 void CMainFrame::DrawMenuBar()
 {
+	if (mUiFrame.Initialized()) { mUiFrame.Sync(); RecalcLayout(); return; }
 	mUiMenus.Sync(m_hWnd, ::GetMenu(m_hWnd));
 	CFrameWnd::DrawMenuBar();
 }
@@ -275,7 +276,7 @@ void CMainFrame::OnDrawItem(int id, LPDRAWITEMSTRUCT item)
 void CMainFrame::OnInitMenuPopup(CMenu* menu, UINT index, BOOL system)
 {
 	CFrameWnd::OnInitMenuPopup(menu, index, system);
-	if (!system) mUiMenus.Sync(m_hWnd, ::GetMenu(m_hWnd));
+	if (!system) mUiMenus.Sync(m_hWnd, GetMenu() ? GetMenu()->GetSafeHmenu() : nullptr, mUiFrame.Custom());
 }
 
 LRESULT CMainFrame::OnMenuChar(UINT character, UINT flags, CMenu* menu)
@@ -305,6 +306,7 @@ BOOL CHelpOverlay::HandleNavigation(MSG* message)
 
 BOOL CMainFrame::PreTranslateMessage(MSG* message)
 {
+	if (mUiFrame.Translate(message)) return TRUE;
 	if (mHelpOverlay.HandleNavigation(message)) return TRUE;
 	return CFrameWnd::PreTranslateMessage(message);
 }
@@ -340,6 +342,45 @@ CMainFrame::~CMainFrame()
 	mMetricMenu.DestroyMenu();
 	mResolutionMenu.DestroyMenu();
 	mOptionsMenu.DestroyMenu();
+}
+
+LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
+{
+	// MFC's PostNcDestroy deletes this frame; never touch members afterward.
+	if (message == WM_NCDESTROY) return CFrameWnd::WindowProc(message, wp, lp);
+	LRESULT result = 0;
+	if (mUiFrame.Before(message, wp, lp, result)) return result;
+	result = CFrameWnd::WindowProc(message, wp, lp);
+	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
+	if (message == WM_CREATE && result != -1) { mUiFrame.Initialize(m_hWnd, mUiMenus); RecalcLayout(); }
+	mUiFrame.After(message);
+	if (message == WM_DPICHANGED || message == q1view::WM_UI_TYPOGRAPHY_CHANGED) { mUiFrame.RefreshSettings(); mUiFrame.Sync(); RecalcLayout(); }
+	return result;
+}
+
+CMenu* CMainFrame::GetMenu() const
+{ return mUiFrame.Initialized() ? CMenu::FromHandle(mUiFrame.Menu()) : CFrameWnd::GetMenu(); }
+
+BOOL CMainFrame::SetMenu(CMenu* menu)
+{
+	if (!mUiFrame.Initialized()) return CFrameWnd::SetMenu(menu);
+	mUiFrame.SetMenu(menu ? menu->GetSafeHmenu() : nullptr); RecalcLayout(); return TRUE;
+}
+
+void CMainFrame::OnUpdateFrameMenu(HMENU menu)
+{
+	if (!mUiFrame.Initialized()) { CFrameWnd::OnUpdateFrameMenu(menu); return; }
+	if (menu && menu != mUiFrame.RetainedMenu()) SetMenu(CMenu::FromHandle(menu));
+}
+
+void CMainFrame::GetContentRect(CRect& rect) const
+{ GetClientRect(&rect); rect.top = std::min(rect.bottom, LONG(mUiFrame.Height())); }
+
+void CMainFrame::RecalcLayout(BOOL notify)
+{
+	if (mUiFrame.Initialized()) mUiFrame.Layout();
+	m_rectBorder.SetRect(0, mUiFrame.Height(), 0, 0);
+	CFrameWnd::RecalcLayout(notify);
 }
 
 BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
@@ -420,6 +461,7 @@ BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext)
 void CMainFrame::OnSize(UINT nType, int cx, int cy)
 {
 	CFrameWnd::OnSize(nType, cx, cy);
+	cy = std::max(0, cy - mUiFrame.Height());
 
 	// Keep the help overlay covering the whole client; drop it on minimize.
 	if (nType == SIZE_MINIMIZED)

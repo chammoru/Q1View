@@ -22,6 +22,7 @@ class WindowsUiMenus {
 	WindowsUiFontCache mFonts;
 	WindowsUiFontCache mBarFonts;
 	HWND mWindow = nullptr;
+	bool mHostedBar = false;
 	Item* Find(ULONG_PTR data) const {
 		for (const auto& item : mItems) if (reinterpret_cast<ULONG_PTR>(item.get()) == data) return item.get();
 		return nullptr;
@@ -30,7 +31,7 @@ class WindowsUiMenus {
 	HFONT Font(const Item* item) {
 		const UINT dpi = WindowsUiDpi(mWindow);
 		double scale = WindowsUiSettings().Scale();
-		if (!item->bar) return mFonts.Get(WindowsUiFontRole::Body, dpi, scale);
+		if (!item->bar || mHostedBar) return mFonts.Get(WindowsUiFontRole::Body, dpi, scale);
 		// Windows, not WM_MEASUREITEM, ultimately owns the native bar's row
 		// height. Fit within that hit-tested row instead of clipping enlarged
 		// glyphs or changing global NONCLIENTMETRICS for other applications.
@@ -92,7 +93,7 @@ class WindowsUiMenus {
 		}
 	}
 public:
-	void Sync(HWND window, HMENU menu) { mWindow = window; if (menu) SyncMenu(menu, true); }
+	void Sync(HWND window, HMENU menu, bool hostedBar = false) { mWindow = window; mHostedBar = hostedBar; if (menu) SyncMenu(menu, true); }
 	std::wstring Text(HMENU menu, UINT id, bool byPosition = false) const {
 		MENUITEMINFOW info = {sizeof(info)}; info.fMask = MIIM_DATA;
 		if (GetMenuItemInfoW(menu, id, byPosition, &info))

@@ -286,7 +286,7 @@ bool CHelpOverlay::OwnerScreenRect(CRect &rc) const
 {
 	if (!mOwner || !::IsWindow(mOwner->GetSafeHwnd()))
 		return false;
-	mOwner->GetClientRect(&rc);
+	static_cast<CMainFrame*>(mOwner)->GetContentRect(rc);
 	mOwner->ClientToScreen(&rc);
 	return true;
 }
@@ -433,6 +433,7 @@ LRESULT CMainFrame::OnTypographyChanged(WPARAM, LPARAM)
 
 void CMainFrame::DrawMenuBar()
 {
+	if (mUiFrame.Initialized()) { mUiFrame.Sync(); RecalcLayout(); return; }
 	mUiMenus.Sync(m_hWnd, ::GetMenu(m_hWnd));
 	CFrameWnd::DrawMenuBar();
 }
@@ -446,7 +447,7 @@ void CMainFrame::OnDrawItem(int id, LPDRAWITEMSTRUCT item)
 void CMainFrame::OnInitMenuPopup(CMenu* menu, UINT index, BOOL system)
 {
 	CFrameWnd::OnInitMenuPopup(menu, index, system);
-	if (!system) mUiMenus.Sync(m_hWnd, ::GetMenu(m_hWnd));
+	if (!system) mUiMenus.Sync(m_hWnd, GetMenu() ? GetMenu()->GetSafeHmenu() : nullptr, mUiFrame.Custom());
 }
 
 LRESULT CMainFrame::OnMenuChar(UINT character, UINT flags, CMenu* menu)
@@ -494,7 +495,7 @@ bool CDrawerTransitionOverlay::ShowSnapshot()
 		return false;
 
 	CRect rc;
-	mOwner->GetClientRect(&rc);
+	static_cast<CMainFrame*>(mOwner)->GetContentRect(rc);
 	mOwner->ClientToScreen(&rc);
 	const int width = rc.Width();
 	const int height = rc.Height();
@@ -606,6 +607,48 @@ LRESULT CMainFrame::Reload(WPARAM wParam, LPARAM lParam)
 	return S_OK;
 }
 
+LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
+{
+	// MFC's PostNcDestroy deletes this frame; never touch members afterward.
+	if (message == WM_NCDESTROY) return CFrameWnd::WindowProc(message, wp, lp);
+	LRESULT result = 0;
+	if (mUiFrame.Before(message, wp, lp, result)) return result;
+	result = CFrameWnd::WindowProc(message, wp, lp);
+	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
+	if (message == WM_CREATE && result != -1) { mUiFrame.Initialize(m_hWnd, mUiMenus); RecalcLayout(); }
+	mUiFrame.After(message);
+	if (message == WM_DPICHANGED || message == q1view::WM_UI_TYPOGRAPHY_CHANGED) { mUiFrame.RefreshSettings(); mUiFrame.Sync(); RecalcLayout(); }
+	return result;
+}
+
+CMenu* CMainFrame::GetMenu() const
+{ return mUiFrame.Initialized() ? CMenu::FromHandle(mUiFrame.Menu()) : CFrameWnd::GetMenu(); }
+
+BOOL CMainFrame::SetMenu(CMenu* menu)
+{
+	if (!mUiFrame.Initialized()) return CFrameWnd::SetMenu(menu);
+	mUiFrame.SetMenu(menu ? menu->GetSafeHmenu() : nullptr); RecalcLayout(); return TRUE;
+}
+
+void CMainFrame::RestoreApplicationMenu()
+{ SetMenu(CMenu::FromHandle(mUiFrame.RetainedMenu())); }
+
+void CMainFrame::OnUpdateFrameMenu(HMENU menu)
+{
+	if (!mUiFrame.Initialized()) { CFrameWnd::OnUpdateFrameMenu(menu); return; }
+	if (menu && menu != mUiFrame.RetainedMenu()) SetMenu(CMenu::FromHandle(menu));
+}
+
+void CMainFrame::GetContentRect(CRect& rect) const
+{ GetClientRect(&rect); rect.top = std::min(rect.bottom, LONG(mUiFrame.Height())); }
+
+void CMainFrame::RecalcLayout(BOOL notify)
+{
+	if (mUiFrame.Initialized()) mUiFrame.Layout();
+	m_rectBorder.SetRect(0, mUiFrame.Height(), 0, 0);
+	CFrameWnd::RecalcLayout(notify);
+}
+
 BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 {
 	if (!CFrameWnd::PreCreateWindow(cs))
@@ -630,6 +673,7 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 
 BOOL CMainFrame::PreTranslateMessage(MSG *pMsg)
 {
+	if (mUiFrame.Translate(pMsg)) return TRUE;
 	if (mHelpOverlay.HandleNavigation(pMsg)) return TRUE;
 	// A toggle command represents one physical key press. Ignoring keyboard
 	// auto-repeat prevents a held E from rapidly opening and closing the drawer.

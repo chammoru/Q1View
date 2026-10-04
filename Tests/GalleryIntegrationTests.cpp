@@ -274,6 +274,37 @@ struct GalleryIntegrationTests {
         pane.mConfirmRecycle = confirm;
         pane.mReportRecycle = reportFailure;
     }
+    void ChromeTests(CMainFrame* frame, CViewerView* view) {
+        Require(frame->mUiFrame.Initialized() && frame->mUiFrame.Custom(), "real MFC Viewer uses the custom client-painted title");
+        CRect content, splitter;
+        frame->GetContentRect(content); frame->mwndSplitter.GetWindowRect(splitter); frame->ScreenToClient(splitter);
+        Require(content == splitter && content.top >= 62, "MFC reserves chrome once without overlapping or double-resizing the image splitter");
+        const HMENU menu = frame->GetMenu()->GetSafeHmenu();
+        const int menuCount = GetMenuItemCount(menu);
+        const CString path = static_cast<CViewerDoc*>(frame->GetActiveDocument())->GetPathName();
+        CRect before; frame->GetWindowRect(before);
+        frame->SendMessage(WM_SYSCOMMAND, SC_MAXIMIZE); Pump(.4);
+        MONITORINFO monitor = {sizeof(monitor)};
+        GetMonitorInfo(MonitorFromWindow(frame->m_hWnd, MONITOR_DEFAULTTONEAREST), &monitor);
+        CRect client; frame->GetClientRect(client); frame->ClientToScreen(client);
+        Require(frame->IsZoomed() && client.left >= monitor.rcWork.left && client.top >= monitor.rcWork.top &&
+            client.right <= monitor.rcWork.right && client.bottom <= monitor.rcWork.bottom, "maximized client stays within the monitor work area and taskbar");
+        frame->SendMessage(WM_SYSCOMMAND, SC_RESTORE); Pump(.3);
+        CRect restored; frame->GetWindowRect(restored);
+        Require(!frame->IsZoomed() && restored == before, "native restore retains the original window rectangle");
+        for (int i = 0; i < 3; ++i) {
+            view->ToggleFullScreen(); Pump(.1);
+            Require(view->IsFullScreen() && frame->mUiFrame.Height() == 0 && frame->GetMenu() == nullptr,
+                "full screen hides both custom title and menu without leftover reservation");
+            view->ToggleFullScreen(); Pump(.1);
+            Require(!view->IsFullScreen() && frame->GetMenu()->GetSafeHmenu() == menu && GetMenuItemCount(menu) == menuCount,
+                "full-screen exit preserves the same menu and does not duplicate dynamic entries");
+        }
+        Require(static_cast<CViewerDoc*>(frame->GetActiveDocument())->GetPathName() == path, "window chrome operations never change the active file");
+        frame->GetContentRect(content); frame->mwndSplitter.GetWindowRect(splitter); frame->ScreenToClient(splitter);
+        Require(content == splitter, "splitter returns to the chrome-reserved client rectangle after full screen");
+    }
+
     void Run() {
         auto frame = static_cast<CMainFrame*>(AfxGetMainWnd());
         auto view = static_cast<CViewerView*>(frame->GetActiveView());
@@ -283,6 +314,7 @@ struct GalleryIntegrationTests {
         frame->MoveWindow(20, 20, 1200, 850);
         if (!frame->mDrawerVisible) frame->OnToggleDrawer();
         Pump(.4);
+        ChromeTests(frame, view);
         auto& pane = *frame->mpDrawer;
         Require(pane.mPrivateFontLoaded && pane.mFontFamily == L"Pretendard Variable",
             "bundled Pretendard typography loaded for the MFC drawer");

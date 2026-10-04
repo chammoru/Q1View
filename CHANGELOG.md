@@ -11,6 +11,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 - Windows Viewer and Comparator: use normal-weight Pretendard in the main application menus with wider horizontal spacing and roomier dropdown rows, preserving native menu tracking, command shortcuts, selection states and accessible names. (issue #117)
 
+- Windows Viewer and Comparator: match window titles to 14 DIP Pretendard menus using a client-painted title with native DWM window buttons, accessible menu buttons, wrapped narrow-window menu rows and retained popup commands; preserve the same application menu across Viewer full-screen transitions and use the native frame in high-contrast mode. (issue #117)
+
 ---
 
 ## [2.7.26] — 2026-09-27

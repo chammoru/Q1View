@@ -2079,13 +2079,11 @@ void CViewerView::ToggleFullScreen()
 		}
 	} else {
 		mFullMode = false;
-		HMENU hMenu = ::LoadMenu(theApp.m_hInstance, MAKEINTRESOURCE(IDR_MAINFRAME));
-		::SetMenu(pMainFrm->GetSafeHwnd(), hMenu);
+		pMainFrm->RestoreApplicationMenu();
 		pMainFrm->ModifyStyle(WS_POPUP,
 			WS_OVERLAPPED | WS_CAPTION | FWS_ADDTOTITLE |
 			WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU | WS_THICKFRAME,
 			0);
-		pMainFrm->AddMainMenu();
 		GetDocument()->UpdateMenu();
 		if (mHavePreFullPlacement && mPreFullPlacement.showCmd != SW_SHOWMAXIMIZED) {
 			const CRect rc(mPreFullPlacement.rcNormalPosition);

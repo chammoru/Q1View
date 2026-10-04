@@ -1,6 +1,6 @@
 # Issue #117: Windows UI typography verification
 
-Date: 2026-10-04. Branch: `codex/issue-117-typography`, based on `origin/master` `7b8d50f57eb0738d85d73aeba86c05f94120a4a9`. Windows MFC applications only; no Qt, image-processing, metric-input, theme, native menu owner-draw, release-tag or version changes.
+Date: 2026-10-04. Branch: `codex/issue-117-typography`, based on `origin/master` `7b8d50f57eb0738d85d73aeba86c05f94120a4a9`. Windows MFC applications only; no Qt, image-processing, metric-input, release-tag or version changes. The original body/help-only scope was later expanded with explicit user approval for application menu typography and then a custom title/menu frame; the sections below record those stages.
 
 ## Implementation
 
@@ -46,6 +46,8 @@ Explicit DPI/text-scale inputs in the automated tests are not evidence of live W
 Windows text scaling follows [Microsoft's text-scaling guidance](https://learn.microsoft.com/en-us/windows/apps/develop/input/text-scaling) using UISettings2, without changing system settings.
 
 ## Approved menu extension
+
+This section records the earlier native-menu-bar implementation. The later approved client-painted title and hosted menu row supersede its native bar-height/font-fitting limitations; see [title-bar verification](issue-117-titlebar.md). Native popup tracking and item metadata remain in use.
 
 After inspecting the native menu/body balance, the user explicitly requested code changes to the menus. Main application menu bars and their dropdown trees now use normal-weight Pretendard 14 DIP with wider horizontal text padding. Dropdowns request at least 30 DIP row height; Windows still owns the native menu-bar height, and the bar font fits within that native hit-tested row rather than changing global system settings. This is not a new toolbar or a replacement menu-tracking implementation. System menus, unrelated context menus and dialogs are not restyled.
 

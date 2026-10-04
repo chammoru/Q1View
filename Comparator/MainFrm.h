@@ -10,6 +10,7 @@
 #include "qimage_metrics.h"
 #include "Q1UiFontWin.h"
 #include "Q1UiMenuWin.h"
+#include "Q1UiFrameWin.h"
 
 #define FRAME_INFO_H          28
 #define FRAMES_INFO_H         84
@@ -86,6 +87,7 @@ private:
 	// Full-window shortcut/help overlay (issue #79).
 	CHelpOverlay mHelpOverlay;
 	q1view::WindowsUiMenus mUiMenus;
+	q1view::WindowsUiFrame mUiFrame;
 
 public:
 	int mMetricIdx;
@@ -114,6 +116,12 @@ public:
 // Overrides
 public:
 	virtual BOOL PreCreateWindow(CREATESTRUCT& cs);
+	virtual LRESULT WindowProc(UINT, WPARAM, LPARAM);
+	virtual void RecalcLayout(BOOL notify = TRUE);
+	virtual void OnUpdateFrameMenu(HMENU menu);
+	CMenu* GetMenu() const;
+	BOOL SetMenu(CMenu* menu);
+	void GetContentRect(CRect& rect) const;
 	virtual BOOL PreTranslateMessage(MSG* message);
 
 // Implementation

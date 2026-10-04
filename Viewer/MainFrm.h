@@ -7,6 +7,7 @@
 #include <vector>
 #include "Q1UiFontWin.h"
 #include "Q1UiMenuWin.h"
+#include "Q1UiFrameWin.h"
 
 #define WM_RELOAD (WM_USER + 100)
 #define WM_APPLY_SYNC_INPUT (WM_APP + 100)
@@ -174,6 +175,7 @@ private:
 	// Full-window shortcut/help overlay (issue #79).
 	CHelpOverlay mHelpOverlay;
 	q1view::WindowsUiMenus mUiMenus;
+	q1view::WindowsUiFrame mUiFrame;
 	CDrawerTransitionOverlay mDrawerTransitionOverlay;
 
 // Operations
@@ -182,6 +184,13 @@ public:
 // Overrides
 public:
 	virtual BOOL PreCreateWindow(CREATESTRUCT& cs);
+	virtual LRESULT WindowProc(UINT, WPARAM, LPARAM);
+	virtual void RecalcLayout(BOOL notify = TRUE);
+	virtual void OnUpdateFrameMenu(HMENU menu);
+	CMenu* GetMenu() const;
+	BOOL SetMenu(CMenu* menu);
+	void RestoreApplicationMenu();
+	void GetContentRect(CRect& rect) const;
 	virtual BOOL PreTranslateMessage(MSG *pMsg);
 	virtual void OnUpdateFrameTitle(BOOL bAddToTitle);
 	virtual BOOL OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext);
