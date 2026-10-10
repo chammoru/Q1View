@@ -179,8 +179,8 @@ static void TestViewerDefaultMenu()
 {
 	FrameTestHost host;
 	HMENU root = CreateMenu();
-	const wchar_t* labels[] = {L"&File", L"640&x480", L"YUV420", L"30.00f&ps", L"&View",
-		L"&Compare", L"&Help", L"640x480 (1.00x) \x00b7 Auto"};
+	const wchar_t* labels[] = {L"&File", L"800&x600", L"YUV420", L"30.00f&ps", L"&View",
+		L"&Compare", L"&Help", L"800x600 (1.00x) \x00b7 Auto"};
 	for (UINT i = 0; i < _countof(labels); ++i)
 		AppendMenuW(root, MF_STRING | (i >= 5 ? MF_RIGHTJUSTIFY : 0), 200+i, labels[i]);
 	HWND window = CreateWindowExW(0, L"Q1View.FrameRegressionTest", L"Viewer startup measurement", WS_OVERLAPPEDWINDOW,

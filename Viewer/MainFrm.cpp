@@ -660,7 +660,7 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 
 	cs.dwExStyle &= ~WS_EX_CLIENTEDGE;
 
-	// Bootstrap window footprint, independent of the 640x480 RAW defaults.
+	// Bootstrap window footprint, independent of image/RAW pixel dimensions.
 	// Empty launches refine this after menu creation, using actual DPI/text
 	// measurements. The drawer continues to consume the existing image area.
 	CRect rcClient(0, 0, q1view::ViewerDefaultWindowWidthDip, q1view::ViewerDefaultWindowHeightDip);
@@ -915,7 +915,7 @@ void CMainFrame::AddMainMenu()
 {
 	CString str;
 
-	str.Format(_T("%d&x%d"), VIEWER_DEF_W, VIEWER_DEF_H);
+	str.Format(_T("%d&x%d"), q1view::ViewerDefaultImageWidth, q1view::ViewerDefaultImageHeight);
 	GetMenu()->InsertMenu(MENU_POS_RESOLUTION, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mResolutionMenu.m_hMenu, str);
 
@@ -966,7 +966,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	AddMainMenu();
 
-	CheckResolutionRadio(VIEWER_DEF_W, VIEWER_DEF_H);
+	CheckResolutionRadio(q1view::ViewerDefaultImageWidth, q1view::ViewerDefaultImageHeight);
 	CheckCsRadio(qcsc_info_table[QIMG_DEF_CS_IDX].cs);
 	CheckFpsRadio(VIEWER_DEF_FPS);
 	CheckScalingRadio(static_cast<int>(q1::ImageScalingMode::Auto));

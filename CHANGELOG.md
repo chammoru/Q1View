@@ -8,7 +8,7 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ### Changed
 
-- Windows Viewer: open an empty/default session with a DPI-scaled 800×600-class viewing area and measured single-row menu clearance, bounded by the monitor work area; keep RAW/image defaults at 640×480, narrow-window menu wrapping, and the drawer inside the existing window. (issue #136)
+- Windows Viewer: open an empty/default session with a DPI-scaled 800×600-class viewing area and measured single-row menu clearance, bounded by the monitor work area; increase the initial RAW/image resolution to 800×600 pixels, keep Qt defaults unchanged, and preserve narrow-window menu wrapping and the drawer inside the existing window. (issue #136)
 
 ---
 

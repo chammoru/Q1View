@@ -1,8 +1,8 @@
 #ifndef __QIMAGE_PRESETS_H__
 #define __QIMAGE_PRESETS_H__
 
-// Default image/RAW dimensions, also used for the Qt startup footprint. The
-// Windows startup window geometry is separate (ViewerWindowGeometry.h).
+// Qt image/RAW defaults and startup footprint. Windows Viewer uses separate
+// image/RAW defaults (ViewerDefaults.h) and UI geometry (ViewerWindowGeometry.h).
 // 640x480 (VGA) is a standard codec/image resolution and
 // one of the resolution_info_table presets below, so the resolution menu shows a
 // real, checked preset on launch instead of a non-standard size (issue #77).
