@@ -7,6 +7,7 @@
 #include "../Comparator/FrmCmpStrategy.h"
 #include "Q1UiFontWin.h"
 #include "Q1UiAppearanceMenuWin.h"
+#include "SharedThemeTestWriter.h"
 #include <cstdio>
 #include <stdexcept>
 
@@ -96,11 +97,18 @@ int RunComparerTypographyTests() {
 		const auto theme = q1view::WindowsUiAppearanceState().Appearance();
 		CRect themeBounds; frame->GetWindowRect(themeBounds);
 		HMENU options = frame->mOptionsMenu.GetSafeHmenu();
-		Check(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && GetMenuItemCount(options)==3 &&
-			frame->mUiMenus.Text(options,2,true)==L"&Theme", "Comparer exposes the same Options > Theme location, retaining its existing comparison option");
+		Check(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && GetMenuItemCount(options)==1 &&
+			GetMenuItemID(options,0)==ID_OPTIONS_DIFF_RESOLUTION, "Comparer has no theme menu and retains its comparison-specific option");
+		frame->SendMessage(WM_COMMAND,q1view::ID_UI_APPEARANCE_SYSTEM+(UINT(theme)+1)%3); Pump(30);
+		Check(q1view::WindowsUiAppearanceState().Appearance()==theme, "retired Comparer theme command cannot change shared preference");
+		auto SharedTheme = [&](unsigned choice) {
+			Check(WriteSharedThemeFromChild(AfxGetApp()->m_pszRegistryKey,choice), "separate process writes isolated shared theme and posts notification");
+			Pump(100);
+			Check(unsigned(q1view::WindowsUiAppearanceState().Appearance())==choice, "Comparer receives cross-process theme change without activation or its own theme command");
+		};
 		for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,
 			q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
-			frame->SendMessage(WM_COMMAND,command); Pump(100);
+			SharedTheme(command-q1view::ID_UI_APPEARANCE_SYSTEM);
 			Check(q1view::WindowsUiAppearanceCommandChecked(command), "actual appearance command updates checked preference");
 			Check(q1view::WindowsUiAppearanceState().HighContrast() || q1view::WindowsUiColorValue(q1view::WindowsUiColor::Canvas)==
 				(q1view::WindowsUiAppearanceState().Dark() ? RGB(24,24,24) : RGB(236,236,236)), "Comparer theme changes UI and canvas brightness together");
@@ -114,7 +122,7 @@ int RunComparerTypographyTests() {
 			Check(psnr==doc->mFrmCmpStrategy->CropScore(doc->mPane,doc->mPane+1,METRIC_PSNR_IDX,l,t,r,b) &&
 				ssim==doc->mFrmCmpStrategy->CropScore(doc->mPane,doc->mPane+1,METRIC_SSIM_IDX,l,t,r,b), "appearance switch leaves actual PSNR and SSIM unchanged");
 		}
-		frame->SendMessage(WM_COMMAND,q1view::ID_UI_APPEARANCE_SYSTEM+UINT(theme));
+		SharedTheme(UINT(theme));
 		Pump(100);
 		HWND menuButton = GetDlgItem(frame->mUiFrame.MenuHost(), 2);
 		const auto before = Pixels(menuButton);
@@ -161,7 +169,7 @@ int RunComparerTypographyTests() {
 			fourSources[i].assign(doc->mPane[i].rgbBuf,doc->mPane[i].rgbBuf+doc->mPane[i].rgbBufSize);
 		}
 		for (UINT command : {q1view::ID_UI_APPEARANCE_DARK,q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
-			frame->SendMessage(WM_COMMAND,command); Pump(100);
+			SharedTheme(command-q1view::ID_UI_APPEARANCE_SYSTEM);
 			const COLORREF canvasColor = q1view::WindowsUiColorValue(q1view::WindowsUiColor::Canvas);
 			const DWORD expected = (DWORD(GetRValue(canvasColor))<<16) | (DWORD(GetGValue(canvasColor))<<8) | GetBValue(canvasColor);
 			for (int i=0;i<4;++i) {
@@ -175,7 +183,7 @@ int RunComparerTypographyTests() {
 					"theme/background switching preserves all four source buffers");
 			}
 		}
-		frame->SendMessage(WM_COMMAND,q1view::ID_UI_APPEARANCE_SYSTEM+UINT(theme));
+		SharedTheme(UINT(theme));
 		Pump(100);
 		fprintf(report, "Actual window DPI: %u; OS text factor: %.3f\n", q1view::WindowsUiDpi(frame->m_hWnd), q1view::WindowsUiSettings().Scale());
 		fprintf(report, "ALL COMPARER TYPOGRAPHY CHECKS PASSED\n"); fclose(report); return 0;

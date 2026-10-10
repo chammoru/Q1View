@@ -19,18 +19,18 @@ inline void AppendWindowsUiThemeMenu(HMENU parent)
 	if (GetMenuItemCount(parent)>0) AppendMenuW(parent, MF_SEPARATOR, 0, nullptr);
 	AppendMenuW(parent, MF_POPUP, reinterpret_cast<UINT_PTR>(appearance), L"&Theme");
 }
-template<class App> void LoadWindowsUiAppearancePreferences(App& app)
+template<class App> void LoadWindowsUiAppearancePreferences(App& app, bool settingsOwner = true)
 {
-	// Retain the existing theme key; obsolete independent Canvas values are
-	// intentionally ignored, not deleted or used to override the chosen theme.
-	WindowsUiAppearanceState().Initialize(app.GetProfileInt(L"Appearance", L"Theme", 0));
+	// Only Viewer imports its legacy theme if no shared value exists. Comparator
+	// never reads its former independent preference; Canvas values are ignored.
+	LoadSharedWindowsUiTheme(app.m_pszRegistryKey,
+		settingsOwner ? app.GetProfileInt(L"Appearance", L"Theme", 0) : 0, settingsOwner);
 }
-template<class App> void SelectWindowsUiAppearanceCommand(App& app, UINT command)
+inline bool SelectWindowsUiAppearanceCommand(UINT command)
 {
-	if (command < ID_UI_APPEARANCE_SYSTEM || command > ID_UI_APPEARANCE_DARK) return;
+	if (command < ID_UI_APPEARANCE_SYSTEM || command > ID_UI_APPEARANCE_DARK) return false;
 	const int choice = int(command - ID_UI_APPEARANCE_SYSTEM);
-	WindowsUiAppearanceState().SetAppearance(ValidWindowsUiAppearance(choice));
-	app.WriteProfileInt(L"Appearance", L"Theme", choice);
+	return SaveSharedWindowsUiTheme(ValidWindowsUiAppearance(choice));
 }
 inline bool WindowsUiAppearanceCommandChecked(UINT command)
 {

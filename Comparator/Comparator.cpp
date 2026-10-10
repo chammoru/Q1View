@@ -75,7 +75,7 @@ BOOL CComparatorApp::InitInstance()
 	SetRegistryKey(_T("Q1ViewComparerTests"));
 #endif
 	LoadStdProfileSettings(4);  // Load standard INI file options (including MRU)
-	q1view::LoadWindowsUiAppearancePreferences(*this);
+	q1view::LoadWindowsUiAppearancePreferences(*this, false);
 
 	// Register the application's document templates.  Document templates
 	//  serve as the connection between documents, frame windows and views

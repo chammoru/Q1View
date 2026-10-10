@@ -15,6 +15,7 @@
 #include "QRecycleFilesWin.h"
 #include "../Viewer/ViewerWindowGeometry.h"
 #include "Q1UiAppearanceMenuWin.h"
+#include "SharedThemeTestWriter.h"
 #include <cmath>
 #include <cstdio>
 #include <stdexcept>
@@ -499,7 +500,11 @@ struct GalleryIntegrationTests {
             "Viewer exposes only Options > Theme; View retains image scaling without appearance/background duplicates");
         for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,
             q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
-            frame->SendMessage(WM_COMMAND,command); Pump(.08);
+            if (command==q1view::ID_UI_APPEARANCE_DARK || command==q1view::ID_UI_APPEARANCE_SYSTEM)
+                Require(WriteSharedThemeFromChild(AfxGetApp()->m_pszRegistryKey,command-q1view::ID_UI_APPEARANCE_SYSTEM),
+                    "separate process writes shared theme for existing Viewer without activation");
+            else frame->SendMessage(WM_COMMAND,command);
+            Pump(.08);
             Require(q1view::WindowsUiAppearanceCommandChecked(command), "real Viewer appearance command updates checked preference");
             Require(Q1UI_COLOR_CANVAS_BG==q1view::WindowsUiColorValue(q1view::WindowsUiColor::Canvas) &&
                 (q1view::WindowsUiAppearanceState().HighContrast() || Q1UI_COLOR_CANVAS_BG==

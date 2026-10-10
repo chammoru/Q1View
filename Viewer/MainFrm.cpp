@@ -438,7 +438,10 @@ LRESULT CMainFrame::OnTypographyChanged(WPARAM, LPARAM)
 
 void CMainFrame::OnAppearanceCommand(UINT command)
 {
-	q1view::SelectWindowsUiAppearanceCommand(*AfxGetApp(), command);
+	if (!q1view::SelectWindowsUiAppearanceCommand(command)) {
+		AfxMessageBox(_T("Unable to save the theme setting."), MB_OK | MB_ICONERROR);
+		return;
+	}
 	OnAppearanceChanged(0, 0);
 }
 void CMainFrame::OnUpdateAppearanceCommand(CCmdUI* command)
@@ -638,12 +641,18 @@ LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 {
 	// MFC's PostNcDestroy deletes this frame; never touch members afterward.
 	if (message == WM_NCDESTROY) return CFrameWnd::WindowProc(message, wp, lp);
+	if (message && message == q1view::WindowsUiSharedThemeMessage()) {
+		if (q1view::ReloadSharedWindowsUiTheme()) OnAppearanceChanged(0, 0);
+		return 0;
+	}
 	LRESULT result = 0;
 	if (mUiFrame.Before(message, wp, lp, result)) return result;
 	result = CFrameWnd::WindowProc(message, wp, lp);
 	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
 	if (message == WM_CREATE && result != -1) { mUiFrame.Initialize(m_hWnd, mUiMenus); RecalcLayout(); }
 	mUiFrame.After(message);
+	if (message == WM_ACTIVATE && LOWORD(wp) != WA_INACTIVE && q1view::ReloadSharedWindowsUiTheme())
+		OnAppearanceChanged(0, 0);
 	if (message == WM_SETTINGCHANGE || message == WM_THEMECHANGED || message == WM_SYSCOLORCHANGE)
 		OnAppearanceChanged(0, 0);
 	if (message == WM_DPICHANGED || message == q1view::WM_UI_TYPOGRAPHY_CHANGED) { mUiFrame.RefreshSettings(); mUiFrame.Sync(); RecalcLayout(); }

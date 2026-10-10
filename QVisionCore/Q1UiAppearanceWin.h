@@ -37,6 +37,11 @@ public:
 	HBRUSH Brush(WindowsUiColor role) const;
 };
 WindowsUiAppearanceSettings& WindowsUiAppearanceState();
+// Both apps use one HKCU value. Only Viewer migrates its legacy preference.
+void LoadSharedWindowsUiTheme(const wchar_t* registryRoot, int legacyTheme, bool settingsOwner);
+bool SaveSharedWindowsUiTheme(WindowsUiAppearance theme);
+bool ReloadSharedWindowsUiTheme();
+UINT WindowsUiSharedThemeMessage();
 inline COLORREF WindowsUiColorValue(WindowsUiColor role) { return WindowsUiAppearanceState().Color(role); }
 inline HBRUSH WindowsUiColorBrush(WindowsUiColor role) { return WindowsUiAppearanceState().Brush(role); }
 

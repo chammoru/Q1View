@@ -29,7 +29,7 @@ Viewer and Comparator use coordinated Pretendard typography for app-drawn Korean
 
 An empty Windows Viewer session opens with a roomier, DPI-scaled 800×600-class viewing area and measured menu clearance, limited to the monitor work area. The thumbnail drawer stays inside that window. The initial resolution for RAW inputs without recognized dimensions is 800×600 pixels; filename dimensions and a manually selected resolution remain supported.
 
-Viewer and Comparator share an Options > Theme menu with System, Light, and Dark choices. One choice updates the application colors and image-surround brightness together. Each app remembers its theme and respects Windows high contrast. Theme changes keep open media, zoom, selections, playback, and comparison results intact; image pixels and captured regions are not tinted. Windows-owned dialogs and popup chrome retain their OS appearance.
+Viewer's Options > Theme menu offers shared System, Light, and Dark choices for both Viewer and Comparator. Comparator follows automatically without a duplicate theme menu. One saved choice updates application colors and image-surround brightness together and respects Windows high contrast. Theme changes keep open media, zoom, selections, playback, and comparison results intact; image pixels and captured regions are not tinted. Windows-owned dialogs and popup chrome retain their OS appearance.
 
 It is built for codec developers, imaging engineers, computer vision engineers, researchers, and QA teams who need to verify raw buffers, decoded frames, compression artifacts, color conversion, timing behavior, and small visual differences between processing pipelines.
 

@@ -8,7 +8,7 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ### Added
 
-- Windows Viewer and Comparator: choose a persisted System, Light, or Dark theme from the same Options > Theme menu, changing application colors and the image-surround brightness together while honoring Windows high contrast and preserving source/capture pixels, zoom/pan, ROI, comparison results, playback, and thumbnail caches. (issue #118)
+- Windows Viewer and Comparator: choose a shared System, Light, or Dark theme from Viewer's Options > Theme menu; Comparator follows automatically without a duplicate theme menu. Application colors and image-surround brightness change together while honoring Windows high contrast and preserving source/capture pixels, zoom/pan, ROI, comparison results, playback, and thumbnail caches. (issue #118)
 
 ---
 

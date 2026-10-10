@@ -3,8 +3,10 @@
 #include <wrl.h>
 #include <wrl/wrappers/corewrappers.h>
 #include <windows.ui.viewmanagement.h>
+#include <string>
 
 #pragma comment(lib, "runtimeobject.lib")
+#pragma comment(lib, "advapi32.lib")
 
 namespace q1view {
 WindowsUiAppearance ValidWindowsUiAppearance(int value)
@@ -49,6 +51,8 @@ int WindowsUiSystemColor(WindowsUiColor role)
 namespace {
 struct AppearanceState {
 	WindowsUiAppearance appearance = WindowsUiAppearance::System;
+	std::wstring sharedThemeKey;
+	UINT sharedThemeMessage = 0;
 	bool systemDark = false, highContrast = false, uninitialize = false, subscribed = false;
 	Microsoft::WRL::ComPtr<ABI::Windows::UI::ViewManagement::IUISettings3> settings;
 	EventRegistrationToken token = {};
@@ -105,4 +109,55 @@ HBRUSH WindowsUiAppearanceSettings::Brush(WindowsUiColor role) const
 	return brush;
 }
 WindowsUiAppearanceSettings& WindowsUiAppearanceState() { static WindowsUiAppearanceSettings settings; return settings; }
+
+namespace {
+WindowsUiAppearance ReadSharedTheme(bool& present)
+{
+	DWORD value = 0, bytes = sizeof(value);
+	const LSTATUS status = RegGetValueW(HKEY_CURRENT_USER, State().sharedThemeKey.c_str(), L"Theme",
+		RRF_RT_REG_DWORD, nullptr, &value, &bytes);
+	// An inaccessible/malformed value must not be replaced by a legacy setting.
+	present = status != ERROR_FILE_NOT_FOUND && status != ERROR_PATH_NOT_FOUND;
+	return status == ERROR_SUCCESS ? ValidWindowsUiAppearance(int(value)) : WindowsUiAppearance::System;
+}
+}
+void LoadSharedWindowsUiTheme(const wchar_t* registryRoot, int legacyTheme, bool settingsOwner)
+{
+	auto& state = State();
+	const std::wstring root = registryRoot ? registryRoot : L"Chammoru";
+	state.sharedThemeKey = L"Software\\" + root + L"\\Q1View\\Appearance";
+	state.sharedThemeMessage = RegisterWindowMessageW((L"Q1View.SharedTheme.v1:" + root).c_str());
+	bool present = false;
+	const auto saved = ReadSharedTheme(present);
+	WindowsUiAppearanceState().Initialize(present ? int(saved) : (settingsOwner ? legacyTheme : 0));
+	if (!present && settingsOwner) SaveSharedWindowsUiTheme(WindowsUiAppearanceState().Appearance());
+}
+bool SaveSharedWindowsUiTheme(WindowsUiAppearance theme)
+{
+	auto& state = State();
+	if (state.sharedThemeKey.empty()) return false;
+	HKEY key = nullptr;
+	if (RegCreateKeyExW(HKEY_CURRENT_USER, state.sharedThemeKey.c_str(), 0, nullptr, 0,
+		KEY_SET_VALUE, nullptr, &key, nullptr) != ERROR_SUCCESS) return false;
+	const DWORD value = DWORD(ValidWindowsUiAppearance(int(theme)));
+	const LSTATUS status = RegSetValueExW(key, L"Theme", 0, REG_DWORD, reinterpret_cast<const BYTE*>(&value), sizeof(value));
+	RegCloseKey(key);
+	if (status != ERROR_SUCCESS) return false;
+	state.appearance = static_cast<WindowsUiAppearance>(value);
+	// Receivers reread their own key: no pointers or setting values cross
+	// processes. Scope the registered message to the profile family so tests
+	// cannot affect production windows. Never block on another app's UI thread.
+	if (state.sharedThemeMessage) PostMessageW(HWND_BROADCAST, state.sharedThemeMessage, 0, 0);
+	return true;
+}
+bool ReloadSharedWindowsUiTheme()
+{
+	if (State().sharedThemeKey.empty()) return false;
+	bool present = false;
+	const auto saved = ReadSharedTheme(present);
+	if (saved == State().appearance) return false;
+	State().appearance = saved;
+	return true;
+}
+UINT WindowsUiSharedThemeMessage() { return State().sharedThemeMessage; }
 } // namespace q1view
