@@ -14,6 +14,8 @@
 #include "QFileActionsWin.h"
 #include "QRecycleFilesWin.h"
 #include "../Viewer/ViewerWindowGeometry.h"
+#include "Q1UiAppearanceMenuWin.h"
+#include "SharedThemeTestWriter.h"
 #include <cmath>
 #include <cstdio>
 #include <stdexcept>
@@ -467,6 +469,73 @@ struct GalleryIntegrationTests {
         unsigned generation = pane.mGen.load();
         auto entries = pane.mEntries.data();
         grid.Select(10, true);
+        // Real theme commands must not invalidate the folder or its decoded/GPU
+        // thumbnails. Wait for the existing visible queue, then snapshot handles.
+        Await([&] { std::lock_guard<std::mutex> lock(pane.mMutex); return pane.mTasks.empty() && pane.mOutstanding==0; },
+            "visible thumbnail work settles before appearance checks");
+        const auto theme = q1view::WindowsUiAppearanceState().Appearance();
+        const auto selectedMedia = pane.SelectedMediaPaths();
+        const auto scroll = grid.mLayout.scroll;
+        std::map<int,std::pair<HBITMAP,ID2D1Bitmap1*>> cachedImages;
+        for (const auto& image : grid.mCache) cachedImages[image.first] = {image.second.cpu,image.second.gpu.Get()};
+        const auto source = doc->mFrmSrc;
+        const auto opened = doc->mOpenGeneration;
+        const auto imageInfo = view->mStableRgbBufferInfo;
+        std::vector<BYTE> imageBytes;
+        if (imageInfo.addr && view->mW>0 && view->mH>0)
+            imageBytes.assign(imageInfo.addr,imageInfo.addr+size_t(ROUNDUP_DWORD(view->mW))*view->mH*QIMG_DST_RGB_BYTES);
+        const auto zoomBefore = view->mN, xBefore = view->mXOff, yBefore = view->mYOff;
+        const auto regionsBefore = view->mSelRegions;
+        QSelRegion appearanceRoi; appearanceRoi.SetRect(1,1,4,4); view->mSelRegions.push_back(appearanceRoi);
+        cv::Mat captured;
+        if (imageInfo.addr) captured = view->CreateRoiMat(0,0,4,4).clone();
+        const auto captureBuffer = view->mCaptRgbBuf;
+        const int captureSize = view->mCaptRgbBufSize;
+        std::vector<BYTE> captureBytes;
+        if (!captured.empty()) captureBytes.assign(captureBuffer,captureBuffer+captureSize);
+        CRect appearanceBounds; frame->GetWindowRect(appearanceBounds);
+        HMENU options = GetSubMenu(frame->GetMenu()->GetSafeHmenu(),5);
+        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==1 &&
+            frame->mUiMenus.Text(options,0,true)==L"&Theme" && GetMenuItemCount(GetSubMenu(frame->GetMenu()->GetSafeHmenu(),4))==1,
+            "Viewer exposes only Options > Theme; View retains image scaling without appearance/background duplicates");
+        for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,
+            q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
+            if (command==q1view::ID_UI_APPEARANCE_DARK || command==q1view::ID_UI_APPEARANCE_SYSTEM)
+                Require(WriteSharedThemeFromChild(AfxGetApp()->m_pszRegistryKey,command-q1view::ID_UI_APPEARANCE_SYSTEM),
+                    "separate process writes shared theme for existing Viewer without activation");
+            else frame->SendMessage(WM_COMMAND,command);
+            Pump(.08);
+            Require(q1view::WindowsUiAppearanceCommandChecked(command), "real Viewer appearance command updates checked preference");
+            Require(Q1UI_COLOR_CANVAS_BG==q1view::WindowsUiColorValue(q1view::WindowsUiColor::Canvas) &&
+                (q1view::WindowsUiAppearanceState().HighContrast() || Q1UI_COLOR_CANVAS_BG==
+                    (q1view::WindowsUiAppearanceState().Dark() ? RGB(24,24,24) : RGB(236,236,236))),
+                "Viewer theme changes UI and canvas brightness together");
+            CRect current; frame->GetWindowRect(current);
+            Require(current==appearanceBounds && view->mN==zoomBefore && view->mXOff==xBefore && view->mYOff==yBefore &&
+                doc->mFrmSrc==source && doc->mOpenGeneration==opened && doc->GetPathName()==original,
+                "Viewer appearance switch preserves window, zoom, pan, source and open generation");
+            Require(imageBytes.empty() || (view->mStableRgbBufferInfo.addr==imageInfo.addr &&
+                std::equal(imageBytes.begin(),imageBytes.end(),view->mStableRgbBufferInfo.addr)), "Viewer appearance switch leaves source image bytes unchanged");
+            Require(view->mSelRegions.size()==regionsBefore.size()+1 && view->mSelRegions.back().mSelRect==appearanceRoi.mSelRect,
+                "Viewer appearance switch preserves source-space selection rectangle");
+            Require(captureBytes.empty() || (view->mCaptRgbBuf==captureBuffer && view->mCaptRgbBufSize==captureSize &&
+                std::equal(captureBytes.begin(),captureBytes.end(),captureBuffer)), "Viewer appearance switch leaves capture buffer and pixels unchanged");
+            if (view->mRgbBuf && view->mWDst<view->mWCanvas && view->mHDst<view->mHCanvas) {
+                const COLORREF background = Q1UI_COLOR_CANVAS_BG;
+                Require(view->mRgbBuf[0]==GetBValue(background) && view->mRgbBuf[1]==GetGValue(background) &&
+                    view->mRgbBuf[2]==GetRValue(background), "actual scaled Viewer canvas repaints exposed pixels with matching theme background");
+            }
+            Require(pane.mGen==generation && pane.mEntries.data()==entries && pane.SelectedMediaPaths()==selectedMedia && grid.mLayout.scroll==scroll,
+                "appearance switch preserves folder entries, multi-selection and gallery scroll");
+            for (const auto& image : cachedImages) {
+                const auto found = grid.mCache.find(image.first);
+                Require(found!=grid.mCache.end() && found->second.cpu==image.second.first && found->second.gpu.Get()==image.second.second,
+                    "appearance switch retains existing CPU and GPU thumbnail handles");
+            }
+        }
+        frame->SendMessage(WM_COMMAND,q1view::ID_UI_APPEARANCE_SYSTEM+UINT(theme));
+        Pump(.08);
+        view->mSelRegions = regionsBefore;
         for (int step : {2,4,3,5,2,1,4,1}) { pane.ApplyViewStep(step, false); Pump(.03); }
         Require(pane.mGen == generation && pane.mEntries.data() == entries, "repeated zoom preserves folder generation and entries");
         Require(grid.Selection() == 10, "selection survives interrupted zoom transitions");
@@ -875,6 +944,12 @@ struct GalleryIntegrationTests {
             const float zoom = view->mN, xOffset = view->mXOff, yOffset = view->mYOff;
             const CString media = doc->mPathName;
             const UINT openGeneration = doc->mOpenGeneration;
+            const auto playbackTimer = view->mTimerID;
+            for (UINT command : {q1view::ID_UI_APPEARANCE_DARK,q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
+                frame->SendMessage(WM_COMMAND,command);
+                Require(view->mIsPlaying && view->mTimerID==playbackTimer && doc->mOpenGeneration==openGeneration && doc->mPathName==media,
+                    "theme switch during playback retains timer, decoder and media without reopening");
+            }
             for (int mode = 0; mode < pane.ViewStepCount(); ++mode) {
                 pane.NavigateTo(folder); pane.ApplyViewStep(mode, false);
                 const auto containsPath = [&](const CString& path) {

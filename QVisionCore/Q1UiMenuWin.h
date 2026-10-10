@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Q1UiFontWin.h"
+#include "Q1UiAppearanceWin.h"
 #include <oleacc.h>
 #include <memory>
 #include <vector>
@@ -68,6 +69,9 @@ class WindowsUiMenus {
 		return false;
 	}
 	void SyncMenu(HMENU menu, bool bar) {
+		MENUINFO background = {sizeof(background)}; background.fMask = MIM_BACKGROUND;
+		background.hbrBack = WindowsUiColorBrush(bar ? WindowsUiColor::Window : WindowsUiColor::Surface);
+		SetMenuInfo(menu, &background);
 		for (int position = 0; position < GetMenuItemCount(menu); ++position) {
 			MENUITEMINFOW info = {sizeof(info)};
 			info.fMask = MIIM_FTYPE | MIIM_DATA | MIIM_SUBMENU;
@@ -126,14 +130,17 @@ public:
 		SelectObject(draw->hDC, Font(item)); SetBkMode(draw->hDC, TRANSPARENT);
 		const bool disabled = (draw->itemState & (ODS_DISABLED | ODS_GRAYED)) != 0;
 		const bool selected = (draw->itemState & (ODS_SELECTED | ODS_HOTLIGHT)) != 0;
-		const int background = selected ? COLOR_HIGHLIGHT : (item->bar ? COLOR_MENUBAR : COLOR_MENU);
-		FillRect(draw->hDC, &draw->rcItem, GetSysColorBrush(background));
-		SetTextColor(draw->hDC, GetSysColor(disabled ? COLOR_GRAYTEXT : (selected ? COLOR_HIGHLIGHTTEXT : COLOR_MENUTEXT)));
+		const auto background = selected ? WindowsUiColor::Selection : (item->bar ? WindowsUiColor::Window : WindowsUiColor::Surface);
+		FillRect(draw->hDC, &draw->rcItem, WindowsUiColorBrush(background));
+		const auto foreground = selected ? (WindowsUiAppearanceState().HighContrast() ? WindowsUiColor::OnAccent : WindowsUiColor::Accent) :
+			disabled ? WindowsUiColor::Muted : WindowsUiColor::Text;
+		SetTextColor(draw->hDC, WindowsUiColorValue(foreground));
+		if (disabled && WindowsUiAppearanceState().HighContrast()) SetTextColor(draw->hDC, GetSysColor(COLOR_GRAYTEXT));
 		RECT rect = draw->rcItem;
 		if (item->type & MFT_SEPARATOR) {
 			rect.left += Px(28); rect.right -= Px(8);
 			rect.top = (rect.top + rect.bottom) / 2; rect.bottom = rect.top + 1;
-			FillRect(draw->hDC, &rect, GetSysColorBrush(COLOR_3DSHADOW)); return true;
+			FillRect(draw->hDC, &rect, WindowsUiColorBrush(WindowsUiColor::Border)); return true;
 		}
 		if (!item->bar) {
 			rect.left += Px(28); rect.right -= Px(24);

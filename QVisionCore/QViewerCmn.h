@@ -6,6 +6,7 @@
 
 #include "QImageScaling.h"
 #include "qimage_presets.h"
+#include "Q1UiAppearanceWin.h"
 
 namespace q1 {
 
@@ -19,21 +20,22 @@ namespace q1 {
 #define Q1UI_FONT_TEXT       _T("Segoe UI")
 #define Q1UI_FONT_MONO       _T("Cascadia Mono")
 
-#define Q1UI_COLOR_APP_BG        RGB(0xf3, 0xf6, 0xfb)
-#define Q1UI_COLOR_SURFACE       RGB(0xff, 0xff, 0xff)
-#define Q1UI_COLOR_SURFACE_ALT   RGB(0xf8, 0xfa, 0xfd)
-#define Q1UI_COLOR_BORDER        RGB(0xd8, 0xe0, 0xea)
-#define Q1UI_COLOR_BORDER_SOFT   RGB(0xea, 0xef, 0xf5)
-#define Q1UI_COLOR_TEXT          RGB(0x1f, 0x29, 0x37)
-#define Q1UI_COLOR_TEXT_MUTED    RGB(0x60, 0x6b, 0x7a)
-#define Q1UI_COLOR_ACCENT        RGB(0x25, 0x66, 0xd9)
-#define Q1UI_COLOR_ACCENT_SOFT   RGB(0xdb, 0xe7, 0xff)
-#define Q1UI_COLOR_WARNING       RGB(0xf5, 0x9e, 0x0b)
-#define Q1UI_COLOR_DANGER        RGB(0xdc, 0x26, 0x26)
-#define Q1UI_COLOR_SUCCESS       RGB(0x16, 0x9b, 0x62)
-#define Q1UI_COLOR_OVERLAY       RGB(0x20, 0x2a, 0x36)
-#define Q1UI_COLOR_OVERLAY_TEXT  RGB(0xf8, 0xfa, 0xfc)
-#define Q1UI_COLOR_CANVAS_BG     RGB(0xf7, 0xf9, 0xfc)
+#define Q1UI_COLOR_APP_BG        q1view::WindowsUiColorValue(q1view::WindowsUiColor::Window)
+#define Q1UI_COLOR_SURFACE       q1view::WindowsUiColorValue(q1view::WindowsUiColor::Surface)
+#define Q1UI_COLOR_SURFACE_ALT   q1view::WindowsUiColorValue(q1view::WindowsUiColor::SurfaceAlt)
+#define Q1UI_COLOR_BORDER        q1view::WindowsUiColorValue(q1view::WindowsUiColor::Boundary)
+#define Q1UI_COLOR_BORDER_SOFT   q1view::WindowsUiColorValue(q1view::WindowsUiColor::Border)
+#define Q1UI_COLOR_TEXT          q1view::WindowsUiColorValue(q1view::WindowsUiColor::Text)
+#define Q1UI_COLOR_TEXT_MUTED    q1view::WindowsUiColorValue(q1view::WindowsUiColor::Muted)
+#define Q1UI_COLOR_ACCENT        q1view::WindowsUiColorValue(q1view::WindowsUiColor::Accent)
+#define Q1UI_COLOR_ACCENT_TEXT   q1view::WindowsUiColorValue(q1view::WindowsUiColor::OnAccent)
+#define Q1UI_COLOR_ACCENT_SOFT   q1view::WindowsUiColorValue(q1view::WindowsUiColor::Selection)
+#define Q1UI_COLOR_WARNING       q1view::WindowsUiColorValue(q1view::WindowsUiColor::Warning)
+#define Q1UI_COLOR_DANGER        q1view::WindowsUiColorValue(q1view::WindowsUiColor::Danger)
+#define Q1UI_COLOR_SUCCESS       q1view::WindowsUiColorValue(q1view::WindowsUiColor::Success)
+#define Q1UI_COLOR_OVERLAY       q1view::WindowsUiColorValue(q1view::WindowsUiColor::Overlay)
+#define Q1UI_COLOR_OVERLAY_TEXT  q1view::WindowsUiColorValue(q1view::WindowsUiColor::OverlayText)
+#define Q1UI_COLOR_CANVAS_BG     q1view::WindowsUiColorValue(q1view::WindowsUiColor::Canvas)
 
 #define COLOR_PIXEL_TEXT   RGB(0xe8, 0xee, 0xf7)
 

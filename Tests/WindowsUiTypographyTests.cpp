@@ -4,9 +4,134 @@
 #include "../QVisionCore/Q1UiMenuWin.h"
 #include "../QVisionCore/Q1UiFrameWin.h"
 #include "../Viewer/ViewerWindowGeometry.h"
+#include "../QVisionCore/Q1UiAppearanceMenuWin.h"
+#include <cmath>
 
 static void Require(bool value, const char* message)
 { if (!value) { std::fprintf(stderr, "FAIL: %s\n", message); std::exit(1); } }
+
+static double Luminance(COLORREF color)
+{
+	auto linear = [](BYTE value) { const double c = value / 255.0; return c <= .04045 ? c / 12.92 : std::pow((c+.055)/1.055, 2.4); };
+	return .2126*linear(GetRValue(color)) + .7152*linear(GetGValue(color)) + .0722*linear(GetBValue(color));
+}
+static double Contrast(COLORREF a, COLORREF b)
+{ const double x = Luminance(a)+.05, y = Luminance(b)+.05; return (std::max)(x,y)/(std::min)(x,y); }
+
+static void TestAppearance()
+{
+	using namespace q1view;
+	Require(ValidWindowsUiAppearance(-1)==WindowsUiAppearance::System && ValidWindowsUiAppearance(99)==WindowsUiAppearance::System,
+		"invalid saved theme settings use safe defaults");
+	Require(ResolveWindowsUiDark(WindowsUiAppearance::System,true) && !ResolveWindowsUiDark(WindowsUiAppearance::System,false) &&
+		ResolveWindowsUiDark(WindowsUiAppearance::Dark,false) && !ResolveWindowsUiDark(WindowsUiAppearance::Light,true), "System follows Windows; explicit choices override it");
+	for (bool dark : {false,true}) {
+		const auto colors = ResolveWindowsUiPalette(dark);
+		auto color = [&](WindowsUiColor role) { return colors[size_t(role)]; };
+		for (auto background : {WindowsUiColor::Window,WindowsUiColor::Surface,WindowsUiColor::SurfaceAlt,WindowsUiColor::Selection})
+			for (auto text : {WindowsUiColor::Text,WindowsUiColor::Muted})
+				Require(Contrast(color(text),color(background)) >= 4.5, "Light/Dark normal and supporting text meet 4.5:1 contrast");
+		for (auto text : {WindowsUiColor::OverlayText,WindowsUiColor::Warning,WindowsUiColor::Danger,WindowsUiColor::Success})
+			Require(Contrast(color(text),color(WindowsUiColor::Overlay)) >= 4.5, "overlay and semantic status text meet 4.5:1 contrast");
+		Require(Contrast(color(WindowsUiColor::Boundary),color(WindowsUiColor::Surface)) >= 3.0 &&
+			Contrast(color(WindowsUiColor::Boundary),color(WindowsUiColor::SurfaceAlt)) >= 3.0, "essential control boundaries meet 3:1 contrast");
+		Require(Contrast(color(WindowsUiColor::Accent),color(WindowsUiColor::Selection)) >= 4.5 &&
+			Contrast(color(WindowsUiColor::OnAccent),color(WindowsUiColor::Accent)) >= 4.5, "selection and accent labels remain legible");
+		Require(Contrast(color(WindowsUiColor::CanvasText),color(WindowsUiColor::Canvas)) >= 4.5 &&
+			Contrast(color(WindowsUiColor::CanvasMuted),color(WindowsUiColor::Canvas)) >= 4.5, "empty-view text follows themed canvas brightness");
+		Require(color(WindowsUiColor::Canvas)==(dark ? RGB(24,24,24) : RGB(236,236,236)), "one theme selects matching UI and image-surround brightness");
+	}
+	for (auto theme : {WindowsUiAppearance::System,WindowsUiAppearance::Light,WindowsUiAppearance::Dark}) for (bool systemDark : {false,true}) {
+		const bool dark = ResolveWindowsUiDark(theme,systemDark);
+		Require(ResolveWindowsUiPalette(dark)[size_t(WindowsUiColor::Canvas)]==(dark ? RGB(24,24,24) : RGB(236,236,236)),
+			"System/Light/Dark resolve the entire theme including canvas together");
+	}
+	Require(WindowsUiSystemColor(WindowsUiColor::Canvas)==COLOR_WINDOW && WindowsUiSystemColor(WindowsUiColor::Text)==COLOR_WINDOWTEXT &&
+		WindowsUiSystemColor(WindowsUiColor::Selection)==COLOR_HIGHLIGHT && WindowsUiSystemColor(WindowsUiColor::OnAccent)==COLOR_HIGHLIGHTTEXT,
+		"high-contrast roles defer to Windows system colors");
+	struct Profile {
+		const wchar_t* m_pszRegistryKey;
+		int theme = 0, canvas = 2, canvasReads = 0;
+		UINT GetProfileInt(const wchar_t*, const wchar_t* key, int) { if (wcscmp(key,L"Theme")==0) return theme; ++canvasReads; return canvas; }
+		BOOL WriteProfileInt(const wchar_t*, const wchar_t* key, int value) { (wcscmp(key,L"Theme")==0 ? theme : canvas) = value; return TRUE; }
+	};
+	const std::wstring root = L"Q1ViewThemeTests-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
+	Profile profile{root.c_str()};
+	LoadWindowsUiAppearancePreferences(profile);
+	Require(SelectWindowsUiAppearanceCommand(ID_UI_APPEARANCE_DARK), "Viewer theme command saves shared preference");
+	Require(profile.theme==0 && profile.canvas==2 && profile.canvasReads==0, "shared theme leaves legacy profile and Canvas untouched");
+	WindowsUiAppearanceState().Initialize(0); LoadWindowsUiAppearancePreferences(profile);
+	Require(WindowsUiAppearanceCommandChecked(ID_UI_APPEARANCE_DARK), "saved theme restores on a new initialization");
+	if (!WindowsUiAppearanceState().HighContrast())
+		Require(WindowsUiColorValue(WindowsUiColor::Canvas)==RGB(24,24,24), "saved Light canvas cannot override the Dark theme after restart");
+	SelectWindowsUiAppearanceCommand(ID_UI_APPEARANCE_LIGHT); LoadWindowsUiAppearancePreferences(profile);
+	if (!WindowsUiAppearanceState().HighContrast())
+		Require(WindowsUiColorValue(WindowsUiColor::Canvas)==RGB(236,236,236), "saved Light theme restores matching light surround");
+	SelectWindowsUiAppearanceCommand(0);
+	for (UINT retired : {0x7803u,0x7804u,0x7805u}) SelectWindowsUiAppearanceCommand(retired);
+	Require(profile.theme==0 && profile.canvas==2 && WindowsUiAppearanceCommandChecked(ID_UI_APPEARANCE_LIGHT) &&
+		!WindowsUiAppearanceCommandChecked(0) && !WindowsUiAppearanceCommandChecked(0x7803),
+		"unrelated and retired canvas commands cannot modify preferences");
+	profile.theme = 2;
+	LoadWindowsUiAppearancePreferences(profile, false);
+	Require(WindowsUiAppearanceCommandChecked(ID_UI_APPEARANCE_LIGHT), "Comparator ignores conflicting legacy theme and follows Viewer shared preference");
+	const UINT sharedMessage = WindowsUiSharedThemeMessage();
+	Require(sharedMessage>=0xc000 && sharedMessage<=0xffff, "shared theme uses a registered cross-process message");
+	const std::wstring otherRoot = root + L"-Other";
+	LoadSharedWindowsUiTheme(otherRoot.c_str(), 2, false);
+	Require(WindowsUiAppearanceCommandChecked(ID_UI_APPEARANCE_SYSTEM), "Comparator-first startup defaults to System, not its legacy theme");
+	Require(WindowsUiSharedThemeMessage()!=sharedMessage, "different profile families have isolated notification messages");
+	LoadSharedWindowsUiTheme(otherRoot.c_str(), 2, true);
+	Require(WindowsUiAppearanceCommandChecked(ID_UI_APPEARANCE_DARK), "Viewer migrates legacy theme once when no shared preference exists");
+	LoadSharedWindowsUiTheme(otherRoot.c_str(), 1, true);
+	Require(WindowsUiAppearanceCommandChecked(ID_UI_APPEARANCE_DARK), "existing shared value wins over later legacy preferences");
+	HKEY malformed = nullptr;
+	Require(RegOpenKeyExW(HKEY_CURRENT_USER,(L"Software\\"+otherRoot+L"\\Q1View\\Appearance").c_str(),0,KEY_SET_VALUE,&malformed)==ERROR_SUCCESS,
+		"isolated malformed-theme fixture opens");
+	DWORD invalid = 99;
+	Require(RegSetValueExW(malformed,L"Theme",0,REG_DWORD,reinterpret_cast<const BYTE*>(&invalid),sizeof(invalid))==ERROR_SUCCESS,
+		"isolated invalid shared theme written");
+	Require(ReloadSharedWindowsUiTheme() && WindowsUiAppearanceCommandChecked(ID_UI_APPEARANCE_SYSTEM), "invalid shared value safely reloads as System");
+	const wchar_t invalidText[] = L"Dark";
+	Require(RegSetValueExW(malformed,L"Theme",0,REG_SZ,reinterpret_cast<const BYTE*>(invalidText),sizeof(invalidText))==ERROR_SUCCESS,
+		"isolated wrong-type shared theme written");
+	RegCloseKey(malformed);
+	LoadSharedWindowsUiTheme(otherRoot.c_str(), 2, true);
+	Require(WindowsUiAppearanceCommandChecked(ID_UI_APPEARANCE_SYSTEM), "wrong-type existing setting defaults to System instead of migrating stale legacy Dark");
+	for (const auto& isolatedRoot : {root,otherRoot}) {
+		RegDeleteKeyW(HKEY_CURRENT_USER,(L"Software\\"+isolatedRoot+L"\\Q1View\\Appearance").c_str());
+		RegDeleteKeyW(HKEY_CURRENT_USER,(L"Software\\"+isolatedRoot+L"\\Q1View").c_str());
+		RegDeleteKeyW(HKEY_CURRENT_USER,(L"Software\\"+isolatedRoot).c_str());
+	}
+	for (bool populated : {false,true}) {
+		HMENU options = CreatePopupMenu();
+		if (populated) AppendMenuW(options,MF_STRING,100,L"Allow Different Resolutions");
+		AppendWindowsUiThemeMenu(options);
+		Require(GetMenuItemCount(options)==(populated ? 3 : 1), "Options contains one Theme submenu with no duplicate appearance/background controls or leading separator");
+		HMENU theme = GetSubMenu(options,populated ? 2 : 0);
+		Require(theme && GetMenuItemCount(theme)==3 && GetMenuItemID(theme,0)==ID_UI_APPEARANCE_SYSTEM &&
+			GetMenuItemID(theme,1)==ID_UI_APPEARANCE_LIGHT && GetMenuItemID(theme,2)==ID_UI_APPEARANCE_DARK, "Theme offers exactly System, Light and Dark");
+		DestroyMenu(options);
+	}
+	// Warm all immutable brushes before checking that repeated switches do not leak.
+	for (int repeat=0;repeat<2;++repeat) {
+		const DWORD before = GetGuiResources(GetCurrentProcess(),GR_GDIOBJECTS);
+		for (int theme : {1,2}) {
+			WindowsUiAppearanceState().Initialize(theme);
+			for (int role=0;role<int(WindowsUiColor::Count);++role) {
+				const auto value = static_cast<WindowsUiColor>(role);
+				LOGBRUSH brush = {}; GetObject(WindowsUiColorBrush(value),sizeof(brush),&brush);
+				Require(brush.lbColor==WindowsUiColorValue(value), "cached native brushes match every theme choice");
+			}
+			BYTE pixels[9] = {}; FillWindowsUiCanvasBgr(pixels,sizeof(pixels));
+			const auto color = WindowsUiColorValue(WindowsUiColor::Canvas);
+			Require(pixels[0]==GetBValue(color) && pixels[1]==GetGValue(color) && pixels[2]==GetRValue(color) && pixels[6]==pixels[0], "BGR canvas fill preserves selected background color");
+		}
+		if (repeat) Require(GetGuiResources(GetCurrentProcess(),GR_GDIOBJECTS)==before, "repeated palette switches have bounded GDI resources");
+	}
+	WindowsUiAppearanceState().Initialize(0);
+	std::puts("Windows theme tests passed (contrast, system mapping, coupled canvas, legacy persistence, single menu, brush lifetime).");
+}
 
 static void TestMenus()
 {
@@ -57,7 +182,14 @@ static void TestMenus()
 	Require(menus.Draw(&draw) && GetCurrentObject(dc, OBJ_FONT) == original, "menu painter restores selected font");
 	MENUITEMINFOW radio = {sizeof(radio)}; radio.fMask = MIIM_FTYPE; radio.fType = MFT_OWNERDRAW | MFT_RADIOCHECK;
 	SetMenuItemInfoW(popup, 0, TRUE, &radio); draw.itemState = ODS_CHECKED;
-	Require(menus.Draw(&draw) && GetPixel(dc, 14, 15) == GetSysColor(COLOR_MENUTEXT), "selected radio marker is actually painted, not just stored in metadata");
+	Require(menus.Draw(&draw) && GetPixel(dc, 14, 15) == WindowsUiColorValue(WindowsUiColor::Text), "selected radio marker is actually painted, not just stored in metadata");
+	for (int theme : {1,2}) {
+		WindowsUiAppearanceState().Initialize(theme); menus.Sync(nullptr,root); draw.itemState = 0;
+		Require(menus.Draw(&draw) && GetPixel(dc,319,29)==WindowsUiColorValue(WindowsUiColor::Surface), "native popup rows repaint in explicit Light and Dark");
+		draw.itemState = ODS_SELECTED;
+		Require(menus.Draw(&draw) && GetPixel(dc,319,29)==WindowsUiColorValue(WindowsUiColor::Selection), "native selection uses the active palette");
+	}
+	WindowsUiAppearanceState().Initialize(0);
 	SelectObject(dc, oldBitmap); DeleteObject(bitmap); DeleteDC(dc); DestroyMenu(root);
 	// Pane/context popups are standalone roots, not frame-bar descendants.
 	HMENU standalone = CreatePopupMenu();
@@ -180,15 +312,15 @@ static void TestViewerDefaultMenu()
 	FrameTestHost host;
 	HMENU root = CreateMenu();
 	const wchar_t* labels[] = {L"&File", L"800&x600", L"YUV420", L"30.00f&ps", L"&View",
-		L"&Compare", L"&Help", L"800x600 (1.00x) \x00b7 Auto"};
+		L"&Options", L"&Compare", L"&Help", L"800x600 (1.00x) \x00b7 Auto"};
 	for (UINT i = 0; i < _countof(labels); ++i)
-		AppendMenuW(root, MF_STRING | (i >= 5 ? MF_RIGHTJUSTIFY : 0), 200+i, labels[i]);
+		AppendMenuW(root, MF_STRING | (i >= 6 ? MF_RIGHTJUSTIFY : 0), 200+i, labels[i]);
 	HWND window = CreateWindowExW(0, L"Q1View.FrameRegressionTest", L"Viewer startup measurement", WS_OVERLAPPEDWINDOW,
 		-20000, -20000, 900, 700, nullptr, root, GetModuleHandleW(nullptr), &host);
 	Require(window != nullptr, "realistic Viewer menu measurement host created");
 	host.frame.Initialize(window, host.menus);
 	for (int update = 0; update < 2; ++update) {
-		if (update) { InsertMenuW(root, 6, MF_BYPOSITION | MF_STRING | MF_RIGHTJUSTIFY, 299, L"&Update"); host.frame.Sync(); }
+		if (update) { InsertMenuW(root, 7, MF_BYPOSITION | MF_STRING | MF_RIGHTJUSTIFY, 299, L"&Update"); host.frame.Sync(); }
 		for (UINT dpi : {96u, 120u, 144u}) {
 			const int measured = host.frame.SingleRowMenuWidth(dpi, 1.0);
 			const auto size = q1view::ViewerDefaultContentSize(dpi, measured, {1920,1200});
@@ -209,9 +341,19 @@ static void TestViewerDefaultMenu()
 	DestroyWindow(window); if (IsMenu(root)) DestroyMenu(root);
 }
 
-int main()
+int wmain(int argc, wchar_t** argv)
 {
 	using namespace q1view;
+	if (argc==4 && wcscmp(argv[1],L"--shared-theme-write")==0) {
+		// Never allow integration helpers to touch production settings.
+		if (wcsncmp(argv[2],L"Q1View",6)!=0 || !wcsstr(argv[2],L"Tests")) return 2;
+		wchar_t* end = nullptr; const long choice = wcstol(argv[3],&end,10);
+		if (!end || *end || choice<0 || choice>2) return 2;
+		LoadSharedWindowsUiTheme(argv[2],0,false);
+		return SaveSharedWindowsUiTheme(static_cast<WindowsUiAppearance>(choice)) ? 0 : 1;
+	}
+	WindowsUiAppearanceState().Initialize(0);
+	TestAppearance();
 	TestMenus();
 	TestFrames();
 	TestViewerDefaultMenu();

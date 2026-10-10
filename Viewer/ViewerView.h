@@ -302,6 +302,8 @@ public:
 	afx_msg LRESULT OnPlayTimer(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnAutoplayVideo(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnTypographyChanged(WPARAM, LPARAM);
+	afx_msg LRESULT OnAppearanceChanged(WPARAM, LPARAM);
+	COLORREF mStaticScaleCanvasColor = 0xffffffff;
 };
 
 #ifndef _DEBUG  // debug version in ViewerView.cpp

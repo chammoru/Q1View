@@ -40,6 +40,12 @@ Decoded images and video show RGB values only.
 
 Choose **View → Image Scaling** or press `I` to cycle through **Auto**, **Smooth (Bilinear)**, and **Pixel Exact (Nearest)**. Auto uses bilinear sampling for moderate still-image reductions so thin document text remains legible, area sampling for reductions of 2x or more to suppress aliasing in large photos, and nearest sampling for pixel inspection and timed sources. The active choice appears beside the magnification readout and in the Qt status bar; at high zoom, `Auto→Pixel` confirms that Auto is displaying exact source pixels.
 
+### Theme (Windows Viewer and Comparator)
+
+In Viewer choose **Options → Theme**. This is the shared theme for both Viewer and Comparator; Comparator has no separate theme menu. **System** is the default and follows the Windows app theme. **Light** applies bright application colors and a light gray image surround (`#ECECEC`); **Dark** applies dark application colors and a dark gray image surround (`#181818`). One selection updates titles, application menus, panels, help, text, selection, metric graph colors and the exposed background around images together, including other running instances, without reopening sources or resetting zoom, pan, ROI, playback or comparison results. To change the theme while using Comparator alone, open Viewer. Viewer's **View** menu retains image-scaling controls, and Comparator retains its comparison-specific Options. Windows-owned file dialogs, system menus, scrollbars and popup chrome retain their OS appearance.
+
+Theme changes do not tint image pixels or alter color conversion, captured regions or metric inputs. Both applications use one saved preference, even when Comparator starts without Viewer running. Viewer imports its earlier theme on first use if no shared choice exists; Comparator's old independent theme and earlier separate image-background values are ignored. In Windows high-contrast mode, system colors take priority; the saved theme remains available when high contrast is turned off. These settings apply only to the Windows applications, not the Qt viewer.
+
 ### Controls
 
 Viewer includes a built-in control panel, opened with `?`.
