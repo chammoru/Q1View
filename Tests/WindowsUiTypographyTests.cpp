@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include "../QVisionCore/Q1UiMenuWin.h"
 #include "../QVisionCore/Q1UiFrameWin.h"
+#include "../Viewer/ViewerWindowGeometry.h"
 
 static void Require(bool value, const char* message)
 { if (!value) { std::fprintf(stderr, "FAIL: %s\n", message); std::exit(1); } }
@@ -120,6 +121,22 @@ static void TestFrames()
 		wchar_t name[80] = {}; GetWindowTextW(file, name, 80);
 		Require(wcscmp(name, L"&File") == 0, "real menu button exposes its accessible name");
 		Require(!IsWindowEnabled(GetDlgItem(host.frame.MenuHost(), 4)), "disabled zoom label cannot receive input");
+		const UINT actualDpi = q1view::WindowsUiDpi(window);
+		for (UINT dpi : {96u, 120u, 144u}) {
+			const int measured = host.frame.SingleRowMenuWidth(dpi, 1.0);
+			const SIZE available = {1920, 1200};
+			const auto roomy = q1view::ViewerDefaultContentSize(dpi, measured, available);
+			Require(roomy.cx >= measured + q1view::WindowsUiPixels(24, dpi) &&
+				roomy.cx >= q1view::WindowsUiPixels(800, dpi) && roomy.cy == q1view::WindowsUiPixels(600, dpi),
+				"Windows startup policy scales viewing area and measured menu clearance at 100/125/150 percent DPI");
+			const auto longMenu = q1view::ViewerDefaultContentSize(dpi, 1300, available);
+			Require(longMenu.cx >= 1300 + q1view::WindowsUiPixels(24, dpi), "startup width responds to measurement, not just a fixed 800-pixel width");
+			const SIZE tinyWorkArea = {500, 300};
+			const auto clamped = q1view::ViewerDefaultContentSize(dpi, measured, tinyWorkArea);
+			Require(clamped.cx == 500 && clamped.cy == 300, "startup size respects a small available work area");
+		}
+		const int normalWidth = host.frame.SingleRowMenuWidth(actualDpi, 1.0);
+		Require(host.frame.SingleRowMenuWidth(actualDpi, 2.25) > normalWidth, "enlarged typography still measures a wider row");
 		for (int width : {200, 320, 640, 1920}) {
 			SetWindowPos(window, nullptr, 0, 0, width, 480, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 			host.frame.Layout(); RECT client; GetClientRect(window, &client);
@@ -128,6 +145,8 @@ static void TestFrames()
 				Require(rects[i].left >= 0 && rects[i].right <= client.right && rects[i].bottom <= host.frame.Height() - host.frame.TitleHeight(), "narrow-window menu button stays within its wrapped row");
 				for (size_t j = i + 1; j < rects.size(); ++j) { RECT overlap; Require(!IntersectRect(&overlap, &rects[i], &rects[j]), "wrapped and right-aligned menu buttons never overlap"); }
 			}
+			if (client.right >= host.frame.SingleRowMenuWidth(actualDpi, q1view::WindowsUiSettings().Scale()))
+				for (const auto& rect : rects) Require(rect.top == 0, "measured single-row width agrees with actual responsive layout");
 		}
 		ModifyMenuW(root, 1, MF_BYPOSITION | MF_STRING, 100, L"3840x2160"); host.frame.Sync();
 		GetWindowTextW(GetDlgItem(host.frame.MenuHost(), 2), name, 80);
@@ -156,11 +175,46 @@ static void TestFrames()
 	std::puts("Windows custom-frame tests passed (native menu retention, accessible buttons, wrapping, full screen, caption GDI lifetime).");
 }
 
+static void TestViewerDefaultMenu()
+{
+	FrameTestHost host;
+	HMENU root = CreateMenu();
+	const wchar_t* labels[] = {L"&File", L"640&x480", L"YUV420", L"30.00f&ps", L"&View",
+		L"&Compare", L"&Help", L"640x480 (1.00x) \x00b7 Auto"};
+	for (UINT i = 0; i < _countof(labels); ++i)
+		AppendMenuW(root, MF_STRING | (i >= 5 ? MF_RIGHTJUSTIFY : 0), 200+i, labels[i]);
+	HWND window = CreateWindowExW(0, L"Q1View.FrameRegressionTest", L"Viewer startup measurement", WS_OVERLAPPEDWINDOW,
+		-20000, -20000, 900, 700, nullptr, root, GetModuleHandleW(nullptr), &host);
+	Require(window != nullptr, "realistic Viewer menu measurement host created");
+	host.frame.Initialize(window, host.menus);
+	for (int update = 0; update < 2; ++update) {
+		if (update) { InsertMenuW(root, 6, MF_BYPOSITION | MF_STRING | MF_RIGHTJUSTIFY, 299, L"&Update"); host.frame.Sync(); }
+		for (UINT dpi : {96u, 120u, 144u}) {
+			const int measured = host.frame.SingleRowMenuWidth(dpi, 1.0);
+			const auto size = q1view::ViewerDefaultContentSize(dpi, measured, {1920,1200});
+			Require(size.cx >= measured, "realistic Viewer menu, detailed zoom and optional Update fit chosen default width");
+			std::printf("Viewer normal menu DPI %u, Update %d: %d px; default width %ld px\n", dpi, update, measured, size.cx);
+		}
+		if (host.frame.Custom()) {
+			RECT outer, client; GetWindowRect(window, &outer); GetClientRect(window, &client);
+			const UINT dpi = q1view::WindowsUiDpi(window);
+			const auto size = q1view::ViewerDefaultContentSize(dpi, host.frame.SingleRowMenuWidth(dpi, 1.0), {1920,1200});
+			SetWindowPos(window, nullptr, 0,0, int(size.cx + (outer.right-outer.left-client.right)), 700,
+				SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+			host.frame.Layout();
+			if (q1view::WindowsUiSettings().Scale() == 1.0)
+				for (const auto& rect : host.frame.MenuRects()) Require(rect.top == 0, "realistic Viewer menu renders on one row at default width");
+		}
+	}
+	DestroyWindow(window); if (IsMenu(root)) DestroyMenu(root);
+}
+
 int main()
 {
 	using namespace q1view;
 	TestMenus();
 	TestFrames();
+	TestViewerDefaultMenu();
 	HDC dc = CreateCompatibleDC(nullptr);
 	Require(dc != nullptr, "GDI test DC");
 	const std::vector<WindowsUiHelpRow> rows = {

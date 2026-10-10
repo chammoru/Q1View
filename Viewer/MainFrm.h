@@ -244,6 +244,8 @@ public:
 	afx_msg void OnDropFiles(HDROP hDropInfo);
 	afx_msg void OnHelp();
 	void DrawMenuBar();
+	// One-time empty/default launch sizing; never used for resize or image open.
+	void SizeDefaultWindow();
 	afx_msg void OnMeasureItem(int, LPMEASUREITEMSTRUCT);
 	afx_msg void OnDrawItem(int, LPDRAWITEMSTRUCT);
 	afx_msg void OnInitMenuPopup(CMenu*, UINT, BOOL);

@@ -84,6 +84,10 @@ BOOL CViewerApp::InitInstance()
 	// app was launched with /RegServer, /Register, /Unregserver or /Unregister.
 	if (!ProcessShellCommand(cmdInfo))
 		return FALSE;
+	// Final default menu labels are available now. Do not override the existing
+	// source-driven sizing when a file is opened from Explorer/command line.
+	if (cmdInfo.m_nShellCommand == CCommandLineInfo::FileNew)
+		static_cast<CMainFrame*>(m_pMainWnd)->SizeDefaultWindow();
 
 	// The one and only window has been initialized, so show and update it
 	m_pMainWnd->ShowWindow(SW_SHOW);

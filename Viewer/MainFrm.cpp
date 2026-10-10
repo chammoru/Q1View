@@ -26,6 +26,7 @@
 #include "Q1ViewVersion.h"
 #include "qimage_util.h"
 #include "Q1UiHelpWin.h"
+#include "ViewerWindowGeometry.h"
 
 #include "FrmSrc.h"
 
@@ -659,16 +660,50 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 
 	cs.dwExStyle &= ~WS_EX_CLIENTEDGE;
 
-	// The window always opens at the decided size; the drawer (if visible on
-	// launch) takes its width from the image area rather than growing the
-	// window, matching the Qt viewer (issue #76).
-	CRect rcClient(0, 0, VIEWER_DEF_W, VIEWER_DEF_H);
+	// Bootstrap window footprint, independent of the 640x480 RAW defaults.
+	// Empty launches refine this after menu creation, using actual DPI/text
+	// measurements. The drawer continues to consume the existing image area.
+	CRect rcClient(0, 0, q1view::ViewerDefaultWindowWidthDip, q1view::ViewerDefaultWindowHeightDip);
 	::AdjustWindowRectEx(&rcClient, cs.style, TRUE, cs.dwExStyle);
 
 	cs.cx = rcClient.Width();
 	cs.cy = rcClient.Height();
 
 	return TRUE;
+}
+
+void CMainFrame::SizeDefaultWindow()
+{
+	MONITORINFO monitor = {sizeof(monitor)};
+	if (!::GetMonitorInfo(::MonitorFromWindow(m_hWnd, MONITOR_DEFAULTTONEAREST), &monitor))
+		return;
+	const UINT dpi = q1view::WindowsUiDpi(m_hWnd);
+	CRect outer, client;
+	GetWindowRect(outer); GetClientRect(client);
+	const int borderWidth = outer.Width() - client.Width();
+	const int borderHeight = outer.Height() - client.Height();
+	SIZE available = {
+		monitor.rcWork.right - monitor.rcWork.left - borderWidth,
+		monitor.rcWork.bottom - monitor.rcWork.top - borderHeight - mUiFrame.Height()
+	};
+	// Keep the normal default roomy; enlarged accessibility text still wraps
+	// rather than forcing a very wide launch or resizing the user's window.
+	const int menuWidth = mUiFrame.SingleRowMenuWidth(dpi, 1.0);
+	const int width = q1view::ViewerDefaultContentSize(dpi, menuWidth, available).cx + borderWidth;
+	// A bootstrap/narrow window may have more menu rows than the final width.
+	// Settle that width before reserving chrome, so content stays 600 DIP high.
+	if (width != outer.Width())
+		SetWindowPos(nullptr, 0, 0, width, outer.Height(), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+	RecalcLayout();
+	const int chrome = mUiFrame.Height();
+	available.cy = monitor.rcWork.bottom - monitor.rcWork.top - borderHeight - chrome;
+	const SIZE content = q1view::ViewerDefaultContentSize(dpi, menuWidth, available);
+	const int height = content.cy + chrome + borderHeight;
+	const int left = std::max(int(monitor.rcWork.left),
+		std::min(int(outer.left), int(monitor.rcWork.right) - width));
+	const int top = std::max(int(monitor.rcWork.top),
+		std::min(int(outer.top), int(monitor.rcWork.bottom) - height));
+	SetWindowPos(nullptr, left, top, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 BOOL CMainFrame::PreTranslateMessage(MSG *pMsg)

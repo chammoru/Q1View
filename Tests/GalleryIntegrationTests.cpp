@@ -12,6 +12,7 @@
 #include "QCvUtil.h"
 #include "QFileActionsWin.h"
 #include "QRecycleFilesWin.h"
+#include "../Viewer/ViewerWindowGeometry.h"
 #include <cmath>
 #include <cstdio>
 #include <stdexcept>
@@ -274,6 +275,52 @@ struct GalleryIntegrationTests {
         pane.mConfirmRecycle = confirm;
         pane.mReportRecycle = reportFailure;
     }
+    void DefaultWindowTests(CMainFrame* frame, CViewerView* view, CViewerDoc* doc) {
+        Require(doc->mPathName.IsEmpty() && doc->mW == 640 && doc->mH == 480,
+            "empty Windows launch retains 640x480 image and RAW default semantics");
+        Require(!frame->mDrawerVisible, "default launch keeps the drawer closed");
+        const UINT dpi = q1view::WindowsUiDpi(frame->m_hWnd);
+        CRect initial, content; frame->GetWindowRect(initial); frame->GetContentRect(content);
+        MONITORINFO monitor = {sizeof(monitor)};
+        Require(GetMonitorInfo(MonitorFromWindow(frame->m_hWnd, MONITOR_DEFAULTTONEAREST), &monitor) != FALSE,
+            "startup monitor work area available");
+        Require(initial.left >= monitor.rcWork.left && initial.top >= monitor.rcWork.top &&
+            initial.right <= monitor.rcWork.right && initial.bottom <= monitor.rcWork.bottom,
+            "default outer window fits the monitor work area");
+        const int menuWidth = frame->mUiFrame.SingleRowMenuWidth(dpi, 1.0);
+        CRect client; frame->GetClientRect(client);
+        const SIZE available = {
+            monitor.rcWork.right - monitor.rcWork.left - (initial.Width() - client.Width()),
+            monitor.rcWork.bottom - monitor.rcWork.top - (initial.Height() - client.Height()) - frame->mUiFrame.Height()
+        };
+        const auto expected = q1view::ViewerDefaultContentSize(dpi, menuWidth, available);
+        Require(content.Width() == expected.cx && content.Height() == expected.cy,
+            "real default viewing area matches measured DPI-scaled startup policy");
+        fprintf(report, "Startup DPI %u, text %.3f, content %dx%d, measured normal menu %d px\n",
+            dpi, q1view::WindowsUiSettings().Scale(), content.Width(), content.Height(), menuWidth);
+        if (q1view::WindowsUiSettings().Scale() == 1.0 && content.Width() >= menuWidth)
+            for (const auto& rect : frame->mUiFrame.MenuRects())
+                Require(rect.top == 0, "normal default launch menu stays on one row");
+        frame->OnToggleDrawer(); Pump(.25);
+        CRect withDrawer; frame->GetWindowRect(withDrawer);
+        Require(frame->mDrawerVisible && withDrawer == initial, "opening the startup drawer consumes existing window space");
+        frame->OnToggleDrawer(); Pump(.25);
+        CRect withoutDrawer; frame->GetWindowRect(withoutDrawer);
+        Require(!frame->mDrawerVisible && withoutDrawer == initial, "closing the startup drawer preserves default geometry");
+        frame->MoveWindow(initial.left, initial.top, q1view::WindowsUiPixels(320, dpi), initial.Height()); Pump(.1);
+        bool wrapped = false;
+        for (const auto& rect : frame->mUiFrame.MenuRects()) wrapped |= rect.top > 0;
+        Require(wrapped, "manual narrowing still wraps the application menu");
+        frame->SizeDefaultWindow(); Pump(.1);
+        CRect resizedContent; frame->GetContentRect(resizedContent);
+        Require(resizedContent.Width() == expected.cx && resizedContent.Height() == expected.cy,
+            "startup sizing recomputes chrome after a wrapped menu becomes wider");
+        frame->MoveWindow(initial); Pump(.1);
+        view->ToggleFullScreen(); Pump(.1); view->ToggleFullScreen(); Pump(.1);
+        CRect restored; frame->GetWindowRect(restored);
+        Require(restored == initial && doc->mW == 640 && doc->mH == 480 && doc->mPathName.IsEmpty(),
+            "full-screen exit restores default geometry without changing empty image state");
+    }
     void ChromeTests(CMainFrame* frame, CViewerView* view) {
         Require(frame->mUiFrame.Initialized() && frame->mUiFrame.Custom(), "real MFC Viewer uses the custom client-painted title");
         CRect content, splitter;
@@ -310,6 +357,20 @@ struct GalleryIntegrationTests {
         auto view = static_cast<CViewerView*>(frame->GetActiveView());
         auto doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
         Require(frame && view && doc, "real Viewer document/view created");
+        if (doc->mPathName.IsEmpty()) DefaultWindowTests(frame, view, doc);
+        else {
+            // The CI source-open path uses an image fixture. mOrigW/H are
+            // rotation bookkeeping (-1 before rotation), not source dimensions.
+            const auto source = q1::imreadW(doc->mPathName.GetString());
+            Require(!source.empty() && doc->mFrmSrc != nullptr &&
+                doc->mW == source.cols && doc->mH == source.rows,
+                "command-line image fixture launch retains its decoded source resolution");
+        }
+        wchar_t startupOnly[8] = {};
+        if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_STARTUP_ONLY", startupOnly, _countof(startupOnly))) {
+            fprintf(report, "Startup-only run; full gallery/GPU suite is separate\n");
+            return;
+        }
         frame->ShowWindow(SW_SHOWNOACTIVATE);
         frame->MoveWindow(20, 20, 1200, 850);
         if (!frame->mDrawerVisible) frame->OnToggleDrawer();
