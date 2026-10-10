@@ -1,6 +1,6 @@
 # Issue #136 — Windows Viewer default geometry
 
-Date: 2026-10-11. Branch: `codex/issue-136-default-window`, based on `origin/master` at `996ac76`. Windows MFC Viewer only; no Qt behavior, RAW defaults, release version or tag changes.
+Date: 2026-10-11. Branch: `codex/issue-136-default-window`, based on `origin/master` at `996ac76`. Windows MFC Viewer only; image/RAW defaults increased to 800×600 pixels following the user's scope update. Qt behavior remains unchanged. Local generated version remains `0.0.0-dev`; release v2.7.28 is stamped by the tagged Actions build.
 
 ## Implementation
 
@@ -30,7 +30,7 @@ The gallery workflow now runs menu measurement/policy tests and a short no-argum
 
 ## Remaining native visual verification
 
-The computer-use native connection was unavailable on two attempts (`failed to connect native pipe`, OS error 2). No Windows Settings, security policy or UI automation fallback was changed. Actual 125%/150% OS startup captures and visual review remain unverified; the explicit DPI table and actual 96-DPI MFC assertions are not substitutes. Keep the issue open until review/merge; no merge or release is authorized by this implementation request.
+The computer-use native connection was unavailable on two attempts (`failed to connect native pipe`, OS error 2). No Windows Settings, security policy or UI automation fallback was changed. Actual 125%/150% OS startup captures and visual review remain unverified; the explicit DPI table and actual 96-DPI MFC assertions are not substitutes. On 2026-10-11 the user reviewed the launched production Viewer, accepted it and explicitly requested release. Proceed with the merge and v2.7.28 release under that approval; native 125%/150% visual verification remains deferred, not claimed complete.
 
 The optional local version-generation script was blocked by this shell's execution policy. The existing generated header was inspected and remains `0.0.0-dev` / `0.0.0.0`; no policy was changed and no release version was stamped into the checkout.
 
