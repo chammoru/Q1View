@@ -11,7 +11,8 @@
 #include "QOcv.h"
 
 #include "qimage_cs.h"
-#include "qimage_presets.h" // shared VIEWER_DEF_W / VIEWER_DEF_H
+#include "qimage_presets.h"
+#include "ViewerDefaults.h"
 #include "FileChangeNotiThread.h"
 
 #define NUM_THREADS           3
@@ -19,7 +20,7 @@
 #define NUM_BUFFER_POOL       (NUM_THREADS * 3)
 // good, if the queue size is larger than pool size or equal to it
 #define NUM_BUFFER_QUEUE      (NUM_THREADS * 3)
-// VIEWER_DEF_W / VIEWER_DEF_H come from qimage_presets.h (shared with the Qt viewer).
+// Windows image/RAW dimensions come from ViewerDefaults.h; Qt is independent.
 #define VIEWER_DEF_FPS        30.0
 
 enum ID_MSG {

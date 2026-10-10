@@ -76,6 +76,23 @@ class WindowsUiFrame {
 	void RememberFocus(HWND window) {
 		if (window && window != mBar && !IsButton(window) && IsChild(mWindow, window)) mPreviousFocus = window;
 	}
+	std::vector<int> MeasureMenuWidths(UINT dpi, double scale) {
+		std::vector<int> widths(mButtons.size(), 0);
+		HDC dc = GetDC(mWindow);
+		if (!dc) return widths;
+		{
+			WindowsUiDcState saved(dc);
+			SelectObject(dc, mFonts.Get(WindowsUiFontRole::Body, dpi, scale));
+			for (size_t i = 0; i < widths.size(); ++i) {
+				const auto text = mMenus->Text(mMenu, UINT(i), true);
+				RECT measured = {};
+				DrawTextW(dc, text.c_str(), -1, &measured, DT_SINGLELINE | DT_CALCRECT);
+				widths[i] = int(measured.right) + WindowsUiPixels(16, dpi, scale);
+			}
+		}
+		ReleaseDC(mWindow, dc);
+		return widths;
+	}
 	void RestoreFocus() {
 		if (IsWindow(mPreviousFocus) && IsWindowVisible(mPreviousFocus)) SetFocus(mPreviousFocus);
 		mKeyboard = false;
@@ -180,6 +197,13 @@ public:
 	int TitleHeight() const { return mTitleHeight; }
 	HWND MenuHost() const { return mBar; }
 	const std::vector<RECT>& MenuRects() const { return mButtonRects; }
+	// Uses exactly the same text and padding measurement as responsive Layout.
+	// Callers may measure normal text independently of the user's enlargement.
+	int SingleRowMenuWidth(UINT dpi, double scale) {
+		int width = 0;
+		for (int button : MeasureMenuWidths(dpi, scale)) width += button;
+		return width;
+	}
 	void Initialize(HWND window, WindowsUiMenus& menus) {
 		mWindow = window; mMenus = &menus; mMenu = mOwnedMenu = ::GetMenu(window);
 		WNDCLASSW cls = {}; cls.hInstance = GetModuleHandleW(nullptr); cls.lpfnWndProc = BarProc;
@@ -233,18 +257,12 @@ public:
 		const int rowHeight = (std::max)(Px(30), WindowsUiPixels(20, dpi, scale) + Px(8));
 		mButtonRects.resize(mButtons.size());
 		int left = 0, top = 0;
-		HDC dc = GetDC(mWindow);
-		if (dc) {
-			WindowsUiDcState saved(dc); SelectObject(dc, mFonts.Get(WindowsUiFontRole::Body, mWindow));
-			for (size_t i = 0; i < mButtons.size(); ++i) {
-				auto text = mMenus->Text(mMenu, UINT(i), true);
-				RECT measured = {}; DrawTextW(dc, text.c_str(), -1, &measured, DT_SINGLELINE | DT_CALCRECT);
-				const int buttonWidth = (std::min)((std::max)(1, width), int(measured.right) + WindowsUiPixels(16, dpi, scale));
-				if (left && left + buttonWidth > width) { left = 0; top += rowHeight; }
-				mButtonRects[i] = {left, top, left + buttonWidth, top + rowHeight}; left += buttonWidth;
-			}
+		const auto widths = MeasureMenuWidths(dpi, scale);
+		for (size_t i = 0; i < mButtons.size(); ++i) {
+			const int buttonWidth = (std::min)((std::max)(1, width), widths[i]);
+			if (left && left + buttonWidth > width) { left = 0; top += rowHeight; }
+			mButtonRects[i] = {left, top, left + buttonWidth, top + rowHeight}; left += buttonWidth;
 		}
-		if (dc) ReleaseDC(mWindow, dc);
 		// Align the trailing group (Help, Compare, Update, zoom label) only when
 		// it fits on the same row; narrow windows wrap instead of overlapping.
 		for (size_t i = 0; i < mButtons.size(); ++i) if (Info(int(i)).fType & MFT_RIGHTJUSTIFY) {

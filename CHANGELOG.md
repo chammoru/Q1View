@@ -8,6 +8,14 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.7.28] — 2026-10-11
+
+### Changed
+
+- Windows Viewer: open an empty/default session with a DPI-scaled 800×600-class viewing area and measured single-row menu clearance, bounded by the monitor work area; increase the initial RAW/image resolution to 800×600 pixels, keep Qt defaults unchanged, and preserve narrow-window menu wrapping and the drawer inside the existing window. (issue #136)
+
+---
+
 ## [2.7.27] — 2026-10-04
 
 ### Changed
@@ -475,7 +483,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.27...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.28...HEAD
+[2.7.28]: https://github.com/chammoru/Q1View/compare/v2.7.27...v2.7.28
 [2.7.27]: https://github.com/chammoru/Q1View/compare/v2.7.26...v2.7.27
 [2.7.26]: https://github.com/chammoru/Q1View/compare/v2.7.25...v2.7.26
 [2.7.25]: https://github.com/chammoru/Q1View/compare/v2.7.24...v2.7.25

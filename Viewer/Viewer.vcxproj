@@ -264,6 +264,8 @@ copy /Y "$(ProjectDir)..\assets\fonts\Pretendard-LICENSE.txt" "$(TargetDir)Fonts
     <ClInclude Include="FileFinderThread.h" />
     <ClInclude Include="FrmProvideThread.h" />
     <ClInclude Include="MainFrm.h" />
+    <ClInclude Include="ViewerWindowGeometry.h" />
+    <ClInclude Include="ViewerDefaults.h" />
     <ClInclude Include="StoreUpdate.h" />
     <ClInclude Include="ThumbnailPane.h" />
     <ClInclude Include="GalleryGridCanvas.h" />

@@ -7,22 +7,32 @@ on:
       - 'Viewer/Gallery*'
       - 'Viewer/ThumbnailPane.*'
       - 'Viewer/MainFrm.*'
+      - 'Viewer/Viewer.cpp'
+      - 'Viewer/ViewerWindowGeometry.h'
+      - 'Viewer/ViewerDefaults.h'
       - 'Viewer/ViewerDoc.*'
       - 'Viewer/ViewerView.*'
       - 'Viewer/VidCap*'
       - 'QCommon/inc/QFileActionsWin.h'
+      - 'QVisionCore/Q1UiFrameWin.h'
       - 'Tests/Gallery*'
+      - 'Tests/WindowsUiTypographyTests*'
       - '.github/workflows/gallery-validation.yml'
   pull_request:
     paths:
       - 'Viewer/Gallery*'
       - 'Viewer/ThumbnailPane.*'
       - 'Viewer/MainFrm.*'
+      - 'Viewer/Viewer.cpp'
+      - 'Viewer/ViewerWindowGeometry.h'
+      - 'Viewer/ViewerDefaults.h'
       - 'Viewer/ViewerDoc.*'
       - 'Viewer/ViewerView.*'
       - 'Viewer/VidCap*'
       - 'QCommon/inc/QFileActionsWin.h'
+      - 'QVisionCore/Q1UiFrameWin.h'
       - 'Tests/Gallery*'
+      - 'Tests/WindowsUiTypographyTests*'
       - '.github/workflows/gallery-validation.yml'
   workflow_dispatch:
 
@@ -53,10 +63,26 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           ./Tests/bin/x64/Release/CoreRegressionTests.exe
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Menu measurement and startup sizing tests
+        run: |
+          msbuild Tests/WindowsUiTypographyTests.vcxproj /m /p:Configuration=Release /p:Platform=x64
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ./Tests/bin/x64/Release/WindowsUiTypographyTests.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Build integration-test Viewer
         run: |
           msbuild Viewer/Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:Q1ViewGalleryTests=true
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Default Viewer geometry integration tests
+        timeout-minutes: 1
+        run: |
+          $env:Q1VIEW_GALLERY_TEST_REPORT = "$env:RUNNER_TEMP/viewer-startup.txt"
+          $env:Q1VIEW_GALLERY_STARTUP_ONLY = '1'
+          $test = Start-Process ./Viewer/x64/Release/Viewer.exe -PassThru -WindowStyle Hidden
+          if (-not $test.WaitForExit(45000)) { throw 'Viewer startup test timed out' }
+          Get-Content $env:Q1VIEW_GALLERY_TEST_REPORT
+          Remove-Item Env:Q1VIEW_GALLERY_STARTUP_ONLY
+          if ($test.ExitCode -ne 0) { throw "Viewer startup tests failed ($($test.ExitCode))" }
       - name: Real pane, GPU cache and playback integration tests
         timeout-minutes: 5
         run: |

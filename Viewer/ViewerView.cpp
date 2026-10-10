@@ -169,8 +169,8 @@ BEGIN_MESSAGE_MAP(CViewerView, CView)
 END_MESSAGE_MAP()
 
 CViewerView::CViewerView()
-: mW(VIEWER_DEF_W)
-, mH(VIEWER_DEF_H)
+: mW(q1view::ViewerDefaultImageWidth)
+, mH(q1view::ViewerDefaultImageHeight)
 , mD(0.f)
 , mN(ZOOM_RATIO(mD))
 , mFitToWindow(true)
@@ -178,8 +178,8 @@ CViewerView::CViewerView()
 , mXOff(.0f)
 , mYOff(.0f)
 , mLastSyncViewStateTick(0)
-, mWDst(VIEWER_DEF_W)
-, mHDst(VIEWER_DEF_H)
+, mWDst(q1view::ViewerDefaultImageWidth)
+, mHDst(q1view::ViewerDefaultImageHeight)
 , mHProgress(0)
 , mBarColor(COLOR_PROGRESS_BAR)
 , mRgbBuf(NULL)
@@ -440,8 +440,8 @@ void CViewerView::AdjustWindowSize()
 	int wGap = curRcWin.Width() - curRcClient.Width();
 	int hGap = curRcWin.Height() - curRcClient.Height();
 
-	int wClient = max(VIEWER_DEF_W, pDoc->mW);
-	int hClient = max(VIEWER_DEF_H, pDoc->mH);
+	int wClient = max(q1view::ViewerDefaultImageWidth, pDoc->mW);
+	int hClient = max(q1view::ViewerDefaultImageHeight, pDoc->mH);
 
 	CRect rcWin(0, 0, wClient + drawerExtra + wGap, hClient + mHProgress + hGap);
 	::AdjustWindowRectEx(&rcWin, dsStyle, TRUE, dsStyleEx);

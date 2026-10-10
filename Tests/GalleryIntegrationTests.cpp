@@ -9,9 +9,11 @@
 #include "../Viewer/ThumbnailPane.h"
 #include "../Viewer/GalleryGridCanvas.h"
 #include "QViewerCmn.h"
+#include "QImageStr.h"
 #include "QCvUtil.h"
 #include "QFileActionsWin.h"
 #include "QRecycleFilesWin.h"
+#include "../Viewer/ViewerWindowGeometry.h"
 #include <cmath>
 #include <cstdio>
 #include <stdexcept>
@@ -274,6 +276,89 @@ struct GalleryIntegrationTests {
         pane.mConfirmRecycle = confirm;
         pane.mReportRecycle = reportFailure;
     }
+    void DefaultWindowTests(CMainFrame* frame, CViewerView* view, CViewerDoc* doc) {
+        Require(doc->mPathName.IsEmpty() && doc->mW == 800 && doc->mH == 600,
+            "empty Windows launch uses 800x600 image and RAW defaults, independent of UI DPI");
+        CString resolutionLabel;
+        frame->GetMenu()->GetMenuString(1, resolutionLabel, MF_BYPOSITION);
+        Require(resolutionLabel == L"800&x600", "startup resolution menu matches the RAW default");
+        const int preset = q1::image_resolution_idx(800, 600);
+        Require(preset >= 0 && (frame->mResolutionMenu.GetMenuState(ID_RESOLUTION_START + preset, MF_BYCOMMAND) & MF_CHECKED),
+            "800x600 preset is checked on startup");
+        Require(!frame->mDrawerVisible, "default launch keeps the drawer closed");
+        const UINT dpi = q1view::WindowsUiDpi(frame->m_hWnd);
+        CRect initial, content; frame->GetWindowRect(initial); frame->GetContentRect(content);
+        MONITORINFO monitor = {sizeof(monitor)};
+        Require(GetMonitorInfo(MonitorFromWindow(frame->m_hWnd, MONITOR_DEFAULTTONEAREST), &monitor) != FALSE,
+            "startup monitor work area available");
+        Require(initial.left >= monitor.rcWork.left && initial.top >= monitor.rcWork.top &&
+            initial.right <= monitor.rcWork.right && initial.bottom <= monitor.rcWork.bottom,
+            "default outer window fits the monitor work area");
+        const int menuWidth = frame->mUiFrame.SingleRowMenuWidth(dpi, 1.0);
+        CRect client; frame->GetClientRect(client);
+        const SIZE available = {
+            monitor.rcWork.right - monitor.rcWork.left - (initial.Width() - client.Width()),
+            monitor.rcWork.bottom - monitor.rcWork.top - (initial.Height() - client.Height()) - frame->mUiFrame.Height()
+        };
+        const auto expected = q1view::ViewerDefaultContentSize(dpi, menuWidth, available);
+        Require(content.Width() == expected.cx && content.Height() == expected.cy,
+            "real default viewing area matches measured DPI-scaled startup policy");
+        fprintf(report, "Startup DPI %u, text %.3f, content %dx%d, measured normal menu %d px\n",
+            dpi, q1view::WindowsUiSettings().Scale(), content.Width(), content.Height(), menuWidth);
+        if (q1view::WindowsUiSettings().Scale() == 1.0 && content.Width() >= menuWidth)
+            for (const auto& rect : frame->mUiFrame.MenuRects())
+                Require(rect.top == 0, "normal default launch menu stays on one row");
+        frame->OnToggleDrawer(); Pump(.25);
+        CRect withDrawer; frame->GetWindowRect(withDrawer);
+        Require(frame->mDrawerVisible && withDrawer == initial, "opening the startup drawer consumes existing window space");
+        frame->OnToggleDrawer(); Pump(.25);
+        CRect withoutDrawer; frame->GetWindowRect(withoutDrawer);
+        Require(!frame->mDrawerVisible && withoutDrawer == initial, "closing the startup drawer preserves default geometry");
+        frame->MoveWindow(initial.left, initial.top, q1view::WindowsUiPixels(320, dpi), initial.Height()); Pump(.1);
+        bool wrapped = false;
+        for (const auto& rect : frame->mUiFrame.MenuRects()) wrapped |= rect.top > 0;
+        Require(wrapped, "manual narrowing still wraps the application menu");
+        frame->SizeDefaultWindow(); Pump(.1);
+        CRect resizedContent; frame->GetContentRect(resizedContent);
+        Require(resizedContent.Width() == expected.cx && resizedContent.Height() == expected.cy,
+            "startup sizing recomputes chrome after a wrapped menu becomes wider");
+        frame->MoveWindow(initial); Pump(.1);
+        view->ToggleFullScreen(); Pump(.1); view->ToggleFullScreen(); Pump(.1);
+        CRect restored; frame->GetWindowRect(restored);
+        Require(restored == initial && doc->mW == 800 && doc->mH == 600 && doc->mPathName.IsEmpty(),
+            "full-screen exit restores default geometry without changing empty image state");
+        RawDefaultTests(frame, view, doc);
+        frame->MoveWindow(initial); Pump(.1);
+    }
+    void RawDefaultTests(CMainFrame* frame, CViewerView* view, CViewerDoc* doc) {
+        wchar_t temp[MAX_PATH]; GetTempPathW(MAX_PATH, temp);
+        CString root; root.Format(L"%sQ1View-raw-default-%lu-%llu\\", temp, GetCurrentProcessId(), GetTickCount64());
+        Require(CreateDirectoryW(root, nullptr) != FALSE, "isolated RAW-default fixture directory created");
+        auto writeRaw = [&](const CString& path, int width, int height) {
+            // One complete YUV420 frame; no dimensions in the default filename.
+            const std::vector<BYTE> pixels(size_t(width) * height * 3 / 2, 128);
+            CFile file;
+            Require(file.Open(path, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary) != FALSE,
+                "RAW-default fixture opened for writing");
+            file.Write(pixels.data(), UINT(pixels.size())); file.Close();
+        };
+        const CString unnamed = root + L"default.yuv";
+        const CString named = root + L"known_16x16_yuv420.yuv";
+        writeRaw(unnamed, 800, 600); writeRaw(named, 16, 16);
+        Require(AfxGetApp()->OpenDocumentFile(unnamed) != nullptr, "RAW without filename dimensions opens");
+        Await([&] { return view->mStableRgbBufferInfo.addr != nullptr; }, "default RAW frame is decoded and presented");
+        Require(doc->mFrmSrc && !doc->mFrmSrc->isFixed() && doc->mW == 800 && doc->mH == 600 &&
+            doc->mOrigSceneSize == 720000 && doc->mFrames == 1,
+            "unnamed RAW uses 800x600 pixels and correct YUV420 frame bytes/count");
+        Require(AfxGetApp()->OpenDocumentFile(named) != nullptr && doc->mW == 16 && doc->mH == 16 && doc->mFrames == 1,
+            "explicit RAW filename dimensions override the new default");
+        frame->ApplyResolution(320, 240);
+        Require(AfxGetApp()->OpenDocumentFile(unnamed) != nullptr && doc->mW == 320 && doc->mH == 240,
+            "unnamed RAW continues to honor a manually selected resolution");
+        frame->ApplyResolution(800, 600);
+        doc->CloseMediaForRecycle();
+        Require(DeleteFileW(unnamed) && DeleteFileW(named) && RemoveDirectoryW(root), "RAW-default fixtures cleaned up after releasing media");
+    }
     void ChromeTests(CMainFrame* frame, CViewerView* view) {
         Require(frame->mUiFrame.Initialized() && frame->mUiFrame.Custom(), "real MFC Viewer uses the custom client-painted title");
         CRect content, splitter;
@@ -310,6 +395,20 @@ struct GalleryIntegrationTests {
         auto view = static_cast<CViewerView*>(frame->GetActiveView());
         auto doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
         Require(frame && view && doc, "real Viewer document/view created");
+        if (doc->mPathName.IsEmpty()) DefaultWindowTests(frame, view, doc);
+        else {
+            // The CI source-open path uses an image fixture. mOrigW/H are
+            // rotation bookkeeping (-1 before rotation), not source dimensions.
+            const auto source = q1::imreadW(doc->mPathName.GetString());
+            Require(!source.empty() && doc->mFrmSrc != nullptr &&
+                doc->mW == source.cols && doc->mH == source.rows,
+                "command-line image fixture launch retains its decoded source resolution");
+        }
+        wchar_t startupOnly[8] = {};
+        if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_STARTUP_ONLY", startupOnly, _countof(startupOnly))) {
+            fprintf(report, "Startup-only run; full gallery/GPU suite is separate\n");
+            return;
+        }
         frame->ShowWindow(SW_SHOWNOACTIVATE);
         frame->MoveWindow(20, 20, 1200, 850);
         if (!frame->mDrawerVisible) frame->OnToggleDrawer();
