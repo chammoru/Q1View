@@ -61,8 +61,8 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_WM_MOVE()
 	ON_MESSAGE(q1view::WM_UI_TYPOGRAPHY_CHANGED, &CMainFrame::OnTypographyChanged)
 	ON_MESSAGE(q1view::WM_UI_APPEARANCE_CHANGED, &CMainFrame::OnAppearanceChanged)
-	ON_COMMAND_RANGE(q1view::ID_UI_APPEARANCE_SYSTEM, q1view::ID_UI_CANVAS_LIGHT, &CMainFrame::OnAppearanceCommand)
-	ON_UPDATE_COMMAND_UI_RANGE(q1view::ID_UI_APPEARANCE_SYSTEM, q1view::ID_UI_CANVAS_LIGHT, &CMainFrame::OnUpdateAppearanceCommand)
+	ON_COMMAND_RANGE(q1view::ID_UI_APPEARANCE_SYSTEM, q1view::ID_UI_APPEARANCE_DARK, &CMainFrame::OnAppearanceCommand)
+	ON_UPDATE_COMMAND_UI_RANGE(q1view::ID_UI_APPEARANCE_SYSTEM, q1view::ID_UI_APPEARANCE_DARK, &CMainFrame::OnUpdateAppearanceCommand)
 	ON_WM_TIMER()
 	ON_WM_DESTROY()
 	ON_WM_CREATE()
@@ -994,10 +994,10 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	// Options menu.
 	str.Format(_T("Allow Different Resolutions"));
 	mOptionsMenu.AppendMenu(MF_STRING, (UINT_PTR)ID_OPTIONS_DIFF_RESOLUTION, str);
-	q1view::AppendWindowsUiAppearanceMenus(mOptionsMenu.GetSafeHmenu());
+	q1view::AppendWindowsUiThemeMenu(mOptionsMenu.GetSafeHmenu());
 	mAppliedCanvasColor = Q1UI_COLOR_CANVAS_BG;
 
-	str.Format(_T("OPTIONS"));
+	str.Format(_T("&Options"));
 	GetMenu()->InsertMenu(MENU_POS_OPTIONS, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mOptionsMenu.m_hMenu, str);
 	DrawMenuBar();

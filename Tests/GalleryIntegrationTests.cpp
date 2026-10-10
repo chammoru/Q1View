@@ -473,7 +473,6 @@ struct GalleryIntegrationTests {
         Await([&] { std::lock_guard<std::mutex> lock(pane.mMutex); return pane.mTasks.empty() && pane.mOutstanding==0; },
             "visible thumbnail work settles before appearance checks");
         const auto theme = q1view::WindowsUiAppearanceState().Appearance();
-        const auto canvas = q1view::WindowsUiAppearanceState().Canvas();
         const auto selectedMedia = pane.SelectedMediaPaths();
         const auto scroll = grid.mLayout.scroll;
         std::map<int,std::pair<HBITMAP,ID2D1Bitmap1*>> cachedImages;
@@ -494,13 +493,18 @@ struct GalleryIntegrationTests {
         std::vector<BYTE> captureBytes;
         if (!captured.empty()) captureBytes.assign(captureBuffer,captureBuffer+captureSize);
         CRect appearanceBounds; frame->GetWindowRect(appearanceBounds);
-        for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,q1view::ID_UI_CANVAS_LIGHT,
-            q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_CANVAS_DARK,q1view::ID_UI_APPEARANCE_SYSTEM,q1view::ID_UI_CANVAS_NEUTRAL}) {
-            const auto oldCanvas = Q1UI_COLOR_CANVAS_BG;
+        HMENU options = GetSubMenu(frame->GetMenu()->GetSafeHmenu(),5);
+        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==1 &&
+            frame->mUiMenus.Text(options,0,true)==L"&Theme" && GetMenuItemCount(GetSubMenu(frame->GetMenu()->GetSafeHmenu(),4))==1,
+            "Viewer exposes only Options > Theme; View retains image scaling without appearance/background duplicates");
+        for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,
+            q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
             frame->SendMessage(WM_COMMAND,command); Pump(.08);
             Require(q1view::WindowsUiAppearanceCommandChecked(command), "real Viewer appearance command updates checked preference");
-            if (command<=q1view::ID_UI_APPEARANCE_DARK)
-                Require(oldCanvas==Q1UI_COLOR_CANVAS_BG, "Viewer UI theme leaves canvas brightness independent");
+            Require(Q1UI_COLOR_CANVAS_BG==q1view::WindowsUiColorValue(q1view::WindowsUiColor::Canvas) &&
+                (q1view::WindowsUiAppearanceState().HighContrast() || Q1UI_COLOR_CANVAS_BG==
+                    (q1view::WindowsUiAppearanceState().Dark() ? RGB(24,24,24) : RGB(236,236,236))),
+                "Viewer theme changes UI and canvas brightness together");
             CRect current; frame->GetWindowRect(current);
             Require(current==appearanceBounds && view->mN==zoomBefore && view->mXOff==xBefore && view->mYOff==yBefore &&
                 doc->mFrmSrc==source && doc->mOpenGeneration==opened && doc->GetPathName()==original,
@@ -514,7 +518,7 @@ struct GalleryIntegrationTests {
             if (view->mRgbBuf && view->mWDst<view->mWCanvas && view->mHDst<view->mHCanvas) {
                 const COLORREF background = Q1UI_COLOR_CANVAS_BG;
                 Require(view->mRgbBuf[0]==GetBValue(background) && view->mRgbBuf[1]==GetGValue(background) &&
-                    view->mRgbBuf[2]==GetRValue(background), "actual scaled Viewer canvas repaints exposed pixels with independent background");
+                    view->mRgbBuf[2]==GetRValue(background), "actual scaled Viewer canvas repaints exposed pixels with matching theme background");
             }
             Require(pane.mGen==generation && pane.mEntries.data()==entries && pane.SelectedMediaPaths()==selectedMedia && grid.mLayout.scroll==scroll,
                 "appearance switch preserves folder entries, multi-selection and gallery scroll");
@@ -525,7 +529,7 @@ struct GalleryIntegrationTests {
             }
         }
         frame->SendMessage(WM_COMMAND,q1view::ID_UI_APPEARANCE_SYSTEM+UINT(theme));
-        frame->SendMessage(WM_COMMAND,q1view::ID_UI_CANVAS_NEUTRAL+UINT(canvas)); Pump(.08);
+        Pump(.08);
         view->mSelRegions = regionsBefore;
         for (int step : {2,4,3,5,2,1,4,1}) { pane.ApplyViewStep(step, false); Pump(.03); }
         Require(pane.mGen == generation && pane.mEntries.data() == entries, "repeated zoom preserves folder generation and entries");

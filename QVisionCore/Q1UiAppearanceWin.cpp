@@ -9,12 +9,10 @@
 namespace q1view {
 WindowsUiAppearance ValidWindowsUiAppearance(int value)
 { return value >= 0 && value <= 2 ? static_cast<WindowsUiAppearance>(value) : WindowsUiAppearance::System; }
-WindowsUiCanvas ValidWindowsUiCanvas(int value)
-{ return value >= 0 && value <= 2 ? static_cast<WindowsUiCanvas>(value) : WindowsUiCanvas::Neutral; }
 bool ResolveWindowsUiDark(WindowsUiAppearance choice, bool systemDark)
 { return choice == WindowsUiAppearance::Dark || (choice == WindowsUiAppearance::System && systemDark); }
 
-WindowsUiPalette ResolveWindowsUiPalette(bool dark, WindowsUiCanvas canvas)
+WindowsUiPalette ResolveWindowsUiPalette(bool dark)
 {
 	WindowsUiPalette colors = dark ? WindowsUiPalette{
 		RGB(24,24,24), RGB(32,32,32), RGB(38,38,38), RGB(48,48,48), RGB(56,56,56),
@@ -27,10 +25,10 @@ WindowsUiPalette ResolveWindowsUiPalette(bool dark, WindowsUiCanvas canvas)
 		RGB(37,102,217), RGB(255,255,255), RGB(234,241,255), RGB(135,90,0),
 		RGB(180,35,50), RGB(19,109,69), RGB(247,248,250), RGB(32,33,36), 0,0,0
 	};
-	colors[size_t(WindowsUiColor::Canvas)] = canvas == WindowsUiCanvas::Light ? RGB(236,236,236) :
-		canvas == WindowsUiCanvas::Dark ? RGB(24,24,24) : RGB(48,48,48);
-	colors[size_t(WindowsUiColor::CanvasText)] = canvas == WindowsUiCanvas::Light ? RGB(32,33,36) : RGB(242,242,242);
-	colors[size_t(WindowsUiColor::CanvasMuted)] = canvas == WindowsUiCanvas::Light ? RGB(88,97,110) : RGB(183,190,199);
+	// One theme controls chrome and the exposed image surround together.
+	colors[size_t(WindowsUiColor::Canvas)] = dark ? RGB(24,24,24) : RGB(236,236,236);
+	colors[size_t(WindowsUiColor::CanvasText)] = colors[size_t(WindowsUiColor::Text)];
+	colors[size_t(WindowsUiColor::CanvasMuted)] = colors[size_t(WindowsUiColor::Muted)];
 	return colors;
 }
 
@@ -51,13 +49,12 @@ int WindowsUiSystemColor(WindowsUiColor role)
 namespace {
 struct AppearanceState {
 	WindowsUiAppearance appearance = WindowsUiAppearance::System;
-	WindowsUiCanvas canvas = WindowsUiCanvas::Neutral;
 	bool systemDark = false, highContrast = false, uninitialize = false, subscribed = false;
 	Microsoft::WRL::ComPtr<ABI::Windows::UI::ViewManagement::IUISettings3> settings;
 	EventRegistrationToken token = {};
 	// Immutable role palettes for native menu backgrounds, bounded for the
 	// process lifetime. Never delete a brush while a native popup references it.
-	HBRUSH brushes[2][3][size_t(WindowsUiColor::Count)] = {};
+	HBRUSH brushes[2][size_t(WindowsUiColor::Count)] = {};
 	AppearanceState() {
 		uninitialize = SUCCEEDED(RoInitialize(RO_INIT_SINGLETHREADED));
 		Microsoft::WRL::ComPtr<IInspectable> instance;
@@ -76,16 +73,15 @@ struct AppearanceState {
 	~AppearanceState() {
 		if (subscribed) settings->remove_ColorValuesChanged(token);
 		settings.Reset();
-		for (auto& themes : brushes) for (auto& palette : themes)
-			for (auto brush : palette) if (brush) DeleteObject(brush);
+		for (auto& palette : brushes) for (auto brush : palette) if (brush) DeleteObject(brush);
 		if (uninitialize) RoUninitialize();
 	}
 };
 AppearanceState& State() { static AppearanceState state; return state; }
 }
 
-void WindowsUiAppearanceSettings::Initialize(int appearance, int canvas)
-{ State().appearance = ValidWindowsUiAppearance(appearance); State().canvas = ValidWindowsUiCanvas(canvas); RefreshSystem(); }
+void WindowsUiAppearanceSettings::Initialize(int appearance)
+{ State().appearance = ValidWindowsUiAppearance(appearance); RefreshSystem(); }
 void WindowsUiAppearanceSettings::RefreshSystem()
 {
 	auto& state = State();
@@ -96,17 +92,15 @@ void WindowsUiAppearanceSettings::RefreshSystem()
 		state.systemDark = 5 * foreground.G + 2 * foreground.R + foreground.B > 8 * 128;
 }
 void WindowsUiAppearanceSettings::SetAppearance(WindowsUiAppearance choice) { State().appearance = ValidWindowsUiAppearance(int(choice)); }
-void WindowsUiAppearanceSettings::SetCanvas(WindowsUiCanvas choice) { State().canvas = ValidWindowsUiCanvas(int(choice)); }
 WindowsUiAppearance WindowsUiAppearanceSettings::Appearance() const { return State().appearance; }
-WindowsUiCanvas WindowsUiAppearanceSettings::Canvas() const { return State().canvas; }
 bool WindowsUiAppearanceSettings::Dark() const { return !HighContrast() && ResolveWindowsUiDark(Appearance(), State().systemDark); }
 bool WindowsUiAppearanceSettings::HighContrast() const { return State().highContrast; }
 COLORREF WindowsUiAppearanceSettings::Color(WindowsUiColor role) const
-{ return HighContrast() ? GetSysColor(WindowsUiSystemColor(role)) : ResolveWindowsUiPalette(Dark(), Canvas())[size_t(role)]; }
+{ return HighContrast() ? GetSysColor(WindowsUiSystemColor(role)) : ResolveWindowsUiPalette(Dark())[size_t(role)]; }
 HBRUSH WindowsUiAppearanceSettings::Brush(WindowsUiColor role) const
 {
 	if (HighContrast()) return GetSysColorBrush(WindowsUiSystemColor(role));
-	auto& brush = State().brushes[Dark() ? 1 : 0][size_t(Canvas())][size_t(role)];
+	auto& brush = State().brushes[Dark() ? 1 : 0][size_t(role)];
 	if (!brush) brush = CreateSolidBrush(Color(role));
 	return brush;
 }

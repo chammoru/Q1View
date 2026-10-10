@@ -11,7 +11,6 @@ namespace q1view {
 
 constexpr UINT WM_UI_APPEARANCE_CHANGED = WM_APP + 118;
 enum class WindowsUiAppearance { System, Light, Dark };
-enum class WindowsUiCanvas { Neutral, Dark, Light };
 enum class WindowsUiColor {
 	Window, Surface, SurfaceAlt, Hover, Pressed, Border, Boundary, Text, Muted,
 	Accent, OnAccent, Selection, Warning, Danger, Success, Overlay, OverlayText,
@@ -20,21 +19,18 @@ enum class WindowsUiColor {
 
 using WindowsUiPalette = std::array<COLORREF, static_cast<size_t>(WindowsUiColor::Count)>;
 WindowsUiAppearance ValidWindowsUiAppearance(int value);
-WindowsUiCanvas ValidWindowsUiCanvas(int value);
 bool ResolveWindowsUiDark(WindowsUiAppearance choice, bool systemDark);
-WindowsUiPalette ResolveWindowsUiPalette(bool dark, WindowsUiCanvas canvas);
+WindowsUiPalette ResolveWindowsUiPalette(bool dark);
 int WindowsUiSystemColor(WindowsUiColor role);
 
 // Owned by the UI thread. No file/decoder/render/metric dependencies. WinRT
 // callbacks only post a message; system state is read on the receiving thread.
 class WindowsUiAppearanceSettings {
 public:
-	void Initialize(int appearance, int canvas);
+	void Initialize(int appearance);
 	void RefreshSystem();
 	void SetAppearance(WindowsUiAppearance choice);
-	void SetCanvas(WindowsUiCanvas choice);
 	WindowsUiAppearance Appearance() const;
-	WindowsUiCanvas Canvas() const;
 	bool Dark() const;
 	bool HighContrast() const;
 	COLORREF Color(WindowsUiColor role) const;

@@ -40,11 +40,11 @@ Decoded images and video show RGB values only.
 
 Choose **View → Image Scaling** or press `I` to cycle through **Auto**, **Smooth (Bilinear)**, and **Pixel Exact (Nearest)**. Auto uses bilinear sampling for moderate still-image reductions so thin document text remains legible, area sampling for reductions of 2x or more to suppress aliasing in large photos, and nearest sampling for pixel inspection and timed sources. The active choice appears beside the magnification readout and in the Qt status bar; at high zoom, `Auto→Pixel` confirms that Auto is displaying exact source pixels.
 
-### Appearance (Windows Viewer and Comparator)
+### Theme (Windows Viewer and Comparator)
 
-In Viewer choose **View → Appearance**; in Comparator choose **Options → Appearance**. **System** is the default and follows the Windows app theme. **Light** and **Dark** override it for this application. Titles, application menus, panels, help, text, selection and metric graph colors update without reopening the source or resetting zoom, pan, ROI, playback or comparison results. Windows-owned file dialogs, system menus, scrollbars and popup chrome retain their OS appearance.
+In both Viewer and Comparator choose **Options → Theme**. **System** is the default and follows the Windows app theme. **Light** applies bright application colors and a light gray image surround (`#ECECEC`); **Dark** applies dark application colors and a dark gray image surround (`#181818`). One selection updates titles, application menus, panels, help, text, selection, metric graph colors and the exposed background around images together, without reopening the source or resetting zoom, pan, ROI, playback or comparison results. Viewer's **View** menu retains image-scaling controls. Windows-owned file dialogs, system menus, scrollbars and popup chrome retain their OS appearance.
 
-The separate **Image background** submenu offers **Neutral gray** (`#303030`, default), **Dark gray** (`#181818`), or **Light gray** (`#ECECEC`). This changes only the exposed area around the image, not its pixels, color conversion or captured region. Changing the UI theme does not change this choice. Viewer and Comparator remember their own preferences independently. In Windows high-contrast mode, system colors take priority over both choices; the saved preferences remain available when high contrast is turned off. These settings apply only to the Windows applications, not the Qt viewer.
+Theme changes do not tint image pixels or alter color conversion, captured regions or metric inputs. Each application remembers its own theme. Any separately saved image-background value from the earlier preview is ignored, so it cannot override the selected theme after restart. In Windows high-contrast mode, system colors take priority; the saved theme remains available when high contrast is turned off. These settings apply only to the Windows applications, not the Qt viewer.
 
 ### Controls
 

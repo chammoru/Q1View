@@ -116,8 +116,8 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_WM_MOVE()
 	ON_MESSAGE(q1view::WM_UI_TYPOGRAPHY_CHANGED, &CMainFrame::OnTypographyChanged)
 	ON_MESSAGE(q1view::WM_UI_APPEARANCE_CHANGED, &CMainFrame::OnAppearanceChanged)
-	ON_COMMAND_RANGE(q1view::ID_UI_APPEARANCE_SYSTEM, q1view::ID_UI_CANVAS_LIGHT, &CMainFrame::OnAppearanceCommand)
-	ON_UPDATE_COMMAND_UI_RANGE(q1view::ID_UI_APPEARANCE_SYSTEM, q1view::ID_UI_CANVAS_LIGHT, &CMainFrame::OnUpdateAppearanceCommand)
+	ON_COMMAND_RANGE(q1view::ID_UI_APPEARANCE_SYSTEM, q1view::ID_UI_APPEARANCE_DARK, &CMainFrame::OnAppearanceCommand)
+	ON_UPDATE_COMMAND_UI_RANGE(q1view::ID_UI_APPEARANCE_SYSTEM, q1view::ID_UI_APPEARANCE_DARK, &CMainFrame::OnUpdateAppearanceCommand)
 	ON_WM_DESTROY()
 	ON_WM_TIMER()
 	ON_COMMAND(ID_TOGGLE_DRAWER, &CMainFrame::OnToggleDrawer)
@@ -599,6 +599,7 @@ CMainFrame::CMainFrame()
 	mResolutionMenu.CreatePopupMenu();
 	mCsMenu.CreatePopupMenu();
 	mFpsMenu.CreatePopupMenu();
+	mOptionsMenu.CreatePopupMenu();
 
 	BITMAPINFOHEADER &bmiHeader = mCopyBmi.bmiHeader;
 	bmiHeader.biSize = (DWORD)sizeof(BITMAPINFOHEADER);
@@ -613,6 +614,7 @@ CMainFrame::CMainFrame()
 CMainFrame::~CMainFrame()
 {
 	mFpsMenu.DestroyMenu();
+	mOptionsMenu.DestroyMenu();
 	mCsMenu.DestroyMenu();
 	mResolutionMenu.DestroyMenu();
 
@@ -820,6 +822,7 @@ void CMainFrame::OnFileOpen()
 #define MENU_POS_COLORSPACE 2
 #define MENU_POS_FPS        3
 #define MENU_POS_VIEW       4
+#define MENU_POS_OPTIONS    5
 
 void CMainFrame::UpdateResolutionLabel(int w, int h)
 {
@@ -991,7 +994,9 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	mFpsMenu.AppendMenu(MF_STRING, ID_FPS_START + i, CA2W(qfps_info_table[i]));
 
 	AddMainMenu();
-	q1view::AppendWindowsUiAppearanceMenus(GetMenu()->GetSubMenu(4)->GetSafeHmenu());
+	q1view::AppendWindowsUiThemeMenu(mOptionsMenu.GetSafeHmenu());
+	GetMenu()->InsertMenu(MENU_POS_OPTIONS, MF_BYPOSITION | MF_POPUP,
+		(UINT_PTR)mOptionsMenu.GetSafeHmenu(), _T("&Options"));
 	mAppliedCanvasColor = Q1UI_COLOR_CANVAS_BG;
 
 	CheckResolutionRadio(q1view::ViewerDefaultImageWidth, q1view::ViewerDefaultImageHeight);

@@ -29,7 +29,7 @@ Viewer and Comparator use coordinated Pretendard typography for app-drawn Korean
 
 An empty Windows Viewer session opens with a roomier, DPI-scaled 800×600-class viewing area and measured menu clearance, limited to the monitor work area. The thumbnail drawer stays inside that window. The initial resolution for RAW inputs without recognized dimensions is 800×600 pixels; filename dimensions and a manually selected resolution remain supported.
 
-Viewer and Comparator offer System, Light, and Dark application themes, with a separate neutral, dark, or light gray image background. Each app remembers its choices and respects Windows high contrast. Theme changes keep open media, zoom, selections, playback, and comparison results intact; image pixels and captured regions are not tinted. Windows-owned dialogs and popup chrome retain their OS appearance.
+Viewer and Comparator share an Options > Theme menu with System, Light, and Dark choices. One choice updates the application colors and image-surround brightness together. Each app remembers its theme and respects Windows high contrast. Theme changes keep open media, zoom, selections, playback, and comparison results intact; image pixels and captured regions are not tinted. Windows-owned dialogs and popup chrome retain their OS appearance.
 
 It is built for codec developers, imaging engineers, computer vision engineers, researchers, and QA teams who need to verify raw buffers, decoded frames, compression artifacts, color conversion, timing behavior, and small visual differences between processing pipelines.
 
@@ -113,7 +113,7 @@ TECHNICAL NOTES
 17. Cycle raw color space (N) and preset resolutions (D) without reopening the file
 18. Windows Viewer media thumbnail gallery with automatic directory refresh, multi-selection and comparison of two to four sources in Comparator, safe batch Recycle Bin actions, smooth sizing, bounded caching, compact folder notation, modern Korean/Latin typography, global shortcuts, and top-level logical-drive switching
 19. Coordinated Viewer, Comparator, photo, video, and raw-file icons designed for clear recognition across Windows taskbar, Start, and File Explorer surfaces
-20. Shared Korean/English typography, text-size scaling, and System/Light/Dark themes with independent gray image backgrounds
+20. Shared Korean/English typography, text-size scaling, and System/Light/Dark themes with matching image-surround brightness
 ```
 
 ---

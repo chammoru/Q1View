@@ -94,15 +94,16 @@ int RunComparerTypographyTests() {
 		const auto* scan = doc->mFileScanThread;
 		std::vector<BYTE> secondOriginal(doc->mPane[1].rgbBuf,doc->mPane[1].rgbBuf+doc->mPane[1].rgbBufSize);
 		const auto theme = q1view::WindowsUiAppearanceState().Appearance();
-		const auto canvas = q1view::WindowsUiAppearanceState().Canvas();
 		CRect themeBounds; frame->GetWindowRect(themeBounds);
-		for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,q1view::ID_UI_CANVAS_LIGHT,
-			q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_CANVAS_DARK,q1view::ID_UI_APPEARANCE_SYSTEM,q1view::ID_UI_CANVAS_NEUTRAL}) {
-			const COLORREF oldCanvas = q1view::WindowsUiColorValue(q1view::WindowsUiColor::Canvas);
+		HMENU options = frame->mOptionsMenu.GetSafeHmenu();
+		Check(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && GetMenuItemCount(options)==3 &&
+			frame->mUiMenus.Text(options,2,true)==L"&Theme", "Comparer exposes the same Options > Theme location, retaining its existing comparison option");
+		for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,
+			q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
 			frame->SendMessage(WM_COMMAND,command); Pump(100);
 			Check(q1view::WindowsUiAppearanceCommandChecked(command), "actual appearance command updates checked preference");
-			if (command<=q1view::ID_UI_APPEARANCE_DARK)
-				Check(oldCanvas==q1view::WindowsUiColorValue(q1view::WindowsUiColor::Canvas), "Comparer UI theme leaves canvas brightness independent");
+			Check(q1view::WindowsUiAppearanceState().HighContrast() || q1view::WindowsUiColorValue(q1view::WindowsUiColor::Canvas)==
+				(q1view::WindowsUiAppearanceState().Dark() ? RGB(24,24,24) : RGB(236,236,236)), "Comparer theme changes UI and canvas brightness together");
 			CRect current; frame->GetWindowRect(current);
 			Check(current==themeBounds && doc->mN==n && doc->mD==d && doc->mXOff==x && doc->mYOff==y,
 				"appearance switch preserves Comparer geometry, zoom and pan");
@@ -114,7 +115,7 @@ int RunComparerTypographyTests() {
 				ssim==doc->mFrmCmpStrategy->CropScore(doc->mPane,doc->mPane+1,METRIC_SSIM_IDX,l,t,r,b), "appearance switch leaves actual PSNR and SSIM unchanged");
 		}
 		frame->SendMessage(WM_COMMAND,q1view::ID_UI_APPEARANCE_SYSTEM+UINT(theme));
-		frame->SendMessage(WM_COMMAND,q1view::ID_UI_CANVAS_NEUTRAL+UINT(canvas)); Pump(100);
+		Pump(100);
 		HWND menuButton = GetDlgItem(frame->mUiFrame.MenuHost(), 2);
 		const auto before = Pixels(menuButton);
 		const auto imageBefore = Pixels(doc->mPane[0].pView->m_hWnd);
@@ -159,7 +160,7 @@ int RunComparerTypographyTests() {
 			Check(doc->mPane[i].isAvail(), "A/B/C/D source pane remains available");
 			fourSources[i].assign(doc->mPane[i].rgbBuf,doc->mPane[i].rgbBuf+doc->mPane[i].rgbBufSize);
 		}
-		for (UINT command : {q1view::ID_UI_APPEARANCE_DARK,q1view::ID_UI_CANVAS_LIGHT,q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_CANVAS_DARK}) {
+		for (UINT command : {q1view::ID_UI_APPEARANCE_DARK,q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
 			frame->SendMessage(WM_COMMAND,command); Pump(100);
 			const COLORREF canvasColor = q1view::WindowsUiColorValue(q1view::WindowsUiColor::Canvas);
 			const DWORD expected = (DWORD(GetRValue(canvasColor))<<16) | (DWORD(GetGValue(canvasColor))<<8) | GetBValue(canvasColor);
@@ -169,13 +170,13 @@ int RunComparerTypographyTests() {
 				RECT client; GetClientRect(paneView->m_hWnd,&client);
 				const int y = paneView->mRcControls.bottom+5;
 				Check(y<client.bottom && pixels[size_t(y)*client.right+5]==expected,
-					"A/B/C/D presented exposed canvas matches independent background");
+					"A/B/C/D presented exposed canvas matches active theme background");
 				Check(fourSources[i].size()==doc->mPane[i].rgbBufSize && std::equal(fourSources[i].begin(),fourSources[i].end(),doc->mPane[i].rgbBuf),
 					"theme/background switching preserves all four source buffers");
 			}
 		}
 		frame->SendMessage(WM_COMMAND,q1view::ID_UI_APPEARANCE_SYSTEM+UINT(theme));
-		frame->SendMessage(WM_COMMAND,q1view::ID_UI_CANVAS_NEUTRAL+UINT(canvas)); Pump(100);
+		Pump(100);
 		fprintf(report, "Actual window DPI: %u; OS text factor: %.3f\n", q1view::WindowsUiDpi(frame->m_hWnd), q1view::WindowsUiSettings().Scale());
 		fprintf(report, "ALL COMPARER TYPOGRAPHY CHECKS PASSED\n"); fclose(report); return 0;
 	} catch(const std::exception& error) {
