@@ -6,6 +6,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Added
+
+- Windows Viewer and Comparator: choose persisted System, Light, or Dark appearance with independent neutral, dark, or light image backgrounds; use shared surface, text, selection, status, and graph colors while honoring Windows high contrast and preserving open images, zoom/pan, ROI, comparison results, playback, and thumbnail caches. (issue #118)
+
 ---
 
 ## [2.7.28] — 2026-10-11

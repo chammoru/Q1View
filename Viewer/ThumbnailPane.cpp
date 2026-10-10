@@ -67,6 +67,7 @@ BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_WM_TIMER()
 	ON_MESSAGE(WM_DPICHANGED_AFTERPARENT, &CThumbnailPane::OnDpiChanged)
 	ON_MESSAGE(q1view::WM_UI_TYPOGRAPHY_CHANGED, &CThumbnailPane::OnDpiChanged)
+	ON_MESSAGE(q1view::WM_UI_APPEARANCE_CHANGED, &CThumbnailPane::OnAppearanceChanged)
 	ON_NOTIFY_REFLECT(NM_DBLCLK, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(NM_RETURN, &CThumbnailPane::OnItemActivate)
 	ON_NOTIFY_REFLECT(LVN_GETINFOTIP, &CThumbnailPane::OnGetInfoTip)
@@ -211,6 +212,24 @@ void CThumbnailPane::RebuildFonts(UINT dpi)
 	lf.lfWeight = FW_SEMIBOLD;
 	lf.lfQuality = CLEARTYPE_NATURAL_QUALITY;
 	mExtFont.CreateFontIndirect(&lf);
+}
+
+LRESULT CThumbnailPane::OnAppearanceChanged(WPARAM, LPARAM)
+{
+	SetBkColor(Q1UI_COLOR_SURFACE_ALT); SetTextBkColor(Q1UI_COLOR_SURFACE_ALT); SetTextColor(Q1UI_COLOR_TEXT);
+	// Only regenerate UI badges in place. Keep photo indices, decoded caches,
+	// worker tasks, selection and scroll position unchanged.
+	if (mImages.GetSafeHandle()) {
+		auto replace = [this](int index, const CString& extension) {
+			HBITMAP image = MakePlaceholder(extension);
+			if (image) { ImageList_Replace(mImages.GetSafeHandle(), index, image, nullptr); DeleteObject(image); }
+		};
+		if (mLoadingImg >= 0) replace(mLoadingImg, _T(""));
+		for (const auto& badge : mBadgeByExt) replace(badge.second, badge.first);
+	}
+	Invalidate(FALSE);
+	if (mGrid && mGrid->GetSafeHwnd()) mGrid->Invalidate(FALSE);
+	return 0;
 }
 
 LRESULT CThumbnailPane::OnDpiChanged(WPARAM, LPARAM)
@@ -500,7 +519,7 @@ void CThumbnailPane::DrawItem(LPDRAWITEMSTRUCT dis)
 			pDC->SelectObject(op);
 
 			CString tag = ext; tag.MakeUpper();
-			pDC->SetTextColor(Q1UI_COLOR_ACCENT);
+			pDC->SetTextColor(q1view::WindowsUiAppearanceState().HighContrast() ? Q1UI_COLOR_ACCENT_TEXT : Q1UI_COLOR_ACCENT);
 			CFont *of = pDC->SelectObject(&mExtFont);
 			pDC->DrawText(tag, badge, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 			pDC->SelectObject(of);
@@ -511,7 +530,7 @@ void CThumbnailPane::DrawItem(LPDRAWITEMSTRUCT dis)
 		}
 		x += box + pad;
 
-		pDC->SetTextColor(Q1UI_COLOR_TEXT);
+		pDC->SetTextColor(sel && q1view::WindowsUiAppearanceState().HighContrast() ? Q1UI_COLOR_ACCENT_TEXT : Q1UI_COLOR_TEXT);
 		CFont *of = pDC->SelectObject(&mLabelFont);
 		CRect tr(x, rc.top, rc.right - 2, rc.bottom);
 		pDC->DrawText(PathFindFileName(e.path), tr,
@@ -532,7 +551,7 @@ void CThumbnailPane::DrawItem(LPDRAWITEMSTRUCT dis)
 			name = _T("[") + name + _T("]");
 		}
 
-		pDC->SetTextColor(Q1UI_COLOR_ACCENT);
+		pDC->SetTextColor(sel && q1view::WindowsUiAppearanceState().HighContrast() ? Q1UI_COLOR_ACCENT_TEXT : Q1UI_COLOR_TEXT);
 		CFont *of = pDC->SelectObject(&mFolderFont);
 		CRect tr(rc.left + pad, rc.top, rc.right - 2, rc.bottom);
 		pDC->DrawText(name, tr,
@@ -1762,7 +1781,9 @@ void CThumbnailPane::WorkerLoop()
 		}
 
 		HBITMAP hbmp = NULL;
-		try { hbmp = DecodeThumbnail(task.path, task.size, task.crop, Q1UI_COLOR_SURFACE_ALT); }
+		// Stable neutral letterboxing, independent of UI theme. Theme switches
+		// repaint cards but never discard previews or decode a folder again.
+		try { hbmp = DecodeThumbnail(task.path, task.size, task.crop, RGB(48,48,48)); }
 		catch (...) { LOGWRN("%s", "Thumbnail decode failed; retaining placeholder"); }
 		{ std::lock_guard<std::mutex> lock(mMutex); --mDecoding; }
 		mCv.notify_all();

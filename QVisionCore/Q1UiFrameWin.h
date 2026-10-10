@@ -119,7 +119,7 @@ class WindowsUiFrame {
 		}
 		if (!self) return DefWindowProcW(window, message, wp, lp);
 		if (message == WM_ERASEBKGND) {
-			RECT rect; GetClientRect(window, &rect); FillRect(reinterpret_cast<HDC>(wp), &rect, GetSysColorBrush(COLOR_MENUBAR)); return TRUE;
+			RECT rect; GetClientRect(window, &rect); FillRect(reinterpret_cast<HDC>(wp), &rect, WindowsUiColorBrush(WindowsUiColor::Window)); return TRUE;
 		}
 		if (message == WM_DRAWITEM) {
 			auto draw = *reinterpret_cast<DRAWITEMSTRUCT*>(lp);
@@ -286,8 +286,10 @@ public:
 		if (!Initialized()) return;
 		MARGINS margins = {}; margins.cyTopHeight = mCustom && Caption() ? mTitleHeight : 0;
 		DwmExtendFrameIntoClientArea(mWindow, &margins);
-		const COLORREF background = mCustom ? GetSysColor(COLOR_MENUBAR) : 0xffffffff;
-		const COLORREF foreground = mCustom ? GetSysColor(COLOR_MENUTEXT) : 0xffffffff;
+		const BOOL dark = WindowsUiAppearanceState().Dark();
+		DwmSetWindowAttribute(mWindow, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof(dark));
+		const COLORREF background = mCustom ? WindowsUiColorValue(WindowsUiColor::Window) : 0xffffffff;
+		const COLORREF foreground = mCustom ? WindowsUiColorValue(WindowsUiColor::Text) : 0xffffffff;
 		DwmSetWindowAttribute(mWindow, DWMWA_CAPTION_COLOR, &background, sizeof(background));
 		DwmSetWindowAttribute(mWindow, DWMWA_TEXT_COLOR, &foreground, sizeof(foreground));
 	}
@@ -308,7 +310,7 @@ public:
 		{
 		RECT title = {0, 0, client.right, mTitleHeight};
 		WindowsUiDcState saved(dc);
-		FillRect(dc, &title, GetSysColorBrush(COLOR_MENUBAR));
+		FillRect(dc, &title, WindowsUiColorBrush(WindowsUiColor::Window));
 		const int right = captionButtons.left;
 		HICON icon = reinterpret_cast<HICON>(SendMessage(mWindow, WM_GETICON, ICON_SMALL2, 0));
 		if (!icon) icon = reinterpret_cast<HICON>(GetClassLongPtr(mWindow, GCLP_HICONSM));
@@ -316,7 +318,7 @@ public:
 		if (icon) DrawIconEx(dc, Px(10), (mTitleHeight - Px(20)) / 2, icon, Px(20), Px(20), 0, nullptr, DI_NORMAL);
 		title.left = Px(38); title.right = (std::max)(title.left, LONG(right - Px(8)));
 		SelectObject(dc, mFonts.Get(WindowsUiFontRole::Body, mWindow));
-		SetBkMode(dc, TRANSPARENT); SetTextColor(dc, GetSysColor(GetForegroundWindow() == mWindow ? COLOR_MENUTEXT : COLOR_GRAYTEXT));
+		SetBkMode(dc, TRANSPARENT); SetTextColor(dc, WindowsUiColorValue(GetForegroundWindow() == mWindow ? WindowsUiColor::Text : WindowsUiColor::Muted));
 		std::vector<wchar_t> text(GetWindowTextLengthW(mWindow) + 1);
 		GetWindowTextW(mWindow, text.data(), int(text.size()));
 		DrawTextW(dc, text.data(), -1, &title, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);

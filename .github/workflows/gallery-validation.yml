@@ -15,6 +15,11 @@ on:
       - 'Viewer/VidCap*'
       - 'QCommon/inc/QFileActionsWin.h'
       - 'QVisionCore/Q1UiFrameWin.h'
+      - 'QVisionCore/Q1UiAppearance*'
+      - 'QVisionCore/Q1UiMenuWin.h'
+      - 'QVisionCore/QViewerCmn.h'
+      - 'Comparator/**'
+      - 'Tests/ComparerTypographyIntegrationTests.cpp'
       - 'Tests/Gallery*'
       - 'Tests/WindowsUiTypographyTests*'
       - '.github/workflows/gallery-validation.yml'
@@ -31,6 +36,11 @@ on:
       - 'Viewer/VidCap*'
       - 'QCommon/inc/QFileActionsWin.h'
       - 'QVisionCore/Q1UiFrameWin.h'
+      - 'QVisionCore/Q1UiAppearance*'
+      - 'QVisionCore/Q1UiMenuWin.h'
+      - 'QVisionCore/QViewerCmn.h'
+      - 'Comparator/**'
+      - 'Tests/ComparerTypographyIntegrationTests.cpp'
       - 'Tests/Gallery*'
       - 'Tests/WindowsUiTypographyTests*'
       - '.github/workflows/gallery-validation.yml'
@@ -63,7 +73,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           ./Tests/bin/x64/Release/CoreRegressionTests.exe
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Menu measurement and startup sizing tests
+      - name: Appearance, menu measurement and startup sizing tests
         run: |
           msbuild Tests/WindowsUiTypographyTests.vcxproj /m /p:Configuration=Release /p:Platform=x64
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
@@ -97,6 +107,18 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           msbuild Comparator/Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Build integration-test Comparer
+        run: |
+          msbuild Comparator/Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:Q1ViewComparerTests=true /p:IntDir=x64/AppearanceTests/ /p:OutDir=x64/AppearanceTests/
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Comparer appearance and source-state integration tests
+        timeout-minutes: 2
+        run: |
+          $env:Q1VIEW_COMPARER_TEST_REPORT = "$env:RUNNER_TEMP/comparer-appearance.txt"
+          $test = Start-Process ./Comparator/x64/AppearanceTests/Comparator.exe -PassThru -WindowStyle Hidden
+          if (-not $test.WaitForExit(60000)) { throw 'Comparer appearance test timed out' }
+          Get-Content $env:Q1VIEW_COMPARER_TEST_REPORT
+          if ($test.ExitCode -ne 0) { throw "Comparer appearance tests failed ($($test.ExitCode))" }
       - name: Prepare portable test package
         run: |
           ./build/Package-Q1View.ps1 -OutputDir dist/gallery81
@@ -111,4 +133,7 @@ jobs:
         if: always()
         with:
           name: gallery81-test-report-${{ github.run_number }}
-          path: ${{ runner.temp }}/gallery-integration.txt
+          path: |
+            ${{ runner.temp }}/gallery-integration.txt
+            ${{ runner.temp }}/viewer-startup.txt
+            ${{ runner.temp }}/comparer-appearance.txt

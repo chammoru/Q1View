@@ -27,6 +27,7 @@
 #include "qimage_util.h"
 #include "Q1UiHelpWin.h"
 #include "ViewerWindowGeometry.h"
+#include "Q1UiAppearanceMenuWin.h"
 
 #include "FrmSrc.h"
 
@@ -114,6 +115,9 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_WM_SIZE()
 	ON_WM_MOVE()
 	ON_MESSAGE(q1view::WM_UI_TYPOGRAPHY_CHANGED, &CMainFrame::OnTypographyChanged)
+	ON_MESSAGE(q1view::WM_UI_APPEARANCE_CHANGED, &CMainFrame::OnAppearanceChanged)
+	ON_COMMAND_RANGE(q1view::ID_UI_APPEARANCE_SYSTEM, q1view::ID_UI_CANVAS_LIGHT, &CMainFrame::OnAppearanceCommand)
+	ON_UPDATE_COMMAND_UI_RANGE(q1view::ID_UI_APPEARANCE_SYSTEM, q1view::ID_UI_CANVAS_LIGHT, &CMainFrame::OnUpdateAppearanceCommand)
 	ON_WM_DESTROY()
 	ON_WM_TIMER()
 	ON_COMMAND(ID_TOGGLE_DRAWER, &CMainFrame::OnToggleDrawer)
@@ -432,6 +436,26 @@ LRESULT CMainFrame::OnTypographyChanged(WPARAM, LPARAM)
 	return 0;
 }
 
+void CMainFrame::OnAppearanceCommand(UINT command)
+{
+	q1view::SelectWindowsUiAppearanceCommand(*AfxGetApp(), command);
+	OnAppearanceChanged(0, 0);
+}
+void CMainFrame::OnUpdateAppearanceCommand(CCmdUI* command)
+{ command->Enable(TRUE); command->SetRadio(q1view::WindowsUiAppearanceCommandChecked(command->m_nID)); }
+LRESULT CMainFrame::OnAppearanceChanged(WPARAM, LPARAM)
+{
+	q1view::WindowsUiAppearanceState().RefreshSystem();
+	const COLORREF canvas = Q1UI_COLOR_CANVAS_BG;
+	const bool canvasChanged = canvas != mAppliedCanvasColor;
+	mAppliedCanvasColor = canvas;
+	mUiFrame.RefreshSettings(); mUiFrame.Sync();
+	SendMessageToDescendants(q1view::WM_UI_APPEARANCE_CHANGED, canvasChanged);
+	mHelpOverlay.Relayout();
+	RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN);
+	return 0;
+}
+
 void CMainFrame::DrawMenuBar()
 {
 	if (mUiFrame.Initialized()) { mUiFrame.Sync(); RecalcLayout(); return; }
@@ -618,6 +642,8 @@ LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
 	if (message == WM_CREATE && result != -1) { mUiFrame.Initialize(m_hWnd, mUiMenus); RecalcLayout(); }
 	mUiFrame.After(message);
+	if (message == WM_SETTINGCHANGE || message == WM_THEMECHANGED || message == WM_SYSCOLORCHANGE)
+		OnAppearanceChanged(0, 0);
 	if (message == WM_DPICHANGED || message == q1view::WM_UI_TYPOGRAPHY_CHANGED) { mUiFrame.RefreshSettings(); mUiFrame.Sync(); RecalcLayout(); }
 	return result;
 }
@@ -965,6 +991,8 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	mFpsMenu.AppendMenu(MF_STRING, ID_FPS_START + i, CA2W(qfps_info_table[i]));
 
 	AddMainMenu();
+	q1view::AppendWindowsUiAppearanceMenus(GetMenu()->GetSubMenu(4)->GetSafeHmenu());
+	mAppliedCanvasColor = Q1UI_COLOR_CANVAS_BG;
 
 	CheckResolutionRadio(q1view::ViewerDefaultImageWidth, q1view::ViewerDefaultImageHeight);
 	CheckCsRadio(qcsc_info_table[QIMG_DEF_CS_IDX].cs);

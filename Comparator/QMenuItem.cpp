@@ -80,10 +80,17 @@ BOOL CQMenuItem::Create(LPCTSTR lpszWindowName, CRect &rect, CWnd* pParentWnd, C
 
 void CQMenuItem::DefaultSetting(CDC *pDC, CString &str)
 {
+	LOGBRUSH brush = {};
+	if (!mNormBkBrush.GetLogBrush(&brush) || brush.lbColor != Q1UI_COLOR_SURFACE_ALT) {
+		mNormBkBrush.DeleteObject(); mNormBkBrush.CreateSolidBrush(Q1UI_COLOR_SURFACE_ALT);
+	}
+	if (!mOverBkBrush.GetLogBrush(&brush) || brush.lbColor != Q1UI_COLOR_ACCENT_SOFT) {
+		mOverBkBrush.DeleteObject(); mOverBkBrush.CreateSolidBrush(Q1UI_COLOR_ACCENT_SOFT);
+	}
 	q1view::EnsureWindowsUiFont(mFont, mMenu ? q1view::WindowsUiFontRole::Command :
 		q1view::WindowsUiFontRole::Caption, m_hWnd);
 	pDC->SetBkMode(TRANSPARENT);
-	pDC->SetTextColor(Q1UI_COLOR_TEXT);
+	pDC->SetTextColor(mMouseIn && q1view::WindowsUiAppearanceState().HighContrast() ? Q1UI_COLOR_ACCENT_TEXT : Q1UI_COLOR_TEXT);
 	pDC->SelectObject(mFont);
 	pDC->SelectObject(mBkBrush);
 	pDC->SelectStockObject(NULL_PEN);

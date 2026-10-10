@@ -251,6 +251,10 @@ public:
 	afx_msg void OnInitMenuPopup(CMenu*, UINT, BOOL);
 	afx_msg LRESULT OnMenuChar(UINT, UINT, CMenu*);
 	afx_msg LRESULT OnTypographyChanged(WPARAM, LPARAM);
+	afx_msg LRESULT OnAppearanceChanged(WPARAM, LPARAM);
+	afx_msg void OnAppearanceCommand(UINT command);
+	afx_msg void OnUpdateAppearanceCommand(CCmdUI* command);
+	COLORREF mAppliedCanvasColor = 0xffffffff;
 	afx_msg void OnFileOpen();
 	afx_msg void OnExecComparator();
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);

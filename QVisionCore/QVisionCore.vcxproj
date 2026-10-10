@@ -22,6 +22,7 @@
     <ClCompile Include="QHeifUtil.cpp" />
     <ClCompile Include="QCvUtil.cpp" />
     <ClCompile Include="Q1UiFontWin.cpp" />
+    <ClCompile Include="Q1UiAppearanceWin.cpp" />
     <ClCompile Include="QDerivative.cpp" />
     <ClCompile Include="QOcv.cpp" />
     <ClCompile Include="QImageStr.cpp" />
@@ -44,6 +45,8 @@
     <ClInclude Include="QOcv.h" />
     <ClInclude Include="QImageStr.h" />
     <ClInclude Include="Q1UiFontWin.h" />
+    <ClInclude Include="Q1UiAppearanceWin.h" />
+    <ClInclude Include="Q1UiAppearanceMenuWin.h" />
     <ClInclude Include="QViewerCmn.h" />
     <ClInclude Include="qimage_cs.h" />
     <ClInclude Include="qimage_metrics.h" />

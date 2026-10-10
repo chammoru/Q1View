@@ -43,6 +43,8 @@ void CQSplitterWnd::OnDrawSplitter(CDC* pDC, ESplitType nType, const CRect& rect
 		CRect rcTmp = rect;
 		rcTmp.InflateRect(-cxBorder, -cyBorder);
 		pDC->Draw3dRect(rcTmp, clr, clr);
+	} else if (pDC != NULL && (nType == splitBar || nType == splitIntersection || nType == splitBox)) {
+		pDC->FillSolidRect(rect, Q1UI_COLOR_APP_BG);
 	} else {
 		CSplitterWnd::OnDrawSplitter(pDC, nType, rect);
 	}

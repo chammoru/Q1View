@@ -166,6 +166,7 @@ BEGIN_MESSAGE_MAP(CViewerView, CView)
 	ON_MESSAGE(WM_VIEWER_PLAY_TIMER, CViewerView::OnPlayTimer)
 	ON_MESSAGE(WM_VIEWER_AUTOPLAY_VIDEO, CViewerView::OnAutoplayVideo)
 	ON_MESSAGE(q1view::WM_UI_TYPOGRAPHY_CHANGED, CViewerView::OnTypographyChanged)
+	ON_MESSAGE(q1view::WM_UI_APPEARANCE_CHANGED, CViewerView::OnAppearanceChanged)
 END_MESSAGE_MAP()
 
 CViewerView::CViewerView()
@@ -630,7 +631,7 @@ void CViewerView::ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID)
 	trackRect.left   = barMargin;
 	trackRect.bottom = mHClient - barMargin;
 	trackRect.right  = progressRight;
-	pDC->FillSolidRect(trackRect, Q1UI_COLOR_BORDER_SOFT);
+	pDC->FillSolidRect(trackRect, Q1UI_COLOR_BORDER);
 
 	// Hit-test region for seeks. Extends vertically over the whole band so
 	// clicks just above/below the slim track still seek, but horizontally
@@ -658,7 +659,7 @@ void CViewerView::ProgressiveDraw(CDC *pDC, CViewerDoc* pDoc, int frameID)
 		volTrack.bottom = trackRect.bottom;
 		volTrack.right  = textLeft - barMargin;
 		volTrack.left   = volTrack.right - volWidth;
-		pDC->FillSolidRect(volTrack, Q1UI_COLOR_BORDER_SOFT);
+		pDC->FillSolidRect(volTrack, Q1UI_COLOR_BORDER);
 
 		COLORREF fillColor = mVolumeMuted ? Q1UI_COLOR_WARNING : mBarColor;
 		float    fillLevel = mVolumeMuted ? 1.0f : mVolume;
@@ -734,7 +735,7 @@ void CViewerView::_ScaleRgb(BYTE *src, BYTE *dst, int sDst,
 	const bool hasExposedCanvas = mXDst > 0 || mYDst > 0 ||
 		mXDst + mWDst < mWCanvas || mYDst + mHDst < mHCanvas;
 	if (hasExposedCanvas)
-		memset(dst, 0xf7, sDst * mHClient * QIMG_DST_RGB_BYTES);
+		q1view::FillWindowsUiCanvasBgr(dst, size_t(sDst) * mHClient * QIMG_DST_RGB_BYTES);
 
 	// Visible range of the scaled image on the canvas.
 	if (mYDst > 0) {
@@ -1044,7 +1045,7 @@ void CViewerView::ScaleRgbBuf(BYTE *src, BYTE **pDst, q1::GridInfo &gi)
 		mStaticScaleSourceH == mH && mStaticScaleDstW == mWDst &&
 		mStaticScaleDstH == mHDst && mStaticScaleXDst == mXDst &&
 		mStaticScaleYDst == mYDst && mStaticScaleStride == sDst &&
-		mStaticScaleClientH == mHClient;
+		mStaticScaleClientH == mHClient && mStaticScaleCanvasColor == Q1UI_COLOR_CANVAS_BG;
 
 	if (!staticCacheHit) {
 		_ScaleRgb(src, *pDst, sDst, filter, directResize, gi);
@@ -1059,6 +1060,7 @@ void CViewerView::ScaleRgbBuf(BYTE *src, BYTE **pDst, q1::GridInfo &gi)
 			mStaticScaleYDst = mYDst;
 			mStaticScaleStride = sDst;
 			mStaticScaleClientH = mHClient;
+			mStaticScaleCanvasColor = Q1UI_COLOR_CANVAS_BG;
 		}
 	}
 
@@ -1231,10 +1233,10 @@ void CViewerView::DrawEmptyState(CDC *pDC)
 
 	pDC->SetBkMode(TRANSPARENT);
 	CFont *prevFont = pDC->SelectObject(titleFont);
-	pDC->SetTextColor(Q1UI_COLOR_TEXT);
+	pDC->SetTextColor(q1view::WindowsUiColorValue(q1view::WindowsUiColor::CanvasText));
 	pDC->DrawText(title, &titleRect, DT_SINGLELINE | DT_CENTER | DT_BOTTOM | DT_END_ELLIPSIS);
 	pDC->SelectObject(bodyFont);
-	pDC->SetTextColor(Q1UI_COLOR_TEXT_MUTED);
+	pDC->SetTextColor(q1view::WindowsUiColorValue(q1view::WindowsUiColor::CanvasMuted));
 	pDC->DrawText(body, &bodyRect, DT_SINGLELINE | DT_CENTER | DT_TOP | DT_END_ELLIPSIS);
 	pDC->SelectObject(prevFont);
 }
@@ -2571,6 +2573,14 @@ void CViewerView::OnSize(UINT nType, int cx, int cy)
 	mYDst = q1::DeterminDestPos(mHCanvas, mHDst, mYOff, mN);
 
 	mRcProgress.SetRect(0, mHCanvas, mWClient, mHClient);
+}
+
+LRESULT CViewerView::OnAppearanceChanged(WPARAM canvasChanged, LPARAM)
+{
+	if (canvasChanged) mStaticScaleValid = false;
+	mBarColor = Q1UI_COLOR_ACCENT;
+	Invalidate(FALSE);
+	return 0;
 }
 
 LRESULT CViewerView::OnTypographyChanged(WPARAM, LPARAM)

@@ -4,9 +4,78 @@
 #include "../QVisionCore/Q1UiMenuWin.h"
 #include "../QVisionCore/Q1UiFrameWin.h"
 #include "../Viewer/ViewerWindowGeometry.h"
+#include "../QVisionCore/Q1UiAppearanceMenuWin.h"
+#include <cmath>
 
 static void Require(bool value, const char* message)
 { if (!value) { std::fprintf(stderr, "FAIL: %s\n", message); std::exit(1); } }
+
+static double Luminance(COLORREF color)
+{
+	auto linear = [](BYTE value) { const double c = value / 255.0; return c <= .04045 ? c / 12.92 : std::pow((c+.055)/1.055, 2.4); };
+	return .2126*linear(GetRValue(color)) + .7152*linear(GetGValue(color)) + .0722*linear(GetBValue(color));
+}
+static double Contrast(COLORREF a, COLORREF b)
+{ const double x = Luminance(a)+.05, y = Luminance(b)+.05; return (std::max)(x,y)/(std::min)(x,y); }
+
+static void TestAppearance()
+{
+	using namespace q1view;
+	Require(ValidWindowsUiAppearance(-1)==WindowsUiAppearance::System && ValidWindowsUiAppearance(99)==WindowsUiAppearance::System &&
+		ValidWindowsUiCanvas(99)==WindowsUiCanvas::Neutral, "invalid saved appearance settings use safe defaults");
+	Require(ResolveWindowsUiDark(WindowsUiAppearance::System,true) && !ResolveWindowsUiDark(WindowsUiAppearance::System,false) &&
+		ResolveWindowsUiDark(WindowsUiAppearance::Dark,false) && !ResolveWindowsUiDark(WindowsUiAppearance::Light,true), "System follows Windows; explicit choices override it");
+	for (bool dark : {false,true}) for (auto canvas : {WindowsUiCanvas::Neutral,WindowsUiCanvas::Dark,WindowsUiCanvas::Light}) {
+		const auto colors = ResolveWindowsUiPalette(dark,canvas);
+		auto color = [&](WindowsUiColor role) { return colors[size_t(role)]; };
+		for (auto background : {WindowsUiColor::Window,WindowsUiColor::Surface,WindowsUiColor::SurfaceAlt,WindowsUiColor::Selection})
+			for (auto text : {WindowsUiColor::Text,WindowsUiColor::Muted})
+				Require(Contrast(color(text),color(background)) >= 4.5, "Light/Dark normal and supporting text meet 4.5:1 contrast");
+		for (auto text : {WindowsUiColor::OverlayText,WindowsUiColor::Warning,WindowsUiColor::Danger,WindowsUiColor::Success})
+			Require(Contrast(color(text),color(WindowsUiColor::Overlay)) >= 4.5, "overlay and semantic status text meet 4.5:1 contrast");
+		Require(Contrast(color(WindowsUiColor::Boundary),color(WindowsUiColor::Surface)) >= 3.0 &&
+			Contrast(color(WindowsUiColor::Boundary),color(WindowsUiColor::SurfaceAlt)) >= 3.0, "essential control boundaries meet 3:1 contrast");
+		Require(Contrast(color(WindowsUiColor::Accent),color(WindowsUiColor::Selection)) >= 4.5 &&
+			Contrast(color(WindowsUiColor::OnAccent),color(WindowsUiColor::Accent)) >= 4.5, "selection and accent labels remain legible");
+		Require(Contrast(color(WindowsUiColor::CanvasText),color(WindowsUiColor::Canvas)) >= 4.5 &&
+			Contrast(color(WindowsUiColor::CanvasMuted),color(WindowsUiColor::Canvas)) >= 4.5, "empty-view text follows independent canvas brightness");
+		Require(color(WindowsUiColor::Canvas)==ResolveWindowsUiPalette(!dark,canvas)[size_t(WindowsUiColor::Canvas)], "UI theme never changes image canvas choice");
+	}
+	Require(WindowsUiSystemColor(WindowsUiColor::Canvas)==COLOR_WINDOW && WindowsUiSystemColor(WindowsUiColor::Text)==COLOR_WINDOWTEXT &&
+		WindowsUiSystemColor(WindowsUiColor::Selection)==COLOR_HIGHLIGHT && WindowsUiSystemColor(WindowsUiColor::OnAccent)==COLOR_HIGHLIGHTTEXT,
+		"high-contrast roles defer to Windows system colors");
+	struct Profile {
+		int theme = 0, canvas = 0;
+		UINT GetProfileInt(const wchar_t*, const wchar_t* key, int) { return wcscmp(key,L"Theme")==0 ? theme : canvas; }
+		BOOL WriteProfileInt(const wchar_t*, const wchar_t* key, int value) { (wcscmp(key,L"Theme")==0 ? theme : canvas) = value; return TRUE; }
+	} profile;
+	LoadWindowsUiAppearancePreferences(profile);
+	SelectWindowsUiAppearanceCommand(profile,ID_UI_APPEARANCE_DARK);
+	SelectWindowsUiAppearanceCommand(profile,ID_UI_CANVAS_LIGHT);
+	Require(profile.theme==2 && profile.canvas==2, "menu commands save independent theme and canvas preferences");
+	WindowsUiAppearanceState().Initialize(0,0); LoadWindowsUiAppearancePreferences(profile);
+	Require(WindowsUiAppearanceCommandChecked(ID_UI_APPEARANCE_DARK) && WindowsUiAppearanceCommandChecked(ID_UI_CANVAS_LIGHT), "saved preferences restore on a new initialization");
+	SelectWindowsUiAppearanceCommand(profile,0);
+	Require(profile.theme==2 && profile.canvas==2 && !WindowsUiAppearanceCommandChecked(0), "unrelated commands cannot modify preferences");
+	// Warm all immutable brushes before checking that repeated switches do not leak.
+	for (int repeat=0;repeat<2;++repeat) {
+		const DWORD before = GetGuiResources(GetCurrentProcess(),GR_GDIOBJECTS);
+		for (int theme : {1,2}) for (int canvas : {0,1,2}) {
+			WindowsUiAppearanceState().Initialize(theme,canvas);
+			for (int role=0;role<int(WindowsUiColor::Count);++role) {
+				const auto value = static_cast<WindowsUiColor>(role);
+				LOGBRUSH brush = {}; GetObject(WindowsUiColorBrush(value),sizeof(brush),&brush);
+				Require(brush.lbColor==WindowsUiColorValue(value), "cached native brushes match every theme/canvas choice");
+			}
+			BYTE pixels[9] = {}; FillWindowsUiCanvasBgr(pixels,sizeof(pixels));
+			const auto color = WindowsUiColorValue(WindowsUiColor::Canvas);
+			Require(pixels[0]==GetBValue(color) && pixels[1]==GetGValue(color) && pixels[2]==GetRValue(color) && pixels[6]==pixels[0], "BGR canvas fill preserves selected background color");
+		}
+		if (repeat) Require(GetGuiResources(GetCurrentProcess(),GR_GDIOBJECTS)==before, "repeated palette switches have bounded GDI resources");
+	}
+	WindowsUiAppearanceState().Initialize(0,0);
+	std::puts("Windows appearance tests passed (contrast, system mapping, independent canvas, persistence, brush lifetime).");
+}
 
 static void TestMenus()
 {
@@ -57,7 +126,14 @@ static void TestMenus()
 	Require(menus.Draw(&draw) && GetCurrentObject(dc, OBJ_FONT) == original, "menu painter restores selected font");
 	MENUITEMINFOW radio = {sizeof(radio)}; radio.fMask = MIIM_FTYPE; radio.fType = MFT_OWNERDRAW | MFT_RADIOCHECK;
 	SetMenuItemInfoW(popup, 0, TRUE, &radio); draw.itemState = ODS_CHECKED;
-	Require(menus.Draw(&draw) && GetPixel(dc, 14, 15) == GetSysColor(COLOR_MENUTEXT), "selected radio marker is actually painted, not just stored in metadata");
+	Require(menus.Draw(&draw) && GetPixel(dc, 14, 15) == WindowsUiColorValue(WindowsUiColor::Text), "selected radio marker is actually painted, not just stored in metadata");
+	for (int theme : {1,2}) {
+		WindowsUiAppearanceState().Initialize(theme,0); menus.Sync(nullptr,root); draw.itemState = 0;
+		Require(menus.Draw(&draw) && GetPixel(dc,319,29)==WindowsUiColorValue(WindowsUiColor::Surface), "native popup rows repaint in explicit Light and Dark");
+		draw.itemState = ODS_SELECTED;
+		Require(menus.Draw(&draw) && GetPixel(dc,319,29)==WindowsUiColorValue(WindowsUiColor::Selection), "native selection uses the active palette");
+	}
+	WindowsUiAppearanceState().Initialize(0,0);
 	SelectObject(dc, oldBitmap); DeleteObject(bitmap); DeleteDC(dc); DestroyMenu(root);
 	// Pane/context popups are standalone roots, not frame-bar descendants.
 	HMENU standalone = CreatePopupMenu();
@@ -212,6 +288,8 @@ static void TestViewerDefaultMenu()
 int main()
 {
 	using namespace q1view;
+	WindowsUiAppearanceState().Initialize(0,0);
+	TestAppearance();
 	TestMenus();
 	TestFrames();
 	TestViewerDefaultMenu();

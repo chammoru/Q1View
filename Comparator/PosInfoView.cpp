@@ -92,13 +92,13 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 	COLORREF frameColor;
 	if (isCurFrame) {
 		// Pane-specific highlight so left vs right is obvious at a glance.
-		frameColor = isLeftPane ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_WARNING;
+		frameColor = isLeftPane || q1view::WindowsUiAppearanceState().HighContrast() ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_WARNING;
 	} else if (!pane->isAvail()) {
 		frameColor = Q1UI_COLOR_SURFACE;
 	} else if (parseDone) {
 		frameColor = Q1UI_COLOR_ACCENT_SOFT;
 	} else if (i < pane->frames) {
-		frameColor = Q1UI_COLOR_BORDER_SOFT;
+		frameColor = Q1UI_COLOR_SURFACE_ALT;
 	} else {
 		frameColor = Q1UI_COLOR_APP_BG;
 	}
@@ -121,17 +121,18 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 	}
 
 	COLORREF preColor = 0;
-	if (isCurFrame) {
-		// Use surface (near-white) on the saturated highlight fill for
-		// maximum contrast.
-		preColor = pDC->SetTextColor(Q1UI_COLOR_SURFACE);
+	const bool highlighted = isCurFrame || (parseDone && q1view::WindowsUiAppearanceState().HighContrast());
+	if (highlighted) {
+		// Highlight labels must use the corresponding foreground in both
+		// Light/Dark and Windows contrast themes.
+		preColor = pDC->SetTextColor(Q1UI_COLOR_ACCENT_TEXT);
 	}
 
 	CString numStr;
 	numStr.Format(_T("%d"), i);
 	pDC->DrawText(numStr, frameRect, DT_SINGLELINE | DT_CENTER |  DT_VCENTER);
 
-	if (isCurFrame)
+	if (highlighted)
 		pDC->SetTextColor(preColor);
 
 	frameRect->OffsetRect(0, mPosLinesPerFrame + 1);
@@ -172,6 +173,10 @@ void CPosInfoView::DrawFrameRect(CDC* pDC, CRect *clipBox, int w)
 
 void CPosInfoView::OnDraw(CDC* pDC)
 {
+	LOGPEN pen = {};
+	if (!mDiffPen->GetLogPen(&pen) || pen.lopnColor != Q1UI_COLOR_DANGER) {
+		mDiffPen->DeleteObject(); mDiffPen->CreatePen(PS_SOLID, 1, Q1UI_COLOR_DANGER);
+	}
 	q1view::EnsureWindowsUiFont(mPosNumFont, q1view::WindowsUiFontRole::Numeric, m_hWnd);
 	CComparatorDoc* pDoc = GetDocument();
 

@@ -142,8 +142,8 @@ void CComparatorView::ScaleNearestNeighbor(CComparatorDoc *pDoc, BYTE *src, BYTE
 {
 	long gap, yStart, yEnd, xStart, xEnd;
 
-	if (mYDst > 0 || mXDst > 0) // The image is smaller than the canvas.
-		memset(dst, 0xf7, sDst * mHClient * QIMG_DST_RGB_BYTES);
+	if (mYDst > 0 || mXDst > 0 || mXDst + pDoc->mWDst < mWCanvas || mYDst + pDoc->mHDst < mHCanvas)
+		q1view::FillWindowsUiCanvasBgr(dst, size_t(sDst) * mHClient * QIMG_DST_RGB_BYTES);
 
 	// Visible range of the scaled image on the canvas.
 	if (mYDst > 0) {
@@ -817,10 +817,10 @@ void CComparatorView::DrawEmptyPane(CDC *pDC, CComparatorDoc *pDoc)
 
 	pDC->SetBkMode(TRANSPARENT);
 	CFont *prevFont = pDC->SelectObject(titleFont);
-	pDC->SetTextColor(Q1UI_COLOR_TEXT);
+	pDC->SetTextColor(q1view::WindowsUiColorValue(q1view::WindowsUiColor::CanvasText));
 	pDC->DrawText(title, &titleRect, DT_SINGLELINE | DT_CENTER | DT_BOTTOM | DT_END_ELLIPSIS);
 	pDC->SelectObject(bodyFont);
-	pDC->SetTextColor(Q1UI_COLOR_TEXT_MUTED);
+	pDC->SetTextColor(q1view::WindowsUiColorValue(q1view::WindowsUiColor::CanvasMuted));
 	pDC->DrawText(body, &bodyRect, DT_SINGLELINE | DT_CENTER | DT_TOP | DT_END_ELLIPSIS);
 	pDC->SelectObject(prevFont);
 }
