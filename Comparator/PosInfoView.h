@@ -2,6 +2,7 @@
 
 #include "QViewerCmn.h"
 #include "Q1UiFontWin.h"
+#include "ThemeScrollBar.h"
 
 #define POS_LINE_MIN            12
 #define POS_NUM_FONT_H          POS_LINE_MIN
@@ -28,6 +29,7 @@ public:
 #endif
 #endif
 	void ConfigureScrollSizes(CComparatorDoc *pDoc);
+	CScrollBar* GetScrollBarCtrl(int bar) const override;
 	void DrawFrameRect(CDC* pDC, CRect *clipBox, int w);
 	void DrawEachRect(CDC* pDC,
 					ComparatorPane *pane,
@@ -38,6 +40,7 @@ public:
 					int i);
 
 private:
+	mutable CThemeScrollBar mTimelineScroll;
 	CPen *mDiffPen;
 	int mWClient, mHClient;
 	int mPosLines;
@@ -54,6 +57,7 @@ private:
 protected:
 	virtual void OnDraw(CDC* pDC);      // overridden to draw this view
 	virtual void OnInitialUpdate();     // first time after construct
+	BOOL OnScrollBy(CSize scroll, BOOL doScroll = TRUE) override;
 
 	DECLARE_MESSAGE_MAP()
 public:

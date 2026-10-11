@@ -274,6 +274,7 @@ copy /Y "$(ProjectDir)..\assets\fonts\Pretendard-LICENSE.txt" "$(TargetDir)Fonts
     <ClInclude Include="MatFrmSrc.h" />
     <ClInclude Include="MetricCal.h" />
     <ClInclude Include="PosInfoView.h" />
+    <ClInclude Include="ThemeScrollBar.h" />
     <ClInclude Include="QMenuItem.h" />
     <ClInclude Include="QImageDiff.h" />
     <ClInclude Include="QSplitterWnd.h" />

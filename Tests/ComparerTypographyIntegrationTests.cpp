@@ -5,6 +5,9 @@
 #include "../Comparator/ComparatorDoc.h"
 #include "../Comparator/ComparatorView.h"
 #include "../Comparator/FrmCmpStrategy.h"
+#include "../Comparator/PosInfoView.h"
+#include <oleacc.h>
+#pragma comment(lib, "oleacc.lib")
 #include "Q1UiFontWin.h"
 #include "Q1UiAppearanceMenuWin.h"
 #include "SharedThemeTestWriter.h"
@@ -47,6 +50,34 @@ std::vector<DWORD> Pixels(HWND window) {
 	Check(copied != FALSE, "presented window pixels read back");
 	return result;
 }
+
+struct RawTimelineFixture {
+	CString path;
+	explicit RawTimelineFixture(int count) {
+		wchar_t folder[MAX_PATH], name[MAX_PATH];
+		Check(GetTempPathW(MAX_PATH,folder) && GetTempFileNameW(folder,L"Q1T",0,name), "temporary timeline fixture allocated");
+		path = CString(name)+L"_16x16_yuv420.yuv";
+		DeleteFileW(name);
+		FILE* file = nullptr; Check(_wfopen_s(&file,path,L"wb")==0 && file, "RAW timeline fixture opened");
+		BYTE pixels[16*16*3/2]; memset(pixels,128,sizeof(pixels));
+		bool written = true;
+		for (int i=0;i<count;++i) { pixels[0]=BYTE(i); written = written && fwrite(pixels,1,sizeof(pixels),file)==sizeof(pixels); }
+		written = fclose(file)==0 && written; Check(written,"RAW timeline frames generated");
+	}
+	~RawTimelineFixture() { DeleteFileW(path); }
+};
+
+void CheckScrollbarAccessibility(CScrollBar* bar) {
+	wchar_t name[32] = {}; GetClassNameW(bar->m_hWnd,name,_countof(name));
+	Check(_wcsicmp(name,L"ScrollBar")==0, "themed scrollbar retains native SCROLLBAR window class");
+	IAccessible* accessible = nullptr;
+	Check(SUCCEEDED(AccessibleObjectFromWindow(bar->m_hWnd,OBJID_CLIENT,IID_IAccessible,reinterpret_cast<void**>(&accessible))) && accessible,
+		"native scrollbar accessibility provider remains available");
+	VARIANT self = {}, role = {}; self.vt=VT_I4; self.lVal=CHILDID_SELF;
+	const HRESULT result = accessible->get_accRole(self,&role);
+	const bool correct = SUCCEEDED(result) && role.vt==VT_I4 && role.lVal==ROLE_SYSTEM_SCROLLBAR;
+	VariantClear(&role); accessible->Release(); Check(correct,"native accessible role remains ScrollBar");
+}
 }
 
 int RunComparerTypographyTests() {
@@ -63,6 +94,9 @@ int RunComparerTypographyTests() {
 		// Normalize it before taking equal-size movement pixel baselines.
 		frame->ShowWindow(SW_RESTORE);
 		frame->MoveWindow(50, 50, 1100, 800); Pump(250);
+		auto* timeline = doc->mPosInfoView;
+		Check(timeline && timeline->GetScrollBarCtrl(SB_VERT) && !timeline->GetScrollBarCtrl(SB_VERT)->IsWindowVisible() &&
+			timeline->GetScrollPosition().y==0, "empty Timeline has no scrollbar or phantom scroll offset");
 		Check(true, "test frame initial layout completed");
 		wchar_t first[MAX_PATH], second[MAX_PATH];
 		GetFullPathNameW(L"docs\\images\\sample-colored-pencils-reference.png", MAX_PATH, first, nullptr);
@@ -74,6 +108,7 @@ int RunComparerTypographyTests() {
 		frame->ShowWindow(SW_RESTORE);
 		frame->MoveWindow(50, 50, 1100, 800); Pump(250);
 		Check(doc->mFrmCmpStrategy && doc->mPane[0].isAvail() && doc->mPane[1].isAvail(), "two real image sources and comparison strategy loaded");
+		Check(!timeline->GetScrollBarCtrl(SB_VERT)->IsWindowVisible(), "still-image Timeline does not show an unnecessary scrollbar");
 		doc->mHasSelection = true; doc->mSelStart = CPoint(2, 3); doc->mSelCur = CPoint(10, 12);
 		doc->mN = 3; doc->mD = 1; doc->mXOff = 7; doc->mYOff = 9;
 		int l, t, r, b; Check(doc->GetSelectionRect(l,t,r,b) && l==2 && t==3 && r==10 && b==12, "ROI uses committed source-pixel corners");
@@ -185,6 +220,97 @@ int RunComparerTypographyTests() {
 		}
 		SharedTheme(UINT(theme));
 		Pump(100);
+		{
+			RawTimelineFixture raw(120);
+			Check(doc->OpenMultiFiles({raw.path,raw.path})!=FALSE, "multi-frame RAW sources open for real Timeline scrolling");
+			frame->ShowWindow(SW_RESTORE); frame->MoveWindow(50,50,1100,800); Pump(250);
+			doc->KillPlayTimer();
+			Check(doc->mPane[0].frames==120 && doc->mPane[1].frames==120, "Timeline sources expose 120 real frames");
+			auto* bar = static_cast<CThemeScrollBar*>(timeline->GetScrollBarCtrl(SB_VERT));
+			Check(bar->IsWindowVisible() && timeline->GetScrollLimit(SB_VERT)>0, "overflowing Timeline shows its scrollbar");
+			CheckScrollbarAccessibility(bar);
+			CRect anchored; bar->GetWindowRect(anchored);
+			const int frameId = doc->mPane[0].curFrameID;
+			timeline->SendMessage(WM_MOUSEWHEEL,MAKEWPARAM(0,short(-WHEEL_DELTA)),0); Pump(40);
+			Check(timeline->GetScrollPosition().y>0 && doc->mPane[0].curFrameID==frameId, "wheel scrolls Timeline without advancing image frames");
+			bar->SendMessage(WM_KEYDOWN,VK_NEXT,0); Pump(40);
+			Check(timeline->GetScrollPosition().y>100, "native scrollbar Page Down keyboard interface remains functional");
+			timeline->SendMessage(WM_KEYDOWN,VK_HOME,0); Pump(40);
+			Check(timeline->GetScrollPosition().y==0, "Timeline Home returns to top");
+			for (unsigned choice : {2u,1u,0u}) {
+				timeline->SendMessage(WM_KEYDOWN,VK_NEXT,0);
+				const int retainedOffset = timeline->GetScrollPosition().y;
+				SharedTheme(choice);
+				Check(retainedOffset>0 && timeline->GetScrollPosition().y==retainedOffset,
+					"theme change preserves nonzero Timeline scroll offset");
+				bar->SendMessage(WM_MOUSELEAVE); bar->UpdateWindow();
+				const auto g = bar->GetGeometry();
+				const int x = g.client.right/2, y = (g.top+g.bottom)/2;
+				const auto before = Pixels(bar->m_hWnd);
+				const COLORREF track = q1view::WindowsUiColorValue(q1view::WindowsUiColor::SurfaceAlt);
+				const DWORD expected = (DWORD(GetRValue(track))<<16)|(DWORD(GetGValue(track))<<8)|GetBValue(track);
+				if (!q1view::WindowsUiAppearanceState().HighContrast())
+					Check(before[size_t(g.client.bottom/2)*g.client.right]==expected, "presented scrollbar track follows active Light/Dark/System palette");
+				// A synthetic in-app move does not move the physical pointer;
+				// sample synchronously before Windows posts its real leave event.
+				bar->SendMessage(WM_MOUSEMOVE,0,MAKELPARAM(x,y)); bar->UpdateWindow();
+				if (!q1view::WindowsUiAppearanceState().HighContrast())
+					Check(Pixels(bar->m_hWnd)!=before, "scrollbar hover has visible feedback");
+				// The native contrast-theme handler runs its own modal mouse loop;
+				// only our normal-theme handler accepts synchronous test messages.
+				if (!q1view::WindowsUiAppearanceState().HighContrast()) {
+					bar->SendMessage(WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(x,y));
+					bar->SendMessage(WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(x,g.client.bottom-g.arrow-2));
+					bar->SendMessage(WM_LBUTTONUP,0,MAKELPARAM(x,g.client.bottom-g.arrow-2)); Pump(40);
+					Check(timeline->GetScrollPosition().y==timeline->GetScrollLimit(SB_VERT), "thumb drag reaches exact Timeline end");
+					Check(!bar->IsTrackingThumb() && ::GetCapture()!=bar->m_hWnd,"thumb release clears dragging and capture");
+				}
+				CRect current; bar->GetWindowRect(current);
+				Check(current==anchored && doc->mPane[0].curFrameID==frameId, "scrollbar stays anchored and scrolling preserves current source frame");
+				timeline->SendMessage(WM_KEYDOWN,VK_HOME,0); Pump(30);
+				bar->SendMessage(WM_MOUSELEAVE);
+			}
+			if (!q1view::WindowsUiAppearanceState().HighContrast()) {
+				const auto g = bar->GetGeometry();
+				const int x = g.client.right/2, down = g.client.bottom-g.arrow/2;
+				bar->SendMessage(WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(x,down));
+				const int firstStep = timeline->GetScrollPosition().y;
+				bar->SendMessage(WM_TIMER,1,0);
+				Check(firstStep>0 && timeline->GetScrollPosition().y>firstStep,"arrow press and repeat scroll by lines");
+				bar->SendMessage(WM_LBUTTONUP,0,MAKELPARAM(x,down));
+				const int released = timeline->GetScrollPosition().y;
+				bar->SendMessage(WM_TIMER,1,0);
+				Check(::GetCapture()!=bar->m_hWnd && timeline->GetScrollPosition().y==released,"arrow release stops repeat and capture");
+				timeline->SendMessage(WM_KEYDOWN,VK_HOME,0);
+				bar->SendMessage(WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(x,g.client.bottom-g.arrow-2));
+				bar->SendMessage(WM_LBUTTONUP,0,MAKELPARAM(x,g.client.bottom-g.arrow-2));
+				Check(timeline->GetScrollPosition().y>firstStep,"track click scrolls a page rather than a line");
+				// Exercise the full 32-bit range plumbing without generating a
+				// huge video or changing any source frame buffers.
+				SCROLLINFO large = {sizeof(large),SIF_RANGE|SIF_PAGE|SIF_POS,0,200000,UINT(g.client.bottom),0};
+				bar->SetScrollInfo(&large);
+				const auto big = bar->GetGeometry();
+				bar->SendMessage(WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(x,(big.top+big.bottom)/2));
+				bar->SendMessage(WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(x,big.client.bottom-big.arrow-1));
+				Check(timeline->GetScrollLimit(SB_VERT)>65535 && timeline->GetScrollPosition().y==timeline->GetScrollLimit(SB_VERT),
+					"thumb tracking preserves positions above the 16-bit message limit");
+				bar->SendMessage(WM_CANCELMODE);
+				Check(!bar->IsTrackingThumb() && ::GetCapture()!=bar->m_hWnd,"cancel mode safely releases active thumb drag");
+				timeline->ConfigureScrollSizes(doc);
+				timeline->SendMessage(WM_KEYDOWN,VK_HOME,0);
+			}
+			SharedTheme(UINT(theme));
+			Check(doc->OpenMultiFiles({first,second})!=FALSE,"still images reopen after Timeline regression checks"); Pump(100);
+			Check(!bar->IsWindowVisible() && timeline->GetScrollPosition().y==0,"returning to still images hides scrollbar and clears offset");
+		}
+		{
+			RawTimelineFixture raw(2);
+			Check(doc->OpenMultiFiles({raw.path,raw.path})!=FALSE,"short video timeline fixture opens"); Pump(100);
+			doc->KillPlayTimer();
+			Check(!timeline->GetScrollBarCtrl(SB_VERT)->IsWindowVisible() && timeline->GetScrollPosition().y==0,
+				"all-fitting video Timeline has no phantom two-pixel scrollbar");
+			doc->OpenMultiFiles({first,second}); Pump(100);
+		}
 		fprintf(report, "Actual window DPI: %u; OS text factor: %.3f\n", q1view::WindowsUiDpi(frame->m_hWnd), q1view::WindowsUiSettings().Scale());
 		fprintf(report, "ALL COMPARER TYPOGRAPHY CHECKS PASSED\n"); fclose(report); return 0;
 	} catch(const std::exception& error) {

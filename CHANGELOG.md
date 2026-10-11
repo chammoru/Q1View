@@ -10,6 +10,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 - Windows Viewer and Comparator: choose a shared System, Light, or Dark theme from Viewer's Options > Theme menu; Comparator follows automatically without a duplicate theme menu. Application colors and image-surround brightness change together while honoring Windows high contrast and preserving source/capture pixels, zoom/pan, ROI, comparison results, playback, and thumbnail caches. (issue #118)
 
+- Windows Comparator: the Timeline scrollbar now matches the application theme, with hover and drag feedback, while retaining native keyboard and accessibility support and native rendering in Windows high contrast. Empty, still-image, and fully fitting timelines hide the scrollbar; wheel scrolling no longer applies its movement twice. (issue #118)
+
 ---
 
 ## [2.7.28] — 2026-10-11
