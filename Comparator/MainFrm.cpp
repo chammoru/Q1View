@@ -9,6 +9,7 @@
 #include "ComparatorView.h"
 #include "ComparatorViews.h"
 #include "MainFrm.h"
+#include "AnalysisLayout.h"
 
 #include "FrmsInfoView.h"
 #include "FrmInfoView.h"
@@ -508,9 +509,28 @@ void CMainFrame::OnSize(UINT nType, int cx, int cy)
 	// Enlarged text must not produce negative splitter dimensions in a small
 	// window. Cap the graph at one third of the content height so enlarged
 	// labels cannot consume almost all of the image canvas.
-	const int graphHeight = std::min(q1view::WindowsUiPixels(FRAMES_INFO_H, dpi, scale),
+	auto* analysisDoc = static_cast<CComparatorDoc*>(GetActiveDocument());
+	const bool collapsed = analysisDoc && analysisDoc->mFrmsInfoView && analysisDoc->mFrmsInfoView->mCollapsed;
+	const bool stills = analysisDoc && analysisDoc->mMaxFrames<=1;
+	const int preferredGraph = std::min(q1view::WindowsUiPixels(collapsed ? 30 : stills ? 106 : FRAMES_INFO_H, dpi, scale),
 		std::max(0, cy / 3 - mSplitMargin));
-	const int positionWidth = std::min(q1view::WindowsUiPixels(POS_INFO_W, dpi, scale),
+	int controlsHeight=q1view::WindowsUiPixels(26,dpi,scale);
+	if (analysisDoc) for (int slot=0;slot<mNumOfViews;++slot) {
+		auto* view=analysisDoc->mPane[slot].pView;
+		if (!view || !view->mCsQMenu.GetSafeHwnd()) continue;
+		CRect measured(0,0,0,0); view->mCsQMenu.CalcRect(&measured);
+		controlsHeight=std::max(controlsHeight,measured.Height()+q1view::WindowsUiPixels(QMENUITEM_IN_MARGIN_H,dpi));
+	}
+	// Measure source controls at the current DPI/text size; cached old-DPI
+	// rectangles are not sufficient during a live WM_DPICHANGED transition.
+	const int minimumSource=q1view::WindowsUiPixels(60,dpi)+controlsHeight+8;
+	const auto heights=ResolveAnalysisHeights(cy,preferredGraph,q1view::WindowsUiPixels(FRAME_INFO_H,dpi,scale),
+		minimumSource,q1view::WindowsUiPixels(collapsed ? 30 : 56,dpi,scale),q1view::WindowsUiPixels(26,dpi,scale),
+		std::max(8,mSplitMargin)+std::max(8,mSplitBarW));
+	const int graphHeight=heights.graph;
+	auto* layoutDoc = static_cast<CComparatorDoc*>(GetActiveDocument());
+	const int lanes = layoutDoc ? (int)layoutDoc->TimelineSources().size() : 0;
+	const int positionWidth = std::min(lanes && layoutDoc->mPosInfoView ? layoutDoc->mPosInfoView->SuggestedWidth() : q1view::WindowsUiPixels(POS_INFO_W, dpi, scale),
 		std::max(0, cx - MIN_SIDE - mSplitMargin));
 
 	hOutside = std::max(0, cy - graphHeight - mSplitMargin);
@@ -534,7 +554,7 @@ void CMainFrame::OnSize(UINT nType, int cx, int cy)
 	mPosInfoSplitter.SetColumnInfo(1, wOutside, MIN_SIDE);
 	mPosInfoSplitter.RecalcLayout();
 
-	const int stateHeight = std::min(q1view::WindowsUiPixels(FRAME_INFO_H, dpi, scale),
+	const int stateHeight = std::min(heights.footer,
 		std::max(0, hOutside - MIN_SIDE - mSplitBarW));
 	hInside = std::max(0, hOutside - stateHeight - mSplitBarW);
 	mFrmInfoSplitter.SetRowInfo(0, hInside, MIN_SIDE);
@@ -598,14 +618,14 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 		// A lazy metric (e.g. LPIPS) is filled by a background worker after the
 		// base scan, so refresh its current-frame label live and keep the timer
 		// running until that worker also finishes.
-		if (pDoc->IsLpipsScanRunning()) {
+		{
 			pDoc->UpdateCurrentMetricState(mMetricIdx);
 			if (pDoc->mFrmInfoView)
 				pDoc->mFrmInfoView->Invalidate(FALSE);
 		}
 
 		fileScanThread = pDoc->mFileScanThread;
-		if (fileScanThread->isScanComplete() && !pDoc->IsLpipsScanRunning()) {
+		if (!fileScanThread->hasWork() && !pDoc->IsLpipsScanRunning()) {
 			KillTimer(CTI_ID_POS_INVALIDATE);
 			// One last label refresh so a value/"N/A" replaces "computing...".
 			pDoc->UpdateCurrentMetricState(mMetricIdx);
@@ -739,6 +759,7 @@ void CMainFrame::OnResolutionChange(UINT nID)
 	UpdateResolutionLabel(w, h);
 	CheckResolutionRadio(w, h);
 
+	pDoc->StopAnalysis();
 	pDoc->mW = w;
 	pDoc->mH = h;
 
@@ -797,6 +818,7 @@ void CMainFrame::OnViewsChange(UINT nID)
 
 int CMainFrame::ChangeNumOfViews(int newNumOfViews) {
 	CComparatorDoc* pDoc = static_cast<CComparatorDoc*>(GetActiveDocument());
+	pDoc->StopAnalysis();
 
 	UpdateViewsLabel(newNumOfViews);
 	CheckViewsRadio(newNumOfViews);
@@ -816,6 +838,7 @@ int CMainFrame::ChangeNumOfViews(int newNumOfViews) {
 	if (IsZoomed())
 		SendMessage(WM_SYSCOMMAND, SC_RESTORE, (LPARAM)GetSafeHwnd());
 
+	if (!pDoc->mBatchOpening) pDoc->RebuildComparisons();
 	return oldNumOfViews;
 }
 

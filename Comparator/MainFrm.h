@@ -12,8 +12,8 @@
 #include "Q1UiMenuWin.h"
 #include "Q1UiFrameWin.h"
 
-#define FRAME_INFO_H          28
-#define FRAMES_INFO_H         84
+#define FRAME_INFO_H          72
+#define FRAMES_INFO_H         180
 #define POS_INFO_W            76
 
 #define WM_OPEN_PENDING_FILE  (WM_APP + 1)

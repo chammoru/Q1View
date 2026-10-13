@@ -33,6 +33,7 @@ struct SQPane
 	std::vector<FrmSrc*> frmSrcs;
 	FrmSrc* frmSrc;
 	bool disableImageSequence;
+	bool rgbValid = false, yuvValid = false;
 
 	inline SQPane()
 	: origSceneSize(0)
@@ -92,6 +93,7 @@ struct SQPane
 		closeFrmSrcs();
 
 		auto it = std::begin(frmSrcs);
+		curFrameID = -1;
 		for (; it != std::end(frmSrcs); it++) {
 			bool ok = (*it)->Open(pathName, sortedCscInfo, srcW, srcH, dstW, dstH);
 			if (ok) {
@@ -138,6 +140,8 @@ struct SQPane
 	}
 
 	inline bool FillSceneBuf(BYTE* origBuf) {
+		if (!isAvail()) return false;
+		rgbValid = yuvValid = false;
 		long candidateCurFrameID = frmSrc->GetNextFrameID();
 		bool ok = frmSrc->FillSceneBuf(origBuf);
 		if (ok)
@@ -164,6 +168,7 @@ struct ComparatorPane : public SQPane
 	, bufOffset2(0)
 	, bufOffset3(0)
 	, pView(NULL)
+	, srcW(0), srcH(0)
 	, frames(0)
 	{
 	}
@@ -171,13 +176,14 @@ struct ComparatorPane : public SQPane
 	void OpenFrmSrc(struct qcsc_info* sortedCscInfo, int dstW, int dstH)
 	{
 		SQPane::OpenFrmSrc(pathName, sortedCscInfo, srcW, srcH, dstW, dstH);
-		frames = QMAX(frmSrc->GetFrameNum(), 1);
+		frames = frmSrc ? QMAX(frmSrc->GetFrameNum(), 1) : 0;
 	}
 
 	inline void Release()
 	{
 		closeFrmSrcs();
 		frames = 0;
+		curFrameID = -1;
 		disableImageSequence = false;
 		pathName.Empty();
 	}
@@ -193,7 +199,7 @@ struct ComparatorPane : public SQPane
 	inline bool SetNextFrameID(long nextFrameID)
 	{
 		if (frmSrc) {
-			if (nextFrameID < frames) {
+			if (nextFrameID >= 0 && nextFrameID < frames) {
 				return frmSrc->SetNextFrameID(nextFrameID);
 			} else {
 				frmSrc->SetNextFrameID(curFrameID); // repeat current frame
@@ -205,6 +211,6 @@ struct ComparatorPane : public SQPane
 
 	inline double GetFps()
 	{
-		return frmSrc->GetFps();
+		return frmSrc ? frmSrc->GetFps() : 0;
 	}
 };

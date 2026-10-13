@@ -1,6 +1,7 @@
 #pragma once
 
 #include "QViewerCmn.h"
+#include "AnalysisScrollView.h"
 
 #define GRAPH_OUT_MARGIN_L  50
 #define GRAPH_OUT_MARGIN_T  5
@@ -31,10 +32,9 @@
 
 class CComparatorDoc;
 class FileScanThread;
-class MetricCal;
 // CFrmsInfoView view
 
-class CFrmsInfoView : public CView
+class CFrmsInfoView : public CAnalysisScrollView
 {
 	DECLARE_DYNCREATE(CFrmsInfoView)
 
@@ -42,17 +42,25 @@ class CFrmsInfoView : public CView
 	{ return reinterpret_cast<CComparatorDoc*>(m_pDocument); }
 
 	int mWClient, mHClient;
-	CRect mGraphRect, mYLabelRect, mAverageRect;
 	FileScanThread *mFileScanThread;
-	CFont mLabelFont, mResultFont, mBodyFont;
-	ULONG_PTR mGdiplusToken;
-	MetricCal *mPsnrCal;
+	CFont mLabelFont, mBodyFont;
+	CRect mPlots[3], mCards[3];
+	double mFirstFrame = 0, mFrameSpan = 0;
+	CComparisonButton mCollapse;
+	BOOL OnCommand(WPARAM w, LPARAM l) override;
+	BOOL AnalysisMouseWheel(UINT flags,short delta,CPoint point) override { return OnMouseWheel(flags,delta,point); }
 
 protected:
 	CFrmsInfoView();           // protected constructor used by dynamic creation
 	virtual ~CFrmsInfoView();
 
 public:
+	bool mCollapsed = false;
+	CRect PlotBounds(int target) const { return mPlots[target-1]; }
+	double VisibleFirstFrame() const { return mFirstFrame; }
+	double VisibleFrameSpan() const { return mFrameSpan; }
+	void ResetViewport() { mFirstFrame=mFrameSpan=0; Invalidate(FALSE); }
+	void FocusHeader() { mCollapse.SetFocus(); }
 	virtual void OnDraw(CDC* pDC);      // overridden to draw this view
 #ifdef _DEBUG
 	virtual void AssertValid() const;

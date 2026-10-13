@@ -30,6 +30,8 @@ private:
 		QIMAGE_CS_INFO_FN csLoadInfo;
 		QIMAGE_CSC_FN csc2yuv420;
 		QIMAGE_CSC_FN csc2rgb888;
+		bool disableImageSequence;
+		bool available;
 	};
 
 	CComparatorDoc* m_doc;
@@ -39,5 +41,7 @@ private:
 	int m_w;
 	int m_h;
 	int m_frames;
-	PaneSnapshot m_pane[2];
+	PaneSnapshot m_pane[4];
+	int m_pairFrames[3];
+	unsigned m_generation[3];
 };

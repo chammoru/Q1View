@@ -190,6 +190,7 @@ bool CComparatorDoc::ReadSource4View(ComparatorPane *pane)
 	BYTE *RGB = pane->rgbBuf;
 
 	pane->csc2rgb888(RGB, y, u, v, ROUNDUP_DWORD(mW), mW, mH);
+	pane->rgbValid = true;
 
 	return true;
 }
@@ -308,51 +309,106 @@ void CComparatorDoc::RefleshPaneImages(ComparatorPane *pane, bool settingChanged
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	pMainFrm->KillTimer(CTI_ID_POS_INVALIDATE);
 	KillPlayTimer();
-	StopLpipsScanThread();
+	StopAnalysis();
 
 	LoadSourceImage(pane);
+	if (settingChanged)
+		for (auto other : GetOtherPanes(pane)) if (other->isAvail()) LoadSourceImage(other);
+	if (!mBatchOpening) RebuildComparisons(settingChanged ? 0xf : 1u << (pane - mPane));
+}
 
-	ComparatorPane *opposite = GetOppositePane(pane);
-	if (opposite == nullptr) {
-		// Only the first two panes participate in frame-diff scanning.
-		return;
+void CComparatorDoc::StopAnalysis()
+{
+	StopLpipsScanThread();
+	mFileScanThread->requestExitAndWait();
+	mFileScanThread->cancelCurrent();
+	// Completed unchanged pairs remain visible. Cancelled/error work must be
+	// resubmitted even when its displayed frame/ROI key has not changed.
+	for (int i=0;i<3;++i)
+		if (mPairResults[i].state!=_T("Ready")) mCurrentSignature[i].Empty();
+}
+
+std::vector<int> CComparatorDoc::TimelineSources() const
+{
+	std::vector<int> slots;
+	for (int i = 0; i < 4; ++i) if (mPane[i].isAvail()) slots.push_back(i);
+	return slots;
+}
+
+std::vector<int> CComparatorDoc::ComparisonTargets() const
+{
+	std::vector<int> slots;
+	if (mPane[0].isAvail())
+		for (int i = 1; i < 4; ++i) if (mPane[i].isAvail()) slots.push_back(i);
+	return slots;
+}
+
+int CComparatorDoc::PairFrames(int target) const
+{
+	return target >= 1 && target <= 3 && mPane[0].isAvail() && mPane[target].isAvail()
+		? (int)min(mPane[0].frames, mPane[target].frames) : 0;
+}
+
+IFrmCmpStrategy* CComparatorDoc::PairStrategy(int target) const
+{
+	return target >= 1 && target <= 3 ? mPairStrategies[target-1] : nullptr;
+}
+
+CString CComparatorDoc::PairTitle(int target) const
+{
+	CString title;
+	title.Format(_T("A \x2194 %c"), _T('A') + target);
+	return title;
+}
+
+void CComparatorDoc::SelectComparison(int target)
+{
+	if (!PairFrames(target)) return;
+	mActiveTarget = target;
+	UpdateAllViews(nullptr);
+}
+
+void CComparatorDoc::RebuildComparisons(unsigned changedSlots)
+{
+	StopAnalysis();
+	mRequestedFrame=-1;
+	mMaxFrames = mMinFrames = 0;
+	for (int slot : TimelineSources()) mMaxFrames = max(mMaxFrames, (int)mPane[slot].frames);
+	mRgbCompare->Setup(mW, mH); mYuvCompare->Setup(mW, mH);
+	for (int t = 1; t < 4; ++t) {
+		mPairStrategies[t-1] = PairFrames(t) ? (IsRGBCompare(mPane, mPane+t)
+			? static_cast<IFrmCmpStrategy*>(mRgbCompare) : static_cast<IFrmCmpStrategy*>(mYuvCompare)) : nullptr;
+		mMinFrames = max(mMinFrames, PairFrames(t));
+		if (!PairFrames(t)) {
+			mPairResults[t-1] = PairCurrentResult();
+			mCurrentSignature[t-1].Empty(); mCurrentPairRequests[t-1]=0;
+		}
 	}
+	mFrmCmpStrategy = PairStrategy(1); // compatibility: this alias always means A/B.
+	auto targets = ComparisonTargets();
+	if (!PairFrames(mActiveTarget)) mActiveTarget = targets.empty() ? 1 : targets.front();
+	mFileScanThread->setup(changedSlots);
+	if ((changedSlots&1) && mFrmsInfoView) mFrmsInfoView->ResetViewport();
+	if (mPosInfoView) mPosInfoView->ConfigureScrollSizes(this);
+	auto* frame = static_cast<CMainFrame*>(AfxGetMainWnd());
+	SelectMetric(frame->mMetricIdx);
+	CRect rc; frame->GetClientRect(rc);
+	frame->SendMessage(WM_SIZE, SIZE_RESTORED, MAKELPARAM(rc.Width(), rc.Height()));
+	UpdateAllViews(nullptr);
+}
 
-	if (opposite->isAvail()) {
-		if (settingChanged)
-			LoadSourceImage(opposite);
-
-		// Frame counts must be refreshed before FileScanThread::setup().
-		mMaxFrames = max(pane->frames, opposite->frames);
-		mMinFrames = min(pane->frames, opposite->frames);
-
-		bool rgbCompare = IsRGBCompare(pane, opposite);
-		if (rgbCompare)
-			mFrmCmpStrategy = mRgbCompare;
-		else
-			mFrmCmpStrategy = mYuvCompare;
-
-		mFrmCmpStrategy->Setup(mW, mH);
-		mFrmCmpStrategy->CalMetrics(pane, opposite, pMainFrm->mMetricIdx, mFrmState);
-
-		mFileScanThread->requestExitAndWait();
-		mFileScanThread->setup(); // uses mMinFrames and frmCmpInfo is updated
-
-		MetricCal *psnrCal = mFrmsInfoView->mPsnrCal;
-		psnrCal->Update(mFileScanThread, mMinFrames); // uses mMinFrames and FileScanThread
-
-		mFileScanThread->run();
-
-		pMainFrm->SetTimer(CTI_ID_POS_INVALIDATE, VIT_INVALIDATE_DUR, NULL);
-	} else {
-		mMaxFrames = max(pane->frames, opposite->frames);
-		mMinFrames = 0;
-	}
+void CComparatorDoc::CloseSource(int slot)
+{
+	if (slot < 0 || slot > 3) return;
+	KillPlayTimer(); StopAnalysis();
+	mPane[slot].Release();
+	if (mPane[slot].pView) mPane[slot].pView->UpdateFileName(_T(""));
+	if (!mBatchOpening) RebuildComparisons(1u << slot);
 }
 
 void CComparatorDoc::ProcessDocument(ComparatorPane *pane)
 {
-	StopLpipsScanThread();
+	StopAnalysis();
 
 	pane->pathName.Replace(_T('/'), _T('\\'));
 
@@ -360,6 +416,7 @@ void CComparatorDoc::ProcessDocument(ComparatorPane *pane)
 	bool success = pane->GetResolution(pane->pathName , &srcW, &srcH);
 	if (!success) {
 		LOGWRN("FrmSrc failed to get resolution info");
+		CloseSource((int)(pane - mPane));
 		return;
 	}
 	pane->srcW = srcW;
@@ -426,16 +483,7 @@ void CComparatorDoc::ReloadPane(int paneIdx)
 	// resolution / color-space change after the file was rewritten.
 	ProcessDocument(pane);
 
-	// Recompute metrics between the active pair so the pixel-diff overlay,
-	// PSNR/SSIM, and any visible labels reflect the new contents.
-	if (mFrmCmpStrategy) {
-		ComparatorPane *paneL = &mPane[IMG_VIEW_1];
-		ComparatorPane *paneR = &mPane[IMG_VIEW_2];
-		CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
-		if (paneL->isAvail() && paneR->isAvail())
-			mFrmCmpStrategy->CalMetrics(paneL, paneR,
-				pMainFrm->mMetricIdx, mFrmState);
-	}
+	RefreshSelectionMetric();
 
 	UpdateAllViews(NULL);
 }
@@ -530,6 +578,7 @@ BOOL CComparatorDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 
 	int numOfFiles = (int)filenames.size();
+	if (!numOfFiles) return FALSE;
 	if (numOfFiles > IMG_VIEW_MAX) {
 		pMainFrm->MessageBox(
 			_T("Comparator supports up to 4 files.\nPlease select 4 files or fewer."),
@@ -538,6 +587,8 @@ BOOL CComparatorDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 		return FALSE;
 	}
 
+	StopAnalysis();
+	mBatchOpening = true;
 	if (numOfFiles > pMainFrm->mNumOfViews) {
 		pMainFrm->ChangeNumOfViews(numOfFiles);
 	}
@@ -576,6 +627,9 @@ BOOL CComparatorDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 		bool success = pane->GetResolution(pane->pathName, &srcW, &srcH);
 		if (!success) {
 			LOGWRN("FrmSrc failed to get resolution info for file idx %d", i);
+			mBatchOpening = false;
+			for (int slot = 0; slot < 4; ++slot) mPane[slot].Release();
+			RebuildComparisons();
 			return FALSE;
 		}
 		srcWidths[i] = srcW;
@@ -626,7 +680,8 @@ BOOL CComparatorDoc::OpenMultiFiles(const std::vector<CString> &filenames) {
 		ProcessDocument(pane);
 	}
 
-	mPosInfoView->ConfigureScrollSizes(this);
+	mBatchOpening = false;
+	RebuildComparisons();
 
 	pMainFrm->UpdateResolutionLabel(mW, mH); // also, disable the resolution change if necessary
 	pMainFrm->CheckResolutionRadio(mW, mH);
@@ -681,6 +736,7 @@ BOOL CComparatorDoc::OnOpenDocument(LPCTSTR lpszPathName)
 
 void CComparatorDoc::SetScene(long frameID, ComparatorPane* pane, bool& updated)
 {
+	if (!pane->isAvail() || frameID < 0 || frameID >= pane->frames) return;
 	if (frameID < 0) {
 		pane->SetNextFrameID(0);
 	} else if (frameID < pane->frames) {
@@ -690,11 +746,12 @@ void CComparatorDoc::SetScene(long frameID, ComparatorPane* pane, bool& updated)
 		pane->SetNextFrameID(pane->frames - 1);
 	}
 
-	ReadSource4View(pane);
+	updated = ReadSource4View(pane) || updated;
 }
 
 bool CComparatorDoc::OffsetScenes(long offset)
 {
+	mRequestedFrame=-1;
 	CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
 	bool updated = false;
 
@@ -706,11 +763,13 @@ bool CComparatorDoc::OffsetScenes(long offset)
 		SetScene(pane->curFrameID + offset, pane, updated);
 	}
 
+	RefreshSelectionMetric();
 	return updated;
 }
 
 bool CComparatorDoc::SetScenes(long frameID)
 {
+	mRequestedFrame=frameID;
 	bool updated = false;
 
 	for (int i = 0; i < IMG_VIEW_MAX; i++) {
@@ -721,6 +780,7 @@ bool CComparatorDoc::SetScenes(long frameID)
 		SetScene(frameID, pane, updated);
 	}
 
+	RefreshSelectionMetric();
 	return updated;
 }
 
@@ -743,6 +803,7 @@ bool CComparatorDoc::NextScenes()
 			updated = true;
 	}
 
+	RefreshSelectionMetric();
 	return updated;
 }
 
@@ -842,22 +903,20 @@ void CComparatorDoc::SelectMetric(int metricIdx)
 	if (pMainFrm)
 		pMainFrm->mMetricIdx = metricIdx;
 
-	// Stop any existing background lazy-metric evaluation. This must happen
-	// before any FileScanThread realloc; here only the metric changes so the
-	// base cache stays intact (no image reload, no base rescan).
-	StopLpipsScanThread();
+	// Join both workers before switching a shared model/strategy. Keep the
+	// per-pair sequence caches and continue an unfinished eager scan in place.
+	StopAnalysis();
 
-	ComparatorPane* pane = mPane + IMG_VIEW_1;
-	ComparatorPane* opposite = mPane + IMG_VIEW_2;
-
-	if (!pane->isAvail() || !opposite->isAvail() || mMinFrames <= 0) {
+	if (ComparisonTargets().empty()) {
 		mFrmState.Empty();
 		UpdateAllViews(NULL);
 		return;
 	}
+	mFileScanThread->ensureRunning();
 
 	const qmetric_info* qminfo = &qmetric_info_table[metricIdx];
 	if (qminfo->lazy) {
+		for (int target:ComparisonTargets()) mFileScanThread->setPairError(target,_T(""),metricIdx);
 		// Start the worker regardless of whether the base scan is still running:
 		// it trails the base scanner, waiting per-frame for the eager parse, and
 		// fills every frame in order. Run() sets the running flag synchronously.
@@ -873,6 +932,7 @@ void CComparatorDoc::SelectMetric(int metricIdx)
 	}
 
 	UpdateCurrentMetricState(metricIdx);
+	if (pMainFrm) pMainFrm->SetTimer(CTI_ID_POS_INVALIDATE, VIT_INVALIDATE_DUR, NULL);
 
 	if (mFrmsInfoView)
 		mFrmsInfoView->Invalidate();
@@ -897,93 +957,68 @@ bool CComparatorDoc::GetSelectionRect(int &l, int &t, int &r, int &b) const
 	return (r >= l && b >= t);
 }
 
-// Append the selected metric measured over just the selection rectangle, so a
-// localized region can be compared against the whole-image score on the same
-// line (issue #74). PSNR/SSIM use the color-space-native crop; LPIPS reuses the
-// RGB engine on the cropped region.
-void CComparatorDoc::AppendCropMetric(int metricIdx, ComparatorPane *pane, ComparatorPane *opposite)
-{
-	int l, t, r, b;
-	if (!GetSelectionRect(l, t, r, b))
-		return;
-	if (!pane->rgbBuf || !opposite->rgbBuf)
-		return;
-
-	const qmetric_info *qminfo = &qmetric_info_table[metricIdx];
-	const int cw = r - l + 1;
-	const int ch = b - t + 1;
-	CString cropScore;
-
-	if (qminfo->lazy) {
-		if (qminfo->ml_id && LpipsEngine::getInstance().availableFor(qminfo->ml_id)) {
-			const int stride = ROUNDUP_DWORD(mW);
-			const size_t off = (size_t)t * stride * QIMG_DST_RGB_BYTES
-				+ (size_t)l * QIMG_DST_RGB_BYTES;
-			double dist = LpipsEngine::getInstance().distance(pane->rgbBuf + off,
-				opposite->rgbBuf + off, cw, ch, stride * QIMG_DST_RGB_BYTES);
-			const CString metricName = CA2W(qminfo->name);
-			cropScore.Format(_T("%s(%.4f)"), (const TCHAR*)metricName, dist);
-		}
-	} else if (mFrmCmpStrategy) {
-		cropScore = mFrmCmpStrategy->CropScore(pane, opposite, metricIdx, l, t, r, b);
-	}
-
-	if (!cropScore.IsEmpty())
-		mFrmState.AppendFormat(_T("   |   crop %dx%d %s"), cw, ch, (const TCHAR*)cropScore);
-}
-
+// Publish each pair's latest request for the actual displayed source frames and
+// committed ROI. Numerical work runs on owned snapshots, never on the UI thread.
 void CComparatorDoc::UpdateCurrentMetricState(int metricIdx)
 {
-	mFrmState.Empty();
-	ComparatorPane *pane = mPane + IMG_VIEW_1;
-	ComparatorPane *opposite = mPane + IMG_VIEW_2;
-
-	if (!pane->isAvail() || !opposite->isAvail())
-		return;
-
-	const qmetric_info *qminfo = &qmetric_info_table[metricIdx];
-	if (!qminfo->lazy) {
-		if (mFrmCmpStrategy)
-			mFrmCmpStrategy->CalMetrics(pane, opposite, metricIdx, mFrmState);
-		AppendCropMetric(metricIdx, pane, opposite);
-		return;
+	const auto& metric = qmetric_info_table[metricIdx];
+	int l=0,t=0,r=0,b=0;
+	bool roi = GetSelectionRect(l,t,r,b);
+	const auto targets = ComparisonTargets();
+	if (targets.empty()) { mFrmState.Empty(); return; }
+	const bool modelAvailable=metric.ml_id && LpipsEngine::getInstance().availableFor(metric.ml_id);
+	CString signatures[3]; unsigned changedTargets=0;
+	for (int target:targets) {
+		auto& signature=signatures[target-1];
+		signature.Format(_T("%u:%d:%d:%d:%d:%d:%d:%d:%d:%d:%ld:%ld"),
+			mFileScanThread->pairGeneration(target),metricIdx,modelAvailable,mW,mH,roi,l,t,r,b,
+			mPane[0].curFrameID,mPane[target].curFrameID);
+		if (signature!=mCurrentSignature[target-1]) changedTargets|=1u<<target;
 	}
-
-	// Lazy/whole-image metric: the scan cache is keyed by a single frame index,
-	// so it is valid only for frame-aligned pairs. If the user seeks one pane
-	// independently, calculate the currently displayed pair directly once the
-	// LPIPS engine is ready.
-	const CString metricName = CA2W(qminfo->name);
-	double metrics[QPLANES];
-	bool frameAligned = pane->curFrameID == opposite->curFrameID;
-	if (frameAligned && mFileScanThread && mFileScanThread->copyMetrics(pane->curFrameID, metricIdx, metrics)) {
-		if (qminfo->plane_count == 1)
-			mFrmState.Format(_T("%s(%.4f)"), (const TCHAR*)metricName, metrics[0]);
-		else
-			mFrmState.Format(_T("%s(%.4f %.4f %.4f)"), (const TCHAR*)metricName,
-				metrics[0], metrics[1], metrics[2]);
-	} else if (pane->rgbBuf && opposite->rgbBuf) {
-		// Only compute live when the engine has *this* backbone loaded; right after
-		// a backend switch it may still hold the previous model, so fall back to
-		// "computing..." until the worker reloads the requested one.
-		if (qminfo->ml_id && LpipsEngine::getInstance().availableFor(qminfo->ml_id)) {
-			double dist = LpipsEngine::getInstance().distance(pane->rgbBuf, opposite->rgbBuf,
-				mW, mH, ROUNDUP_DWORD(mW) * QIMG_DST_RGB_BYTES);
-			mFrmState.Format(_T("%s(%.4f)"), (const TCHAR*)metricName, dist);
-		} else if (IsLpipsScanRunning()) {
-			mFrmState.Format(_T("%s(computing...)"), (const TCHAR*)metricName);
-		} else {
-			mFrmState.Format(_T("%s(N/A)"), (const TCHAR*)metricName);
+	if (changedTargets) {
+		auto request = std::make_shared<CurrentComparisonRequest>();
+		request->id = ++mCurrentRequest;
+		request->targets=changedTargets;
+		request->metric = metricIdx; request->width=mW; request->height=mH;
+		request->hasRoi=roi; request->l=l; request->t=t; request->r=r; request->b=b;
+		for (int i=0;i<4;++i) if ((i==0 || (changedTargets&(1u<<i))) && mPane[i].isAvail() && mPane[i].curFrameID>=0) {
+			const auto& source=mPane[i];
+			auto snapshot=std::make_shared<ComparatorPane>();
+			snapshot->curFrameID=source.curFrameID; snapshot->frames=source.frames;
+			snapshot->colorSpace=source.colorSpace; snapshot->csLoadInfo=source.csLoadInfo;
+			snapshot->csc2rgb888=source.csc2rgb888; snapshot->csc2yuv420=source.csc2yuv420;
+			snapshot->origBufSize=snapshot->origSceneSize=source.origSceneSize;
+			snapshot->origBuf=new BYTE[source.origSceneSize];
+			memcpy(snapshot->origBuf,source.origBuf,source.origSceneSize);
+			snapshot->rgbBufSize=source.rgbBufSize; snapshot->rgbBuf=new BYTE[source.rgbBufSize];
+			memcpy(snapshot->rgbBuf,source.rgbBuf,source.rgbBufSize); snapshot->rgbValid=true;
+			request->sources[i]=snapshot;
 		}
-	} else if (IsLpipsScanRunning()) {
-		mFrmState.Format(_T("%s(computing...)"), (const TCHAR*)metricName);
-	} else if (!(qminfo->ml_id && LpipsEngine::getInstance().availableFor(qminfo->ml_id))) {
-		mFrmState.Format(_T("%s(N/A)"), (const TCHAR*)metricName);
-	} else {
-		mFrmState.Format(_T("%s(...)"), (const TCHAR*)metricName);
+		for (int target : targets) if (changedTargets&(1u<<target)) {
+			mCurrentSignature[target-1]=signatures[target-1];
+			mCurrentPairRequests[target-1]=request->id;
+			request->strategies[target-1]=PairStrategy(target);
+			mPairResults[target-1]=PairCurrentResult();
+			mPairResults[target-1].request=request->id;
+			mPairResults[target-1].state=_T("Computing");
+			if (!request->sources[0] || !request->sources[target])
+				mPairResults[target-1].state=_T("Unavailable: current frame could not be decoded");
+		}
+		mFileScanThread->queueCurrent(request);
+		static_cast<CMainFrame*>(AfxGetMainWnd())->SetTimer(CTI_ID_POS_INVALIDATE,VIT_INVALIDATE_DUR,nullptr);
 	}
-
-	AppendCropMetric(metricIdx, pane, opposite);
+	for (int target : targets) {
+		mFileScanThread->copyCurrent(target,mCurrentPairRequests[target-1],mPairResults[target-1]);
+		auto summary=mFileScanThread->summary(target);
+		if (metric.lazy && mPairResults[target-1].state==_T("Preparing"))
+			mPairResults[target-1].state=IsLpipsScanRunning() ? _T("Preparing model") : _T("Unavailable");
+		if (metric.lazy && !IsLpipsScanRunning() && !summary.metricError[metricIdx].IsEmpty()
+			&& mPairResults[target-1].full.IsEmpty()) mPairResults[target-1].state=summary.metricError[metricIdx];
+	}
+	mFrmState=mPairResults[0].full;
+	if (!mPairResults[0].roi.IsEmpty()) mFrmState+=_T("   |   ")+mPairResults[0].roi;
+	if (mFrmState.IsEmpty() && PairFrames(1)) mFrmState=mPairResults[0].state;
+	mFileScanThread->ensureRunning();
 }
 
 // Recompute the current-frame metric line (which now includes the crop score)

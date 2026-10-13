@@ -24,6 +24,7 @@ void YuvFrmCmpStrategy::Yuv420AllocBuffer(SQPane *pane) const
 
 BYTE *YuvFrmCmpStrategy::ConvertToYuv420(SQPane *pane, int w, int h)
 {
+	if (pane->yuvValid) return pane->yuv420Buf;
 	int bufOffset2 = 0, bufOffset3 = 0;
 
 	pane->csLoadInfo(w, h, &bufOffset2, &bufOffset3);
@@ -33,6 +34,7 @@ BYTE *YuvFrmCmpStrategy::ConvertToYuv420(SQPane *pane, int w, int h)
 		pane->origBuf + bufOffset2,
 		pane->origBuf + bufOffset3, 0, w, h);
 
+	pane->yuvValid = true;
 	return pane->yuv420Buf;
 }
 

@@ -5,6 +5,7 @@
 #include "../QVisionCore/Q1UiFrameWin.h"
 #include "../Viewer/ViewerWindowGeometry.h"
 #include "../QVisionCore/Q1UiAppearanceMenuWin.h"
+#include "../Comparator/AnalysisLayout.h"
 #include <cmath>
 
 static void Require(bool value, const char* message)
@@ -17,6 +18,29 @@ static double Luminance(COLORREF color)
 }
 static double Contrast(COLORREF a, COLORREF b)
 { const double x = Luminance(a)+.05, y = Luminance(b)+.05; return (std::max)(x,y)/(std::min)(x,y); }
+
+static void TestAnalysisLayout()
+{
+	const auto wide=ResolveAnalysisHeights(800,180,72,94,56,26,16);
+	Require(wide.graph==180 && wide.footer==72 && wide.source==532,"wide analysis layout retains preferred panel heights");
+	for (UINT dpi:{96u,120u,144u,168u,192u}) for (double text:{1.,1.25,1.5,2.,2.25}) {
+		auto px=[&](int dip) { return q1view::WindowsUiPixels(dip,dpi,text); };
+		const int source=q1view::WindowsUiPixels(60,dpi)+px(26)+8;
+		for (int content:{0,40,180,320,500,800}) {
+			const int preferred=(std::min)(px(180),(std::max)(0,content/3-8));
+			const auto layout=ResolveAnalysisHeights(content,preferred,px(72),source,px(56),px(26),16);
+			const int available=(std::max)(0,content-16);
+			Require(layout.source>=0 && layout.graph>=0 && layout.footer>=0 &&
+				layout.source+layout.graph+layout.footer==available,"analysis heights partition available space without negative sizes");
+			Require(layout.source>=(std::min)(source,available),"small/high-DPI analysis reserves a useful source viewport when possible");
+			if (available>=source+px(56)+px(26))
+				Require(layout.graph>=(std::min)(preferred,px(56)) && layout.footer>=px(26),"fitting panel minima remain accessible above scrollable content");
+			if (available>=source+preferred+px(72))
+				Require(layout.graph==preferred && layout.footer==px(72),"roomy layouts do not shrink results or graphs unnecessarily");
+		}
+	}
+	std::puts("Analysis layout tests passed (5 DPI inputs x 5 text scales x 6 content heights).");
+}
 
 static void TestAppearance()
 {
@@ -457,6 +481,7 @@ int wmain(int argc, wchar_t** argv)
 	TestBufferedControls();
 	TestFrames();
 	TestViewerDefaultMenu();
+	TestAnalysisLayout();
 	HDC dc = CreateCompatibleDC(nullptr);
 	Require(dc != nullptr, "GDI test DC");
 	const std::vector<WindowsUiHelpRow> rows = {

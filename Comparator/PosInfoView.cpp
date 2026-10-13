@@ -110,10 +110,11 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 	// describes differences in the currently displayed frame.
 	if (parseDone) {
 		CPen *prev = pDC->SelectObject(mDiffPen);
-		IFrmCmpStrategy *frmCmpStrategy = pDoc->mFrmCmpStrategy;
+		const int target = pane == pDoc->mPane ? pDoc->mActiveTarget : int(pane-pDoc->mPane);
+		IFrmCmpStrategy *frmCmpStrategy = pDoc->PairStrategy(target);
 		list<RLC> diffRLC[QPLANES];
 
-		if (frmCmpStrategy && mFileScanThread->copyDiffRLC(i, diffRLC)) {
+		if (frmCmpStrategy && mFileScanThread->copyDiffRLC(i, diffRLC, target)) {
 			frmCmpStrategy->FlagTotalDiffLine(diffRLC, mDiffFlags, mPosLinesPerFrame);
 			DrawDiffPosLines(pDC, frameRect, mDiffFlags, mPosLinesPerFrame);
 		}
@@ -129,7 +130,7 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 	}
 
 	CString numStr;
-	numStr.Format(_T("%d"), i);
+	numStr = i >= pane->frames ? _T("\x2014") : isCurFrame ? _T("\x25cf") : _T("");
 	pDC->DrawText(numStr, frameRect, DT_SINGLELINE | DT_CENTER |  DT_VCENTER);
 
 	if (highlighted)
@@ -138,37 +139,43 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 	frameRect->OffsetRect(0, mPosLinesPerFrame + 1);
 }
 
-void CPosInfoView::DrawFrameRect(CDC* pDC, CRect *clipBox, int w)
+void CPosInfoView::DrawFrameRect(CDC* dc, CRect* clip, int width)
 {
-	CComparatorDoc* pDoc = GetDocument();
-
-	ComparatorPane *paneL = &pDoc->mPane[CComparatorDoc::IMG_VIEW_1];
-	ComparatorPane *paneR = &pDoc->mPane[CComparatorDoc::IMG_VIEW_2];
-
-	int outerRcH = mPosLinesPerFrame + 1;
-	int startFrameID = clipBox->top / outerRcH;
-	int endFrameID = MIN(clipBox->bottom / outerRcH, pDoc->mMaxFrames - 1);
-
-	int y = outerRcH * startFrameID - clipBox->top;
-	CRect frameRectL(0, y, w / 2, y + outerRcH);
-	CRect frameRectR(w / 2, y, w, y + outerRcH);
-
-	pDC->SelectStockObject(WHITE_PEN);
-	pDC->SetBkMode(TRANSPARENT);
-	pDC->SelectObject(&mPosNumFont);
-	pDC->SetTextColor(COLOR_POS_NUM_TEXT);
-
-	int curBrush;
-	int preBrush = -1;
-
-	int minFrames = pDoc->mMinFrames;
-
-	for (int i = startFrameID; i <= endFrameID; i++) {
-		bool parseDone = i < minFrames && mFileScanThread->isFrameParsed(i);
-
-		DrawEachRect(pDC, paneL, &frameRectL, parseDone, curBrush, preBrush, i);
-		DrawEachRect(pDC, paneR, &frameRectR, parseDone, curBrush, preBrush, i);
+	auto* doc=GetDocument(); auto slots=doc->TimelineSources();
+	if (slots.empty()) return;
+	int pitch=mPosLinesPerFrame+1;
+	int start=max(0,int((clip->top-mHeaderHeight)/pitch));
+	int end=min(int((clip->bottom-mHeaderHeight)/pitch),doc->mMaxFrames-1);
+	dc->SelectObject(&mPosNumFont); dc->SetBkMode(TRANSPARENT); dc->SetTextColor(COLOR_POS_NUM_TEXT);
+	for (int i=start;i<=end;++i) {
+		int y=mHeaderHeight+pitch*i-clip->top;
+		CRect gutter(0,y,mGutterWidth,y+pitch); CString number; number.Format(_T("%d"),i);
+		dc->SetTextColor(COLOR_POS_NUM_TEXT); dc->DrawText(number,gutter,DT_SINGLELINE|DT_CENTER|DT_VCENTER);
+		for (size_t col=0;col<slots.size();++col) {
+			int slot=slots[col]; int target=slot==0 ? doc->mActiveTarget : slot;
+			CRect cell(mGutterWidth+(width-mGutterWidth)*(int)col/(int)slots.size(),y,
+				mGutterWidth+(width-mGutterWidth)*(int)(col+1)/(int)slots.size(),y+pitch);
+			int current=0,previous=-1;
+			bool parsed=i<doc->mPane[slot].frames && mFileScanThread->isFrameParsed(i,target);
+			DrawEachRect(dc,doc->mPane+slot,&cell,parsed,current,previous,i);
+		}
 	}
+	// Sticky source identifiers and shared frame-index gutter.
+	dc->FillSolidRect(CRect(0,0,width,mHeaderHeight),Q1UI_COLOR_SURFACE);
+	CRect gutter(0,0,mGutterWidth,mHeaderHeight); dc->DrawText(_T("#"),gutter,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+	for (size_t col=0;col<slots.size();++col) {
+		CRect cell(mGutterWidth+(width-mGutterWidth)*(int)col/(int)slots.size(),0,
+			mGutterWidth+(width-mGutterWidth)*(int)(col+1)/(int)slots.size(),mHeaderHeight);
+		CString letter; letter.Format(_T("%c"),_T('A')+slots[col]);
+		dc->SetTextColor(slots[col]==0 ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_TEXT);
+		dc->DrawText(letter,cell,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+	}
+}
+
+int CPosInfoView::SuggestedWidth()
+{
+	const auto dpi=q1view::WindowsUiDpi(m_hWnd);
+	return mGutterWidth+q1view::WindowsUiPixels(32*(int)GetDocument()->TimelineSources().size()+17,dpi,q1view::WindowsUiSettings().Scale());
 }
 
 void CPosInfoView::OnDraw(CDC* pDC)
@@ -203,16 +210,15 @@ void CPosInfoView::OnDraw(CDC* pDC)
 	// Pilot: hide the timeline entirely when neither pane is a video. The pink
 	// grid overlay in ComparatorView already conveys diff information; the
 	// timeline is only useful for picking a frame in a video source.
-	bool hasVideo = (paneL->isAvail() && paneL->frames > 1)
-	             || (paneR->isAvail() && paneR->frames > 1);
+	bool hasVideo = pDoc->mMaxFrames>1;
 
-	if (!paneL->isAvail() && !paneR->isAvail() || !hasVideo) {
+	if (pDoc->TimelineSources().empty() || !hasVideo) {
 		CFont *prevFont = memDC.SelectObject(CFont::FromHandle(
 			mUiFonts.Get(q1view::WindowsUiFontRole::Command, m_hWnd)));
 		memDC.SetBkMode(TRANSPARENT);
 		memDC.SetTextColor(Q1UI_COLOR_TEXT_MUTED);
 		CRect msgRect(0, 0, mWClient, h);
-		LPCTSTR msg = (paneL->isAvail() || paneR->isAvail())
+		LPCTSTR msg = !pDoc->TimelineSources().empty()
 			? _T("Timeline\n(video only)") : _T("Timeline");
 		memDC.DrawText(msg, &msgRect,
 			DT_CENTER | DT_VCENTER | DT_WORDBREAK | DT_NOCLIP);
@@ -272,14 +278,18 @@ void CPosInfoView::ConfigureScrollSizes(CComparatorDoc *pDoc)
 	mWClient = rcClient.Width();
 	mHClient = rcClient.Height();
 
-	const auto& left = pDoc->mPane[CComparatorDoc::IMG_VIEW_1];
-	const auto& right = pDoc->mPane[CComparatorDoc::IMG_VIEW_2];
-	const bool hasVideo = (left.isAvail() && left.frames>1) || (right.isAvail() && right.frames>1);
+	const bool hasVideo = pDoc->mMaxFrames>1;
 	const int maxFrames = hasVideo ? max(pDoc->mMaxFrames,0) : 0;
 	const int minimum = q1view::WindowsUiPixels(18, q1view::WindowsUiDpi(m_hWnd), q1view::WindowsUiSettings().Scale());
+	mHeaderHeight = minimum+1;
+	q1view::EnsureWindowsUiFont(mPosNumFont,q1view::WindowsUiFontRole::Numeric,m_hWnd);
+	CClientDC dc(this); auto* old=dc.SelectObject(&mPosNumFont);
+	CString number; number.Format(_T("%d"), max(0,pDoc->mMaxFrames-1));
+	mGutterWidth=dc.GetTextExtent(number).cx+q1view::WindowsUiPixels(12,q1view::WindowsUiDpi(m_hWnd));
+	dc.SelectObject(old);
 	// Include each row's border in its pitch. The old height+2 calculation
 	// created a scroll range even for an empty or fully fitting timeline.
-	const int pitch = maxFrames ? max(mHClient/maxFrames,minimum+1) : minimum+1;
+	const int pitch = maxFrames ? max((mHClient-mHeaderHeight)/maxFrames,minimum+1) : minimum+1;
 	mPosLinesPerFrame = pitch-1;
 	if (mPosLinesPerFrame > mDiffFlagSize) {
 		delete [] mDiffFlags;
@@ -288,7 +298,7 @@ void CPosInfoView::ConfigureScrollSizes(CComparatorDoc *pDoc)
 		mDiffFlags = new bool[mDiffFlagSize];
 	}
 
-	mPosLines = int(min(static_cast<long long>(pitch)*maxFrames,static_cast<long long>(INT_MAX)));
+	mPosLines = maxFrames ? int(min(mHeaderHeight+static_cast<long long>(pitch)*maxFrames,static_cast<long long>(INT_MAX))) : 0;
 	SetScrollSizes(MM_TEXT, CSize(0,mPosLines), CSize(0,max(1,mHClient*9/10)), CSize(0,pitch));
 	const bool visible = mPosLines>mHClient && mHClient>0;
 	if (mTimelineScroll.GetSafeHwnd()) {
@@ -330,47 +340,24 @@ void CPosInfoView::OnSize(UINT nType, int cx, int cy)
 	ConfigureScrollSizes(pDoc);
 }
 
-void CPosInfoView::OnLButtonDown(UINT nFlags, CPoint point)
+void CPosInfoView::OnLButtonDown(UINT flags,CPoint point)
 {
-	CComparatorDoc* pDoc = GetDocument();
-
-	ComparatorPane *paneL = &pDoc->mPane[CComparatorDoc::IMG_VIEW_1];
-	ComparatorPane *paneR = &pDoc->mPane[CComparatorDoc::IMG_VIEW_2];
-
-	if (point.x>=mWClient || (!paneL->isAvail() && !paneR->isAvail()))
-		return;
-
-	pDoc->KillPlayTimer();
-
-	CPoint ulCorner = GetScrollPosition();
-
-	int frameID = (ulCorner.y + point.y) / (mPosLinesPerFrame + 1);
-	frameID = min(frameID, pDoc->mMaxFrames - 1);
-
-	CComparatorDoc::PANE_ID idx;
-	if (point.x < (mWClient >> 1))
-		idx = CComparatorDoc::IMG_VIEW_1;
-	else
-		idx = CComparatorDoc::IMG_VIEW_2;
-
-	ComparatorPane *pane = &pDoc->mPane[idx];
-	pane->SetNextFrameID(frameID);
-	pDoc->ReadSource4View(pane);
-
-	IFrmCmpStrategy *compareStrategy = pDoc->mFrmCmpStrategy;
-	if (compareStrategy) {
-		CMainFrame* pMainFrm = static_cast<CMainFrame*>(AfxGetMainWnd());
-		pDoc->UpdateCurrentMetricState(pMainFrm->mMetricIdx);
+	auto* doc=GetDocument(); auto slots=doc->TimelineSources();
+	if (slots.empty() || point.x>=mWClient || point.y<mHeaderHeight || doc->mMaxFrames<=1) return;
+	int frame=(GetScrollPosition().y+point.y-mHeaderHeight)/(mPosLinesPerFrame+1);
+	if (frame<0 || frame>=doc->mMaxFrames) return;
+	if (point.x<mGutterWidth) { doc->KillPlayTimer(); doc->SetScenes(frame); }
+	else {
+		doc->mRequestedFrame=-1;
+		int col=(point.x-mGutterWidth)*(int)slots.size()/max(1,mWClient-mGutterWidth);
+		if (col<0 || col>=(int)slots.size()) return;
+		auto* pane=doc->mPane+slots[col];
+		if (frame>=pane->frames) return; // A missing frame is not the last frame.
+		doc->KillPlayTimer(); bool updated=false; doc->SetScene(frame,pane,updated);
+		doc->RefreshSelectionMetric();
 	}
-
-	pDoc->UpdateAllViews(NULL);
-
-	// Take focus so the user can drive playback (Space / Left / Right)
-	// directly from the timeline after seeking; otherwise the frame's active
-	// view stays on ComparatorView and OnKeyDown never fires here.
-	SetFocus();
-
-	CScrollView::OnLButtonDown(nFlags, point);
+	doc->UpdateAllViews(nullptr); SetFocus();
+	CScrollView::OnLButtonDown(flags,point);
 }
 
 BOOL CPosInfoView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)

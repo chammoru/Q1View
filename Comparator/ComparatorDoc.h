@@ -8,6 +8,7 @@
 #include "afx.h"
 
 #include "ComparatorPane.h"
+#include "ComparisonResults.h"
 
 #define CANVAS_DEF_W          352
 #define CANVAS_DEF_H          288
@@ -18,7 +19,6 @@
 #define COMPARER_DEF_FPS      30.0
 #define FPS_ADJUSTMENT        7
 #define COMPARER_DEF_VIEWS    2
-#define COMPARING_VIEWS_NUM   2
 
 class CComparatorDoc;
 class FileScanThread;
@@ -71,6 +71,14 @@ public:
 	IFrmCmpStrategy *mFrmCmpStrategy;
 	YuvFrmCmpStrategy *mYuvCompare;
 	RgbFrmCmpStrategy *mRgbCompare;
+	IFrmCmpStrategy* mPairStrategies[3] = {};
+	PairCurrentResult mPairResults[3];
+	int mActiveTarget = 1;
+	bool mBatchOpening = false;
+	unsigned long long mCurrentRequest = 0;
+	unsigned long long mCurrentPairRequests[3] = {};
+	CString mCurrentSignature[3];
+	long mRequestedFrame = -1;
 	CString mPendingFile;
 	bool mIsPlaying;
 	float mPreN;
@@ -114,14 +122,17 @@ public:
 	void ReloadPane(int paneIdx);
 	bool IsRGBCompare(const SQPane *paneA, const SQPane *paneB) const;
 	void RefleshPaneImages(ComparatorPane *pane, bool settingChanged);
+	void StopAnalysis();
+	void RebuildComparisons(unsigned changedSlots = 0xf);
+	void CloseSource(int slot);
+	std::vector<int> ComparisonTargets() const;
+	std::vector<int> TimelineSources() const;
+	int PairFrames(int target) const;
+	IFrmCmpStrategy* PairStrategy(int target) const;
+	CString PairTitle(int target) const;
+	void SelectComparison(int target);
 	inline ComparatorPane* GetOppositePane(ComparatorPane* pane) {
-		if (pane == mPane + IMG_VIEW_1) {
-			return mPane + IMG_VIEW_2;
-		} else if (pane == mPane + IMG_VIEW_2) {
-			return mPane + IMG_VIEW_1;
-		} else {
-			return nullptr;
-		}
+		return pane == mPane ? mPane + mActiveTarget : mPane;
 	}
 	std::vector<ComparatorPane*> GetOtherPanes(ComparatorPane* pane);
 	void KillPlayTimer();
@@ -138,7 +149,6 @@ public:
 	BOOL OpenMultiFiles(const std::vector<CString>& filenames);
 	void SelectMetric(int metricIdx);
 	void UpdateCurrentMetricState(int metricIdx);
-	void AppendCropMetric(int metricIdx, ComparatorPane *pane, ComparatorPane *opposite);
 	void RefreshSelectionMetric();
 	bool IsLpipsScanRunning() const;
 	void StopLpipsScanThread();

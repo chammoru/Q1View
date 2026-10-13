@@ -33,6 +33,7 @@ private:
 	~LpipsEngine();
 
 	std::atomic<bool> m_available;
+	std::atomic<int> m_backendIndex{0};
 	std::atomic<bool> m_initialized;
 
 	// Serializes init()/distance() so a backend switch (which releases and

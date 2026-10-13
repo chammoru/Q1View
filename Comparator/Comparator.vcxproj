@@ -262,6 +262,9 @@ copy /Y "$(ProjectDir)..\assets\fonts\Pretendard-LICENSE.txt" "$(TargetDir)Fonts
     <ClInclude Include="CustomSizeDlg.h" />
     <ClInclude Include="FileChangeNotiThread.h" />
     <ClInclude Include="FileScanThread.h" />
+    <ClInclude Include="ComparisonResults.h" />
+    <ClInclude Include="AnalysisLayout.h" />
+    <ClInclude Include="AnalysisScrollView.h" />
     <ClInclude Include="LpipsEngine.h" />
     <ClInclude Include="LpipsScanThread.h" />
     <ClInclude Include="MlModelProvisioner.h" />
