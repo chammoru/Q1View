@@ -177,7 +177,7 @@ void CGalleryGridCanvas::DrawFolderCardGpu(int index, const q1view::GalleryRect&
     mBrush->SetColor(Color(Q1UI_COLOR_SURFACE));
     mContext->FillRectangle(Bounds(r), mBrush.Get());
     CString label = Label(index);
-    mBrush->SetColor(Color(Q1UI_COLOR_ACCENT));
+    mBrush->SetColor(Color(Q1UI_COLOR_TEXT));
     const D2D1_RECT_F labelRect = D2D1::RectF(r.x + pad, r.y + pad,
         r.x + r.size - pad, r.y + r.size - pad);
     Ptr<IDWriteTextLayout> layout;
@@ -204,7 +204,7 @@ bool CGalleryGridCanvas::CreateFolderTextLayout(const CString& label, float widt
 }
 void CGalleryGridCanvas::DrawFolderCardFallback(CDC& dc, int index, const CRect& rect) {
     dc.FillSolidRect(rect, Q1UI_COLOR_SURFACE);
-    dc.SetBkMode(TRANSPARENT); dc.SetTextColor(Q1UI_COLOR_ACCENT);
+    dc.SetBkMode(TRANSPARENT); dc.SetTextColor(Q1UI_COLOR_TEXT);
     CFont* oldFont = dc.SelectObject(&mOwner.mFolderFont);
     const int pad = std::max(4, int(rect.Width() * .08f));
     CRect label = rect; label.DeflateRect(pad, pad);

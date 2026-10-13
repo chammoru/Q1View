@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Q1UiMenuWin.h"
+#include "Q1UiBufferedPaintWin.h"
 #include <dwmapi.h>
 #include <commctrl.h>
 #include <windowsx.h>
@@ -23,6 +24,7 @@ class WindowsUiFrame {
 	WindowsUiFontCache mFonts;
 	std::vector<HWND> mButtons;
 	std::vector<RECT> mButtonRects;
+	std::vector<std::pair<UINT, std::wstring>> mMinimumMenuText;
 	bool mCustom = false, mMenuVisible = true, mTracking = false, mKeyboard = false;
 	bool mDeferredClose = false;
 	int mTitleHeight = 0, mMenuHeight = 0, mOpen = -1, mNext = -1;
@@ -87,6 +89,11 @@ class WindowsUiFrame {
 				const auto text = mMenus->Text(mMenu, UINT(i), true);
 				RECT measured = {};
 				DrawTextW(dc, text.c_str(), -1, &measured, DT_SINGLELINE | DT_CALCRECT);
+				for (const auto& minimum : mMinimumMenuText) if (minimum.first == Info(int(i)).wID) {
+					RECT reserved = {};
+					DrawTextW(dc, minimum.second.c_str(), -1, &reserved, DT_SINGLELINE | DT_CALCRECT);
+					measured.right = (std::max)(measured.right, reserved.right);
+				}
 				widths[i] = int(measured.right) + WindowsUiPixels(16, dpi, scale);
 			}
 		}
@@ -107,6 +114,10 @@ class WindowsUiFrame {
 	}
 	static LRESULT CALLBACK ButtonProc(HWND window, UINT message, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
 		auto* self = reinterpret_cast<WindowsUiFrame*>(data);
+		// BS_OWNERDRAW still erases with COLOR_BTNFACE before WM_DRAWITEM.
+		// Our buffered painter fills the entire button; never expose that light
+		// system brush between a label update and the themed paint.
+		if (message == WM_ERASEBKGND) return TRUE;
 		if (message == WM_SETFOCUS) self->RememberFocus(reinterpret_cast<HWND>(wp));
 		if (message == WM_NCDESTROY) RemoveWindowSubclass(window, ButtonProc, 1);
 		return DefSubclassProc(window, message, wp, lp);
@@ -119,7 +130,11 @@ class WindowsUiFrame {
 		}
 		if (!self) return DefWindowProcW(window, message, wp, lp);
 		if (message == WM_ERASEBKGND) {
-			RECT rect; GetClientRect(window, &rect); FillRect(reinterpret_cast<HDC>(wp), &rect, GetSysColorBrush(COLOR_MENUBAR)); return TRUE;
+			RECT rect; GetClientRect(window, &rect); FillRect(reinterpret_cast<HDC>(wp), &rect, WindowsUiColorBrush(WindowsUiColor::Window)); return TRUE;
+		}
+		if (message == WM_CTLCOLORBTN) {
+			SetBkColor(reinterpret_cast<HDC>(wp), WindowsUiColorValue(WindowsUiColor::Window));
+			return reinterpret_cast<LRESULT>(WindowsUiColorBrush(WindowsUiColor::Window));
 		}
 		if (message == WM_DRAWITEM) {
 			auto draw = *reinterpret_cast<DRAWITEMSTRUCT*>(lp);
@@ -128,7 +143,9 @@ class WindowsUiFrame {
 				draw.CtlType = ODT_MENU; draw.itemData = self->Info(index).dwItemData;
 				if (self->mTracking && self->mOpen == index) draw.itemState |= ODS_SELECTED;
 				if (!self->mKeyboard) draw.itemState |= ODS_NOACCEL;
-				self->mMenus->Draw(&draw);
+				WindowsUiBufferedPaint paint(draw.hDC,draw.rcItem,WindowsUiColor::Window);
+				draw.hDC = paint.Dc();
+				if (!self->mMenus->Draw(&draw)) FillRect(draw.hDC, &draw.rcItem, WindowsUiColorBrush(WindowsUiColor::Window));
 				if (draw.itemState & ODS_FOCUS) { InflateRect(&draw.rcItem, -2, -2); DrawFocusRect(draw.hDC, &draw.rcItem); }
 				return TRUE;
 			}
@@ -197,6 +214,30 @@ public:
 	int TitleHeight() const { return mTitleHeight; }
 	HWND MenuHost() const { return mBar; }
 	const std::vector<RECT>& MenuRects() const { return mButtonRects; }
+	// Reserve measured room for rapidly changing labels without a fixed pixel
+	// width. Font, DPI, and accessibility text scaling remain authoritative.
+	void ReserveMenuWidth(UINT id, const wchar_t* text) {
+		for (auto& minimum : mMinimumMenuText) if (minimum.first == id) { minimum.second = text; return; }
+		mMinimumMenuText.emplace_back(id, text);
+	}
+	// The caller has modified one existing HMENU label. Refresh its metadata
+	// and accessible button name, not every button or the content splitters.
+	void SyncLabel(UINT id) {
+		if (!Initialized()) return;
+		mMenus->Sync(mWindow, mMenu, mCustom);
+		if (int(mButtons.size()) != GetMenuItemCount(mMenu)) { Sync(); return; }
+		const auto widths = MeasureMenuWidths(WindowsUiDpi(mWindow), WindowsUiSettings().Scale());
+		RECT client; GetClientRect(mWindow, &client);
+		for (size_t i = 0; i < mButtons.size(); ++i) if (Info(int(i)).wID == id) {
+			const auto text = mMenus->Text(mMenu, UINT(i), true);
+			SetWindowTextW(mButtons[i], text.c_str());
+			InvalidateRect(mButtons[i], nullptr, FALSE);
+			const int width = (std::min)((std::max)(1L, client.right), LONG(widths[i]));
+			if (i >= mButtonRects.size() || mButtonRects[i].right - mButtonRects[i].left != width) Layout();
+			return;
+		}
+		Sync();
+	}
 	// Uses exactly the same text and padding measurement as responsive Layout.
 	// Callers may measure normal text independently of the user's enlargement.
 	int SingleRowMenuWidth(UINT dpi, double scale) {
@@ -278,7 +319,10 @@ public:
 			SWP_NOACTIVATE | (visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
 		for (size_t i = 0; i < mButtons.size(); ++i) {
 			const auto& rect = mButtonRects[i];
-			MoveWindow(mButtons[i], rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, TRUE);
+			RECT current; GetWindowRect(mButtons[i], &current);
+			MapWindowPoints(nullptr, mBar, reinterpret_cast<POINT*>(&current), 2);
+			if (!EqualRect(&rect, &current))
+				MoveWindow(mButtons[i], rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, TRUE);
 		}
 		RECT title = {0, 0, width, mTitleHeight}; InvalidateRect(mWindow, &title, FALSE);
 	}
@@ -286,8 +330,10 @@ public:
 		if (!Initialized()) return;
 		MARGINS margins = {}; margins.cyTopHeight = mCustom && Caption() ? mTitleHeight : 0;
 		DwmExtendFrameIntoClientArea(mWindow, &margins);
-		const COLORREF background = mCustom ? GetSysColor(COLOR_MENUBAR) : 0xffffffff;
-		const COLORREF foreground = mCustom ? GetSysColor(COLOR_MENUTEXT) : 0xffffffff;
+		const BOOL dark = WindowsUiAppearanceState().Dark();
+		DwmSetWindowAttribute(mWindow, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof(dark));
+		const COLORREF background = mCustom ? WindowsUiColorValue(WindowsUiColor::Window) : 0xffffffff;
+		const COLORREF foreground = mCustom ? WindowsUiColorValue(WindowsUiColor::Text) : 0xffffffff;
 		DwmSetWindowAttribute(mWindow, DWMWA_CAPTION_COLOR, &background, sizeof(background));
 		DwmSetWindowAttribute(mWindow, DWMWA_TEXT_COLOR, &foreground, sizeof(foreground));
 	}
@@ -308,7 +354,7 @@ public:
 		{
 		RECT title = {0, 0, client.right, mTitleHeight};
 		WindowsUiDcState saved(dc);
-		FillRect(dc, &title, GetSysColorBrush(COLOR_MENUBAR));
+		FillRect(dc, &title, WindowsUiColorBrush(WindowsUiColor::Window));
 		const int right = captionButtons.left;
 		HICON icon = reinterpret_cast<HICON>(SendMessage(mWindow, WM_GETICON, ICON_SMALL2, 0));
 		if (!icon) icon = reinterpret_cast<HICON>(GetClassLongPtr(mWindow, GCLP_HICONSM));
@@ -316,7 +362,7 @@ public:
 		if (icon) DrawIconEx(dc, Px(10), (mTitleHeight - Px(20)) / 2, icon, Px(20), Px(20), 0, nullptr, DI_NORMAL);
 		title.left = Px(38); title.right = (std::max)(title.left, LONG(right - Px(8)));
 		SelectObject(dc, mFonts.Get(WindowsUiFontRole::Body, mWindow));
-		SetBkMode(dc, TRANSPARENT); SetTextColor(dc, GetSysColor(GetForegroundWindow() == mWindow ? COLOR_MENUTEXT : COLOR_GRAYTEXT));
+		SetBkMode(dc, TRANSPARENT); SetTextColor(dc, WindowsUiColorValue(GetForegroundWindow() == mWindow ? WindowsUiColor::Text : WindowsUiColor::Muted));
 		std::vector<wchar_t> text(GetWindowTextLengthW(mWindow) + 1);
 		GetWindowTextW(mWindow, text.data(), int(text.size()));
 		DrawTextW(dc, text.data(), -1, &title, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);

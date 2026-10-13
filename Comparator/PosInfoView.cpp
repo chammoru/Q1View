@@ -92,13 +92,13 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 	COLORREF frameColor;
 	if (isCurFrame) {
 		// Pane-specific highlight so left vs right is obvious at a glance.
-		frameColor = isLeftPane ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_WARNING;
+		frameColor = isLeftPane || q1view::WindowsUiAppearanceState().HighContrast() ? Q1UI_COLOR_ACCENT : Q1UI_COLOR_WARNING;
 	} else if (!pane->isAvail()) {
 		frameColor = Q1UI_COLOR_SURFACE;
 	} else if (parseDone) {
 		frameColor = Q1UI_COLOR_ACCENT_SOFT;
 	} else if (i < pane->frames) {
-		frameColor = Q1UI_COLOR_BORDER_SOFT;
+		frameColor = Q1UI_COLOR_SURFACE_ALT;
 	} else {
 		frameColor = Q1UI_COLOR_APP_BG;
 	}
@@ -121,17 +121,18 @@ void CPosInfoView::DrawEachRect(CDC* pDC,
 	}
 
 	COLORREF preColor = 0;
-	if (isCurFrame) {
-		// Use surface (near-white) on the saturated highlight fill for
-		// maximum contrast.
-		preColor = pDC->SetTextColor(Q1UI_COLOR_SURFACE);
+	const bool highlighted = isCurFrame || (parseDone && q1view::WindowsUiAppearanceState().HighContrast());
+	if (highlighted) {
+		// Highlight labels must use the corresponding foreground in both
+		// Light/Dark and Windows contrast themes.
+		preColor = pDC->SetTextColor(Q1UI_COLOR_ACCENT_TEXT);
 	}
 
 	CString numStr;
 	numStr.Format(_T("%d"), i);
 	pDC->DrawText(numStr, frameRect, DT_SINGLELINE | DT_CENTER |  DT_VCENTER);
 
-	if (isCurFrame)
+	if (highlighted)
 		pDC->SetTextColor(preColor);
 
 	frameRect->OffsetRect(0, mPosLinesPerFrame + 1);
@@ -149,8 +150,8 @@ void CPosInfoView::DrawFrameRect(CDC* pDC, CRect *clipBox, int w)
 	int endFrameID = MIN(clipBox->bottom / outerRcH, pDoc->mMaxFrames - 1);
 
 	int y = outerRcH * startFrameID - clipBox->top;
-	CRect frameRectL(0, y, w / 2, y + outerRcH + 1);
-	CRect frameRectR(w / 2, y, w, y + outerRcH + 1);
+	CRect frameRectL(0, y, w / 2, y + outerRcH);
+	CRect frameRectR(w / 2, y, w, y + outerRcH);
 
 	pDC->SelectStockObject(WHITE_PEN);
 	pDC->SetBkMode(TRANSPARENT);
@@ -172,6 +173,10 @@ void CPosInfoView::DrawFrameRect(CDC* pDC, CRect *clipBox, int w)
 
 void CPosInfoView::OnDraw(CDC* pDC)
 {
+	LOGPEN pen = {};
+	if (!mDiffPen->GetLogPen(&pen) || pen.lopnColor != Q1UI_COLOR_DANGER) {
+		mDiffPen->DeleteObject(); mDiffPen->CreatePen(PS_SOLID, 1, Q1UI_COLOR_DANGER);
+	}
 	q1view::EnsureWindowsUiFont(mPosNumFont, q1view::WindowsUiFontRole::Numeric, m_hWnd);
 	CComparatorDoc* pDoc = GetDocument();
 
@@ -179,6 +184,7 @@ void CPosInfoView::OnDraw(CDC* pDC)
 	pDC->GetClipBox(&clipBox);
 
 	int h = clipBox.Height();
+	if (mWClient<=0 || h<=0) return;
 
 	CDC memDC;
 	memDC.CreateCompatibleDC(pDC);
@@ -250,9 +256,10 @@ int CPosInfoView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	pDoc->mPosInfoView = this;
 	mFileScanThread = pDoc->mFileScanThread;
 
-	CSize sizeTotal;
-	sizeTotal.cx = sizeTotal.cy = MIN_SIDE;
-	SetScrollSizes(MM_TEXT, sizeTotal);
+	ModifyStyle(WS_HSCROLL | WS_VSCROLL, WS_CLIPCHILDREN);
+	if (!mTimelineScroll.Create(WS_CHILD | WS_TABSTOP | SBS_VERT, CRect(0,0,0,0), this, 0x7810)) return -1;
+	mTimelineScroll.SetWindowText(_T("Timeline scroll bar"));
+	SetScrollSizes(MM_TEXT, CSize(0,0));
 
 	return 0;
 }
@@ -265,10 +272,15 @@ void CPosInfoView::ConfigureScrollSizes(CComparatorDoc *pDoc)
 	mWClient = rcClient.Width();
 	mHClient = rcClient.Height();
 
-	int maxFrames = max(pDoc->mMaxFrames, 1);
-
-	mPosLinesPerFrame = max(mHClient / maxFrames,
-		q1view::WindowsUiPixels(18, q1view::WindowsUiDpi(m_hWnd), q1view::WindowsUiSettings().Scale()));
+	const auto& left = pDoc->mPane[CComparatorDoc::IMG_VIEW_1];
+	const auto& right = pDoc->mPane[CComparatorDoc::IMG_VIEW_2];
+	const bool hasVideo = (left.isAvail() && left.frames>1) || (right.isAvail() && right.frames>1);
+	const int maxFrames = hasVideo ? max(pDoc->mMaxFrames,0) : 0;
+	const int minimum = q1view::WindowsUiPixels(18, q1view::WindowsUiDpi(m_hWnd), q1view::WindowsUiSettings().Scale());
+	// Include each row's border in its pitch. The old height+2 calculation
+	// created a scroll range even for an empty or fully fitting timeline.
+	const int pitch = maxFrames ? max(mHClient/maxFrames,minimum+1) : minimum+1;
+	mPosLinesPerFrame = pitch-1;
 	if (mPosLinesPerFrame > mDiffFlagSize) {
 		delete [] mDiffFlags;
 
@@ -276,11 +288,37 @@ void CPosInfoView::ConfigureScrollSizes(CComparatorDoc *pDoc)
 		mDiffFlags = new bool[mDiffFlagSize];
 	}
 
-	mPosLines = mPosLinesPerFrame * maxFrames
-	          + maxFrames + 1;
-	CSize sizeTotal(MIN_SIDE, mPosLines);
+	mPosLines = int(min(static_cast<long long>(pitch)*maxFrames,static_cast<long long>(INT_MAX)));
+	SetScrollSizes(MM_TEXT, CSize(0,mPosLines), CSize(0,max(1,mHClient*9/10)), CSize(0,pitch));
+	const bool visible = mPosLines>mHClient && mHClient>0;
+	if (mTimelineScroll.GetSafeHwnd()) {
+		if (!visible) mTimelineScroll.CancelTracking();
+		const int width = min(mWClient,q1view::WindowsUiPixels(17,q1view::WindowsUiDpi(m_hWnd)));
+		mTimelineScroll.SetWindowPos(nullptr,mWClient-width,0,width,mHClient,SWP_NOZORDER | SWP_NOACTIVATE);
+		mTimelineScroll.ShowWindow(visible ? SW_SHOWNA : SW_HIDE);
+		if (visible) mWClient-=width;
+	}
+}
 
-	SetScrollSizes(MM_TEXT, sizeTotal);
+CScrollBar* CPosInfoView::GetScrollBarCtrl(int bar) const
+{
+	if (bar==SB_VERT && mTimelineScroll.GetSafeHwnd()) return &mTimelineScroll;
+	return CScrollView::GetScrollBarCtrl(bar);
+}
+
+BOOL CPosInfoView::OnScrollBy(CSize scroll, BOOL doScroll)
+{
+	if (!mTimelineScroll.GetSafeHwnd() || !mTimelineScroll.IsWindowEnabled()) return FALSE;
+	const int old = GetScrollPos(SB_VERT);
+	const int position = int(max(0LL,min(static_cast<long long>(GetScrollLimit(SB_VERT)),static_cast<long long>(old)+scroll.cy)));
+	if (position==old) return FALSE;
+	if (doScroll) {
+		SetScrollPos(SB_VERT,position);
+		// Repaint the timeline, rather than ScrollWindow which also moves its
+		// child scrollbar. The scrollbar must remain anchored to the viewport.
+		Invalidate(FALSE);
+	}
+	return TRUE;
 }
 
 void CPosInfoView::OnSize(UINT nType, int cx, int cy)
@@ -299,7 +337,7 @@ void CPosInfoView::OnLButtonDown(UINT nFlags, CPoint point)
 	ComparatorPane *paneL = &pDoc->mPane[CComparatorDoc::IMG_VIEW_1];
 	ComparatorPane *paneR = &pDoc->mPane[CComparatorDoc::IMG_VIEW_2];
 
-	if (!paneL->isAvail() && !paneR->isAvail())
+	if (point.x>=mWClient || (!paneL->isAvail() && !paneR->isAvail()))
 		return;
 
 	pDoc->KillPlayTimer();
@@ -337,26 +375,31 @@ void CPosInfoView::OnLButtonDown(UINT nFlags, CPoint point)
 
 BOOL CPosInfoView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 {
-	int nPos = GetScrollPos(SB_VERT);
-	SetScrollPos(SB_VERT, nPos - zDelta);
-	Invalidate(FALSE);
-
-	return CScrollView::OnMouseWheel(nFlags, zDelta, pt);
+	return DoMouseWheel(nFlags,zDelta,pt);
 }
 
 void CPosInfoView::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 {
-	SCROLLINFO si;
-	ZeroMemory(&si, sizeof(SCROLLINFO));
-
-	GetScrollInfo(SB_VERT, &si, SIF_TRACKPOS);
-	nPos = si.nTrackPos;
-
-	CScrollView::OnVScroll(nSBCode, nPos, pScrollBar);
+	if (nSBCode==SB_THUMBTRACK || nSBCode==SB_THUMBPOSITION) {
+		SCROLLINFO si = {};
+		GetScrollInfo(SB_VERT,&si,SIF_TRACKPOS);
+		const int position = mTimelineScroll.IsTrackingThumb() ? mTimelineScroll.TrackPosition() : si.nTrackPos;
+		OnScrollBy(CSize(0,position-GetScrollPos(SB_VERT)));
+	} else CScrollView::OnVScroll(nSBCode,nPos,pScrollBar);
 }
 
 void CPosInfoView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
+	int scroll = -1;
+	switch (nChar) {
+	case VK_UP: scroll = SB_LINEUP; break;
+	case VK_DOWN: scroll = SB_LINEDOWN; break;
+	case VK_PRIOR: scroll = SB_PAGEUP; break;
+	case VK_NEXT: scroll = SB_PAGEDOWN; break;
+	case VK_HOME: scroll = SB_TOP; break;
+	case VK_END: scroll = SB_BOTTOM; break;
+	}
+	if (scroll!=-1) { OnScroll(MAKEWORD(0xff,scroll),0); return; }
 	// The timeline owns focus after a seek click, so route playback controls
 	// here too: Space toggles play/pause, Left/Right step one frame. Mirrors
 	// CComparatorView::OnKeyDown so the same shortcuts behave identically

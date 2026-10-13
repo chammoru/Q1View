@@ -76,6 +76,7 @@ protected:
 	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg LRESULT OnDpiChanged(WPARAM, LPARAM);
+	afx_msg LRESULT OnAppearanceChanged(WPARAM, LPARAM);
 	afx_msg LRESULT OnThumbReady(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnActivatePosted(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnDirectoryChanged(WPARAM wParam, LPARAM lParam);

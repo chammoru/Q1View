@@ -81,6 +81,7 @@ static void DrawCenteredMessage(CDC *pDC, CRect rect, CFont *titleFont, CFont *b
 
 void CFrmsInfoView::OnDraw(CDC* pDC)
 {
+	mPsnrCal->UpdateAppearance();
 	q1view::EnsureWindowsUiFont(mLabelFont, q1view::WindowsUiFontRole::Numeric, m_hWnd);
 	q1view::EnsureWindowsUiFont(mResultFont, q1view::WindowsUiFontRole::Status, m_hWnd);
 	q1view::EnsureWindowsUiFont(mBodyFont, q1view::WindowsUiFontRole::Body, m_hWnd);

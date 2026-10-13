@@ -7,6 +7,7 @@
 
 #include "ViewerDoc.h"
 #include "ViewerView.h"
+#include "Q1UiAppearanceMenuWin.h"
 
 // #include "vld.h"
 
@@ -56,6 +57,7 @@ BOOL CViewerApp::InitInstance()
 	SetEnvironmentVariableW(L"Q1VIEW_TRACE_PLAYBACK", L"1");
 #endif
 	LoadStdProfileSettings(10);  // Load standard INI file options (including MRU)
+	q1view::LoadWindowsUiAppearancePreferences(*this);
 	// Register the application's document templates.  Document templates
 	//  serve as the connection between documents, frame windows and views
 	CSingleDocTemplate* pDocTemplate;

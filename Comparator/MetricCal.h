@@ -77,6 +77,7 @@ public:
 	void DrawLines(Graphics *graphics) const;
 	void DrawAverages(Graphics *graphics, CRect *rect, const char **labels) const;
 	void UpdateFont(HDC dc, HFONT font);
+	void UpdateAppearance(); // Recolor existing graph resources; never recalculate metrics.
 
 	inline double getMaxVal() const { return mMaxValUser; }
 	inline double getMinVal() const { return mMinValUser; }

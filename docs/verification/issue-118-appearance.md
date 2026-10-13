@@ -1,0 +1,96 @@
+# Issue #118: Windows appearance implementation and verification
+
+Date: 2026-10-11. Branch: `codex/issue-118-appearance`, based on `origin/master` `cf0c29ebcefc30832e95711c3136b57a4d61c622`. Windows MFC Viewer and Comparator only. Following native user review, the user approved one coupled Theme control, then explicitly chose to keep that menu in Viewer only and have Comparator follow its shared setting, accepting that Comparator-only users must open Viewer to change it. This supersedes the earlier per-app preference and dual-menu scope. No Qt changes, layout redesign, font replacement, Mica dependency, version increase, release tag or Store submission.
+
+## Behavior and boundaries
+
+- Viewer only: **Options → Theme → System / Light / Dark**. Comparator has no theme menu or theme command handler, retaining only its existing Allow Different Resolutions option in Options. Viewer retains **View → Image Scaling**. There is no separate Appearance or Image background submenu.
+- Light uses bright UI colors with a light gray surround (`#ECECEC`); Dark uses dark UI colors with a dark gray surround (`#181818`). System resolves both together from the Windows app theme. Source, capture and metric input pixels are unchanged.
+- Both apps read `HKCU\Software\Chammoru\Q1View\Appearance\Theme`. Viewer imports its legacy per-app Theme once if no shared value exists. Comparator never imports its former independent choice; Comparator-first startup without a shared value uses System and does not create a preference. Old Canvas values are ignored, not deleted. Invalid or wrong-type shared values safely resolve to System rather than restoring an obsolete legacy choice.
+- Saving in Viewer broadcasts a profile-family-scoped registered Windows message. Receiving Viewer/Comparator instances reread the common key on their own UI thread and repaint only when the choice changes. No pointers or setting values cross processes, and no other application's UI thread can block the sender. Activation also reloads the key to cover missed notifications (for example differing elevation). Test profile families use separate keys and message identifiers; they cannot modify production apps' preferences or themes.
+- Shared role colors cover app-drawn titles, hosted menus and already owner-drawn popups, panels, help, text, selection, progress controls, status overlays and metric graphs. Folder labels use ordinary foreground text, not decorative blue. Essential progress/divider boundaries use a higher-contrast color than decorative separators.
+- Windows high contrast overrides colors using system Window/WindowText/Highlight/HighlightText, without replacing saved preferences. Enabled supporting text uses WindowText; disabled menu text uses GrayText. Existing native-frame fallback remains. Graph channels also use different dash patterns so color is not their only distinction.
+- Theme notification handlers repaint UI and update existing pens/brushes; they do not open files, rebuild folder entries, clear thumbnail caches or restart comparison scanning/playback. Thumbnail extension/loading badges are recolored in place; cached photo pixels and their indices remain intact. Thumbnail letterboxing is stable neutral gray, not baked from a mutable UI theme.
+- Viewer scale-cache validity includes canvas color because its buffer contains exposed background pixels. A theme change redraws the buffer with the matching surround without restarting the source decoder.
+- Comparator's Timeline uses a real child `SCROLLBAR` control with application-palette painting, hover/drag feedback and full-width thumb position handling. The native range/keyboard/accessibility implementation remains, and Windows high contrast delegates painting and mouse handling to the native control. Empty, still-image and all-fitting timelines hide it; scrolling repaints content without moving the control or seeking source media. No global system colors or undocumented dark-mode APIs are changed.
+- Windows-owned dialogs, system menus, native/unstyled context menus, other native scrollbars and popup chrome remain OS-rendered. This job does not replace native popup tracking.
+
+## Local automated verification
+
+Visual Studio 2022 Community MSBuild, Release/x64/v143. The existing generated local version remains `0.0.0-dev`; the version script was blocked by this shell's execution policy, and no policy was changed.
+
+```powershell
+$msbuild = 'C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe'
+& $msbuild Tests\CoreRegressionTests.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+.\Tests\bin\x64\Release\CoreRegressionTests.exe
+& $msbuild Tests\WindowsUiTypographyTests.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+.\Tests\bin\x64\Release\WindowsUiTypographyTests.exe
+& $msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:IntDir=x64\Issue118SharedReview\ /p:OutDir=x64\Issue118SharedReview\
+& $msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:IntDir=x64\Issue118SharedReview\ /p:OutDir=x64\Issue118SharedReview\
+```
+
+The appearance/typography executable passed pure System/Light/Dark resolution with matching surround colors, shared-registry persistence/reinitialization, Viewer-only one-time legacy migration, Comparator-first System fallback, conflicting legacy Comparator choice ignored, malformed shared values, isolated notification message identifiers, ignored Canvas values, retired-command rejection, a three-choice Viewer Theme submenu without duplicate controls or leading separator, text contrast at least 4.5:1, essential control boundaries at least 3:1, semantic overlay contrast, high-contrast role mapping, BGR fills, native owner-drawn menu pixel readback and bounded brush/font GDI lifetime. It also retained existing accessibility, caption/Snap hit-test, startup sizing and 4 DPI × 5 text-factor × 3 width tests. Final warmed GDI count: 46 before / 46 after. The Viewer menu including Options measured 648 px at 96 DPI, or 711 px with Update, within its default 800 px width. Disposable unit-test registry keys are removed after the checks.
+
+Native integration suites use isolated test profiles, repository fixtures and disposable temporary copies, never private photographs. Build/run from the repository root:
+
+```powershell
+& $msbuild Viewer\Viewer.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:Q1ViewGalleryTests=true /p:IntDir=x64\Issue118Gallery\ /p:OutDir=x64\Issue118Gallery\
+$env:Q1VIEW_GALLERY_TEST_REPORT = Join-Path $PWD 'Tests/bin/x64/Release/issue-118-shared-gallery-report.txt'
+$test = Start-Process ./Viewer/x64/Issue118Gallery/Viewer.exe -ArgumentList '"Tests/fixtures/sample_16x16.png"' -WorkingDirectory $PWD -WindowStyle Hidden -PassThru -Wait
+$test.ExitCode
+& $msbuild Comparator\Comparator.sln /m /restore /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:Q1ViewComparerTests=true /p:IntDir=x64\Issue118ComparerTests\ /p:OutDir=x64\Issue118ComparerTests\
+$env:Q1VIEW_COMPARER_TEST_REPORT = Join-Path $PWD 'Tests/bin/x64/Release/issue-118-shared-comparer-report.txt'
+$test = Start-Process ./Comparator/x64/Issue118ComparerTests/Comparator.exe -WorkingDirectory $PWD -WindowStyle Hidden -PassThru -Wait
+$test.ExitCode
+```
+
+Comparer integration asserts that Options contains only its comparison option, with no Theme submenu. A separate process runs `WindowsUiTypographyTests.exe --shared-theme-write Q1ViewComparerTests <choice>`, using the same production save/broadcast API as Viewer. The existing Comparer receives the notification without activation, a theme command or manual repaint. Checks preserve both source buffers, files/formats, zoom/pan, ROI, comparison/scan strategy and real PSNR/SSIM ROI scores. Four-source A/B/C/D checks read back presented canvas pixels to confirm matching backgrounds and unchanged source buffers. Existing caption/menu movement and narrow-window checks remain enabled. Runtime DPI: 96; Windows text factor: 1.000.
+
+The Viewer suite checks both actual menu commands and separate-process shared writes against the source buffer and decoder/open generation, source-space ROI and capture buffer, matching scaled exposed-canvas pixels, gallery generation/entries/selection/scroll and exact CPU/GPU thumbnail handles. It asserts that Options > Theme is the sole theme menu and View retains Image Scaling. During video playback, theme changes retain the timer, media and decoder generation. Existing gallery, drawer, GPU recreation, RAW, video, watcher and safe-recycle regression checks remain enabled. Build the unit executable first: it is also the cross-process integration helper, and rejects production profile names.
+
+After the Viewer-only shared-setting change, CoreRegressionTests, GalleryLayoutTests, WindowsUiTypographyTests, the full Viewer suite, default Viewer/RAW startup and Comparer integration all exited 0. Both ordinary Release/x64/v143 builds also exited 0 without stale PDB warnings. Reports use `Tests/bin/x64/Release/issue-118-shared-gallery-report.txt`, `issue-118-shared-startup-report.txt` and `issue-118-shared-comparer-report.txt` (ignored local artifacts). No failed assertion is waived. The initial implementation's normal build caught Windows `min`/`max` macro pollution introduced by the new header; defining `NOMINMAX` before its Windows include fixed that compile error.
+
+Ordinary Viewer and Comparator use a separate `Issue118SharedReview` intermediate/output directory without integration-test switches, leaving earlier user-review processes untouched. These ordinary binaries, not the test-instrumented applications, are the review builds.
+
+GitHub gallery validation now watches the shared appearance/menu files and Comparator integration sources, runs the expanded appearance tests and builds/runs the Comparer suite. A workflow run is not used as a substitute for local evidence, and no release workflow was dispatched.
+
+## Timeline scrollbar follow-up
+
+Following the user's Dark-mode screenshot and approval, the Timeline's window-attached scrollbar was replaced with a native child control whose normal-theme paint/mouse handling is specialized. Window-attached bars do not receive `WM_CTLCOLORSCROLLBAR`, so changing that brush would not fix this view; global `SetSysColors` would affect unrelated apps. The implementation uses documented native scrollbar geometry/ranges and does not depend on private UxTheme exports. Its normal track uses SurfaceAlt, with a rounded Boundary-colored thumb, Muted hover and Text drag feedback. Contrast themes use the native control implementation instead.
+
+The Timeline row pitch now includes the border once, eliminating the old phantom range for fitting rows. Its wheel handler delegates once to MFC's scrolling logic, respecting Windows wheel settings rather than first moving manually and then delegating a second time. `OnScrollBy` clamps the position and invalidates content instead of using `ScrollWindow`, which would move the child scrollbar. Thumb tracking carries full 32-bit positions rather than the truncated position in `WM_VSCROLL`.
+
+After this revision, CoreRegressionTests, WindowsUiTypographyTests and the expanded full Comparer integration exited 0. The warmed unit-test GDI count stayed 46/46. Comparer checks include empty/still/fitting scrollbar hiding, two actual 120-frame 16×16 YUV420 sources, wheel and native Page Down/Home keys, Light/Dark/System track pixel readback and hover feedback, nonzero scroll-offset preservation across separate-process theme notifications, exact end-position dragging, anchored geometry and unchanged current media frame, arrow repeat/release, page-track clicks, capture cancellation and native SCROLLBAR/MSAA ScrollBar role preservation. A synthetic 200,000-position native range additionally verifies tracking above 65,535 without claiming a 200,000-frame video was decoded. Synchronous custom mouse tests are not run through the native contrast-theme modal mouse loop. Actual Windows contrast-theme interaction remains a separate acceptance item.
+
+Both the ordinary Comparator build and test-instrumented build succeeded with Release/x64/v143. The new ordinary Comparator review binary is `Comparator/x64/Issue118ScrollReview/Comparator.exe`, built with matching `/p:IntDir=x64\Issue118ScrollReview\ /p:OutDir=x64\Issue118ScrollReview\` and no integration switch. The unchanged Viewer review binary remains under `Viewer/x64/Issue118SharedReview/`. The expanded integration report is `Tests/bin/x64/Release/issue-118-scrollbar-report.txt` (ignored local artifact). Initial test failures came from an ambiguous RAW fixture filename and synthetic hover losing its state to a real pointer-leave event; explicit `_16x16_yuv420.yuv` naming and synchronous hover readback fixed the tests, with no failed assertion waived.
+
+Computer-use successfully connected on the follow-up attempt. An ordinary Dark Comparator was visually reviewed empty and with two disposable generated 120-frame RAW fixtures, not private photographs. The empty scrollbar is absent; the overflowing Timeline has a dark track and gray rounded thumb. Real native mouse drag reached the final rows, Home returned to the first rows, and wheel input moved the visible rows from 0 to 15 without changing frame 0. This limited review does not prove actual Windows Settings transitions or all popup chrome behavior.
+
+Implementation references: Microsoft documents that [WM_CTLCOLORSCROLLBAR](https://learn.microsoft.com/en-us/windows/win32/controls/wm-ctlcolorscrollbar) applies to child scrollbar controls, not window-attached bars, and exposes native thumb/arrow geometry through [SCROLLBARINFO](https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-scrollbarinfo).
+
+## Native review still pending
+
+The earlier computer-use native-pipe connection failure was recovered during the Timeline follow-up above. Ordinary Light/Dark Viewer/Comparator and shared-preference native inspection is recorded in `issue-139-reference-comparisons.md`; live Windows System/high-contrast transitions and the broader menu/popup acceptance items below still remain untested. No system settings were changed during these follow-ups.
+
+- Review ordinary Viewer/Comparator Light/Dark menus, inactive captions, help, compact/gallery views, status messages and popup chrome on this machine.
+- Confirm an actual Windows System-theme change while an image/video/comparison remains open.
+- Confirm actual high-contrast on/off transitions, native-frame fallback, focus/selection and retained media/analysis/zoom/scroll state. Pure role-mapping tests do not prove live OS transitions or geometry preservation.
+- Confirm live mixed-DPI/text-size combinations with themes if desired; only explicit DPI/text inputs and current 96-DPI native integration were exercised here.
+
+Keep issue acceptance open and the PR in draft until native visual/high-contrast review is complete or its limits are explicitly accepted. No merge, release or automatic next-job progression is included.
+
+System resolution uses Microsoft's documented [UISettings foreground-brightness approach](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/ui/apply-windows-themes) and [ColorValuesChanged notification](https://learn.microsoft.com/uwp/api/windows.ui.viewmanagement.uisettings.colorvalueschanged). Shared-theme notifications use the documented [registered-message broadcast pattern](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-postmessagew). The caption uses documented [DWM attributes](https://learn.microsoft.com/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute); unsupported older-OS attributes can fail without blocking app colors.
+
+## Final full Viewer regression after shared painting follow-ups (2026-10-13)
+
+The latest shared menu/buffer/background changes had previously been checked with focused Viewer paint/startup runs, not the entire gallery/media suite. The full existing Viewer integration was rebuilt with Release/x64/v143 and `/p:Q1ViewGalleryTests=true /p:IntDir=x64\Issue118Gallery\ /p:OutDir=x64\Issue118Gallery\`, then run from the repository root with `Tests/fixtures/sample_16x16.png`. `Tests/bin/x64/Release/issue-118-final-full-gallery-report.txt` records 830 PASS checks, `ALL INTEGRATION CHECKS PASSED`, and process exit 0, with no FAILED/FAIL assertions.
+
+This full run includes loaded-image theme/source/capture preservation, gallery selection/scroll and exact thumbnail handles, GPU resource recreation/fallback recovery, drawer/zoom/pan regressions, RAW handling, video stepping and playback through theme changes, watcher invalidation, and disposable-fixture recycle success/failure cases. It uses isolated test preferences and generated/temporary fixtures, not personal media. Passing it closes the follow-up's full-Viewer regression gap; it does not simulate or claim actual global Windows theme/high-contrast or display-scale changes.
+
+The ordinary Viewer Release/x64/v143 build also exits 0 and is left open with the repository sample under `Viewer/x64/Issue139ViewerPaintReview/Viewer.exe`. The ordinary Comparator under `Comparator/x64/Issue139PairReview/Comparator.exe` remains open with the four demo videos. Read-only baseline inspection found the production shared Q1View Theme value at 2 (Dark), Windows AppsUseLightTheme at 1 and SystemUsesLightTheme at 0. An explicit request to temporarily switch Windows app colors/high contrast/display scales and restore the original settings is awaiting the user's response; none of those global settings has been changed. No remote issue/PR mutation, commit, merge, release tag, version bump or Store submission was performed.
+
+## Actual OS acceptance continuation (2026-10-14)
+
+The user granted permission for temporary OS setting changes and restoration. [The native acceptance record](2026-10-14-native-appearance.md) supersedes the earlier pending System/high-contrast/current-machine DPI items above: actual Windows app Light -> Dark -> Light and Night sky contrast on/off preserved loaded files, zoom, paused comparison frame 30, the 225x151 ROI, full PSNR scores and crop scores. Native contrast scrollbar mouse/keyboard fallback was exercised. Full Viewer integration passes 830 checks and startup passes 39 at each available 125/150/175% scale, with startup DPI 120/144/168 and text factor 1.000. This is one PC/contrast scheme, not every native popup or Windows version.
+
+The 175% Comparator test found a genuine narrow-window canvas-height failure, now fixed by prioritized scrollable-panel sizing; the same 175% test and updated 100/125/150% runs pass all 690 checks. The pure layout/font matrices include explicit 192-DPI inputs, but native 200% is not claimed: this display's regular scale choices stop at 175%, and custom scaling with its recovery warning was not applied. No sign-out or authentication was performed. Remaining native 200%/mixed-text-size limits and remote PR/issue reconciliation still require explicit review; these results do not automatically authorize acceptance, merge or release.

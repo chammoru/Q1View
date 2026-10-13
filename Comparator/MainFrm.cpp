@@ -26,6 +26,7 @@
 #include <QDebug.h>
 #include "Q1ViewVersion.h"
 #include "Q1UiHelpWin.h"
+#include "Q1UiAppearanceMenuWin.h"
 
 #include <algorithm>
 
@@ -59,6 +60,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_WM_SIZE()
 	ON_WM_MOVE()
 	ON_MESSAGE(q1view::WM_UI_TYPOGRAPHY_CHANGED, &CMainFrame::OnTypographyChanged)
+	ON_MESSAGE(q1view::WM_UI_APPEARANCE_CHANGED, &CMainFrame::OnAppearanceChanged)
 	ON_WM_TIMER()
 	ON_WM_DESTROY()
 	ON_WM_CREATE()
@@ -260,6 +262,19 @@ LRESULT CMainFrame::OnTypographyChanged(WPARAM, LPARAM)
 	return 0;
 }
 
+LRESULT CMainFrame::OnAppearanceChanged(WPARAM, LPARAM)
+{
+	q1view::WindowsUiAppearanceState().RefreshSystem();
+	const COLORREF canvas = Q1UI_COLOR_CANVAS_BG;
+	const bool canvasChanged = canvas != mAppliedCanvasColor;
+	mAppliedCanvasColor = canvas;
+	mUiFrame.RefreshSettings(); mUiFrame.Sync();
+	SendMessageToDescendants(q1view::WM_UI_APPEARANCE_CHANGED, canvasChanged);
+	mHelpOverlay.Relayout();
+	RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN);
+	return 0;
+}
+
 void CMainFrame::DrawMenuBar()
 {
 	if (mUiFrame.Initialized()) { mUiFrame.Sync(); RecalcLayout(); return; }
@@ -348,12 +363,23 @@ LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 {
 	// MFC's PostNcDestroy deletes this frame; never touch members afterward.
 	if (message == WM_NCDESTROY) return CFrameWnd::WindowProc(message, wp, lp);
+	if (message && message == q1view::WindowsUiSharedThemeMessage()) {
+		if (q1view::ReloadSharedWindowsUiTheme()) OnAppearanceChanged(0, 0);
+		return 0;
+	}
 	LRESULT result = 0;
 	if (mUiFrame.Before(message, wp, lp, result)) return result;
 	result = CFrameWnd::WindowProc(message, wp, lp);
 	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
-	if (message == WM_CREATE && result != -1) { mUiFrame.Initialize(m_hWnd, mUiMenus); RecalcLayout(); }
+	if (message == WM_CREATE && result != -1) {
+		mUiFrame.ReserveMenuWidth(ID_MAGNIFY, L"888.88x");
+		mUiFrame.Initialize(m_hWnd, mUiMenus); RecalcLayout();
+	}
 	mUiFrame.After(message);
+	if (message == WM_ACTIVATE && LOWORD(wp) != WA_INACTIVE && q1view::ReloadSharedWindowsUiTheme())
+		OnAppearanceChanged(0, 0);
+	if (message == WM_SETTINGCHANGE || message == WM_THEMECHANGED || message == WM_SYSCOLORCHANGE)
+		OnAppearanceChanged(0, 0);
 	if (message == WM_DPICHANGED || message == q1view::WM_UI_TYPOGRAPHY_CHANGED) { mUiFrame.RefreshSettings(); mUiFrame.Sync(); RecalcLayout(); }
 	return result;
 }
@@ -870,12 +896,19 @@ void CMainFrame::CheckOptionsRadio(UINT nOptionID, bool checked)
 
 void CMainFrame::UpdateMagnication(float n)
 {
+	CMenu* menu = GetMenu();
+	if (!menu) return;
 	CString str;
 
 	str.Format(_T("%.2fx"), n);
 
-	GetMenu()->ModifyMenu(ID_MAGNIFY, MF_BYCOMMAND | MF_RIGHTJUSTIFY | MF_GRAYED, ID_MAGNIFY, str);
-	DrawMenuBar();
+	if (mUiMenus.Text(menu->GetSafeHmenu(), ID_MAGNIFY) == static_cast<LPCTSTR>(str)) return;
+	menu->ModifyMenu(ID_MAGNIFY, MF_BYCOMMAND | MF_RIGHTJUSTIFY | MF_GRAYED, ID_MAGNIFY, str);
+	if (mUiFrame.Custom()) {
+		const int previousHeight = mUiFrame.Height();
+		mUiFrame.SyncLabel(ID_MAGNIFY);
+		if (mUiFrame.Height() != previousHeight) RecalcLayout();
+	} else DrawMenuBar(); // Native high-contrast / composition-disabled fallback.
 }
 
 void CMainFrame::OnMetricChange(UINT nID)
@@ -968,8 +1001,9 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	// Options menu.
 	str.Format(_T("Allow Different Resolutions"));
 	mOptionsMenu.AppendMenu(MF_STRING, (UINT_PTR)ID_OPTIONS_DIFF_RESOLUTION, str);
+	mAppliedCanvasColor = Q1UI_COLOR_CANVAS_BG;
 
-	str.Format(_T("OPTIONS"));
+	str.Format(_T("&Options"));
 	GetMenu()->InsertMenu(MENU_POS_OPTIONS, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mOptionsMenu.m_hMenu, str);
 	DrawMenuBar();

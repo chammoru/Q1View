@@ -50,6 +50,19 @@ const Color MetricCal::QMetricColors[QPLANES] =
 	Color(0xff, 0x16, 0x9b, 0x62),
 };
 
+void MetricCal::UpdateAppearance()
+{
+	const COLORREF colors[] = { Q1UI_COLOR_ACCENT, Q1UI_COLOR_DANGER, Q1UI_COLOR_SUCCESS };
+	const DashStyle styles[] = { DashStyleDash, DashStyleDot, DashStyleDashDot };
+	for (int i = 0; i < QPLANES; ++i) {
+		const COLORREF value = q1view::WindowsUiAppearanceState().HighContrast() ? Q1UI_COLOR_TEXT : colors[i % _countof(colors)];
+		const Color color(255, GetRValue(value), GetGValue(value), GetBValue(value));
+		mLinePens[i]->SetColor(color);
+		mLinePens[i]->SetDashStyle(styles[i % _countof(styles)]);
+		mDotBrushes[i]->SetColor(color);
+	}
+}
+
 void MetricCal::UpdateFont(HDC dc, HFONT font)
 {
 	LOGFONT lf = {};
