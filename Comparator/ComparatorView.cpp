@@ -8,6 +8,7 @@
 #include "ComparatorViews.h"
 #include "MainFrm.h"
 #include "PosInfoView.h"
+#include "FrmInfoView.h"
 
 #include "QCommon.h"
 #include "QDebug.h"
@@ -329,18 +330,8 @@ void CComparatorView::DrawDiffOverlay(CDC *pDC, CComparatorDoc *pDoc, Comparator
 	if (!pane || !pane->isAvail() || !pane->rgbBuf)
 		return;
 
-	// Find any other available pane to compare against (pilot assumes 2 panes).
-	ComparatorPane *other = nullptr;
-	for (int i = 0; i < CComparatorDoc::IMG_VIEW_MAX; i++) {
-		ComparatorPane *p = &pDoc->mPane[i];
-		if (p == pane)
-			continue;
-		if (p->isAvail() && p->rgbBuf) {
-			other = p;
-			break;
-		}
-	}
-	if (!other || pDoc->mW <= 0 || pDoc->mH <= 0)
+	ComparatorPane *other = pDoc->GetOppositePane(pane);
+	if (!other || !other->isAvail() || !other->rgbBuf || pDoc->mW <= 0 || pDoc->mH <= 0)
 		return;
 
 	const int rowBytes = ROUNDUP_DWORD(pDoc->mW) * QIMG_DST_RGB_BYTES;
@@ -790,9 +781,7 @@ void CComparatorView::ClosePane()
 	// Stop playback if running — the pane that fed it is gone — and clear the
 	// pane's source + filename label. mNumOfViews stays put: this slot just
 	// becomes empty and the user can drop a new file onto it.
-	pDoc->KillPlayTimer();
-	pane->Release();
-	UpdateFileName(_T(""));
+	pDoc->CloseSource((int)(pane - pDoc->mPane));
 
 	pDoc->UpdateAllViews(NULL);
 }
@@ -902,6 +891,7 @@ void CComparatorView::OnDropFiles(HDROP hDropInfo)
 		const int previousW = pDoc->mW;
 		const int previousH = pDoc->mH;
 
+		pDoc->StopAnalysis();
 		pane->pathName = filenames[0];
 		pane->disableImageSequence = false;
 		pDoc->ProcessDocument(mPane);
@@ -1043,6 +1033,8 @@ void CComparatorView::OnSize(UINT nType, int cx, int cy)
 		return;
 
 	mRcControls.right = cx;
+	// Footer columns follow actual pane geometry, including splitter changes.
+	if (pDoc->mFrmInfoView) pDoc->mFrmInfoView->Invalidate(FALSE);
 	if (mCsQMenu.GetSafeHwnd() && mNameQMenu.GetSafeHwnd()) {
 		CRect measured(0, 0, 0, 0);
 		mCsQMenu.CalcRect(&measured);
@@ -1059,7 +1051,7 @@ void CComparatorView::OnSize(UINT nType, int cx, int cy)
 	mHClient = cy;
 
 	mWCanvas = mWClient;
-	mHCanvas = mHClient - mRcControls.bottom;
+	mHCanvas = std::max(0,mHClient - static_cast<int>(mRcControls.bottom));
 
 	// Reserve a square at the right edge of the controls strip for the close
 	// button (sized to the strip height so it lines up with mCsQMenu /
@@ -1254,7 +1246,13 @@ void CComparatorView::UpdateCsLabel(const TCHAR *csLabel)
 
 void CComparatorView::UpdateFileName(const TCHAR* filename)
 {
-	mNameQMenu.SetWindowText(filename);
+	CString title;
+	const auto* doc = GetDocument();
+	if (doc) {
+		int slot = (int)(GetPane(const_cast<CComparatorDoc*>(doc)) - doc->mPane);
+		title.Format(_T("%c%s  %s"), _T('A') + slot, slot == 0 ? _T(" (Reference)") : _T(""), filename);
+	} else title = filename;
+	mNameQMenu.SetWindowText(title);
 	mCsQMenu.CalcRect(&mRcCsQMenu);
 
 	mRcNameQMenu.left = mRcCsQMenu.right;
@@ -1283,6 +1281,7 @@ void CComparatorView::OnCsChange(UINT nID)
 	UpdateCsLabel(str.MakeUpper());
 	CheckCsRadio(ci->cs);
 
+	pDoc->StopAnalysis();
 	pane->SetColorInfo(ci);
 
 	if (pane->isAvail()) {

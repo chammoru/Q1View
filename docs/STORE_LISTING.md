@@ -53,7 +53,7 @@ Choose Auto, Smooth (Bilinear), or Pixel Exact (Nearest) image scaling from the 
 
 COMPARATOR
 
-Open two to four sources side by side. Comparator aligns them in a synchronized view and calculates objective quality metrics frame by frame, including PSNR, SSIM, and LPIPS. A bottom graph shows metric values across frames, the timeline helps locate frames that contain differences, and synchronized region selection can show crop scores next to whole-image scores.
+Open two to four sources side by side. Comparator uses A as the fixed reference and calculates independent PSNR, SSIM, and LPIPS scores against B, C, and D. Compact results sit directly under each candidate without repeating filenames; separate sequence graphs keep each comparison clear, while Timeline shows up to four source lanes. Synchronized region selection adds crop scores for every comparison; missing frames are not padded with repeated measurements.
 
 Use Comparator to compare a reference image or video frame against processed outputs, encoded results, or alternative pipelines. Zoom in to inspect the exact pixels that changed, use the visual difference overlay to find small mismatches, and jump through frame sequences or video frames with synchronized controls.
 

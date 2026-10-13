@@ -29,6 +29,8 @@ public:
 #endif
 #endif
 	void ConfigureScrollSizes(CComparatorDoc *pDoc);
+	int SuggestedWidth();
+	int mHeaderHeight = 0, mGutterWidth = 0;
 	CScrollBar* GetScrollBarCtrl(int bar) const override;
 	void DrawFrameRect(CDC* pDC, CRect *clipBox, int w);
 	void DrawEachRect(CDC* pDC,

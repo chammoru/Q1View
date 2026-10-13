@@ -19,6 +19,7 @@ void RgbFrmCmpStrategy::Rgb888AllocBuffer(SQPane *pane) const
 
 BYTE *RgbFrmCmpStrategy::ConvertToRgb888(SQPane *pane, int w, int h)
 {
+	if (pane->rgbValid) return pane->rgbBuf;
 	int bufOffset2 = 0, bufOffset3 = 0;
 
 	pane->csLoadInfo(w, h, &bufOffset2, &bufOffset3);
@@ -28,6 +29,7 @@ BYTE *RgbFrmCmpStrategy::ConvertToRgb888(SQPane *pane, int w, int h)
 		pane->origBuf + bufOffset2,
 		pane->origBuf + bufOffset3, ROUNDUP_DWORD(w), w, h);
 
+	pane->rgbValid = true;
 	return pane->rgbBuf;
 }
 

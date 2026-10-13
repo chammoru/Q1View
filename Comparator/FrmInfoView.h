@@ -1,10 +1,11 @@
 #pragma once
 #include "afxwin.h"
+#include "AnalysisScrollView.h"
 
 #define FRM_STATE_FONT_H      16
 // CFrmInfoView view
 
-class CFrmInfoView : public CView
+class CFrmInfoView : public CAnalysisScrollView
 {
 	DECLARE_DYNCREATE(CFrmInfoView)
 
@@ -32,6 +33,11 @@ public:
 	CFont mStateFont;
 	int mWClient, mHClient;
 	CRect mRcClient;
+	CReferenceLabel mReferenceLabel;
+	CComparisonButton mPairButtons[3];
+	CRect SourceColumnBounds(int slot) const;
+	BOOL OnCommand(WPARAM wParam, LPARAM lParam) override;
+	BOOL PreTranslateMessage(MSG* message) override;
 
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);

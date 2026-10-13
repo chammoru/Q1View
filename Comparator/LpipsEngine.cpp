@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "LpipsEngine.h"
+#include <limits>
 #include <windows.h>
 #include <vector>
 #include <algorithm>
@@ -20,8 +21,8 @@ LpipsEngine& LpipsEngine::getInstance()
 
 bool LpipsEngine::availableFor(const std::string& backendId) const
 {
-	std::lock_guard<std::mutex> lock(m_mutex);
-	return m_available.load() && m_backendId == backendId;
+	const int index = backendId == "alex" ? 1 : backendId == "vgg" ? 2 : 0;
+	return index != 0 && m_available.load() && m_backendIndex.load() == index;
 }
 
 LpipsEngine::LpipsEngine()
@@ -75,6 +76,7 @@ bool LpipsEngine::init(const std::wstring& modelPath, const std::string& backend
 		teardown();
 		m_initialized.store(false);
 		m_available.store(false);
+		m_backendIndex.store(0);
 		m_modelPath.clear();
 		m_backendId.clear();
 	}
@@ -142,6 +144,7 @@ bool LpipsEngine::init(const std::wstring& modelPath, const std::string& backend
 
 	m_modelPath = modelPath;
 	m_backendId = backendId;
+	m_backendIndex.store(backendId == "alex" ? 1 : backendId == "vgg" ? 2 : 0);
 	m_available.store(true);
 	m_initialized.store(true);
 	return true;
@@ -189,8 +192,8 @@ double LpipsEngine::distance(const unsigned char* rgbA, const unsigned char* rgb
 	// init() cannot release m_session while Run() is using it.
 	std::lock_guard<std::mutex> lock(m_mutex);
 
-	if (!m_available.load() || !m_session)
-		return 0.0;
+	if (!m_available.load() || !m_session || !rgbA || !rgbB || w<=0 || h<=0)
+		return std::numeric_limits<double>::quiet_NaN();
 
 	int targetW = 0, targetH = 0;
 	std::vector<float> nchwA, nchwB;
@@ -200,8 +203,16 @@ double LpipsEngine::distance(const unsigned char* rgbA, const unsigned char* rgb
 	int64_t inputShape[] = { 1, 3, targetH, targetW };
 	
 	OrtValue* inputTensors[2] = { nullptr, nullptr };
-	m_ortApi->CreateTensorWithDataAsOrtValue(m_memoryInfo, nchwA.data(), nchwA.size() * sizeof(float), inputShape, 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &inputTensors[0]);
-	m_ortApi->CreateTensorWithDataAsOrtValue(m_memoryInfo, nchwB.data(), nchwB.size() * sizeof(float), inputShape, 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &inputTensors[1]);
+	std::vector<float>* inputs[2]={&nchwA,&nchwB};
+	for (int i=0;i<2;++i) {
+		OrtStatus* tensorStatus=m_ortApi->CreateTensorWithDataAsOrtValue(m_memoryInfo,inputs[i]->data(),inputs[i]->size()*sizeof(float),
+			inputShape,4,ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,&inputTensors[i]);
+		if (tensorStatus || !inputTensors[i]) {
+			if (tensorStatus) m_ortApi->ReleaseStatus(tensorStatus);
+			for (auto* tensor:inputTensors) if (tensor) m_ortApi->ReleaseValue(tensor);
+			return std::numeric_limits<double>::quiet_NaN();
+		}
+	}
 
 	// Must match the names baked into the exported graph by
 	// tools/lpips/export_lpips_onnx.py (input_names / output_names).
@@ -211,13 +222,14 @@ double LpipsEngine::distance(const unsigned char* rgbA, const unsigned char* rgb
 
 	OrtStatus* status = m_ortApi->Run(m_session, nullptr, inputNames, (const OrtValue* const*)inputTensors, 2, outputNames, 1, &outputTensor);
 	
-	double dist = 0.0;
+	double dist = std::numeric_limits<double>::quiet_NaN();
 	if (!status && outputTensor)
 	{
 		float* outData = nullptr;
-		m_ortApi->GetTensorMutableData(outputTensor, (void**)&outData);
-		if (outData)
+		OrtStatus* outputStatus=m_ortApi->GetTensorMutableData(outputTensor, (void**)&outData);
+		if (!outputStatus && outData)
 			dist = (double)outData[0];
+		if (outputStatus) m_ortApi->ReleaseStatus(outputStatus);
 	}
 
 	if (status) {
@@ -236,5 +248,5 @@ double LpipsEngine::distance(const unsigned char* rgbA, const unsigned char* rgb
 #else
 LpipsEngine::~LpipsEngine() {}
 bool LpipsEngine::init(const std::wstring& modelPath, const std::string& backendId) { return false; }
-double LpipsEngine::distance(const unsigned char* rgbA, const unsigned char* rgbB, int w, int h, int stride) { return 0.0; }
+double LpipsEngine::distance(const unsigned char* rgbA, const unsigned char* rgbB, int w, int h, int stride) { return std::numeric_limits<double>::quiet_NaN(); }
 #endif

@@ -6,11 +6,25 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.8.0] — 2026-10-14
+
 ### Added
 
-- Windows Viewer and Comparator: choose a shared System, Light, or Dark theme from Viewer's Options > Theme menu; Comparator follows automatically without a duplicate theme menu. Application colors and image-surround brightness change together while honoring Windows high contrast and preserving source/capture pixels, zoom/pan, ROI, comparison results, playback, and thumbnail caches. (issue #118)
+- Windows Comparator: compare up to four sources against reference A, with independent A/B, A/C and A/D PSNR, SSIM, LPIPS and ROI results directly under each candidate, separate sequence graphs, and four Timeline lanes. Pair-specific frame ranges and shared reference decoding avoid repeated work. (#139)
 
-- Windows Comparator: the Timeline scrollbar now matches the application theme, with hover and drag feedback, while retaining native keyboard and accessibility support and native rendering in Windows high contrast. Empty, still-image, and fully fitting timelines hide the scrollbar; wheel scrolling no longer applies its movement twice. (issue #118)
+- Windows Viewer and Comparator: choose shared System, Light or Dark colors from Viewer's Options > Theme. Comparator follows automatically, including its Timeline scrollbar. UI and image-surround colors change together, respecting Windows high contrast without changing image pixels or media state. (#118)
+
+### Fixed
+
+- Comparator: keep useful image space in small high-DPI windows with wrapped menus and scrollable results/graphs; prevent negative canvas heights.
+
+- Comparator: flag unaligned frames, refresh only affected pairs after seeking/reloading, preserve other results, and reject superseded requests. (#139)
+
+- Viewer and Comparator: eliminate bright flashes in Help/zoom menus, result controls and empty/loading views; preserve keyboard/accessibility behavior and stable menu placement.
+
+Native display checks passed at 100–175%; 200% layout/font calculations passed, but native 200% display testing remains unverified on this PC.
 
 ---
 
@@ -489,7 +503,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.7.28...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.0...HEAD
+[2.8.0]: https://github.com/chammoru/Q1View/compare/v2.7.28...v2.8.0
 [2.7.28]: https://github.com/chammoru/Q1View/compare/v2.7.27...v2.7.28
 [2.7.27]: https://github.com/chammoru/Q1View/compare/v2.7.26...v2.7.27
 [2.7.26]: https://github.com/chammoru/Q1View/compare/v2.7.25...v2.7.26

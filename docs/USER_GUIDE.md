@@ -119,7 +119,7 @@ and options.
 ### Typical Workflow
 
 1. Open multiple files together or drop a source into each pane.
-2. Select **PSNR** or **SSIM** from the metric menu.
+2. Treat pane **A** as the fixed reference; B, C, and D are separate candidates. Select **PSNR**, **SSIM**, or either **LPIPS** backend from the metric menu.
 3. Zoom and navigate the sources in a common view.
 4. Use the bottom graph and channel values to find meaningful differences.
 5. Enable **Allow Different Resolution** from **OPTIONS** when required.
@@ -132,7 +132,7 @@ one sequence.
 
 ### Pixel-Level Diff Overlay
 
-When two sources are loaded, Comparator highlights every region where the pixels
+When sources are loaded, Comparator highlights every region where the pixels
 differ from the reference pane. The image area is divided into a fixed-size
 grid in display pixels; each cell that contains any differing pixel gets a
 translucent pink rectangle outline plus a center dot. Because the cell size is
@@ -141,28 +141,20 @@ covers — at maximum zoom each dot resolves to a single differing source pixel.
 The overlay is hidden automatically when zoom is high enough to show per-pixel
 values, since the pixel labels already convey the diff.
 
+Each candidate's overlay compares against A. A's overlay shows the active comparison, initially A/B; click a result card or its graph to inspect A/C or A/D instead. This changes the inspected pair, not the reference or which pairs are calculated.
+
 ### Pane Layout
 
 Three secondary panes sit around the image canvases and surface per-frame and
 across-frame comparison information.
 
-- **Position timeline (left column).** A vertical strip that lists every frame
-  in the active pair, top to bottom. Frames where the two panes differ are
-  marked with a red line; identical frames are blank. Click a row to seek both
-  panes to that frame. The currently shown frame is highlighted so it is easy
-  to find your place after scrolling. Space, Left, and Right are also routed
-  here, so the timeline owns playback control once it has been clicked.
-- **Per-frame metric text (between the timeline and the graph).** Shows the
-  metric value (PSNR or SSIM, whichever is selected in the header) for the
-  currently displayed frame pair, along with auxiliary numbers such as channel
-  breakdowns where the metric provides them. The label updates whenever either
-  pane changes frames or the metric selection changes.
-- **Metric-over-time graph (bottom strip).** Plots the same metric value across
-  every frame in the comparison, with the running average alongside. The
-  current frame is marked. Click a point on the graph to jump both panes to
-  that frame, mouse-wheel to zoom the horizontal axis, and double-click to
-  reset the zoom. Playback shortcuts work here as well once the graph has
-  focus.
+- **Timeline (left column).** One lane per loaded source, with a shared frame-number gutter and sticky A/B/C/D headers. Click a lane to seek that source independently; click the gutter to seek all sources that have the requested frame. Missing lane frames are marked with a dash and cannot be selected. Difference lines in A describe the active pair; each candidate's lane describes its comparison against A. Space/Left/Right retain playback controls, and the themed scrollbar is shown only for real overflow.
+
+- **Current comparison footers.** A's image has a non-interactive **Reference** label and its actual frame number underneath. B, C, and D each show their own A/B, A/C, or A/D comparison directly below the corresponding image, even after resizing columns or closing another source. Footers identify actual displayed frame numbers, metric units, ROI scores, and necessary warnings without repeating source filenames or showing the calculation-basis annotation. RGB's existing aggregate score remains the default result; hover a result for its comparison basis, channel scores, full source paths, and resolutions. Channel curves and averages remain in the separate sequence graphs. Independently seeking C to frame 12 while A shows frame 10 measures A10/C12, not the cached aligned frame 10, and displays **Unaligned: frame indices differ**. Seeking or reloading only C refreshes A/C while keeping completed A/B and A/D current/ROI results visible and unchanged. Moving A, changing the metric, or changing the shared ROI refreshes all affected pairs. In narrow windows, results stay in their image columns and use wrapped text and vertical scrolling; Tab moves between available results and Enter selects the inspected pair. If A is closed, remaining results ask for reference A instead of promoting another source.
+
+- **Sequence analysis (bottom strip).** Each pair has its own graph, computed count, average and status. All graphs share the frame-index viewport and selected metric's finite Y scale. Mouse-wheel over a plot zooms without seeking; double-click resets the shared range. Clicking a plot seeks all sources that actually have that frame. A graph ends at the shorter of its two sources, even if another source extends Timeline farther. Infinity has an explicit marker; uncomputed and missing samples are gaps, not zeros. Graphs stack in narrow windows, with a themed scrollbar, and can be collapsed without clearing caches. Stills show single-frame results rather than fabricated temporal curves.
+
+Comparisons are frame-index based, not timestamp aligned. Different FPS is called out on the cards; Comparator does not resample sources. Closing B or C does not rename the remaining slots. Closing A clears numerical comparisons and asks for a reference instead of silently promoting another source.
 
 ### Controls
 
@@ -179,7 +171,9 @@ Comparator also includes a built-in shortcut panel, opened with `?`.
 | Toggle pixel interpolation | `I` |
 | Toggle pink diff overlay (grid + dots) | `D` |
 | Toggle cursor pixel coordinates | `C` |
-| Seek to a frame in the timeline (video) | Click left or right side |
+| Seek one source to a Timeline frame | Click its A/B/C/D lane |
+| Seek available sources to a Timeline frame | Click the shared frame-number gutter or a graph |
+| Select the inspected reference pair | Click its result card; Tab / Enter also work |
 
 ## Input Notes
 
