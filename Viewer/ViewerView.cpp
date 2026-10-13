@@ -1499,18 +1499,13 @@ BOOL CViewerView::OnEraseBkgnd(CDC* pDC)
 {
 	CViewerDoc* pDoc = GetDocument();
 	ASSERT_VALID(pDoc);
-	if (!pDoc)
-		return TRUE;
-
-	BOOL ret;
-	if (pDoc->mDocState != DOC_JUSTLOAD) {
-		// The view is fully repainted from an off-screen buffer.
-		ret = TRUE;
-	} else {
-		ret = CView::OnEraseBkgnd(pDC);
+	if (!pDoc || pDoc->mDocState==DOC_JUSTLOAD) {
+		// Keep the empty/loading clear, but use the same canvas color as OnDraw.
+		CRect rc; GetClientRect(rc);
+		pDC->FillSolidRect(rc,Q1UI_COLOR_CANVAS_BG);
 	}
-
-	return ret;
+	// Loaded images remain intact until their complete back buffer is ready.
+	return TRUE;
 }
 
 void CViewerView::SetCursorCoordinates(const CPoint &pt)

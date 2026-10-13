@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <functional>
 #include <opencv2/videoio.hpp>
+#include "WindowsUiPaintTestProbe.h"
 
 struct GalleryIntegrationTests {
     FILE* report = nullptr;
@@ -392,11 +393,39 @@ struct GalleryIntegrationTests {
         Require(content == splitter, "splitter returns to the chrome-reserved client rectangle after full screen");
     }
 
+    void PaintBackgroundTests(CViewerView* view, CViewerDoc* doc) {
+        ScopedWindowsUiPaintTestTheme restoreTheme;
+        struct RestoreState {
+            CViewerDoc* doc; DocState saved;
+            ~RestoreState() { doc->mDocState=saved; }
+        } restoreState{doc,doc->mDocState};
+        auto check=[&](bool okay,const char* text) { Require(okay,text); };
+        for (auto theme : {q1view::WindowsUiAppearance::Dark,q1view::WindowsUiAppearance::Light}) {
+            q1view::WindowsUiAppearanceState().SetAppearance(theme);
+            doc->mDocState=DOC_JUSTLOAD;
+            CheckWindowsUiErase(view->m_hWnd,q1view::WindowsUiColor::Canvas,true,check);
+            doc->mDocState=DOC_ADJUSTED;
+            CheckWindowsUiErase(view->m_hWnd,q1view::WindowsUiColor::Canvas,false,check);
+        }
+    }
     void Run() {
         auto frame = static_cast<CMainFrame*>(AfxGetMainWnd());
         auto view = static_cast<CViewerView*>(frame->GetActiveView());
         auto doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
         Require(frame && view && doc, "real Viewer document/view created");
+        PaintBackgroundTests(view,doc);
+        wchar_t paintOnly[8] = {};
+        if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_PAINT_ONLY",paintOnly,_countof(paintOnly))) {
+            wchar_t image[MAX_PATH] = {};
+            GetFullPathNameW(L"Tests\\fixtures\\sample_16x16.png",MAX_PATH,image,nullptr);
+            Require(AfxGetApp()->OpenDocumentFile(image)!=nullptr,"repository image opened for loaded-state paint regression");
+            Pump(.2);
+            view=static_cast<CViewerView*>(frame->GetActiveView());
+            doc=static_cast<CViewerDoc*>(frame->GetActiveDocument());
+            Require(doc->mDocState!=DOC_JUSTLOAD,"real source has left the loading state");
+            PaintBackgroundTests(view,doc);
+            fprintf(report,"Paint-only run; full gallery/GPU suite is separate\n"); return;
+        }
         if (doc->mPathName.IsEmpty()) DefaultWindowTests(frame, view, doc);
         else {
             // The CI source-open path uses an image fixture. mOrigW/H are

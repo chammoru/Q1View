@@ -45,6 +45,7 @@
     <ClInclude Include="QOcv.h" />
     <ClInclude Include="QImageStr.h" />
     <ClInclude Include="Q1UiFontWin.h" />
+    <ClInclude Include="Q1UiBufferedPaintWin.h" />
     <ClInclude Include="Q1UiAppearanceWin.h" />
     <ClInclude Include="Q1UiAppearanceMenuWin.h" />
     <ClInclude Include="QViewerCmn.h" />

@@ -169,7 +169,8 @@ public:
 		if (draw->itemState & ODS_NOACCEL) flags |= DT_HIDEPREFIX;
 		const auto tab = item->text.find(L'\t');
 		const auto label = item->text.substr(0, tab);
-		DrawTextW(draw->hDC, label.c_str(), -1, &rect, flags | DT_LEFT);
+		const bool rightAlignedStatus = item->bar && disabled && (item->type & MFT_RIGHTJUSTIFY);
+		DrawTextW(draw->hDC, label.c_str(), -1, &rect, flags | (rightAlignedStatus ? DT_RIGHT : DT_LEFT));
 		if (tab != std::wstring::npos)
 			DrawTextW(draw->hDC, item->text.c_str() + tab + 1, -1, &rect, flags | DT_RIGHT | DT_NOPREFIX);
 		return true;

@@ -371,7 +371,10 @@ LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 	if (mUiFrame.Before(message, wp, lp, result)) return result;
 	result = CFrameWnd::WindowProc(message, wp, lp);
 	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
-	if (message == WM_CREATE && result != -1) { mUiFrame.Initialize(m_hWnd, mUiMenus); RecalcLayout(); }
+	if (message == WM_CREATE && result != -1) {
+		mUiFrame.ReserveMenuWidth(ID_MAGNIFY, L"888.88x");
+		mUiFrame.Initialize(m_hWnd, mUiMenus); RecalcLayout();
+	}
 	mUiFrame.After(message);
 	if (message == WM_ACTIVATE && LOWORD(wp) != WA_INACTIVE && q1view::ReloadSharedWindowsUiTheme())
 		OnAppearanceChanged(0, 0);
@@ -893,12 +896,19 @@ void CMainFrame::CheckOptionsRadio(UINT nOptionID, bool checked)
 
 void CMainFrame::UpdateMagnication(float n)
 {
+	CMenu* menu = GetMenu();
+	if (!menu) return;
 	CString str;
 
 	str.Format(_T("%.2fx"), n);
 
-	GetMenu()->ModifyMenu(ID_MAGNIFY, MF_BYCOMMAND | MF_RIGHTJUSTIFY | MF_GRAYED, ID_MAGNIFY, str);
-	DrawMenuBar();
+	if (mUiMenus.Text(menu->GetSafeHmenu(), ID_MAGNIFY) == static_cast<LPCTSTR>(str)) return;
+	menu->ModifyMenu(ID_MAGNIFY, MF_BYCOMMAND | MF_RIGHTJUSTIFY | MF_GRAYED, ID_MAGNIFY, str);
+	if (mUiFrame.Custom()) {
+		const int previousHeight = mUiFrame.Height();
+		mUiFrame.SyncLabel(ID_MAGNIFY);
+		if (mUiFrame.Height() != previousHeight) RecalcLayout();
+	} else DrawMenuBar(); // Native high-contrast / composition-disabled fallback.
 }
 
 void CMainFrame::OnMetricChange(UINT nID)
