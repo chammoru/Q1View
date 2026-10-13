@@ -1,6 +1,6 @@
 # Issue #139: reference comparisons
 
-Date: 2026-10-12. Branch: `codex/issue-139-reference-comparisons`. The Windows MFC Comparator changes build on the unmerged #118 appearance branch (`71b5b19`), whose base is master `cf0c29e`. The reference-comparison feature leaves Viewer and Qt behavior unchanged; the Windows painting follow-ups below also harden Viewer backgrounds. No version increase, merge, release tag, Store submission or issue closure is part of this implementation.
+Initial implementation date: 2026-10-12. Branch: `codex/issue-139-reference-comparisons`. The Windows MFC Comparator changes originally built on the unmerged #118 appearance branch (`71b5b19`), whose base was master `cf0c29e`. On 2026-10-14, after the user's explicit delivery approval, #118 was merged separately through PR #138 (`c7a94fa`), and the feature branch incorporated that updated master without changing the verified feature tree. The reference-comparison feature leaves Viewer and Qt behavior unchanged; the shared painting follow-ups also harden Viewer backgrounds. PR #140 separately delivers #139 and the dated 2.8.0 release notes. Tagged Actions, not local checks, supplies the release version and final packaging/signing/Release/Store outcome.
 
 ## Implemented behavior
 
