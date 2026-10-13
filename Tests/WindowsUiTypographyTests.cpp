@@ -226,6 +226,90 @@ struct FrameTestHost {
 	}
 };
 
+static void TestMenuButtonBackground(HWND bar)
+{
+	HDC dc = CreateCompatibleDC(nullptr);
+	HBITMAP bitmap = CreateBitmap(128, 64, 1, 32, nullptr);
+	Require(dc && bitmap, "menu erase-background probe allocated");
+	const auto previous = SelectObject(dc, bitmap);
+	const auto originalTheme = q1view::WindowsUiAppearanceState().Appearance();
+	bool matched = true;
+	for (int theme : {1, 2}) {
+		q1view::WindowsUiAppearanceState().Initialize(theme);
+		const COLORREF expected = q1view::WindowsUiColorValue(q1view::WindowsUiColor::Window);
+		for (int id : {1, 3, 4}) {
+			HWND button = GetDlgItem(bar, id);
+			const auto brush = reinterpret_cast<HBRUSH>(SendMessageW(bar, WM_CTLCOLORBTN,
+				reinterpret_cast<WPARAM>(dc), reinterpret_cast<LPARAM>(button)));
+			LOGBRUSH background = {};
+			const bool valid = brush && GetObject(brush, sizeof(background), &background);
+			const COLORREF sentinel = RGB(17, 34, 51);
+			RECT rect = {0, 0, 128, 64};
+			HBRUSH fill = CreateSolidBrush(sentinel); FillRect(dc, &rect, fill); DeleteObject(fill);
+			SendMessageW(button, WM_ERASEBKGND, reinterpret_cast<WPARAM>(dc), 0);
+			const COLORREF erased = GetPixel(dc, 1, 1);
+			DRAWITEMSTRUCT draw = {}; draw.CtlType = ODT_BUTTON; draw.CtlID = id;
+			draw.hwndItem = button; draw.hDC = dc; draw.rcItem = rect;
+			draw.itemAction = ODA_DRAWENTIRE; draw.itemState = IsWindowEnabled(button) ? 0 : ODS_DISABLED;
+			SendMessageW(bar, WM_DRAWITEM, id, reinterpret_cast<LPARAM>(&draw));
+			const COLORREF painted = GetPixel(dc, 127, 63);
+			if (id == 4) {
+				int rightmost = -1;
+				for (int x = 0; x < 128; ++x) for (int y = 0; y < 64; ++y)
+					if (GetPixel(dc, x, y) != expected) rightmost = (std::max)(rightmost, x);
+				Require(rightmost >= 128 - q1view::WindowsUiPixels(20, q1view::WindowsUiDpi(bar), q1view::WindowsUiSettings().Scale()),
+					"reserved zoom status keeps its text aligned to the right edge, not to the width of previous digits");
+			}
+			std::printf("Menu background probe: theme=%d button=%d brush=%06lx erased=%06lx expected=%06lx\n",
+				theme, id, background.lbColor, erased, expected);
+			matched = matched && valid && background.lbColor == expected && (erased == sentinel || erased == expected) && painted == expected;
+			const DWORD before = GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS);
+			for (int repeat = 0; repeat < 100; ++repeat) SendMessageW(bar, WM_DRAWITEM, id, reinterpret_cast<LPARAM>(&draw));
+			Require(GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS) == before, "buffered menu button painting does not leak GDI resources");
+		}
+	}
+	q1view::WindowsUiAppearanceState().Initialize(int(originalTheme));
+	SelectObject(dc, previous); DeleteObject(bitmap); DeleteDC(dc);
+	Require(matched, "enabled Help and disabled zoom never expose system button-face colors before themed drawing");
+}
+
+static void TestBufferedControls()
+{
+	using namespace q1view;
+	HDC screen=GetDC(nullptr), dc=CreateCompatibleDC(screen);
+	HBITMAP bitmap=CreateCompatibleBitmap(screen,128,64); ReleaseDC(nullptr,screen);
+	Require(dc && bitmap,"buffered-control target allocated");
+	const auto old=SelectObject(dc,bitmap);
+	const RECT area={0,0,128,64}, rect={11,7,75,39};
+	const COLORREF sentinel=RGB(17,34,51), mark=RGB(93,81,67);
+	const auto savedTheme=WindowsUiAppearanceState().Appearance();
+	for (auto theme : {WindowsUiAppearance::Dark,WindowsUiAppearance::Light}) {
+		WindowsUiAppearanceState().SetAppearance(theme);
+		HBRUSH brush=CreateSolidBrush(sentinel); FillRect(dc,&area,brush); DeleteObject(brush);
+		const auto font=GetCurrentObject(dc,OBJ_FONT);
+		const int mode=GetBkMode(dc);
+		{
+			WindowsUiBufferedPaint paint(dc,rect,WindowsUiColor::SurfaceAlt);
+			Require(paint.Buffered(),"normal control paints through an off-screen bitmap");
+			SelectObject(paint.Dc(),GetStockObject(ANSI_FIXED_FONT)); SetBkMode(paint.Dc(),TRANSPARENT);
+			SetPixelV(paint.Dc(),14,10,mark);
+			Require(GetPixel(dc,14,10)==sentinel,"partially painted control is not presented before completion");
+		}
+		Require(GetPixel(dc,14,10)==mark && GetPixel(dc,74,38)==WindowsUiColorValue(WindowsUiColor::SurfaceAlt),
+			"completed control is presented with correct nonzero logical origin and themed full background");
+		Require(GetPixel(dc,10,6)==sentinel && GetPixel(dc,75,39)==sentinel,"buffered control does not overwrite adjacent controls");
+		Require(GetCurrentObject(dc,OBJ_FONT)==font && GetBkMode(dc)==mode,"buffered painting preserves the caller's DC state");
+		const DWORD before=GetGuiResources(GetCurrentProcess(),GR_GDIOBJECTS);
+		for (int i=0;i<500;++i) { WindowsUiBufferedPaint paint(dc,rect,WindowsUiColor::SurfaceAlt); }
+		Require(GetGuiResources(GetCurrentProcess(),GR_GDIOBJECTS)==before,"shared buffered painter has no accumulating GDI resources");
+		const RECT empty={3,3,3,3};
+		{ WindowsUiBufferedPaint paint(dc,empty,WindowsUiColor::SurfaceAlt); Require(!paint.Buffered(),"zero-sized controls do not allocate a bitmap"); }
+	}
+	WindowsUiAppearanceState().SetAppearance(savedTheme);
+	SelectObject(dc,old); DeleteObject(bitmap); DeleteDC(dc);
+	std::puts("Buffered-control tests passed (atomic presentation, offset rects, DC state, resource lifetime).");
+}
+
 static void TestFrames()
 {
 	WNDCLASSW cls = {}; cls.lpfnWndProc = FrameTestHost::Proc; cls.hInstance = GetModuleHandleW(nullptr);
@@ -240,6 +324,7 @@ static void TestFrames()
 	HWND window = CreateWindowExW(0, cls.lpszClassName, L"긴 한글 제목 & literal ampersand — Q1View", WS_OVERLAPPEDWINDOW,
 		-20000, -20000, 640, 480, nullptr, root, cls.hInstance, &host);
 	Require(window != nullptr, "isolated custom-frame host created");
+	host.frame.ReserveMenuWidth(102, L"888.88x");
 	host.frame.Initialize(window, host.menus);
 	Require(host.frame.Menu() == root && host.frame.RetainedMenu() == root, "custom chrome retains the original HMENU and commands");
 	Require(host.frame.MenuHost() != nullptr, "menu host uses a real child window");
@@ -253,6 +338,7 @@ static void TestFrames()
 		wchar_t name[80] = {}; GetWindowTextW(file, name, 80);
 		Require(wcscmp(name, L"&File") == 0, "real menu button exposes its accessible name");
 		Require(!IsWindowEnabled(GetDlgItem(host.frame.MenuHost(), 4)), "disabled zoom label cannot receive input");
+		TestMenuButtonBackground(host.frame.MenuHost());
 		const UINT actualDpi = q1view::WindowsUiDpi(window);
 		for (UINT dpi : {96u, 120u, 144u}) {
 			const int measured = host.frame.SingleRowMenuWidth(dpi, 1.0);
@@ -279,6 +365,19 @@ static void TestFrames()
 			}
 			if (client.right >= host.frame.SingleRowMenuWidth(actualDpi, q1view::WindowsUiSettings().Scale()))
 				for (const auto& rect : rects) Require(rect.top == 0, "measured single-row width agrees with actual responsive layout");
+			const auto stableRects = rects;
+			const int stableHeight = host.frame.Height();
+			for (const wchar_t* label : {L"0.01x", L"0.67x", L"1.13x", L"2.00x", L"9.99x", L"10.00x", L"99.99x", L"128.00x"}) {
+				ModifyMenuW(root, 102, MF_BYCOMMAND | MF_STRING | MF_GRAYED | MF_RIGHTJUSTIFY, 102, label);
+				host.frame.SyncLabel(102);
+				const auto& updated = host.frame.MenuRects();
+				Require(updated.size() == stableRects.size() && host.frame.Height() == stableHeight, "zoom label updates preserve responsive menu row height");
+				for (size_t i = 0; i < updated.size(); ++i)
+					Require(EqualRect(&updated[i], &stableRects[i]) != FALSE, "reserved zoom text leaves Help and other button bounds unchanged, including narrow wrapping");
+				GetWindowTextW(GetDlgItem(host.frame.MenuHost(), 4), name, 80);
+				Require(wcscmp(name, label) == 0 && host.menus.Text(root, 102) == label, "targeted zoom text preserves the actual accessible name and native menu metadata");
+				Require(!IsWindowEnabled(GetDlgItem(host.frame.MenuHost(), 4)), "targeted text update leaves magnification non-interactive");
+			}
 		}
 		ModifyMenuW(root, 1, MF_BYPOSITION | MF_STRING, 100, L"3840x2160"); host.frame.Sync();
 		GetWindowTextW(GetDlgItem(host.frame.MenuHost(), 2), name, 80);
@@ -355,6 +454,7 @@ int wmain(int argc, wchar_t** argv)
 	WindowsUiAppearanceState().Initialize(0);
 	TestAppearance();
 	TestMenus();
+	TestBufferedControls();
 	TestFrames();
 	TestViewerDefaultMenu();
 	HDC dc = CreateCompatibleDC(nullptr);
