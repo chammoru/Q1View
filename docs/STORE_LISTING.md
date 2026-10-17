@@ -27,6 +27,8 @@ Q1View is a Windows toolkit for engineers who need to inspect image and video da
 
 Viewer and Comparator use coordinated Pretendard typography for app-drawn Korean and English text, window titles, and application menus. Text follows Windows text-size and display scaling settings; narrow menu rows wrap, and help descriptions wrap and scroll for access to the full shortcut list. Native Windows window buttons and system dialogs retain their familiar behavior.
 
+Windows RAW interpretation, copying/pasting image pixels, opening a file in Comparator and clearing a selection use shared availability checks for their existing entry points. Comparator source-format controls are native keyboard-accessible buttons for RAW input, with visible focus and disabled states; decoded-source format controls are disabled instead of offering an inapplicable action.
+
 An empty Windows Viewer session opens with a roomier, DPI-scaled 800×600-class viewing area and measured menu clearance, limited to the monitor work area. The thumbnail drawer stays inside that window. The initial resolution for RAW inputs without recognized dimensions is 800×600 pixels; filename dimensions and a manually selected resolution remain supported.
 
 Viewer's Options > Theme menu offers shared System, Light, and Dark choices for both Viewer and Comparator. Comparator follows automatically without a duplicate theme menu, including its Timeline scrollbar. One saved choice updates application colors and image-surround brightness together and respects Windows high contrast. Theme changes keep open media, zoom, selections, playback, and comparison results intact; image pixels and captured regions are not tinted. Windows-owned dialogs and popup chrome retain their OS appearance.

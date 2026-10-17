@@ -48,6 +48,7 @@
 IMPLEMENT_DYNCREATE(CMainFrame, CFrameWnd)
 
 BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
+	ON_MESSAGE_VOID(WM_IDLEUPDATECMDUI, CMainFrame::OnIdleUpdateCmdUI)
 	ON_WM_MEASUREITEM()
 	ON_WM_DRAWITEM()
 	ON_WM_INITMENUPOPUP()
@@ -80,9 +81,9 @@ BEGIN_MESSAGE_MAP(CHelpOverlay, CWnd)
 END_MESSAGE_MAP()
 
 // Target size of the centered shortcut panel (clamped to the window).
-static std::vector<q1view::WindowsUiHelpRow> BuildHelpRows()
+static std::vector<q1view::WindowsUiHelpRow> BuildHelpRows(const q1view::WindowsUiCommandContext& context)
 {
-	return {
+	std::vector<q1view::WindowsUiHelpRow> rows = {
 		{L"?", L"Show or hide this panel"},
 		{L"Drag & Drop", L"Open a source in a pane"},
 		{L"Mouse Wheel", L"Zoom in or out; high zoom shows pixel values"},
@@ -93,9 +94,16 @@ static std::vector<q1view::WindowsUiHelpRow> BuildHelpRows()
 		{L"D", L"Toggle pink diff overlay (grid + dots)"},
 		{L"C", L"Toggle cursor pixel coordinates"},
 		{L"S", L"Toggle selection mode (drag a synced region)"},
-		{L"Esc / RClick", L"Clear the selection rectangle"},
-		{L"Click timeline", L"Seek to a video frame (left/right pane)"}
+		{L"Esc", L"Clear the selection rectangle"},
+		{L"Right click", L"Selection commands"},
+		{L"Tab / Space", L"Focus the source format button / open its menu"},
+		{L"Click timeline", L"Seek to an available source frame"}
 	};
+	const auto clear = q1view::WindowsUiResolveCommand(q1view::WindowsUiCommand::ClearSelection, context);
+	if (!clear.enabled) rows[10].description += std::wstring(L" - Unavailable: ") + clear.unavailable;
+	q1view::WindowsUiCommandContext decoded; decoded.rawInput = false;
+	rows.push_back({L"Source format", std::wstring(q1view::WindowsUiResolveCommand(q1view::WindowsUiCommand::RawInput, decoded).unavailable) + L"; decoded-source buttons are disabled"});
+	return rows;
 }
 
 BOOL CHelpOverlay::CreateOverlay(CWnd *pParent)
@@ -215,7 +223,11 @@ void CHelpOverlay::Render()
 	dc.SetTextColor(Q1UI_COLOR_TEXT);
 	CString version = _T("Version "); version += Q1ViewGetProductVersion();
 	mMaxScroll = q1view::DrawWindowsUiHelp(dc.GetSafeHdc(), textRc, L"Comparator shortcuts",
-		static_cast<LPCTSTR>(version), BuildHelpRows(), mHelpFonts, dpi, textScale, mScrollOffset);
+		static_cast<LPCTSTR>(version), BuildHelpRows([&] {
+			q1view::WindowsUiCommandContext context;
+			auto* doc = static_cast<CComparatorDoc*>(static_cast<CMainFrame*>(GetOwner())->GetActiveDocument());
+			context.selection = doc && (doc->mHasSelection || doc->mSelecting); return context;
+		}()), mHelpFonts, dpi, textScale, mScrollOffset);
 	dc.Detach();
 
 	// 3) GDI leaves the alpha byte at the scrim value; force the panel opaque. Its
@@ -374,6 +386,7 @@ LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
 	if (message == WM_CREATE && result != -1) {
 		mUiFrame.ReserveMenuWidth(ID_MAGNIFY, L"888.88x");
+		mUiMenus.SetReadOnlyStatus(ID_MAGNIFY);
 		mUiFrame.Initialize(m_hWnd, mUiMenus); RecalcLayout();
 	}
 	mUiFrame.After(message);
@@ -597,6 +610,17 @@ void CMainFrame::OnHelp()
 void CMainFrame::ToggleHelpOverlay()
 {
 	mHelpOverlay.Toggle();
+}
+
+void CMainFrame::OnIdleUpdateCmdUI()
+{
+	CFrameWnd::OnIdleUpdateCmdUI();
+	auto* doc = static_cast<CComparatorDoc*>(GetActiveDocument());
+	const bool selection = doc && (doc->mHasSelection || doc->mSelecting);
+	if (selection != mHelpHasSelection) {
+		mHelpHasSelection = selection;
+		if (mHelpOverlay.GetSafeHwnd() && mHelpOverlay.IsShown()) mHelpOverlay.Relayout();
+	}
 }
 
 void CMainFrame::OnTimer(UINT_PTR nIDEvent)

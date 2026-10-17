@@ -103,10 +103,27 @@ BEGIN_MESSAGE_MAP(CComparatorView, CScrollView)
 	ON_WM_RBUTTONUP()
 END_MESSAGE_MAP()
 
+static void BoundSourceControlWidths(CRect& format, CRect& name, int width, int closeWidth)
+{
+	const int edge = std::max(0, width - std::max(0, closeWidth));
+	format.left = 0; format.right = std::min(std::max(0, int(format.right)), edge);
+	name.left = format.right; name.right = edge;
+}
+
 LRESULT CComparatorView::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 {
-	if (message == WM_INITMENUPOPUP && !HIWORD(lp))
-		mUiPopupMenus.SyncPopup(m_hWnd, reinterpret_cast<HMENU>(wp));
+	if (message == WM_INITMENUPOPUP && !HIWORD(lp)) {
+		auto* menu = CMenu::FromHandle(reinterpret_cast<HMENU>(wp));
+		for (int i = 0; i < menu->GetMenuItemCount(); ++i) {
+			CCmdUI state; state.m_pMenu = menu; state.m_nIndex = i;
+			state.m_nIndexMax = menu->GetMenuItemCount(); state.m_nID = menu->GetMenuItemID(i);
+			if (state.m_nID && state.m_nID != UINT(-1)) OnCmdMsg(state.m_nID, CN_UPDATE_COMMAND_UI, &state, nullptr);
+		}
+		mUiPopupMenus.SyncPopup(m_hWnd, menu->GetSafeHmenu());
+		// The popup belongs to this source, not whichever pane happens to be
+		// the frame's active view. Do not forward initialization to that frame.
+		return 0;
+	}
 	if (message == WM_MEASUREITEM && mUiPopupMenus.Measure(reinterpret_cast<MEASUREITEMSTRUCT*>(lp))) return TRUE;
 	if (message == WM_DRAWITEM && mUiPopupMenus.Draw(reinterpret_cast<DRAWITEMSTRUCT*>(lp))) return TRUE;
 	if (message == WM_MENUCHAR) {
@@ -136,6 +153,14 @@ void CComparatorView::OnInitialUpdate()
 	CSize sizeTotal;
 	sizeTotal.cx = sizeTotal.cy = MIN_SIDE;
 	SetScrollSizes(MM_TEXT, sizeTotal);
+}
+
+void CComparatorView::OnUpdate(CView* sender, LPARAM hint, CObject* object)
+{
+	// Labels can be prepared before OpenFrmSrc commits the new source. Update
+	// availability from the completed document notification, not those labels.
+	RefreshCommandStates();
+	CScrollView::OnUpdate(sender, hint, object);
 }
 
 void CComparatorView::ScaleNearestNeighbor(CComparatorDoc *pDoc, BYTE *src, BYTE *dst, int sDst,
@@ -848,7 +873,8 @@ int CComparatorView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	mCsQMenu.Create(str, mRcCsQMenu, this, &mCsMenu);
 	mCsQMenu.CalcRect(&mRcCsQMenu);
-	mRcCsQMenu.InflateRect(0, 0, 0, QMENUITEM_IN_MARGIN_H);
+	const int padding = q1view::WindowsUiPixels(QMENUITEM_IN_MARGIN_H, q1view::WindowsUiDpi(m_hWnd));
+	mRcCsQMenu.InflateRect(0, 0, 0, padding);
 	mCsQMenu.MoveWindow(&mRcCsQMenu);
 
 	mRcControls.bottom = mRcCsQMenu.bottom;
@@ -856,7 +882,7 @@ int CComparatorView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	mRcNameQMenu.left = mRcCsQMenu.right;
 	mNameQMenu.Create(CString(""), mRcNameQMenu, this, NULL, DT_RIGHT);
 	mNameQMenu.CalcRect(&mRcNameQMenu);
-	mRcNameQMenu.InflateRect(0, 0, 0, QMENUITEM_IN_MARGIN_H);
+	mRcNameQMenu.InflateRect(0, 0, 0, padding);
 	mNameQMenu.MoveWindow(&mRcNameQMenu);
 
 	// Right-click popup, mirroring the MFC Viewer's mouse menu: a checkable
@@ -1041,6 +1067,7 @@ void CComparatorView::OnSize(UINT nType, int cx, int cy)
 		const int padding = q1view::WindowsUiPixels(QMENUITEM_IN_MARGIN_H, q1view::WindowsUiDpi(m_hWnd));
 		mRcCsQMenu.SetRect(0, 0, measured.Width(), measured.Height() + padding);
 		mRcControls.bottom = mRcCsQMenu.bottom;
+		BoundSourceControlWidths(mRcCsQMenu, mRcNameQMenu, cx, mRcControls.bottom);
 		mCsQMenu.MoveWindow(mRcCsQMenu);
 		mRcNameQMenu.left = mRcCsQMenu.right;
 		mRcNameQMenu.top = 0;
@@ -1057,10 +1084,11 @@ void CComparatorView::OnSize(UINT nType, int cx, int cy)
 	// button (sized to the strip height so it lines up with mCsQMenu /
 	// mNameQMenu). When the strip height isn't known yet (OnSize fires before
 	// OnCreate), fall back to a sensible constant.
-	int closeW = mRcControls.bottom > 0 ? mRcControls.bottom : 22;
+	int closeW = std::min(std::max(0, mWClient), mRcControls.bottom > 0 ? int(mRcControls.bottom) : 22);
 	mRcClose.SetRect(mWClient - closeW, 0, mWClient, mRcControls.bottom);
 
 	mRcNameQMenu.right = mWClient - closeW;
+	mRcNameQMenu.left = std::min(mRcNameQMenu.left, mRcNameQMenu.right);
 	if (mNameQMenu.GetSafeHwnd())
 		mNameQMenu.MoveWindow(mRcNameQMenu);
 
@@ -1235,9 +1263,15 @@ void CComparatorView::CheckCsRadio(int cs)
 
 void CComparatorView::UpdateCsLabel(const TCHAR *csLabel)
 {
+	RefreshCommandStates();
 	mCsQMenu.SetWindowText(csLabel);
-	mCsQMenu.CalcRect(&mRcCsQMenu);
-	mRcCsQMenu.InflateRect(0, 0, 0, QMENUITEM_IN_MARGIN_H);
+	CRect measured(0, 0, 0, 0);
+	mCsQMenu.CalcRect(&measured);
+	// A label update changes width, not the established DPI/text-aware header
+	// height. OnSize owns that height and the canvas/close-button geometry.
+	const int padding = q1view::WindowsUiPixels(QMENUITEM_IN_MARGIN_H, q1view::WindowsUiDpi(m_hWnd));
+	mRcCsQMenu.SetRect(0, 0, measured.Width(), mRcControls.bottom > 0 ? int(mRcControls.bottom) : measured.Height() + padding);
+	if (mWClient > 0) BoundSourceControlWidths(mRcCsQMenu, mRcNameQMenu, mWClient, mRcControls.bottom);
 	mCsQMenu.MoveWindow(&mRcCsQMenu);
 
 	mRcNameQMenu.left = mRcCsQMenu.right;
@@ -1246,6 +1280,7 @@ void CComparatorView::UpdateCsLabel(const TCHAR *csLabel)
 
 void CComparatorView::UpdateFileName(const TCHAR* filename)
 {
+	RefreshCommandStates();
 	CString title;
 	const auto* doc = GetDocument();
 	if (doc) {
@@ -1253,14 +1288,60 @@ void CComparatorView::UpdateFileName(const TCHAR* filename)
 		title.Format(_T("%c%s  %s"), _T('A') + slot, slot == 0 ? _T(" (Reference)") : _T(""), filename);
 	} else title = filename;
 	mNameQMenu.SetWindowText(title);
-	mCsQMenu.CalcRect(&mRcCsQMenu);
-
 	mRcNameQMenu.left = mRcCsQMenu.right;
+	if (mWClient > 0) BoundSourceControlWidths(mRcCsQMenu, mRcNameQMenu, mWClient, mRcControls.bottom);
 	mNameQMenu.MoveWindow(mRcNameQMenu);
+}
+
+q1view::WindowsUiCommandContext CComparatorView::CommandContext() const
+{
+	q1view::WindowsUiCommandContext context;
+	auto* doc = GetDocument();
+	auto* pane = doc ? GetPane(doc) : nullptr;
+	context.rawInput = pane && (!pane->frmSrc || !pane->frmSrc->isFixedResolution());
+	context.selection = doc && (doc->mHasSelection || doc->mSelecting);
+	return context;
+}
+
+bool CComparatorView::IsCommandEnabled(UINT id) const
+{
+	if (id >= ID_CS_START && id <= ID_CS_END)
+		return mCsMenu.GetMenuState(id, MF_BYCOMMAND) != UINT(-1) &&
+			q1view::WindowsUiResolveCommand(q1view::WindowsUiCommand::RawInput, CommandContext()).enabled;
+	if (id == ID_MOUSEMENU_START + QMouseMenuClear)
+		return q1view::WindowsUiResolveCommand(q1view::WindowsUiCommand::ClearSelection, CommandContext()).enabled;
+	return id < ID_MOUSEMENU_START || id > ID_MOUSEMENU_END || id == ID_MOUSEMENU_START + QMouseMenuSel;
+}
+
+void CComparatorView::RefreshCommandStates()
+{
+	const bool enabled = CommandContext().rawInput;
+	// Playback/metric notifications also reach OnUpdate. Only change native
+	// state when eligibility changes, not once per frame or result.
+	if (!mCsQMenu.GetSafeHwnd() || bool(mCsQMenu.IsWindowEnabled()) == enabled) return;
+	if (!enabled && GetFocus() == &mCsQMenu) SetFocus();
+	mCsQMenu.EnableWindow(enabled);
+	if (mCsMenu.GetSafeHmenu()) for (int i = 0; i < mCsMenu.GetMenuItemCount(); ++i)
+		mCsMenu.EnableMenuItem(i, MF_BYPOSITION | (enabled ? MF_ENABLED : MF_GRAYED));
+}
+
+BOOL CComparatorView::OnCmdMsg(UINT id, int code, void* extra, AFX_CMDHANDLERINFO* handler)
+{
+	const bool known = (id >= ID_CS_START && id <= ID_CS_END) || (id >= ID_MOUSEMENU_START && id <= ID_MOUSEMENU_END);
+	if (!handler && known) {
+		if (code == CN_UPDATE_COMMAND_UI && extra) {
+			auto* command = static_cast<CCmdUI*>(extra); command->Enable(IsCommandEnabled(id));
+			if (id == ID_MOUSEMENU_START + QMouseMenuSel) command->SetCheck(GetDocument() && GetDocument()->mSelMode);
+			return TRUE;
+		}
+		if (code == CN_COMMAND && !IsCommandEnabled(id)) return TRUE;
+	}
+	return CScrollView::OnCmdMsg(id, code, extra, handler);
 }
 
 void CComparatorView::OnCsChange(UINT nID)
 {
+	if (!IsCommandEnabled(nID)) return;
 	CComparatorDoc* pDoc = GetDocument();
 
 	CString str;
@@ -1295,6 +1376,7 @@ void CComparatorView::OnCsChange(UINT nID)
 
 void CComparatorView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
+	if (nChar == VK_TAB && mCsQMenu.IsWindowEnabled()) { mCsQMenu.SetFocus(); return; }
 	CComparatorDoc* pDoc = GetDocument();
 
 	bool isProcessing = pDoc->CheckImgViewProcessing();
@@ -1384,7 +1466,7 @@ void CComparatorView::OnRButtonUp(UINT nFlags, CPoint point)
 	if (pDoc) {
 		mMouseMenu.CheckMenuItem(ID_MOUSEMENU_START + QMouseMenuSel,
 			MF_BYCOMMAND | (pDoc->mSelMode ? MF_CHECKED : MF_UNCHECKED));
-		const bool hasSel = pDoc->mHasSelection || pDoc->mSelecting;
+		const bool hasSel = IsCommandEnabled(ID_MOUSEMENU_START + QMouseMenuClear);
 		mMouseMenu.EnableMenuItem(ID_MOUSEMENU_START + QMouseMenuClear,
 			MF_BYCOMMAND | (hasSel ? MF_ENABLED : (MF_GRAYED | MF_DISABLED)));
 
@@ -1399,6 +1481,7 @@ void CComparatorView::OnRButtonUp(UINT nFlags, CPoint point)
 
 void CComparatorView::OnMouseMenu(UINT nID)
 {
+	if (!IsCommandEnabled(nID)) return;
 	CComparatorDoc *pDoc = GetDocument();
 	if (!pDoc)
 		return;

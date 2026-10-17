@@ -3,6 +3,7 @@
 
 
 #pragma once
+#include "Q1UiCommandWin.h"
 
 #include <vector>
 #include "Q1UiFontWin.h"
@@ -177,6 +178,7 @@ private:
 	q1view::WindowsUiMenus mUiMenus;
 	q1view::WindowsUiFrame mUiFrame;
 	CDrawerTransitionOverlay mDrawerTransitionOverlay;
+	unsigned mCommandStateSignature = ~0u;
 
 // Operations
 public:
@@ -192,6 +194,11 @@ public:
 	void RestoreApplicationMenu();
 	void GetContentRect(CRect& rect) const;
 	virtual BOOL PreTranslateMessage(MSG *pMsg);
+	virtual BOOL OnCmdMsg(UINT id, int code, void* extra, AFX_CMDHANDLERINFO* handler);
+	q1view::WindowsUiCommandContext CommandContext() const;
+	bool IsCommandEnabled(UINT id) const;
+	void RefreshCommandStates();
+	afx_msg void OnIdleUpdateCmdUI();
 	virtual void OnUpdateFrameTitle(BOOL bAddToTitle);
 	virtual BOOL OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext);
 

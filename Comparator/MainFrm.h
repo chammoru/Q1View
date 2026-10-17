@@ -3,6 +3,7 @@
 //
 
 #pragma once
+#include <afxpriv.h>
 #include "afxext.h"
 
 #include "QSplitterWnd.h"
@@ -70,6 +71,7 @@ private:
 
 class CMainFrame : public CFrameWnd
 {
+	bool mHelpHasSelection = false;
 #ifdef Q1VIEW_COMPARER_TESTS
 	friend int RunComparerTypographyTests();
 #endif
@@ -93,6 +95,7 @@ private:
 	q1view::WindowsUiFrame mUiFrame;
 
 public:
+	afx_msg void OnIdleUpdateCmdUI();
 	int mMetricIdx;
 	int mNumOfViews;
 	int mPreViews;

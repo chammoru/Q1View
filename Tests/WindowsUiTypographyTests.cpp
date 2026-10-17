@@ -42,6 +42,27 @@ static void TestAnalysisLayout()
 	std::puts("Analysis layout tests passed (5 DPI inputs x 5 text scales x 6 content heights).");
 }
 
+static void TestCommandStates()
+{
+	using namespace q1view;
+	for (unsigned mask = 0; mask < 32; ++mask) {
+		WindowsUiCommandContext context;
+		context.rawInput = (mask & 1) != 0; context.pixels = (mask & 2) != 0;
+		context.clipboardImage = (mask & 4) != 0; context.file = (mask & 8) != 0; context.selection = (mask & 16) != 0;
+		for (const auto& item : {std::make_pair(WindowsUiCommand::RawInput, context.rawInput),
+			std::make_pair(WindowsUiCommand::CopyPixels, context.pixels), std::make_pair(WindowsUiCommand::PasteImage, context.clipboardImage),
+			std::make_pair(WindowsUiCommand::CompareFile, context.file), std::make_pair(WindowsUiCommand::ClearSelection, context.selection)}) {
+			const auto state = WindowsUiResolveCommand(item.first, context);
+			Require(state.enabled == item.second && state.unavailable && *state.unavailable, "command applicability and help reason share a single policy");
+		}
+	}
+	Require(WindowsUiResolveCommand(WindowsUiCommand::RawInput, {}).enabled, "empty sessions retain RAW preconfiguration");
+	Require(WindowsUiCommandBackground(false, true, true) == WindowsUiColor::SurfaceAlt, "disabled controls cannot acquire hot or pressed colors");
+	Require(WindowsUiCommandBackground(true, true, false) == WindowsUiColor::Hover &&
+		WindowsUiCommandBackground(true, true, true) == WindowsUiColor::Pressed, "hover and pressed states remain distinct");
+	std::puts("Command-state tests passed (32 contexts, shared reasons, disabled/hot/pressed precedence).");
+}
+
 static void TestAppearance()
 {
 	using namespace q1view;
@@ -176,7 +197,7 @@ static void TestMenus()
 	Require(accessible && accessible->dwMSAASignature == MSAA_MENU_SIG &&
 		wcscmp(accessible->pszWText, L"&File") == 0, "native MSAA menu name is preserved");
 	MEASUREITEMSTRUCT measure = {}; measure.CtlType = ODT_MENU; measure.itemData = info.dwItemData;
-	Require(menus.Measure(&measure) && measure.itemHeight >= 30, "menu row includes 30 DIP breathing room");
+	Require(menus.Measure(&measure) && measure.itemHeight >= 32, "menu row includes 32 DIP breathing room");
 	Require(GetMenuItemInfoW(root, 1, TRUE, &info) && (info.fType & MFT_RIGHTJUSTIFY), "right-aligned help stays right-aligned");
 	Require(GetMenuItemInfoW(popup, 3, TRUE, &info) && (info.fState & MFS_GRAYED), "disabled item remains disabled");
 	CheckMenuRadioItem(popup, 100, 101, 101, MF_BYCOMMAND);
@@ -213,6 +234,21 @@ static void TestMenus()
 		draw.itemState = ODS_SELECTED;
 		Require(menus.Draw(&draw) && GetPixel(dc,319,29)==WindowsUiColorValue(WindowsUiColor::Selection), "native selection uses the active palette");
 	}
+	AppendMenuW(root, MF_STRING | MF_RIGHTJUSTIFY | MF_GRAYED, 105, L"&Compare");
+	AppendMenuW(root, MF_STRING | MF_RIGHTJUSTIFY | MF_GRAYED, 106, L"1.00x");
+	menus.SetReadOnlyStatus(106); menus.Sync(nullptr, root);
+	for (int theme : {1,2}) {
+		WindowsUiAppearanceState().Initialize(theme);
+		for (UINT id : {105u,106u}) {
+			GetMenuItemInfoW(root, id, FALSE, &info); draw.itemData=info.dwItemData;
+			draw.itemState=ODS_DISABLED | ODS_HOTLIGHT | ODS_SELECTED;
+			Require(menus.Draw(&draw) && GetPixel(dc,319,29)==WindowsUiColorValue(WindowsUiColor::Window),
+				"disabled top-level actions and status ignore stale hover/pressed colors");
+			bool boundary=false;
+			for (int x=2;x<318;++x) boundary |= GetPixel(dc,x,2)!=WindowsUiColorValue(WindowsUiColor::Window);
+			Require(boundary == (id==105), "right-aligned disabled Compare has a non-color cue; read-only zoom does not");
+		}
+	}
 	WindowsUiAppearanceState().Initialize(0);
 	SelectObject(dc, oldBitmap); DeleteObject(bitmap); DeleteDC(dc); DestroyMenu(root);
 	// Pane/context popups are standalone roots, not frame-bar descendants.
@@ -222,7 +258,7 @@ static void TestMenus()
 	WindowsUiMenus paneMenus; paneMenus.SyncPopup(nullptr, standalone);
 	Require(GetMenuItemInfoW(standalone, 0, TRUE, &info) && (info.fType & MFT_OWNERDRAW) && (info.fState & MFS_CHECKED), "standalone format popup keeps its checked state and receives shared painting");
 	measure.itemData = info.dwItemData;
-	Require(paneMenus.Measure(&measure) && measure.itemWidth >= 64 && measure.itemHeight >= 30, "standalone popup uses popup gutter and shared body-font row size, not bar sizing");
+	Require(paneMenus.Measure(&measure) && measure.itemWidth >= 64 && measure.itemHeight >= 32, "standalone popup uses popup gutter and shared body-font row size, not bar sizing");
 	accessible = reinterpret_cast<MSAAMENUINFO*>(info.dwItemData);
 	Require(accessible && wcscmp(accessible->pszWText, L"YUV420") == 0, "standalone popup retains accessible format label");
 	ModifyMenuW(standalone, 200, MF_BYCOMMAND | MF_STRING, 200, L"NV12"); paneMenus.SyncPopup(nullptr, standalone);
@@ -362,6 +398,14 @@ static void TestFrames()
 		wchar_t name[80] = {}; GetWindowTextW(file, name, 80);
 		Require(wcscmp(name, L"&File") == 0, "real menu button exposes its accessible name");
 		Require(!IsWindowEnabled(GetDlgItem(host.frame.MenuHost(), 4)), "disabled zoom label cannot receive input");
+		const auto enabledRects = host.frame.MenuRects();
+		EnableMenuItem(root, 0, MF_BYPOSITION | MF_GRAYED); host.frame.SyncEnabledStates();
+		Require(!IsWindowEnabled(file), "shared command state disables the existing hosted button");
+		const auto disabledRects = host.frame.MenuRects();
+		Require(enabledRects.size() == disabledRects.size(), "availability never rebuilds the menu controls");
+		for (size_t i=0; i<enabledRects.size(); ++i) Require(EqualRect(&enabledRects[i], &disabledRects[i]), "availability change preserves all hit targets and menu geometry");
+		EnableMenuItem(root, 0, MF_BYPOSITION | MF_ENABLED); host.frame.SyncEnabledStates();
+		Require(IsWindowEnabled(file), "command can be re-enabled without recreating the button or native menu");
 		TestMenuButtonBackground(host.frame.MenuHost());
 		const UINT actualDpi = q1view::WindowsUiDpi(window);
 		for (UINT dpi : {96u, 120u, 144u}) {
@@ -477,6 +521,7 @@ int wmain(int argc, wchar_t** argv)
 	}
 	WindowsUiAppearanceState().Initialize(0);
 	TestAppearance();
+	TestCommandStates();
 	TestMenus();
 	TestBufferedControls();
 	TestFrames();

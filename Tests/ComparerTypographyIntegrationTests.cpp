@@ -181,6 +181,10 @@ void CheckFooterAlignment(CComparatorDoc* doc) {
 	for (int slot=0;slot<frame->mNumOfViews;++slot) {
 		if (slot && !doc->mPane[slot].isAvail()) continue;
 		auto* view=doc->mPane[slot].pView;
+		CRect sourceButton; view->mCsQMenu.GetWindowRect(sourceButton); view->ScreenToClient(sourceButton);
+		Check(sourceButton.left >= 0 && sourceButton.right <= view->mRcClose.left &&
+			view->mRcNameQMenu.Width() >= 0 && view->mRcNameQMenu.right <= view->mRcClose.left,
+			"measured source controls never cover the pane close target, even in narrow or unequal columns");
 		CRect image; view->GetClientRect(image); view->ClientToScreen(image);
 		CWnd& footer=slot ? static_cast<CWnd&>(info->mPairButtons[slot-1]) : static_cast<CWnd&>(info->mReferenceLabel);
 		CRect result; footer.GetWindowRect(result);
@@ -205,6 +209,84 @@ struct MenuUpdateProbe {
 };
 }
 
+namespace {
+class SourceCommandTestHost : public CWnd {
+public:
+	int opened = 0, executed = 0; bool timeout = false, keysQueued = false;
+	static constexpr UINT Command = 0x6111;
+	BOOL OnCommand(WPARAM wp, LPARAM lp) override {
+		if (!lp && LOWORD(wp) == Command) { ++executed; return TRUE; }
+		return CWnd::OnCommand(wp, lp);
+	}
+	LRESULT WindowProc(UINT message, WPARAM wp, LPARAM lp) override {
+		if (message == WM_INITMENUPOPUP) {
+			++opened; SetTimer(119, 1500, nullptr);
+			keysQueued = false;
+			std::fprintf(report, "Source popup init flags=%u\n", ::GetMenuState(reinterpret_cast<HMENU>(wp), Command, MF_BYCOMMAND));
+			return 0; // This standalone host owns its command, not the app frame.
+		}
+		if (message == WM_ENTERIDLE && wp == MSGF_MENU && !keysQueued) {
+			keysQueued = true;
+			::PostMessage(reinterpret_cast<HWND>(lp), WM_CHAR, 'e', 1);
+		}
+		if (message == WM_TIMER && wp == 119) { timeout = true; EndMenu(); KillTimer(119); return 0; }
+		if (message == WM_MENUSELECT) std::fprintf(report, "Source menu select: id=%u flags=%u\n", LOWORD(wp), HIWORD(wp));
+		return CWnd::WindowProc(message, wp, lp);
+	}
+};
+
+void CheckSourceCommandButton()
+{
+	SourceCommandTestHost host;
+	Check(host.CreateEx(0, AfxRegisterWndClass(0), _T("Source command regression"), WS_OVERLAPPEDWINDOW,
+		30, 30, 400, 160, nullptr, nullptr), "native source-command test host created");
+	CMenu menu; menu.CreatePopupMenu(); menu.AppendMenu(MF_STRING, SourceCommandTestHost::Command, _T("&Execute once"));
+	CQMenuItem command, label; CRect rect(10, 10, 180, 50), nameRect(10, 55, 350, 90);
+	Check(command.Create(_T("Raw format"), rect, &host, &menu) && label.Create(_T("Read-only filename"), nameRect, &host, nullptr), "native command and read-only source label created");
+	CRect measured(0,0,0,0); command.CalcRect(&measured);
+	{ CClientDC dc(&command); CString text; command.DefaultSetting(&dc,text);
+		const int dpi=q1view::WindowsUiDpi(command.m_hWnd);
+		Check(measured.Width() >= dc.GetTextExtent(text).cx + q1view::WindowsUiPixels(8,dpi)*3 + q1view::WindowsUiPixels(10,dpi),
+			"source command measurement reserves the same text, chevron and padding that painting uses"); }
+	host.ShowWindow(SW_SHOW); host.SetForegroundWindow(); host.SetActiveWindow(); command.SetFocus(); Pump(30);
+	wchar_t name[32] = {}; GetClassName(command.m_hWnd, name, _countof(name));
+	Check(!_wcsicmp(name, L"Button") && (command.GetStyle() & WS_TABSTOP), "source popup is a native accessible tab-stop button");
+	GetClassName(label.m_hWnd, name, _countof(name));
+	Check(!_wcsicmp(name, L"Static") && !(label.GetStyle() & WS_TABSTOP), "filename is a native read-only label, not another action");
+	command.SendMessage(WM_MOUSEMOVE, 0, MAKELPARAM(20, 20));
+	Check(::GetCapture() != command.m_hWnd, "source-command hover does not capture the pointer");
+	command.SendMessage(WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(20, 20));
+	Check(host.opened == 0, "source command does not activate on mouse-down");
+	host.SetTimer(119, 1500, nullptr);
+	command.SendMessage(WM_LBUTTONUP, 0, MAKELPARAM(20, 20)); Pump(40); host.KillTimer(119);
+	std::fprintf(report, "Source popup probe: opened=%d executed=%d timeout=%d queued=%d returned=%llu retained=%llu\n", host.opened, host.executed, int(host.timeout), int(host.keysQueued),
+		static_cast<unsigned long long>(reinterpret_cast<UINT_PTR>(::GetPropW(host.m_hWnd,L"Q1ViewTestReturnedCommand"))),
+		static_cast<unsigned long long>(reinterpret_cast<UINT_PTR>(::GetPropW(host.m_hWnd,L"Q1ViewTestRetainedControl")))); std::fflush(report);
+	Check(!host.timeout && host.opened == 1 && host.executed == 1, "one native release opens one popup and executes one command");
+	command.SendMessage(WM_KEYDOWN, VK_SPACE); command.SendMessage(WM_KEYDOWN, VK_SPACE, 1 | (KF_REPEAT << 16));
+	host.SetTimer(119, 1500, nullptr);
+	command.SendMessage(WM_KEYUP, VK_SPACE); Pump(40); host.KillTimer(119);
+	Check(host.opened == 2 && host.executed == 2, "held Space activates once on release without duplicate command notification");
+	host.SetTimer(119, 1500, nullptr);
+	command.SendMessage(WM_KEYDOWN, VK_RETURN); Pump(40); host.KillTimer(119);
+	Check(host.opened == 3 && host.executed == 3, "Enter activates the same existing popup command once");
+	command.SendMessage(WM_KEYDOWN, VK_RETURN, 1 | (KF_REPEAT << 16));
+	Pump(20);
+	Check(host.opened == 3, "held Enter does not repeat the popup action");
+	command.EnableWindow(FALSE); command.SendMessage(BM_CLICK);
+	host.SendMessage(WM_COMMAND, MAKEWPARAM(0xffff, BN_CLICKED), reinterpret_cast<LPARAM>(command.m_hWnd)); Pump(20);
+	Check(host.opened == 3 && host.executed == 3, "disabled control rejects native clicks and forged notifications");
+	IAccessible* accessible = nullptr;
+	Check(SUCCEEDED(AccessibleObjectFromWindow(command.m_hWnd, OBJID_CLIENT, IID_IAccessible, reinterpret_cast<void**>(&accessible))), "source command exposes native accessibility metadata");
+	VARIANT self; VariantInit(&self); self.vt = VT_I4; self.lVal = CHILDID_SELF;
+	VARIANT role, state; VariantInit(&role); VariantInit(&state);
+	accessible->get_accRole(self, &role); accessible->get_accState(self, &state);
+	Check(role.vt == VT_I4 && role.lVal == ROLE_SYSTEM_PUSHBUTTON && state.vt == VT_I4 && (state.lVal & STATE_SYSTEM_UNAVAILABLE), "screen readers receive push-button role and actual disabled state");
+	VariantClear(&role); VariantClear(&state); accessible->Release();
+	host.DestroyWindow();
+}
+}
+
 int RunComparerTypographyTests() {
 	wchar_t output[MAX_PATH] = {};
 	GetEnvironmentVariableW(L"Q1VIEW_COMPARER_TEST_REPORT", output, _countof(output));
@@ -212,6 +294,7 @@ int RunComparerTypographyTests() {
 	report=_wfsopen(output,L"w",_SH_DENYNO);
 	if (!report) return 2;
 	try {
+		CheckSourceCommandButton();
 		auto* frame = static_cast<CMainFrame*>(AfxGetMainWnd());
 		Check(frame != nullptr, "real Comparer frame created");
 		auto* doc = static_cast<CComparatorDoc*>(frame->GetActiveDocument());
@@ -234,17 +317,46 @@ int RunComparerTypographyTests() {
 		Check(timeline && timeline->GetScrollBarCtrl(SB_VERT) && !timeline->GetScrollBarCtrl(SB_VERT)->IsWindowVisible() &&
 			timeline->GetScrollPosition().y==0, "empty Timeline has no scrollbar or phantom scroll offset");
 		Check(true, "test frame initial layout completed");
+		for (int slot=0; slot<2; ++slot)
+			Check(doc->mPane[slot].pView->mCsQMenu.IsWindowEnabled() && doc->mPane[slot].pView->IsCommandEnabled(ID_CS_START),
+				"empty source slots allow RAW preconfiguration without a test-forced refresh");
 		wchar_t first[MAX_PATH], second[MAX_PATH];
 		GetFullPathNameW(L"docs\\images\\sample-colored-pencils-reference.png", MAX_PATH, first, nullptr);
 		GetFullPathNameW(L"docs\\images\\sample-colored-pencils-changed-region.png", MAX_PATH, second, nullptr);
 		std::vector<CString> files = {first, second};
 		frame->ChangeNumOfViews(2);
 		doc->OpenMultiFiles(files); Pump(500);
+		CString relativeFiles = L"docs\\images\\sample-colored-pencils-reference.png";
+		relativeFiles += CSV_SEPARATOR;
+		relativeFiles += L"docs\\images\\sample-colored-pencils-changed-region.png";
+		Check(doc->OnOpenDocument(relativeFiles) != FALSE,
+			"ordinary document-open path accepts multiple relative source paths");
+		Pump(100);
+		Check(doc->mPane[0].pathName.CompareNoCase(first)==0 && doc->mPane[1].pathName.CompareNoCase(second)==0 &&
+			doc->mPane[0].isAvail() && doc->mPane[1].isAvail(),
+			"relative shell-open paths are normalized before MRU/source loading without changing source identity");
 		// Opening a large source intentionally auto-maximizes the production
 		// frame. Movement checks need a restored, fixed-size window instead.
 		frame->ShowWindow(SW_RESTORE);
 		frame->MoveWindow(50, 50, 1100, 800); Pump(250);
 		Check(doc->mFrmCmpStrategy && doc->mPane[0].isAvail() && doc->mPane[1].isAvail(), "two real image sources and comparison strategy loaded");
+		for (int slot = 0; slot < 2; ++slot) {
+			auto* sourceView = doc->mPane[slot].pView;
+			Check(!sourceView->mCsQMenu.IsWindowEnabled() && !sourceView->IsCommandEnabled(ID_CS_START),
+				"real file opening disables decoded-source controls without a test-forced state refresh");
+			CString label; sourceView->mCsQMenu.GetWindowText(label);
+			const CRect controls = sourceView->mRcControls, close = sourceView->mRcClose;
+			const int canvas = sourceView->mHCanvas;
+			sourceView->UpdateCsLabel(L"RGBA1010102");
+			CRect button; sourceView->mCsQMenu.GetWindowRect(button); sourceView->ScreenToClient(button);
+			Check(button.bottom == controls.bottom && sourceView->mRcControls == controls && sourceView->mRcClose == close && sourceView->mHCanvas == canvas,
+				"format label changes retain the measured header height, close target and image canvas");
+			sourceView->UpdateCsLabel(label);
+			Check(!sourceView->mCsQMenu.IsWindowEnabled() && !sourceView->IsCommandEnabled(ID_CS_START), "fixed decoded sources disable raw-format entry points");
+			const auto cs = doc->mPane[slot].colorSpace; const auto generation = doc->mFileScanThread->pairGeneration(1);
+			sourceView->SendMessage(WM_COMMAND, ID_CS_START + 1); sourceView->OnCsChange(ID_CS_START + 1);
+			Check(doc->mPane[slot].colorSpace == cs && doc->mFileScanThread->pairGeneration(1) == generation, "disabled source interpretation cannot mutate pixels or invalidate analysis via alternate entry points");
+		}
 		CheckFooterAlignment(doc);
 		Check(!timeline->GetScrollBarCtrl(SB_VERT)->IsWindowVisible(), "still-image Timeline does not show an unnecessary scrollbar");
 		if (frame->mUiFrame.Custom()) {
@@ -411,6 +523,9 @@ int RunComparerTypographyTests() {
 		{
 			RawTimelineFixture raw(120);
 			Check(doc->OpenMultiFiles({raw.path,raw.path})!=FALSE, "multi-frame RAW sources open for real Timeline scrolling");
+			for (int slot=0; slot<2; ++slot)
+				Check(doc->mPane[slot].pView->mCsQMenu.IsWindowEnabled() && doc->mPane[slot].pView->IsCommandEnabled(ID_CS_START),
+					"switching decoded input to RAW re-enables the existing source button automatically");
 			frame->ShowWindow(SW_RESTORE); frame->MoveWindow(50,50,1100,800); Pump(250);
 			doc->KillPlayTimer();
 			Check(doc->mPane[0].frames==120 && doc->mPane[1].frames==120, "Timeline sources expose 120 real frames");
@@ -650,6 +765,8 @@ int RunComparerTypographyTests() {
 				"synchronized seek does not clamp or fabricate unavailable source frames");
 			const auto beforeCloseC=doc->mPairResults[1],beforeCloseD=doc->mPairResults[2];
 			doc->CloseSource(1); WaitForAnalysis(doc);
+			Check(doc->mPane[1].pView->mCsQMenu.IsWindowEnabled() && doc->mPane[1].pView->IsCommandEnabled(ID_CS_START),
+				"closing a source restores empty-slot RAW preconfiguration automatically");
 			Check(SameCurrentResult(doc->mPairResults[1],beforeCloseC) && SameCurrentResult(doc->mPairResults[2],beforeCloseD),
 				"closing B preserves unrelated completed A/C and A/D current/ROI results");
 			doc->mFrmInfoView->UpdateWindow();

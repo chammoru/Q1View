@@ -543,7 +543,7 @@ static std::vector<CString> parseFileList(const CString& fileList)
 	return filenames;
 }
 
-static CString NormalizeParentDirectory(const CString& pathName)
+static CString NormalizeInputPath(const CString& pathName)
 {
 	CString fullPath;
 	DWORD capacity = MAX_PATH;
@@ -563,6 +563,12 @@ static CString NormalizeParentDirectory(const CString& pathName)
 		fullPath = pathName;
 
 	fullPath.Replace(_T('/'), _T('\\'));
+	return fullPath;
+}
+
+static CString NormalizeParentDirectory(const CString& pathName)
+{
+	const CString fullPath = NormalizeInputPath(pathName);
 	int slash = fullPath.ReverseFind(_T('\\'));
 	if (slash < 0)
 		return fullPath;
@@ -718,7 +724,9 @@ BOOL CComparatorDoc::OnOpenDocument(LPCTSTR lpszPathName)
 		return FALSE;
 
 	for (auto& filename : filenames) {
-		filename.Replace(_T('/'), _T('\\'));
+		// Native MRU/document bookkeeping and all source loaders receive the
+		// same absolute path, including relative command-line input.
+		filename = NormalizeInputPath(filename);
 		if (!fileExists(filename)) {
 			CString msg;
 			msg.Format(_T("%s does not exist or is not accessible."), filename.GetString());
