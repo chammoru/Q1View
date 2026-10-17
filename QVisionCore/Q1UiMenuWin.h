@@ -2,6 +2,7 @@
 
 #include "Q1UiFontWin.h"
 #include "Q1UiAppearanceWin.h"
+#include "Q1UiCommandWin.h"
 #include <oleacc.h>
 #include <memory>
 #include <vector>
@@ -24,6 +25,7 @@ class WindowsUiMenus {
 	WindowsUiFontCache mBarFonts;
 	HWND mWindow = nullptr;
 	bool mHostedBar = false;
+	UINT mReadOnlyStatus = 0;
 	Item* Find(ULONG_PTR data) const {
 		for (const auto& item : mItems) if (reinterpret_cast<ULONG_PTR>(item.get()) == data) return item.get();
 		return nullptr;
@@ -97,6 +99,8 @@ class WindowsUiMenus {
 		}
 	}
 public:
+	// Alignment is layout metadata, not a command role: Compare is also right-aligned.
+	void SetReadOnlyStatus(UINT command) { mReadOnlyStatus = command; }
 	void Sync(HWND window, HMENU menu, bool hostedBar = false) { mWindow = window; mHostedBar = hostedBar; if (menu) SyncMenu(menu, true); }
 	// Standalone pane/context popups are not children of the frame menu.
 	void SyncPopup(HWND window, HMENU menu) { mWindow = window; if (menu) SyncMenu(menu, false); }
@@ -118,7 +122,7 @@ public:
 		{ WindowsUiDcState state(dc); SelectObject(dc, Font(item));
 			const auto text = VisibleText(item->text); SIZE size = {};
 			GetTextExtentPoint32W(dc, text.c_str(), int(text.size()), &size);
-			measure->itemHeight = (item->type & MFT_SEPARATOR) ? Px(9) : (std::max)(Px(30), int(size.cy) + Px(10));
+			measure->itemHeight = (item->type & MFT_SEPARATOR) ? Px(9) : (std::max)(Px(32), int(size.cy) + Px(10));
 			measure->itemWidth = size.cx + Px(item->bar ? 16 : 64);
 		}
 		ReleaseDC(mWindow, dc); return true;
@@ -129,8 +133,10 @@ public:
 		WindowsUiDcState state(draw->hDC);
 		SelectObject(draw->hDC, Font(item)); SetBkMode(draw->hDC, TRANSPARENT);
 		const bool disabled = (draw->itemState & (ODS_DISABLED | ODS_GRAYED)) != 0;
-		const bool selected = (draw->itemState & (ODS_SELECTED | ODS_HOTLIGHT)) != 0;
-		const auto background = selected ? WindowsUiColor::Selection : (item->bar ? WindowsUiColor::Window : WindowsUiColor::Surface);
+		const bool selected = !disabled && (draw->itemState & (ODS_SELECTED | ODS_HOTLIGHT)) != 0;
+		const auto background = item->bar ? WindowsUiCommandBackground(!disabled,
+			selected, (draw->itemState & ODS_SELECTED) != 0, WindowsUiColor::Window) :
+			selected ? WindowsUiColor::Selection : WindowsUiColor::Surface;
 		FillRect(draw->hDC, &draw->rcItem, WindowsUiColorBrush(background));
 		const auto foreground = selected ? (WindowsUiAppearanceState().HighContrast() ? WindowsUiColor::OnAccent : WindowsUiColor::Accent) :
 			disabled ? WindowsUiColor::Muted : WindowsUiColor::Text;
@@ -169,7 +175,15 @@ public:
 		if (draw->itemState & ODS_NOACCEL) flags |= DT_HIDEPREFIX;
 		const auto tab = item->text.find(L'\t');
 		const auto label = item->text.substr(0, tab);
-		const bool rightAlignedStatus = item->bar && disabled && (item->type & MFT_RIGHTJUSTIFY);
+		const bool readOnlyStatus = item->bar && mReadOnlyStatus && GetMenuItemID(item->menu, item->position) == mReadOnlyStatus;
+		const bool rightAlignedStatus = readOnlyStatus && (item->type & MFT_RIGHTJUSTIFY);
+		if (item->bar && disabled && !readOnlyStatus) {
+			RECT edge = draw->rcItem; InflateRect(&edge, -2, -2);
+			HPEN pen = CreatePen(PS_DASH, 1, GetTextColor(draw->hDC));
+			auto oldPen = SelectObject(draw->hDC, pen), oldBrush = SelectObject(draw->hDC, GetStockObject(NULL_BRUSH));
+			Rectangle(draw->hDC, edge.left, edge.top, edge.right, edge.bottom);
+			SelectObject(draw->hDC, oldPen); SelectObject(draw->hDC, oldBrush); DeleteObject(pen);
+		}
 		DrawTextW(draw->hDC, label.c_str(), -1, &rect, flags | (rightAlignedStatus ? DT_RIGHT : DT_LEFT));
 		if (tab != std::wstring::npos)
 			DrawTextW(draw->hDC, item->text.c_str() + tab + 1, -1, &rect, flags | DT_RIGHT | DT_NOPREFIX);

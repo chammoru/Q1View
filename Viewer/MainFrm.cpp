@@ -2,6 +2,7 @@
 //
 
 #include "stdafx.h"
+#include <afxpriv.h>
 
 #include <atlimage.h>
 
@@ -95,6 +96,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_WM_MEASUREITEM()
 	ON_WM_DRAWITEM()
 	ON_WM_INITMENUPOPUP()
+	ON_MESSAGE_VOID(WM_IDLEUPDATECMDUI, CMainFrame::OnIdleUpdateCmdUI)
 	ON_WM_MENUCHAR()
 	ON_WM_DROPFILES()
 	ON_COMMAND(ID_VIEWER_HELP, &CMainFrame::OnHelp)
@@ -260,14 +262,26 @@ END_MESSAGE_MAP()
 
 // The shortcut panel text, built from the shared table (QViewerShortcuts.h) --
 // the same source the in-view help used and the Qt viewer renders from.
-static std::vector<q1view::WindowsUiHelpRow> BuildHelpRows()
+static std::vector<q1view::WindowsUiHelpRow> BuildHelpRows(const q1view::WindowsUiCommandContext& context)
 {
 	std::vector<q1view::WindowsUiHelpRow> rows;
 	for (int i = 0; i < ARRAY_SIZE(Q1VIEW_SHORTCUTS); i++) {
 		const Q1ViewShortcutRow &row = Q1VIEW_SHORTCUTS[i];
 		if (!(row.fe & Q1VIEW_FE_MFC))
 			continue;
-		rows.push_back({static_cast<LPCTSTR>(CString(row.key)), static_cast<LPCTSTR>(CString(row.desc))});
+		std::wstring description = static_cast<LPCTSTR>(CString(row.desc));
+		q1view::WindowsUiCommand kind;
+		bool known = true;
+		if (!strcmp(row.key, "N") || !strcmp(row.key, "D")) kind = q1view::WindowsUiCommand::RawInput;
+		else if (!strcmp(row.key, "Ctrl + C")) kind = q1view::WindowsUiCommand::CopyPixels;
+		else if (!strcmp(row.key, "Ctrl + V")) kind = q1view::WindowsUiCommand::PasteImage;
+		else known = false;
+		if (known) {
+			const auto state = q1view::WindowsUiResolveCommand(kind, context);
+			if (!state.enabled) description += std::wstring(L" \u2014 Unavailable: ") + state.unavailable;
+			else if (!strcmp(row.key, "N")) description += L" (raw input)";
+		}
+		rows.push_back({static_cast<LPCTSTR>(CString(row.key)), description});
 	}
 	return rows;
 }
@@ -393,7 +407,7 @@ void CHelpOverlay::Render()
 	dc.SetTextColor(Q1UI_COLOR_TEXT);
 	CString version = _T("Version "); version += Q1ViewGetProductVersion();
 	mMaxScroll = q1view::DrawWindowsUiHelp(dc.GetSafeHdc(), textRc, L"Viewer shortcuts",
-		static_cast<LPCTSTR>(version), BuildHelpRows(), mHelpFonts, dpi, textScale, mScrollOffset);
+		static_cast<LPCTSTR>(version), BuildHelpRows(static_cast<CMainFrame*>(GetOwner())->CommandContext()), mHelpFonts, dpi, textScale, mScrollOffset);
 	dc.Detach();
 
 	// 3) GDI leaves the alpha byte at the scrim value; force the panel opaque. Its
@@ -474,6 +488,7 @@ void CMainFrame::OnDrawItem(int id, LPDRAWITEMSTRUCT item)
 
 void CMainFrame::OnInitMenuPopup(CMenu* menu, UINT index, BOOL system)
 {
+	if (!system) RefreshCommandStates();
 	CFrameWnd::OnInitMenuPopup(menu, index, system);
 	if (!system) mUiMenus.Sync(m_hWnd, GetMenu() ? GetMenu()->GetSafeHmenu() : nullptr, mUiFrame.Custom());
 }
@@ -649,7 +664,10 @@ LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 	if (mUiFrame.Before(message, wp, lp, result)) return result;
 	result = CFrameWnd::WindowProc(message, wp, lp);
 	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
-	if (message == WM_CREATE && result != -1) { mUiFrame.Initialize(m_hWnd, mUiMenus); RecalcLayout(); }
+	if (message == WM_CREATE && result != -1) {
+		mUiMenus.SetReadOnlyStatus(ID_MAGNIFY);
+		mUiFrame.Initialize(m_hWnd, mUiMenus); RecalcLayout();
+	}
 	mUiFrame.After(message);
 	if (message == WM_ACTIVATE && LOWORD(wp) != WA_INACTIVE && q1view::ReloadSharedWindowsUiTheme())
 		OnAppearanceChanged(0, 0);
@@ -1314,8 +1332,95 @@ void CMainFrame::RefreshView()
 	}
 }
 
+namespace {
+bool ViewerCommandKind(UINT id, q1view::WindowsUiCommand& kind)
+{
+	if ((id >= ID_RESOLUTION_START && id <= ID_RESOLUTION_END) || (id >= ID_CS_START && id <= ID_CS_END)) kind = q1view::WindowsUiCommand::RawInput;
+	else if (id == ID_EDIT_COPY) kind = q1view::WindowsUiCommand::CopyPixels;
+	else if (id == ID_EDIT_PASTE) kind = q1view::WindowsUiCommand::PasteImage;
+	else if (id == ID_COMPARE) kind = q1view::WindowsUiCommand::CompareFile;
+	else return false;
+	return true;
+}
+}
+
+q1view::WindowsUiCommandContext CMainFrame::CommandContext() const
+{
+	q1view::WindowsUiCommandContext context;
+	auto* view = static_cast<CViewerView*>(GetActiveView());
+	auto* doc = view ? view->GetDocument() : nullptr;
+	context.rawInput = doc && (!doc->mFrmSrc || !doc->mFrmSrc->isFixed());
+	context.pixels = doc && view && doc->mDocState != DOC_JUSTLOAD && view->mStableRgbBufferInfo.addr;
+	context.file = doc && !doc->mPathName.IsEmpty();
+	context.clipboardImage = view && (::IsClipboardFormatAvailable(CF_DIB) || ::IsClipboardFormatAvailable(CF_DIBV5));
+	return context;
+}
+
+bool CMainFrame::IsCommandEnabled(UINT id) const
+{
+	q1view::WindowsUiCommand kind;
+	if (!ViewerCommandKind(id, kind)) return true;
+	if (id >= ID_RESOLUTION_START && id <= ID_RESOLUTION_END && mResolutionMenu.GetMenuState(id, MF_BYCOMMAND) == UINT(-1)) return false;
+	if (id >= ID_CS_START && id <= ID_CS_END && mCsMenu.GetMenuState(id, MF_BYCOMMAND) == UINT(-1)) return false;
+	return q1view::WindowsUiResolveCommand(kind, CommandContext()).enabled;
+}
+
+BOOL CMainFrame::OnCmdMsg(UINT id, int code, void* extra, AFX_CMDHANDLERINFO* handler)
+{
+	q1view::WindowsUiCommand kind;
+	if (!handler && ViewerCommandKind(id, kind)) {
+		if (code == CN_UPDATE_COMMAND_UI && extra) { static_cast<CCmdUI*>(extra)->Enable(IsCommandEnabled(id)); return TRUE; }
+		if (code == CN_COMMAND && !IsCommandEnabled(id)) return TRUE;
+	}
+	return CFrameWnd::OnCmdMsg(id, code, extra, handler);
+}
+
+void CMainFrame::RefreshCommandStates()
+{
+	const auto context = CommandContext();
+	const unsigned signature = unsigned(context.rawInput) | (unsigned(context.pixels) << 1) |
+		(unsigned(context.clipboardImage) << 2) | (unsigned(context.file) << 3);
+	if (signature != mCommandStateSignature) {
+		mCommandStateSignature = signature;
+		if (mHelpOverlay.GetSafeHwnd() && mHelpOverlay.IsShown()) mHelpOverlay.Relayout();
+	}
+	// Full screen hides the menu, not the context-sensitive help.
+	CMenu* menu = GetMenu(); if (!menu) return;
+	bool nativeBarChanged = false;
+	auto enable = [](CMenu* target, UINT item, UINT by, bool available) {
+		const UINT old = target->GetMenuState(item, by);
+		const bool changed = old != UINT(-1) && bool(!(old & (MF_DISABLED | MF_GRAYED))) != available;
+		if (changed)
+			target->EnableMenuItem(item, by | (available ? MF_ENABLED : MF_GRAYED));
+		return changed;
+	};
+	for (UINT position : {UINT(MENU_POS_RESOLUTION), UINT(MENU_POS_COLORSPACE)}) {
+		const UINT previous = menu->GetMenuState(position, MF_BYPOSITION);
+		nativeBarChanged |= previous != UINT(-1) && bool(!(previous & (MF_DISABLED | MF_GRAYED))) != context.rawInput;
+		enable(menu, position, MF_BYPOSITION, context.rawInput);
+		if (auto* popup = menu->GetSubMenu(position)) for (int i = 0; i < popup->GetMenuItemCount(); ++i)
+			enable(popup, i, MF_BYPOSITION, context.rawInput);
+	}
+	for (UINT id : {UINT(ID_EDIT_COPY), UINT(ID_EDIT_PASTE), UINT(ID_COMPARE)}) {
+		q1view::WindowsUiCommand kind;
+		if (ViewerCommandKind(id, kind)) {
+			const bool changed = enable(menu, id, MF_BYCOMMAND, q1view::WindowsUiResolveCommand(kind, context).enabled);
+			nativeBarChanged |= changed && id == ID_COMPARE;
+		}
+	}
+	mUiFrame.SyncEnabledStates();
+	if (nativeBarChanged && !mUiFrame.Custom()) ::DrawMenuBar(m_hWnd);
+}
+
+void CMainFrame::OnIdleUpdateCmdUI()
+{
+	CFrameWnd::OnIdleUpdateCmdUI();
+	RefreshCommandStates();
+}
+
 void CMainFrame::OnResolutionChange(UINT nID)
 {
+	if (!IsCommandEnabled(nID)) return;
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
 
 	CString str;
@@ -1339,6 +1444,7 @@ void CMainFrame::OnResolutionChange(UINT nID)
 
 void CMainFrame::NextResolution()
 {
+	if (!IsCommandEnabled(ID_RESOLUTION_START)) return;
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
 
 	// Sources with an intrinsic size (decoded images, video) own their
@@ -1355,6 +1461,7 @@ void CMainFrame::NextResolution()
 
 void CMainFrame::ApplyResolution(int w, int h)
 {
+	if (!IsCommandEnabled(ID_RESOLUTION_START)) return;
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
 
 	if (pDoc->mW == w && pDoc->mH == h) // Do nothing, if same
@@ -1377,6 +1484,7 @@ void CMainFrame::ApplyResolution(int w, int h)
 
 void CMainFrame::OnCsChange(UINT nID)
 {
+	if (!IsCommandEnabled(nID)) return;
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
 
 	CString str;
@@ -1688,6 +1796,7 @@ BOOL CMainFrame::LaunchComparator(const CString &cmperPath, const CString &quote
 
 void CMainFrame::OnExecComparator()
 {
+	if (!IsCommandEnabled(ID_COMPARE)) return;
 	CViewerDoc *pDoc = static_cast<CViewerDoc *>(GetActiveDocument());
 	std::vector<CString> paths;
 	if (pDoc != NULL && !pDoc->mPathName.IsEmpty())
@@ -1826,6 +1935,7 @@ void CMainFrame::ActivateFrame(int nCmdShow)
 
 void CMainFrame::OnEditCopy()
 {
+	if (!IsCommandEnabled(ID_EDIT_COPY)) return;
 	CViewerView *pView = static_cast<CViewerView *>(GetActiveView());
 	if (!pView->mStableRgbBufferInfo.addr)
 		return;
@@ -1856,6 +1966,7 @@ void CMainFrame::OnEditCopy()
 
 void CMainFrame::OnEditPaste()
 {
+	if (!IsCommandEnabled(ID_EDIT_PASTE)) return;
 	CViewerView *pView = static_cast<CViewerView *>(GetActiveView());
 	if (pView == NULL || !pView->OpenClipboard())
 		return;
@@ -1940,6 +2051,7 @@ void CMainFrame::OnEditPaste()
 
 void CMainFrame::UpdateCs(const struct qcsc_info* const ci)
 {
+	if (!ci || !IsCommandEnabled(ID_CS_START)) return;
 	CViewerDoc* pDoc = static_cast<CViewerDoc*>(GetActiveDocument());
 
 	UpdateCsLabel(CString(ci->name).MakeUpper());

@@ -2629,6 +2629,7 @@ void CViewerView::ToggleSelMode()
 void CViewerView::OnMouseMenu(UINT nID)
 {
 	int idx = nID - ID_MOUSEMENU_START;
+	if (idx < 0 || idx >= ARRAY_SIZE(QMouseMenu)) return;
 	switch (QMouseMenu[idx].id) {
 	case QMouseMenuSel:
 		ToggleSelMode();

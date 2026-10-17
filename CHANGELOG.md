@@ -8,6 +8,18 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.8.1] — 2026-10-18
+
+### Changed
+
+- Windows Viewer and Comparator: share availability checks for existing RAW interpretation, copy/paste, comparison-file and clear-selection commands; align disabled menu state, execution guards and contextual help. Comparator source format menus use native accessible buttons with release/keyboard activation, measured hit targets and consistent hover, pressed, disabled and focus feedback. (#119)
+
+### Fixed
+
+- Windows Comparator: normalize relative command-line file paths before document/MRU and source loading, avoiding a startup argument error when opening multiple images with relative paths.
+
+---
+
 ## [2.8.0] — 2026-10-14
 
 ### Added
@@ -503,7 +515,8 @@ Native display checks passed at 100–175%; 200% layout/font calculations passed
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.0...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.1...HEAD
+[2.8.1]: https://github.com/chammoru/Q1View/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/chammoru/Q1View/compare/v2.7.28...v2.8.0
 [2.7.28]: https://github.com/chammoru/Q1View/compare/v2.7.27...v2.7.28
 [2.7.27]: https://github.com/chammoru/Q1View/compare/v2.7.26...v2.7.27

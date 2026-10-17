@@ -5,6 +5,7 @@
 #include "QViewerCmn.h"
 #include "Q1UiFontWin.h"
 #include "Q1UiMenuWin.h"
+#include "Q1UiCommandWin.h"
 
 namespace Gdiplus {
 	class Pen;
@@ -30,6 +31,13 @@ public:
 
 protected:
 	virtual void OnDraw(CDC *pDC);      // overridden to draw this view
+	void OnUpdate(CView* sender, LPARAM hint, CObject* object) override;
+	virtual BOOL OnCmdMsg(UINT id, int code, void* extra, AFX_CMDHANDLERINFO* handler);
+public:
+	q1view::WindowsUiCommandContext CommandContext() const;
+	bool IsCommandEnabled(UINT id) const;
+	void RefreshCommandStates();
+protected:
 	virtual void OnInitialUpdate();     // first time after construct
 	virtual LRESULT WindowProc(UINT message, WPARAM wp, LPARAM lp) override;
 	std::vector<CComparatorView *> GetOhterViews(CComparatorDoc *pDoc);

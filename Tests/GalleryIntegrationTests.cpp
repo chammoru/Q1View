@@ -349,6 +349,9 @@ struct GalleryIntegrationTests {
         const CString named = root + L"known_16x16_yuv420.yuv";
         writeRaw(unnamed, 800, 600); writeRaw(named, 16, 16);
         Require(AfxGetApp()->OpenDocumentFile(unnamed) != nullptr, "RAW without filename dimensions opens");
+        frame->RefreshCommandStates();
+        Require(frame->IsCommandEnabled(ID_RESOLUTION_START) && frame->IsCommandEnabled(ID_CS_START),
+            "actual RAW source retains enabled resolution and color-space interpretation commands");
         Await([&] { return view->mStableRgbBufferInfo.addr != nullptr; }, "default RAW frame is decoded and presented");
         Require(doc->mFrmSrc && !doc->mFrmSrc->isFixed() && doc->mW == 800 && doc->mH == 600 &&
             doc->mOrigSceneSize == 720000 && doc->mFrames == 1,
@@ -384,6 +387,17 @@ struct GalleryIntegrationTests {
             view->ToggleFullScreen(); Pump(.1);
             Require(view->IsFullScreen() && frame->mUiFrame.Height() == 0 && frame->GetMenu() == nullptr,
                 "full screen hides both custom title and menu without leftover reservation");
+            if (i == 0) {
+                frame->mHelpOverlay.Toggle();
+                frame->mCommandStateSignature = ~0u;
+                frame->RefreshCommandStates();
+                const auto context = frame->CommandContext();
+                const unsigned signature = unsigned(context.rawInput) | (unsigned(context.pixels) << 1) |
+                    (unsigned(context.clipboardImage) << 2) | (unsigned(context.file) << 3);
+                Require(frame->mHelpOverlay.IsShown() && frame->mCommandStateSignature == signature,
+                    "visible help refreshes command availability even when full screen has no menu");
+                frame->mHelpOverlay.Hide();
+            }
             view->ToggleFullScreen(); Pump(.1);
             Require(!view->IsFullScreen() && frame->GetMenu()->GetSafeHmenu() == menu && GetMenuItemCount(menu) == menuCount,
                 "full-screen exit preserves the same menu and does not duplicate dynamic entries");
@@ -413,6 +427,17 @@ struct GalleryIntegrationTests {
         auto view = static_cast<CViewerView*>(frame->GetActiveView());
         auto doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
         Require(frame && view && doc, "real Viewer document/view created");
+        frame->RefreshCommandStates();
+        const auto commandContext = frame->CommandContext();
+        Require(frame->IsCommandEnabled(ID_EDIT_PASTE) == bool(IsClipboardFormatAvailable(CF_DIB) || IsClipboardFormatAvailable(CF_DIBV5)),
+            "paste menu policy reflects supported clipboard formats without changing the clipboard");
+        Require(frame->IsCommandEnabled(ID_COMPARE) == !doc->mPathName.IsEmpty(), "compare availability follows an actual source file");
+        const auto clipboardSequence = GetClipboardSequenceNumber();
+        if (!commandContext.pixels) {
+            frame->SendMessage(WM_COMMAND, ID_EDIT_COPY); frame->OnEditCopy();
+            Require(GetClipboardSequenceNumber() == clipboardSequence, "disabled copy is inert through WM_COMMAND and direct handler without touching the clipboard");
+        }
+        Require(!frame->IsCommandEnabled(ID_CS_END) && !frame->IsCommandEnabled(ID_RESOLUTION_END), "unassigned dynamic IDs cannot invoke a parser or custom-input dialog");
         PaintBackgroundTests(view,doc);
         wchar_t paintOnly[8] = {};
         if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_PAINT_ONLY",paintOnly,_countof(paintOnly))) {
@@ -434,6 +459,14 @@ struct GalleryIntegrationTests {
             Require(!source.empty() && doc->mFrmSrc != nullptr &&
                 doc->mW == source.cols && doc->mH == source.rows,
                 "command-line image fixture launch retains its decoded source resolution");
+            const int w=doc->mW, h=doc->mH; const auto cs=doc->mColorSpace; const auto generation=doc->mOpenGeneration;
+            frame->RefreshCommandStates();
+            Require(!frame->IsCommandEnabled(ID_CS_START) && !frame->IsCommandEnabled(ID_RESOLUTION_START),
+                "fixed decoded source disables both RAW menu groups");
+            frame->SendMessage(WM_COMMAND, ID_CS_START); frame->OnCsChange(ID_CS_START);
+            doc->NextCs(); frame->NextResolution(); frame->ApplyResolution(176,144);
+            Require(doc->mW==w && doc->mH==h && doc->mColorSpace==cs && doc->mOpenGeneration==generation,
+                "disabled RAW interpretation is inert through menu, shortcut helper and direct handler paths");
         }
         wchar_t startupOnly[8] = {};
         if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_STARTUP_ONLY", startupOnly, _countof(startupOnly))) {

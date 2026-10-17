@@ -2,6 +2,7 @@
 
 #include "Q1UiMenuWin.h"
 #include "Q1UiBufferedPaintWin.h"
+#include "Q1UiCommandWin.h"
 #include <dwmapi.h>
 #include <commctrl.h>
 #include <windowsx.h>
@@ -19,6 +20,7 @@ namespace q1view {
 // No global NONCLIENTMETRICS changes and no separate overlay windows/timers.
 class WindowsUiFrame {
 	HWND mWindow = nullptr, mBar = nullptr, mPreviousFocus = nullptr;
+	HWND mHotButton = nullptr;
 	HMENU mMenu = nullptr, mOwnedMenu = nullptr, mSelectedMenu = nullptr;
 	WindowsUiMenus* mMenus = nullptr;
 	WindowsUiFontCache mFonts;
@@ -101,7 +103,8 @@ class WindowsUiFrame {
 		return widths;
 	}
 	void RestoreFocus() {
-		if (IsWindow(mPreviousFocus) && IsWindowVisible(mPreviousFocus)) SetFocus(mPreviousFocus);
+		if (IsWindow(mPreviousFocus) && IsWindowVisible(mPreviousFocus) && IsWindowEnabled(mPreviousFocus)) SetFocus(mPreviousFocus);
+		else if (IsWindow(mWindow)) SetFocus(mWindow);
 		mKeyboard = false;
 	}
 	int NextEnabled(int position, int direction) const {
@@ -114,6 +117,15 @@ class WindowsUiFrame {
 	}
 	static LRESULT CALLBACK ButtonProc(HWND window, UINT message, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
 		auto* self = reinterpret_cast<WindowsUiFrame*>(data);
+		if (message == WM_MOUSEMOVE && IsWindowEnabled(window) && self->mHotButton != window) {
+			if (self->mHotButton) InvalidateRect(self->mHotButton, nullptr, FALSE);
+			self->mHotButton = window;
+			TRACKMOUSEEVENT track = {sizeof(track), TME_LEAVE, window, 0}; TrackMouseEvent(&track);
+			InvalidateRect(window, nullptr, FALSE);
+		}
+		if ((message == WM_MOUSELEAVE || message == WM_ENABLE || message == WM_NCDESTROY) && self->mHotButton == window) {
+			self->mHotButton = nullptr; InvalidateRect(window, nullptr, FALSE);
+		}
 		// BS_OWNERDRAW still erases with COLOR_BTNFACE before WM_DRAWITEM.
 		// Our buffered painter fills the entire button; never expose that light
 		// system brush between a label update and the themed paint.
@@ -141,6 +153,7 @@ class WindowsUiFrame {
 			const int index = int(draw.CtlID) - 1;
 			if (index >= 0 && index < int(self->mButtons.size())) {
 				draw.CtlType = ODT_MENU; draw.itemData = self->Info(index).dwItemData;
+				if (self->mHotButton == draw.hwndItem) draw.itemState |= ODS_HOTLIGHT;
 				if (self->mTracking && self->mOpen == index) draw.itemState |= ODS_SELECTED;
 				if (!self->mKeyboard) draw.itemState |= ODS_NOACCEL;
 				WindowsUiBufferedPaint paint(draw.hDC,draw.rcItem,WindowsUiColor::Window);
@@ -214,6 +227,19 @@ public:
 	int TitleHeight() const { return mTitleHeight; }
 	HWND MenuHost() const { return mBar; }
 	const std::vector<RECT>& MenuRects() const { return mButtonRects; }
+	// Availability changes do not recreate controls, relayout, or restart media.
+	void SyncEnabledStates() {
+		if (!mMenu || !mBar) return;
+		for (size_t i = 0; i < mButtons.size(); ++i) {
+			const bool enabled = !(Info(int(i)).fState & (MFS_DISABLED | MFS_GRAYED));
+			if (bool(IsWindowEnabled(mButtons[i])) == enabled) continue;
+			if (!enabled && GetFocus() == mButtons[i]) {
+				RestoreFocus();
+				if (GetFocus() == mButtons[i]) SetFocus(mWindow);
+			}
+			EnableWindow(mButtons[i], enabled); InvalidateRect(mButtons[i], nullptr, FALSE);
+		}
+	}
 	// Reserve measured room for rapidly changing labels without a fixed pixel
 	// width. Font, DPI, and accessibility text scaling remain authoritative.
 	void ReserveMenuWidth(UINT id, const wchar_t* text) {
@@ -295,7 +321,7 @@ public:
 		const int width = client.right;
 		const UINT dpi = WindowsUiDpi(mWindow); const double scale = WindowsUiSettings().Scale();
 		mTitleHeight = (std::max)(Px(32), WindowsUiPixels(20, dpi, scale) + Px(12));
-		const int rowHeight = (std::max)(Px(30), WindowsUiPixels(20, dpi, scale) + Px(8));
+		const int rowHeight = (std::max)(Px(32), WindowsUiPixels(20, dpi, scale) + Px(8));
 		mButtonRects.resize(mButtons.size());
 		int left = 0, top = 0;
 		const auto widths = MeasureMenuWidths(dpi, scale);
