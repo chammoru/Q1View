@@ -94,13 +94,10 @@ BEGIN
         MENUITEM "&Open...\tCtrl+O",            ID_FILE_OPEN,MFT_STRING,MFS_ENABLED
         MENUITEM "Save &As\tCtrl+Alt+S",        ID_FILE_SAVE_AS,MFT_STRING,MFS_ENABLED
         MENUITEM MFT_SEPARATOR
-        MENUITEM "Thumbnail &Browser\tE",       ID_TOGGLE_DRAWER,MFT_STRING,MFS_ENABLED
-        MENUITEM "Autoplay &Videos When Opened", ID_AUTOPLAY_VIDEOS,MFT_STRING,MFS_ENABLED
-        MENUITEM MFT_SEPARATOR
         MENUITEM "Recent File",                 ID_FILE_MRU_FILE1,MFT_STRING,MFS_GRAYED
         MENUITEM MFT_SEPARATOR
     END
-    POPUP "&View",                          65535,MFT_STRING,MFS_ENABLED
+    POPUP "&Options",                       65535,MFT_STRING,MFS_ENABLED
     BEGIN
         POPUP "&Image Scaling",                 65535,MFT_STRING,MFS_ENABLED
         BEGIN
@@ -108,10 +105,13 @@ BEGIN
             MENUITEM "&Smooth (Bilinear)",          ID_SCALING_SMOOTH,MFT_STRING,MFS_ENABLED
             MENUITEM "&Pixel Exact (Nearest)",      ID_SCALING_PIXEL_EXACT,MFT_STRING,MFS_ENABLED
         END
+        MENUITEM "Autoplay &Multi-frame Files", ID_AUTOPLAY_VIDEOS,MFT_STRING,MFS_ENABLED
+        MENUITEM MFT_SEPARATOR
+        MENUITEM "&Selection Mode\tS",          ID_SELECTION_MODE,MFT_STRING,MFS_ENABLED
+        MENUITEM "Sync Input Across Viewer &Windows", ID_SYNC_INPUT,MFT_STRING,MFS_ENABLED
     END
     MENUITEM "&Compare",                    ID_COMPARE,MFT_STRING | MFT_RIGHTJUSTIFY,MFS_ENABLED
     MENUITEM "&Help",                       ID_VIEWER_HELP,MFT_STRING | MFT_RIGHTJUSTIFY,MFS_ENABLED
-    MENUITEM "1.00x",                       ID_MAGNIFY,MFT_STRING | MFT_RIGHTJUSTIFY,MFS_GRAYED
 END
 
 

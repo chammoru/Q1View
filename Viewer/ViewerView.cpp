@@ -50,23 +50,6 @@ static bool IsPlaybackTraceEnabled()
 #define WM_VIEWER_AUTOPLAY_VIDEO (WM_APP + 2)
 
 
-enum QMouseMenuID
-{
-	QMouseMenuStart = 0x10000000,
-	QMouseMenuSel = QMouseMenuStart,
-	QMouseMenuSyncInput,
-};
-
-struct QMouseMenuInfo {
-	const char *name;
-	const QMouseMenuID id;
-};
-
-static const QMouseMenuInfo QMouseMenu[] = {
-	{ "Sel Mode", QMouseMenuSel },
-	{ "Sync Input", QMouseMenuSyncInput },
-};
-
 class CTransitionSnapshotCover {
 public:
 	CTransitionSnapshotCover() : mHwnd(NULL), mBitmap(NULL) {}
@@ -285,11 +268,8 @@ CViewerView::CViewerView()
 	mVolumeDragging = false;
 
 	mMouseMenu.CreatePopupMenu();
-	CString str;
-	for (int i = 0; i < ARRAY_SIZE(QMouseMenu); i++) {
-		str = QMouseMenu[i].name;
-		mMouseMenu.AppendMenu(MF_STRING, ID_MOUSEMENU_START + i, str);
-	}
+	mMouseMenu.AppendMenu(MF_STRING, ID_SELECTION_MODE, L"&Selection Mode\tS");
+	mMouseMenu.AppendMenu(MF_STRING, ID_SYNC_INPUT, L"Sync Input Across Viewer &Windows");
 
 	mDeltaRect.SetRectEmpty();
 }
@@ -453,7 +433,7 @@ void CViewerView::AdjustWindowSize()
 	}
 }
 
-void CViewerView::FitToWindow()
+void CViewerView::FitToWindow(bool broadcast)
 {
 	mFitToWindow = true;
 	CRect rcClient;
@@ -482,6 +462,7 @@ void CViewerView::FitToWindow()
 
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
+	if (broadcast) BroadcastViewState(true);
 }
 
 void CViewerView::RestoreImageScreenOrigin(const CPoint &screenOrigin)
@@ -918,7 +899,7 @@ LRESULT CViewerView::OnAutoplayVideo(WPARAM wParam, LPARAM lParam)
 	pDoc->mAutoplayMessagePending = false;
 
 	if (pDoc->mDocState == DOC_JUSTLOAD || mIsPlaying ||
-			!pDoc->mFrmSrc || !pDoc->mFrmSrc->isVideo() ||
+			!pDoc->mFrmSrc || (!pDoc->mFrmSrc->isVideo() && pDoc->mFrmSrc->isFixed()) ||
 			pDoc->mFrames <= 1 || !theApp.IsVideoAutoplayEnabled()) {
 		return 0;
 	}
@@ -1447,6 +1428,7 @@ void CViewerView::OnDraw(CDC *pDC)
 	}
 
 	pDoc->mCurFrameID = mStableRgbBufferInfo.ID;
+	if (!pDC->IsPrinting()) static_cast<CMainFrame*>(GetParentFrame())->UpdateViewerStatus();
 
 	// Defer autoplay until the first valid RGB buffer has been fully presented.
 	// Posting a generation-tagged UI message avoids starting decoder/audio work
@@ -2013,7 +1995,9 @@ bool CViewerView::FindFile(CViewerDoc* pDoc, UINT nChar)
 		// the frame to the image.
 		LoadLayout prevLayout = pDoc->mLoadLayout;
 		pDoc->mLoadLayout = LOAD_FIT_TO_WINDOW;
-		BOOL opened = pDoc->OnOpenDocument(candidate);
+		// Keep the existing in-place navigation path, but distinguish this
+		// explicit user choice from an internal reload for autoplay purposes.
+		BOOL opened = pDoc->OpenNavigatedDocument(candidate);
 		pDoc->mLoadLayout = prevLayout;
 		if (opened) {
 			pDoc->SetPathName(candidate, TRUE);
@@ -2596,6 +2580,26 @@ void CViewerView::OnTimer(UINT_PTR nIDEvent)
 	CView::OnTimer(nIDEvent);
 }
 
+LRESULT CViewerView::WindowProc(UINT message, WPARAM wp, LPARAM lp)
+{
+	if (message == WM_INITMENUPOPUP && !HIWORD(lp)) {
+		if (reinterpret_cast<HMENU>(wp) == mMouseMenu.GetSafeHmenu()) {
+			mMouseMenu.CheckMenuItem(ID_SELECTION_MODE, MF_BYCOMMAND | (mSelMode ? MF_CHECKED : MF_UNCHECKED));
+			auto* frame = static_cast<CMainFrame*>(GetParentFrame());
+			mMouseMenu.CheckMenuItem(ID_SYNC_INPUT, MF_BYCOMMAND | (frame->IsSyncInputEnabled() ? MF_CHECKED : MF_UNCHECKED));
+		}
+		mUiPopupMenus.SyncPopup(m_hWnd, reinterpret_cast<HMENU>(wp));
+		return 0;
+	}
+	if (message == WM_MEASUREITEM && mUiPopupMenus.Measure(reinterpret_cast<MEASUREITEMSTRUCT*>(lp))) return TRUE;
+	if (message == WM_DRAWITEM && mUiPopupMenus.Draw(reinterpret_cast<DRAWITEMSTRUCT*>(lp))) return TRUE;
+	if (message == WM_MENUCHAR) {
+		LRESULT result;
+		if (mUiPopupMenus.MenuChar(LOWORD(wp), reinterpret_cast<HMENU>(lp), result)) return result;
+	}
+	return CView::WindowProc(message, wp, lp);
+}
+
 void CViewerView::OnRButtonUp(UINT nFlags, CPoint point)
 {
 	if ((!mRcVolume.IsRectEmpty() && mRcVolume.PtInRect(point)) ||
@@ -2623,18 +2627,16 @@ void CViewerView::ToggleSelMode()
 		Invalidate(FALSE);
 	}
 	nFlags |= mSelMode ? MF_CHECKED : MF_UNCHECKED;
-	mMouseMenu.CheckMenuItem(QMouseMenuSel - QMouseMenuStart + ID_MOUSEMENU_START, nFlags);
+	mMouseMenu.CheckMenuItem(ID_SELECTION_MODE, nFlags);
 }
 
 void CViewerView::OnMouseMenu(UINT nID)
 {
-	int idx = nID - ID_MOUSEMENU_START;
-	if (idx < 0 || idx >= ARRAY_SIZE(QMouseMenu)) return;
-	switch (QMouseMenu[idx].id) {
-	case QMouseMenuSel:
+	switch (nID) {
+	case ID_SELECTION_MODE:
 		ToggleSelMode();
 		break;
-	case QMouseMenuSyncInput: {
+	case ID_SYNC_INPUT: {
 		CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 		pMainFrm->ToggleSyncInput();
 		UINT nFlags = MF_BYCOMMAND |
@@ -2643,6 +2645,6 @@ void CViewerView::OnMouseMenu(UINT nID)
 		break;
 	}
 	default:
-		QASSERT(0);
+		break;
 	}
 }

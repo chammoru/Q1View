@@ -1048,6 +1048,8 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	// Options menu.
 	str.Format(_T("Allow Different Resolutions"));
 	mOptionsMenu.AppendMenu(MF_STRING, (UINT_PTR)ID_OPTIONS_DIFF_RESOLUTION, str);
+	mOptionsMenu.AppendMenu(MF_SEPARATOR);
+	mOptionsMenu.AppendMenu(MF_STRING, ID_SELECTION_MODE, L"&Selection Mode\tS");
 	mAppliedCanvasColor = Q1UI_COLOR_CANVAS_BG;
 
 	str.Format(_T("&Options"));

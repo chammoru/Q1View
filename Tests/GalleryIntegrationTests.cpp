@@ -6,6 +6,7 @@
 #include "../Viewer/ViewerDoc.h"
 #include "../Viewer/ViewerView.h"
 #include "../Viewer/FrmSrc.h"
+#include "../Viewer/Y4mReaderWin.h"
 #include "../Viewer/ThumbnailPane.h"
 #include "../Viewer/GalleryGridCanvas.h"
 #include "QViewerCmn.h"
@@ -98,6 +99,22 @@ struct GalleryIntegrationTests {
             CString singleRecycleLabel; singleMenu.GetMenuString(CThumbnailPane::CMD_RECYCLE, singleRecycleLabel, MF_BYCOMMAND);
             Require(singleMenu.GetMenuState(CThumbnailPane::CMD_COMPARE, MF_BYCOMMAND) == UINT(-1) &&
                 singleRecycleLabel == L"Move to Recycle Bin", "single-file menu uses singular Recycle Bin wording without Compare");
+            {
+                q1view::WindowsUiMenus contextMenus; pane.mContextMenus=&contextMenus;
+                pane.SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(singleMenu.GetSafeHmenu()));
+                MENUITEMINFOW info={sizeof(info)}; info.fMask=MIIM_FTYPE|MIIM_DATA;
+                Require(GetMenuItemInfoW(singleMenu.GetSafeHmenu(),0,TRUE,&info) && (info.fType&MFT_OWNERDRAW),
+                    "thumbnail context popup uses the same shared painting as Comparator menus");
+                MEASUREITEMSTRUCT measure={}; measure.CtlType=ODT_MENU; measure.itemData=info.dwItemData;
+                Require(pane.SendMessage(WM_MEASUREITEM,0,reinterpret_cast<LPARAM>(&measure)) &&
+                    measure.itemHeight>=UINT(q1view::WindowsUiPixels(32,q1view::WindowsUiDpi(pane.m_hWnd),q1view::WindowsUiSettings().Scale())),
+                    "thumbnail context popup routes measurement through shared DPI-aware body-font sizing");
+                HMENU names=GetSubMenu(singleMenu.GetSafeHmenu(),4);
+                pane.SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(names));
+                Require(names && GetMenuItemInfoW(names,0,TRUE,&info) && (info.fType&MFT_OWNERDRAW),
+                    "nested Copy path/name popup receives the same styling as its parent");
+                pane.mContextMenus=nullptr;
+            }
             click(last, MK_CONTROL);
             Require(pane.SelectedMediaPaths().size() == 2, "MFC Ctrl-click selects disjoint media in both views");
             CMenu compareTwo; pane.BuildContextMenu(compareTwo, first);
@@ -301,7 +318,7 @@ struct GalleryIntegrationTests {
         CRect client; frame->GetClientRect(client);
         const SIZE available = {
             monitor.rcWork.right - monitor.rcWork.left - (initial.Width() - client.Width()),
-            monitor.rcWork.bottom - monitor.rcWork.top - (initial.Height() - client.Height()) - frame->mUiFrame.Height()
+            monitor.rcWork.bottom - monitor.rcWork.top - (initial.Height() - client.Height()) - frame->mUiFrame.Height() - frame->StatusHeight()
         };
         const auto expected = q1view::ViewerDefaultContentSize(dpi, menuWidth, available);
         Require(content.Width() == expected.cx && content.Height() == expected.cy,
@@ -320,7 +337,7 @@ struct GalleryIntegrationTests {
         frame->MoveWindow(initial.left, initial.top, q1view::WindowsUiPixels(320, dpi), initial.Height()); Pump(.1);
         bool wrapped = false;
         for (const auto& rect : frame->mUiFrame.MenuRects()) wrapped |= rect.top > 0;
-        Require(wrapped, "manual narrowing still wraps the application menu");
+        Require(wrapped && frame->mUiFrame.OverflowPositions().empty(), "manual narrowing wraps the original menus without hiding commands in More");
         frame->SizeDefaultWindow(); Pump(.1);
         CRect resizedContent; frame->GetContentRect(resizedContent);
         Require(resizedContent.Width() == expected.cx && resizedContent.Height() == expected.cy,
@@ -356,9 +373,47 @@ struct GalleryIntegrationTests {
         Require(doc->mFrmSrc && !doc->mFrmSrc->isFixed() && doc->mW == 800 && doc->mH == 600 &&
             doc->mOrigSceneSize == 720000 && doc->mFrames == 1,
             "unnamed RAW uses 800x600 pixels and correct YUV420 frame bytes/count");
+        Require(AfxGetApp()->OpenDocumentFile(L"Tests\\fixtures\\sample_16x16.png") != nullptr,
+            "decoded photo opens before testing the return to editable RAW menus");
+        frame->RefreshCommandStates(true);
+        Require(AfxGetApp()->OpenDocumentFile(named) != nullptr,"explicit RAW opens after a decoded photo");
+        frame->RefreshCommandStates(); Pump(.05);
+        for(UINT position : {1u,2u}) {
+            Require(!(frame->GetMenu()->GetMenuState(position,MF_BYPOSITION)&(MF_DISABLED|MF_GRAYED)) &&
+                IsWindowEnabled(::GetDlgItem(frame->mUiFrame.MenuHost(),position+1)),
+                "returning from a decoded photo enables the actual RAW root menu button");
+            auto* popup=frame->GetMenu()->GetSubMenu(position);
+            frame->SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(popup->GetSafeHmenu()),position);
+            Require(!(popup->GetMenuState(0,MF_BYPOSITION)&(MF_DISABLED|MF_GRAYED)),
+                "opening a RAW popup retains enabled interpretation commands after native MFC updates");
+        }
+        auto requireHostedLabel=[&](UINT position,const CString& expected) {
+            wchar_t label[256]={}; GetWindowTextW(::GetDlgItem(frame->mUiFrame.MenuHost(),position+1),label,_countof(label));
+            Require(expected==label,"RAW menu command updates its actual hosted label as well as document state");
+        };
+        for(int i=0;i<ARRAY_SIZE(qcsc_info_table);++i) if(qcsc_info_table[i].cs==QIMAGE_CS_NV12) {
+            frame->SendMessage(WM_COMMAND,ID_CS_START+i); Pump(.05);
+            Require(doc->mColorSpace==QIMAGE_CS_NV12,"RAW color-space menu command actually changes interpretation");
+            requireHostedLabel(2,L"NV12");
+        }
+        for(int i=0;i<ARRAY_SIZE(qcsc_info_table);++i) if(qcsc_info_table[i].cs==QIMAGE_CS_YUV420) {
+            frame->SendMessage(WM_COMMAND,ID_CS_START+i); Pump(.05);
+            Require(doc->mColorSpace==QIMAGE_CS_YUV420,"RAW color-space menu can restore YUV420");
+        }
         Require(AfxGetApp()->OpenDocumentFile(named) != nullptr && doc->mW == 16 && doc->mH == 16 && doc->mFrames == 1,
             "explicit RAW filename dimensions override the new default");
-        frame->ApplyResolution(320, 240);
+        frame->ApplyResolution(800,600);
+        Require(AfxGetApp()->OpenDocumentFile(unnamed)!=nullptr,"full-sized RAW fixture reopens before resolution command");
+        for(int i=0;i<ARRAY_SIZE(q1::resolution_info_table)-1;++i) {
+            int width=0,height=0;
+            if(!q1::image_parse_w_h(q1::resolution_info_table[i],&width,&height) && width==320 && height==240)
+                frame->SendMessage(WM_COMMAND,ID_RESOLUTION_START+i);
+        }
+        Require(doc->mW==320 && doc->mH==240,"RAW resolution menu command actually changes interpreted dimensions");
+        Await([&]{return view->mStableRgbBufferInfo.addr && doc->mDocState!=DOC_JUSTLOAD;},"reinterpreted RAW frame is presented");
+        Require(view->mW==320 && view->mH==240 && doc->mFrames==6,
+            "resolution command updates the displayed RAW dimensions and recalculates its frame count");
+        requireHostedLabel(1,L"320&x240");
         Require(AfxGetApp()->OpenDocumentFile(unnamed) != nullptr && doc->mW == 320 && doc->mH == 240,
             "unnamed RAW continues to honor a manually selected resolution");
         frame->ApplyResolution(800, 600);
@@ -422,16 +477,432 @@ struct GalleryIntegrationTests {
             CheckWindowsUiErase(view->m_hWnd,q1view::WindowsUiColor::Canvas,false,check);
         }
     }
+    void AutoplayNavigationTests(CMainFrame* frame) {
+        auto* view = static_cast<CViewerView*>(frame->GetActiveView());
+        auto* doc = view->GetDocument();
+        const CString previous = doc->mPathName;
+        CRect originalWindow; frame->GetWindowRect(originalWindow);
+        struct RestoreAutoplay {
+            bool enabled = theApp.IsVideoAutoplayEnabled();
+            ~RestoreAutoplay() { theApp.SetVideoAutoplayEnabled(enabled); }
+        } restoreAutoplay;
+        wchar_t temp[MAX_PATH]; GetTempPathW(MAX_PATH, temp);
+        CString root; root.Format(L"%sQ1View-autoplay-nav-%lu-%llu\\", temp, GetCurrentProcessId(), GetTickCount64());
+        Require(CreateDirectoryW(root, nullptr) != FALSE, "isolated autoplay navigation folder created");
+        const CString photo = root + L"a.png", first = root + L"b.avi", second = root + L"c.avi";
+        Require(q1::imwriteW(photo.GetString(), cv::Mat(64,96,CV_8UC3,cv::Scalar(40,80,120))), "autoplay navigation photo generated");
+        {
+            cv::VideoWriter writer(std::string(CW2A(first,CP_UTF8)), cv::VideoWriter::fourcc('M','J','P','G'),30.0,cv::Size(96,64));
+            Require(writer.isOpened(), "autoplay navigation video writer opened");
+            for (int i=0;i<150;++i) writer.write(cv::Mat(64,96,CV_8UC3,cv::Scalar(i%256,(i*3)%256,(i*7)%256)));
+        }
+        Require(CopyFileW(first, second, TRUE) != FALSE, "second autoplay navigation video generated");
+        const CString raw=root+L"d_96x64_yuv420_30fps.yuv", single=root+L"e_96x64_yuv420.yuv",
+            lastRaw=root+L"f_96x64_yuv420_30fps.yuv";
+        auto writeRaw=[&](const CString& path,int frames) {
+            CFile file; Require(file.Open(path,CFile::modeCreate|CFile::modeWrite|CFile::typeBinary)!=FALSE,
+                "RAW autoplay navigation fixture opened for writing");
+            std::vector<BYTE> pixels(96*64*3/2,128);
+            for(int i=0;i<frames;++i) { pixels[0]=BYTE(i); file.Write(pixels.data(),UINT(pixels.size())); }
+        };
+        writeRaw(raw,150); writeRaw(single,1); writeRaw(lastRaw,150);
+        theApp.SetVideoAutoplayEnabled(true);
+        Require(AfxGetApp()->OpenDocumentFile(photo) != nullptr, "navigation starts on a still image");
+        Await([&] { return view->mStableRgbBufferInfo.addr && doc->mDocState != DOC_JUSTLOAD; }, "navigation photo presented");
+        auto sendKey = [&](UINT key) {
+            Await([&] { return !view->mKeyProcessing && doc->mDocState != DOC_JUSTLOAD; }, "view is ready for the next user navigation key");
+            view->SendMessage(WM_KEYDOWN,key,1);
+            view->SendMessage(WM_KEYUP,key,1 | (1L<<30) | (1L<<31));
+        };
+        auto navigate = [&](UINT key, const CString& expected, bool playing) {
+            CRect before; frame->GetWindowRect(before);
+            sendKey(key);
+            Require(doc->mPathName.CompareNoCase(expected)==0, "file navigation selects the expected adjacent source");
+            Await([&] { return view->mStableRgbBufferInfo.addr && doc->mDocState != DOC_JUSTLOAD; }, "adjacent source first frame presented");
+            if (playing) Await([&] { return view->mIsPlaying && view->mStableRgbBufferInfo.ID>0; },
+                "adjacent multi-frame source autoplays and advances when the setting is enabled");
+            else {
+                Pump(.15);
+                Require(!view->mIsPlaying && view->mStableRgbBufferInfo.ID==0 &&
+                    !doc->mAutoplayAfterPresent && !doc->mAutoplayMessagePending,
+                    "disabled autoplay or a single-frame source remains paused without a stale autoplay request");
+            }
+            CRect after; frame->GetWindowRect(after);
+            Require(before==after, "user file navigation keeps the existing outer window size");
+            Require(doc->mCurFrameID==view->mStableRgbBufferInfo.ID && (view->mHProgress>0)==(doc->mFrames>1) &&
+                frame->mStatusBar.Text().find(L"Frame")==std::wstring::npos,
+                "multi-frame sources retain their progress bar without duplicating frame information in the status line");
+        };
+        navigate(VK_NEXT,first,true); // still -> video
+        navigate(VK_NEXT,second,true); // playing video -> next video
+        view->ToggleFullScreen(); Pump(.1);
+        Require(view->IsFullScreen() && !frame->GetMenu(), "full-screen navigation starts without menu chrome");
+        navigate(VK_PRIOR,first,true);
+        Require(view->IsFullScreen() && !frame->GetMenu(), "previous-file autoplay retains full-screen mode and hidden menu");
+        navigate(VK_NEXT,second,true);
+        Require(view->IsFullScreen() && !frame->GetMenu(), "next-file autoplay retains full-screen mode and hidden menu");
+        view->ToggleFullScreen(); Pump(.1);
+        navigate(VK_PRIOR,first,true); // playing video -> previous video
+        view->KillPlayTimerSafe();
+        navigate(VK_NEXT,second,true); // manual pause does not disable the preference
+        theApp.SetVideoAutoplayEnabled(false);
+        navigate(VK_PRIOR,first,false);
+        navigate(VK_NEXT,second,false);
+        theApp.SetVideoAutoplayEnabled(true);
+        Require(doc->ReloadDocument()!=FALSE, "internal reload succeeds with autoplay preference enabled");
+        Pump(.2);
+        Require(!view->mIsPlaying && !doc->mAutoplayAfterPresent && !doc->mAutoplayMessagePending,
+            "internal reload does not turn a paused video into an explicit autoplay open");
+        doc->Rotate90(); Pump(.2);
+        Require(!view->mIsPlaying && !doc->mAutoplayAfterPresent && !doc->mAutoplayMessagePending,
+            "rotating a paused video does not start autoplay");
+        sendKey(VK_PRIOR);
+        Await([&] { return view->mIsPlaying; }, "previous video plays before moving back to a photo");
+        sendKey(VK_PRIOR);
+        Require(doc->mPathName.CompareNoCase(photo)==0, "navigation returns to the still image");
+        Pump(.2);
+        Require(!view->mIsPlaying && !doc->mAutoplayAfterPresent && !doc->mAutoplayMessagePending,
+            "moving from video to photo cannot consume a stale autoplay request");
+        navigate(VK_NEXT,first,true); navigate(VK_NEXT,second,true);
+        navigate(VK_NEXT,raw,true);
+        Require(!doc->mFrmSrc->isFixed() && doc->mFrames==150,"navigation opens a multi-frame RAW source, not a fixed video decoder");
+        navigate(VK_NEXT,single,false); navigate(VK_NEXT,lastRaw,true);
+        view->KillPlayTimerSafe(); navigate(VK_PRIOR,single,false); navigate(VK_PRIOR,raw,true);
+        view->ToggleFullScreen(); Pump(.05);
+        navigate(VK_PRIOR,second,true); navigate(VK_NEXT,raw,true);
+        view->ToggleFullScreen(); Pump(.05);
+        theApp.SetVideoAutoplayEnabled(false);
+        navigate(VK_PRIOR,second,false); navigate(VK_NEXT,raw,false);
+        theApp.SetVideoAutoplayEnabled(true);
+        Require(doc->ReloadDocument()!=FALSE,"RAW internal reload succeeds"); Pump(.1);
+        Require(!view->mIsPlaying && !doc->mAutoplayAfterPresent && !doc->mAutoplayMessagePending,
+            "RAW internal reload remains paused despite enabled autoplay");
+        Require(AfxGetApp()->OpenDocumentFile(photo)!=nullptr,"a different source opens before the explicit RAW-open check");
+        Require(AfxGetApp()->OpenDocumentFile(raw)!=nullptr,"explicit multi-frame RAW open succeeds");
+        Await([&]{return view->mIsPlaying && view->mStableRgbBufferInfo.ID>0;},"explicit RAW open also autoplays after presentation");
+        const CString reopen = previous.IsEmpty() ? CString(L"Tests\\fixtures\\sample_16x16.png") : previous;
+        Require(AfxGetApp()->OpenDocumentFile(reopen)!=nullptr, "original source restored after autoplay regression checks");
+        frame->MoveWindow(originalWindow);
+        Pump(.1);
+        Require(DeleteFileW(photo) && DeleteFileW(first) && DeleteFileW(second) &&
+            DeleteFileW(raw) && DeleteFileW(single) && DeleteFileW(lastRaw) && RemoveDirectoryW(root),
+            "autoplay fixtures cleaned up after releasing all decoder handles");
+    }
+
+    void Y4mInterpretationTests(CMainFrame* frame,CViewerView* view,CViewerDoc* doc) {
+        const CString previous=doc->mPathName;
+        CRect bounds; frame->GetWindowRect(bounds);
+        struct Restore { bool autoplay=theApp.IsVideoAutoplayEnabled(); ~Restore(){theApp.SetVideoAutoplayEnabled(autoplay);} } restore;
+        theApp.SetVideoAutoplayEnabled(false);
+        wchar_t temp[MAX_PATH]; GetTempPathW(MAX_PATH,temp);
+        CString root; root.Format(L"%sQ1View-y4m-%lu-%llu\\",temp,GetCurrentProcessId(),GetTickCount64());
+        Require(CreateDirectoryW(root,nullptr)!=FALSE,"isolated Y4M test directory created");
+        const CString path=root+L"framed_96x64.yuv", malformed=root+L"malformed.y4m";
+        {
+            CFile file; Require(file.Open(path,CFile::modeCreate|CFile::modeWrite|CFile::typeBinary)!=FALSE,"Y4M fixture opened");
+            const std::string header="YUV4MPEG2 W96 H64 F30000:1001 Ip A1:1\n";
+            file.Write(header.data(),UINT(header.size()));
+            std::vector<BYTE> pixels(96*64*3/2,128);
+            for(int i=0;i<90;++i) {
+                const std::string marker=i%2 ? "FRAME Xtest="+std::to_string(i)+"\n" : "FRAME\n";
+                file.Write(marker.data(),UINT(marker.size()));
+                std::fill(pixels.begin(),pixels.begin()+96*64,BYTE(40+i));
+                file.Write(pixels.data(),UINT(pixels.size()));
+            }
+        }
+        auto verify=[&](const CString& input,bool generated) {
+            Require(AfxGetApp()->OpenDocumentFile(input)!=nullptr,"framed YUV opens through the ordinary document route");
+            Await([&]{return view->mStableRgbBufferInfo.addr && doc->mDocState!=DOC_JUSTLOAD;},"framed YUV first payload is presented");
+            Require(doc->mFrmSrc && !doc->mFrmSrc->isFixed() && doc->mFrmSrc->RawLayout() && doc->mFrames>1,
+                "playable Y4M is indexed RAW input rather than a locked decoded-video source");
+            frame->RefreshCommandStates();
+            Require(frame->IsCommandEnabled(ID_RESOLUTION_START) && frame->IsCommandEnabled(ID_CS_START) &&
+                IsWindowEnabled(::GetDlgItem(frame->mUiFrame.MenuHost(),2)) && IsWindowEnabled(::GetDlgItem(frame->mUiFrame.MenuHost(),3)),
+                "playable framed RAW exposes enabled resolution and color-space buttons");
+            const int width=doc->mW,height=doc->mH; const long count=doc->mFrames;
+            Require(doc->mColorSpace==QIMAGE_CS_YUV420 && std::abs(doc->mFps-30000.0/1001)<.00001,
+                "Y4M header supplies native YUV420 and rational timing instead of decoded BGR");
+            if(generated) Require(count==90 && width==96 && height==64 && doc->mOrigBuf[0]==40,
+                "variable FRAME markers are excluded from native pixel data and frame count");
+            Require(doc->SeekScene(17)>=0,"indexed framed RAW seeks to frame 17"); Pump(.05);
+            if(generated) Require(doc->mOrigBuf[0]==57,"seeking skips variable-length markers and reads the correct raw payload");
+            auto format=[&](QIMAGE_CS cs) {
+                for(int i=0;i<ARRAY_SIZE(qcsc_info_table);++i) if(qcsc_info_table[i].cs==cs) frame->SendMessage(WM_COMMAND,ID_CS_START+i);
+                Pump(.05); Require(doc->mColorSpace==cs,"framed RAW color-space menu changes actual interpretation");
+            };
+            format(QIMAGE_CS_NV12);
+            view->SendMessage(WM_KEYDOWN,VK_SPACE,1);
+            Await([&]{return view->mIsPlaying && view->mStableRgbBufferInfo.ID>0;},"reinterpreted framed RAW plays through indexed worker reads");
+            frame->SendMessage(WM_COMMAND,ID_RESOLUTION_START+1); Pump(.05); // 320x240
+            Require(doc->mW==320 && doc->mH==240 && doc->mFrames==count && !view->mIsPlaying,
+                "resolution can change during RAW playback safely, retaining container frame boundaries");
+            const auto bytes=doc->mFrmSrc->RawLayout()->payloadBytes;
+            Require(doc->mOrigSceneSize>bytes && doc->mOrigBuf[bytes]==0 && doc->mOrigBuf[doc->mOrigSceneSize-1]==0,
+                "oversized reinterpretation pads missing pixels instead of reading frame headers or the next image");
+            frame->ApplyResolution(width,height); format(QIMAGE_CS_YUV420);
+            theApp.SetVideoAutoplayEnabled(true);
+            Require(AfxGetApp()->OpenDocumentFile(L"Tests\\fixtures\\sample_16x16.png")!=nullptr,"still source opens before framed RAW autoplay");
+            Require(AfxGetApp()->OpenDocumentFile(input)!=nullptr,"framed RAW is opened again as a new source");
+            Await([&]{return view->mIsPlaying && view->mStableRgbBufferInfo.ID>0;},"framed RAW autoplays with editable native interpretation");
+            view->KillPlayTimerSafe(); theApp.SetVideoAutoplayEnabled(false);
+        };
+        verify(path,true);
+        wchar_t real[32768]={};
+        if(GetEnvironmentVariableW(L"Q1VIEW_Y4M_TEST_FILE",real,_countof(real))) verify(real,false);
+        for(const std::string& data : {std::string("YUV4MPEG2 W0 H64\nFRAME\n"),std::string("YUV4MPEG2 W2 H2 C444\nFRAME\n"),
+            std::string("YUV4MPEG2 W2 H2\nFRAME\n12"),std::string("YUV4MPEG2 W2147483647 H2147483647 C420p10\nFRAME\n")}) {
+            CFile file; Require(file.Open(malformed,CFile::modeCreate|CFile::modeReadWrite|CFile::typeBinary)!=FALSE,"parser boundary fixture opened");
+            file.Write(data.data(),UINT(data.size())); file.Seek(0,CFile::begin);
+            q1view::Y4mInfo info;
+            Require(!q1view::ParseY4m(file,info),"invalid dimensions, unsupported layouts and truncated payloads are rejected safely");
+        }
+        Require(AfxGetApp()->OpenDocumentFile(previous)!=nullptr,"original source restored after framed RAW checks");
+        frame->MoveWindow(bounds); Pump(.05);
+        Require(DeleteFileW(path) && DeleteFileW(malformed) && RemoveDirectoryW(root),"generated framed RAW fixtures released and cleaned up");
+    }
+
+    void InteractionMenuTests(CMainFrame* frame,CViewerView* view) {
+        auto* options=frame->GetMenu()->GetSubMenu(5);
+        const bool selected=view->mSelMode, synced=frame->IsSyncInputEnabled();
+        const auto path=view->GetDocument()->mPathName;
+        const auto generation=view->GetDocument()->mOpenGeneration;
+        const auto pixels=view->mStableRgbBufferInfo.addr;
+        Require(options->GetMenuState(ID_SELECTION_MODE,MF_BYCOMMAND)!=UINT(-1) &&
+            options->GetMenuState(ID_SYNC_INPUT,MF_BYCOMMAND)!=UINT(-1) && view->mMouseMenu.GetMenuItemCount()==2,
+            "Viewer exposes selection/sync in Options while retaining both context shortcuts");
+        auto check=[&] {
+            frame->SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(options->GetSafeHmenu()),5);
+            view->SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(view->mMouseMenu.GetSafeHmenu()));
+            for(auto* menu : {options,&view->mMouseMenu}) {
+                Require(bool(menu->GetMenuState(ID_SELECTION_MODE,MF_BYCOMMAND)&MF_CHECKED)==view->mSelMode,
+                    "Options and context selection checks follow the one actual Viewer mode");
+                Require(bool(menu->GetMenuState(ID_SYNC_INPUT,MF_BYCOMMAND)&MF_CHECKED)==frame->IsSyncInputEnabled(),
+                    "Options and context sync checks follow the same per-window setting");
+            }
+        };
+        check();
+        if(frame->mpDrawer) frame->mpDrawer->SetFocus();
+        frame->SendMessage(WM_COMMAND,ID_SELECTION_MODE);
+        Require(view->mSelMode!=selected,"Viewer Options selection command toggles exactly once while browser has focus"); check();
+        view->SendMessage(WM_COMMAND,ID_SELECTION_MODE);
+        Require(view->mSelMode==selected,"Viewer context selection command uses the same toggle"); check();
+        view->SendMessage(WM_KEYDOWN,'S',1); view->SendMessage(WM_KEYUP,'S',1);
+        Require(view->mSelMode!=selected,"existing S shortcut shares the Options selection state"); check();
+        view->SendMessage(WM_KEYDOWN,'S',1); view->SendMessage(WM_KEYUP,'S',1);
+        frame->SendMessage(WM_COMMAND,ID_SYNC_INPUT);
+        Require(frame->IsSyncInputEnabled()!=synced,"Options toggles Viewer window synchronization exactly once"); check();
+        view->SendMessage(WM_COMMAND,ID_SYNC_INPUT);
+        Require(frame->IsSyncInputEnabled()==synced && view->mSelMode==selected,"context shortcut restores the shared interaction state"); check();
+        Require(view->GetDocument()->mPathName==path && view->GetDocument()->mOpenGeneration==generation &&
+            view->mStableRgbBufferInfo.addr==pixels,"interaction menu changes do not reopen or replace the current source");
+        view->SetFocus();
+    }
+
+    void CommandRefreshTests(CMainFrame* frame) {
+        frame->RefreshCommandStates(true);
+        const auto applied = frame->mCommandMenuRefreshCount;
+        const double begin = CGalleryGridCanvas::Now();
+        for (int i=0;i<2000;++i) frame->RefreshCommandStates();
+        const double cached = CGalleryGridCanvas::Now()-begin;
+        Require(frame->mCommandMenuRefreshCount==applied, "unchanged idle state performs no full menu enumeration or hosted-button synchronization");
+        const double forceBegin = CGalleryGridCanvas::Now();
+        for (int i=0;i<2000;++i) frame->RefreshCommandStates(true);
+        fprintf(report,"Command refresh / 2000 calls: cached %.3f ms; forced full update %.3f ms\n", cached*1000,(CGalleryGridCanvas::Now()-forceBegin)*1000);
+        Require(frame->mCommandMenuRefreshCount==applied+2000, "explicit menu initialization can still force a complete availability refresh");
+        auto* view = static_cast<CViewerView*>(frame->GetActiveView());
+        auto* doc = view->GetDocument();
+        frame->UpdateCsLabel(CString(q1::image_find_cs_name(doc->mSortedCscInfo,doc->mColorSpace)).MakeUpper());
+        frame->RefreshCommandStates();
+        Require(frame->mCommandMenuRefreshCount==applied+2001, "rebuilding a source-format menu label invalidates cached menu availability");
+        const auto root = frame->GetMenu()->GetSafeHmenu();
+        const bool enabled = !(GetMenuState(root,2,MF_BYPOSITION)&(MF_GRAYED|MF_DISABLED));
+        Require(enabled==frame->CommandContext().rawInput, "cached refresh does not leave a rebuilt fixed-source RAW menu enabled");
+    }
+    void ViewerShellTests(CMainFrame* frame, CViewerView* view, CViewerDoc* doc) {
+        // A source change must refresh hosted labels independently of zoom.
+        frame->UpdateResolutionLabel(800,600);
+        frame->UpdateCsLabel(L"YUV420");
+        frame->UpdateFpsLabel(1.0);
+        frame->DrawMenuBar();
+        doc->UpdateMenu();
+        CString expectedLabels[3];
+        expectedLabels[0].Format(L"%d&x%d",doc->mW,doc->mH);
+        expectedLabels[1]=CString(q1::image_find_cs_name(doc->mSortedCscInfo,doc->mColorSpace)).MakeUpper();
+        expectedLabels[2].Format(L"%.2ff&ps",doc->mFps);
+        for(int i=0;i<3;++i) {
+            wchar_t label[256]={};
+            GetWindowTextW(::GetDlgItem(frame->mUiFrame.MenuHost(),i+2),label,_countof(label));
+            Require(expectedLabels[i]==label,
+                "opening a source refreshes the actual resolution, format and FPS buttons without a top zoom item");
+        }
+        CRect original; frame->GetWindowRect(original);
+        const CString path = doc->mPathName;
+        const auto generation = doc->mOpenGeneration;
+        const auto pixels = view->mStableRgbBufferInfo.addr;
+        const auto presented = view->mStableRgbBufferInfo.ID;
+        const auto selection = view->mSelRegions.size();
+        const UINT dpi = q1view::WindowsUiDpi(frame->m_hWnd);
+        for (auto size : {CSize(640,480), CSize(960,600), CSize(1440,900)}) {
+            // The specified client dimensions, not an outer-window estimate.
+            CRect outer, client; frame->GetWindowRect(outer); frame->GetClientRect(client);
+            frame->SetWindowPos(nullptr, 0, 0, q1view::WindowsUiPixels(size.cx,dpi) + outer.Width()-client.Width(),
+                q1view::WindowsUiPixels(size.cy,dpi) + outer.Height()-client.Height(), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+            Pump(.08);
+            frame->GetClientRect(client);
+            const auto& rects = frame->mUiFrame.MenuRects();
+            Require(frame->mUiFrame.OverflowPositions().empty(), "Viewer keeps all original input menus directly accessible without More");
+            for (size_t i=0; i<rects.size(); ++i) {
+                const auto& r=rects[i];
+                Require(r.left>=0 && r.top>=0 && r.right<=client.right && r.right>r.left, "all Viewer command targets remain visible within the measured wrapped rows");
+                for(size_t j=i+1; j<rects.size(); ++j) { CRect overlap; Require(!overlap.IntersectRect(&r,&rects[j]), "wrapped command targets never overlap"); }
+            }
+            Require(!rects.empty() && rects.back().right==client.right,
+                "Help remains at the far right without a duplicate top-level magnification field");
+            CRect status, content, splitter;
+            ::GetWindowRect(frame->mStatusBar.Window(),status); frame->ScreenToClient(status);
+            frame->GetContentRect(content); frame->mwndSplitter.GetWindowRect(splitter); frame->ScreenToClient(splitter);
+            Require(status.bottom==client.bottom && status.Height()==frame->StatusHeight() && content.bottom==status.top && content==splitter,
+                "read-only status reserves exactly its measured height without covering the image");
+        }
+        frame->MoveWindow(original); Pump(.1);
+        frame->UpdateViewerStatus();
+        wchar_t accessible[1024] = {}; GetWindowTextW(frame->mStatusBar.Window(),accessible,_countof(accessible));
+        Require(frame->mStatusBar.Text()==accessible && frame->mStatusBar.Text().find(L"%")!=std::wstring::npos,
+            "native read-only status exposes the full actual zoom text, independent of visual ellipsis");
+        const auto rects = frame->mUiFrame.MenuRects();
+        const int height = frame->mUiFrame.Height();
+        auto verifyZoom=[&] {
+            CString expected; expected.Format(L"%.1f%%",double(view->mN)*100.0);
+            Require(frame->mStatusBar.ZoomText()==expected.GetString(),
+                "bottom-right magnification reports the real zoom without a duplicate menu item");
+            const std::wstring sampling=view->GetScalingStatusLabel().GetString();
+            Require(frame->mStatusBar.SamplingText()==sampling && frame->mStatusBar.Text()==sampling+L"  |  "+expected.GetString(),
+                "status retains the actual sampling mode and zoom only, excluding dimensions, color space, Fit/Manual and frame text");
+            q1view::WindowsUiFontCache fonts; HDC dc=CreateCompatibleDC(nullptr);
+            const auto old=SelectObject(dc,fonts.Get(q1view::WindowsUiFontRole::Supporting,frame->mStatusBar.Window()));
+            RECT bounds,left,right; ::GetClientRect(frame->mStatusBar.Window(),&bounds);
+            frame->mStatusBar.TextRects(dc,bounds,left,right);
+            const int padding=q1view::WindowsUiPixels(8,q1view::WindowsUiDpi(frame->mStatusBar.Window()));
+            SIZE size={}; GetTextExtentPoint32W(dc,expected,expected.GetLength(),&size);
+            Require(left.left==padding && right.right==bounds.right-padding && left.right<=right.left && right.right-right.left>=size.cx,
+                "sampling stays left and the entire measured zoom stays right without overlap or clipping");
+            SelectObject(dc,old); DeleteDC(dc);
+            Require(frame->mUiFrame.Height()==height,"changing magnification never changes menu height");
+            const auto& current=frame->mUiFrame.MenuRects();
+            for(size_t i=0;i<rects.size();++i) Require(EqualRect(&rects[i],&current[i])!=FALSE,
+                "all magnification changes preserve Help and every menu rectangle");
+            CRect client; frame->GetClientRect(client);
+            Require(current.back().right==client.right,"status changes do not move the right-aligned Help menu");
+            for(size_t i=0;i<current.size();++i) for(size_t j=i+1;j<current.size();++j) {
+                CRect overlap; Require(!overlap.IntersectRect(&current[i],&current[j]),
+                    "zoom values beyond the compact reservation expand without overlapping other labels");
+            }
+        };
+        auto setZoom=[&](float zoom) {
+            ViewerSyncInputState input={}; input.command=VIEWER_SYNC_VIEW_STATE; input.scalar=zoom;
+            view->ApplySyncInput(input);
+        };
+        for(float zoom : {.67f,1.f,1.13f,2.f,9.99f,10.f,99.99f,128.f}) {
+            setZoom(zoom); Pump(.02); verifyZoom();
+        }
+        setZoom(.99f);
+        CPoint wheel(view->mWCanvas/2,view->mHCanvas/2); view->ClientToScreen(&wheel);
+        view->SendMessage(WM_MOUSEWHEEL,MAKEWPARAM(0,WHEEL_DELTA),MAKELPARAM(wheel.x,wheel.y)); Pump(.03);
+        Require(view->mN==1.f,"the existing mouse-wheel zoom can still reach exact 100 percent without a reset button");
+        verifyZoom();
+        view->SendMessage(WM_MOUSEWHEEL,MAKEWPARAM(0,WHEEL_DELTA),MAKELPARAM(wheel.x,wheel.y)); Pump(.03);
+        Require(view->mN>1.f,"mouse wheel actually zooms beyond 100 percent"); verifyZoom();
+        view->FitToWindow(); view->Invalidate(FALSE); Pump(.03); verifyZoom();
+        const auto originalMode=view->GetScalingMode();
+        for(auto mode : {q1::ImageScalingMode::Smooth,q1::ImageScalingMode::PixelExact,q1::ImageScalingMode::Auto}) {
+            view->SetScalingMode(mode,false,false); Pump(.03); verifyZoom();
+        }
+        view->SetScalingMode(originalMode,false,false); Pump(.03);
+        Require(frame->mUiFrame.Height()==height && frame->mUiFrame.MenuRects().size()==rects.size(), "zoom status never changes command row height or control count");
+        for(size_t i=0;i<rects.size();++i) Require(EqualRect(&rects[i],&frame->mUiFrame.MenuRects()[i])!=FALSE,"zoom leaves Help and every command hit target fixed");
+        Require(doc->mPathName==path && doc->mOpenGeneration==generation && view->mStableRgbBufferInfo.addr==pixels &&
+            view->mStableRgbBufferInfo.ID==presented && view->mSelRegions.size()==selection,
+            "Viewer shell changes preserve source, presented frame, decoder generation and ROI selection");
+        // The full suite below separately exercises manual pan anchors, E,
+        // playback and GPU recreation. These checks exercise live zoom labels.
+    }
+
     void Run() {
         auto frame = static_cast<CMainFrame*>(AfxGetMainWnd());
         auto view = static_cast<CViewerView*>(frame->GetActiveView());
         auto doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
         Require(frame && view && doc, "real Viewer document/view created");
+        {
+            const UINT selectionState=view->mMouseMenu.GetMenuState(ID_MOUSEMENU_START,MF_BYCOMMAND);
+            view->SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(view->mMouseMenu.GetSafeHmenu()));
+            MENUITEMINFOW info={sizeof(info)}; info.fMask=MIIM_FTYPE|MIIM_DATA|MIIM_STATE;
+            Require(GetMenuItemInfoW(view->mMouseMenu.GetSafeHmenu(),0,TRUE,&info) && (info.fType&MFT_OWNERDRAW),
+                "Viewer canvas right-click menu uses Comparator's shared menu renderer");
+            MEASUREITEMSTRUCT measure={}; measure.CtlType=ODT_MENU; measure.itemData=info.dwItemData;
+            Require(view->SendMessage(WM_MEASUREITEM,0,reinterpret_cast<LPARAM>(&measure)) &&
+                measure.itemHeight>=UINT(q1view::WindowsUiPixels(32,q1view::WindowsUiDpi(view->m_hWnd),q1view::WindowsUiSettings().Scale())),
+                "Viewer context menu uses the same DPI-aware body font and row spacing as Comparator");
+            Require((view->mMouseMenu.GetMenuState(ID_MOUSEMENU_START,MF_BYCOMMAND)&MF_CHECKED)==(selectionState&MF_CHECKED),
+                "context-menu styling preserves selection mode's native checked state");
+        }
+        for(int i=0;i<frame->GetMenu()->GetMenuItemCount();++i)
+        {
+            Require(frame->GetMenu()->GetMenuItemID(i)!=ID_FILE_OPEN, "Viewer has no duplicate top-level Open command");
+            Require(frame->GetMenu()->GetMenuItemID(i)!=ID_MAGNIFY,"magnification appears only in the bottom status, never in the menu bar");
+            const auto label=frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),i,true);
+            Require(label!=L"&View" && label!=L"&More", "Viewer has no separate View or More menu");
+        }
+        Require(frame->GetMenu()->GetSubMenu(1)->GetSafeHmenu()==frame->mResolutionMenu.GetSafeHmenu() &&
+            frame->GetMenu()->GetSubMenu(2)->GetSafeHmenu()==frame->mCsMenu.GetSafeHmenu() &&
+            frame->GetMenu()->GetSubMenu(3)->GetSafeHmenu()==frame->mFpsMenu.GetSafeHmenu(),
+            "resolution, pixel format and FPS retain their original top-level positions");
+        const int rootCount=frame->GetMenu()->GetMenuItemCount();
+        Require(frame->GetMenu()->GetMenuItemID(4)==ID_TOGGLE_DRAWER &&
+            frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options",
+            "Browse appears immediately left of Options in root and native button order");
+        Require(rootCount>=8 && frame->GetMenu()->GetMenuItemID(rootCount-1)==ID_VIEWER_HELP,
+            "Help is the last root item, with no zoom, Fit or 100 percent menu controls");
+        Require(frame->GetMenu()->GetSubMenu(0)->GetMenuState(ID_FILE_OPEN,MF_BYCOMMAND)!=UINT(-1),
+            "File menu retains its original Open command");
+        CMenu* fileMenu=frame->GetMenu()->GetSubMenu(0);
+        CMenu* settingsMenu=frame->GetMenu()->GetSubMenu(5);
+        Require(fileMenu->GetMenuState(ID_TOGGLE_DRAWER,MF_BYCOMMAND)==UINT(-1) &&
+            fileMenu->GetMenuState(ID_AUTOPLAY_VIDEOS,MF_BYCOMMAND)==UINT(-1) &&
+            settingsMenu->GetMenuState(ID_AUTOPLAY_VIDEOS,MF_BYCOMMAND)!=UINT(-1),
+            "File has no duplicate browser or autoplay setting; autoplay is available under Options");
+        const bool autoplayBefore=theApp.IsVideoAutoplayEnabled();
+        auto verifyAutoplayCheck=[&] {
+            frame->SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(settingsMenu->GetSafeHmenu()),5);
+            Require(bool(settingsMenu->GetMenuState(ID_AUTOPLAY_VIDEOS,MF_BYCOMMAND)&MF_CHECKED)==theApp.IsVideoAutoplayEnabled(),
+                "Options autoplay check reflects the unchanged saved preference and existing command handler");
+        };
+        verifyAutoplayCheck(); frame->SendMessage(WM_COMMAND,ID_AUTOPLAY_VIDEOS);
+        Require(theApp.IsVideoAutoplayEnabled()!=autoplayBefore,"moved autoplay command still toggles its original preference");
+        verifyAutoplayCheck(); frame->SendMessage(WM_COMMAND,ID_AUTOPLAY_VIDEOS); verifyAutoplayCheck();
+        Require(theApp.IsVideoAutoplayEnabled()==autoplayBefore,"autoplay preference is restored after isolated menu checks");
+        InteractionMenuTests(frame,view);
+        std::vector<ACCEL> accelerators(CopyAcceleratorTable(frame->m_hAccelTable,nullptr,0));
+        CopyAcceleratorTable(frame->m_hAccelTable,accelerators.data(),int(accelerators.size()));
+        Require(std::any_of(accelerators.begin(),accelerators.end(),[](const ACCEL& key) {
+            return key.cmd==ID_FILE_OPEN && key.key=='O' && (key.fVirt&(FVIRTKEY|FCONTROL))==(FVIRTKEY|FCONTROL);
+        }), "Ctrl+O retains the original file-open command binding");
+        Require(std::any_of(accelerators.begin(),accelerators.end(),[](const ACCEL& key) {
+            return key.cmd==ID_TOGGLE_DRAWER && key.key=='E' && (key.fVirt&FVIRTKEY) && !(key.fVirt&(FCONTROL|FALT|FSHIFT));
+        }),"E still toggles Browse after removing its duplicate File entry");
         frame->RefreshCommandStates();
         const auto commandContext = frame->CommandContext();
         Require(frame->IsCommandEnabled(ID_EDIT_PASTE) == bool(IsClipboardFormatAvailable(CF_DIB) || IsClipboardFormatAvailable(CF_DIBV5)),
             "paste menu policy reflects supported clipboard formats without changing the clipboard");
-        Require(frame->IsCommandEnabled(ID_COMPARE) == !doc->mPathName.IsEmpty(), "compare availability follows an actual source file");
+        Require(frame->IsCommandEnabled(ID_COMPARE), "main Compare remains enabled with or without a current file");
+        for (int i=0;i<frame->GetMenu()->GetMenuItemCount();++i) if(frame->GetMenu()->GetMenuItemID(i)==ID_COMPARE) {
+            Require((frame->GetMenu()->GetMenuState(i,MF_BYPOSITION)&(MF_GRAYED|MF_DISABLED))==0 &&
+                IsWindowEnabled(::GetDlgItem(frame->mUiFrame.MenuHost(),i+1)),
+                "the actual Compare menu and native button are enabled, including the empty startup window");
+        }
+        Require(!frame->OpenComparatorFiles({}), "selection-based comparison still rejects an empty batch instead of launching a blank workspace");
+        Require(!frame->OpenComparatorFiles(std::vector<CString>(5,L"unused.png")), "selection-based comparison still rejects more than four files");
+        if(!commandContext.pixels) Require(frame->mStatusBar.ZoomText()==L"--" && frame->mStatusBar.SamplingText().empty(),
+            "empty input does not pretend to have a loaded 100 percent zoom");
         const auto clipboardSequence = GetClipboardSequenceNumber();
         if (!commandContext.pixels) {
             frame->SendMessage(WM_COMMAND, ID_EDIT_COPY); frame->OnEditCopy();
@@ -478,6 +949,15 @@ struct GalleryIntegrationTests {
         if (!frame->mDrawerVisible) frame->OnToggleDrawer();
         Pump(.4);
         ChromeTests(frame, view);
+        ViewerShellTests(frame, view, doc);
+        CommandRefreshTests(frame);
+        AutoplayNavigationTests(frame);
+        Y4mInterpretationTests(frame,view,doc);
+        wchar_t navigationOnly[8] = {};
+        if (GetEnvironmentVariableW(L"Q1VIEW_AUTOPLAY_NAVIGATION_ONLY", navigationOnly, _countof(navigationOnly))) {
+            fprintf(report,"Autoplay navigation-only run; full gallery/GPU suite is separate\n");
+            return;
+        }
         auto& pane = *frame->mpDrawer;
         Require(pane.mPrivateFontLoaded && pane.mFontFamily == L"Pretendard Variable",
             "bundled Pretendard typography loaded for the MFC drawer");
@@ -557,9 +1037,11 @@ struct GalleryIntegrationTests {
         if (!captured.empty()) captureBytes.assign(captureBuffer,captureBuffer+captureSize);
         CRect appearanceBounds; frame->GetWindowRect(appearanceBounds);
         HMENU options = GetSubMenu(frame->GetMenu()->GetSafeHmenu(),5);
-        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==1 &&
-            frame->mUiMenus.Text(options,0,true)==L"&Theme" && GetMenuItemCount(GetSubMenu(frame->GetMenu()->GetSafeHmenu(),4))==1,
-            "Viewer exposes only Options > Theme; View retains image scaling without appearance/background duplicates");
+        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==7 &&
+            frame->mUiMenus.Text(options,0,true)==L"&Image Scaling" && GetMenuItemCount(GetSubMenu(options,0))==3 &&
+            GetMenuItemID(options,1)==ID_AUTOPLAY_VIDEOS && GetMenuItemID(options,3)==ID_SELECTION_MODE &&
+            GetMenuItemID(options,4)==ID_SYNC_INPUT && frame->mUiMenus.Text(options,6,true)==L"&Theme",
+            "Options contains scaling, autoplay, interaction modes and Theme without unwanted zoom commands");
         for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,
             q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
             if (command==q1view::ID_UI_APPEARANCE_DARK || command==q1view::ID_UI_APPEARANCE_SYSTEM)

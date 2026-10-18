@@ -8,6 +8,26 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.8.2] — 2026-10-19
+
+### Changed
+
+- Windows Viewer: retain direct resolution, color-space and FPS menus; show sampling at bottom left and zoom at bottom right. Simplify Options and Browse without duplicate Open/Browser, View/More or Fit/100% controls. (#120)
+
+- Windows Viewer and Comparator: add Selection Mode to Options, retaining S/context shortcuts and matching checks. Add Viewer window synchronization to Options; keep Comparator Clear Selection in its context menu/Esc.
+
+### Fixed
+
+- Viewer: autoplay videos and multi-frame RAW on open and Page Up/Page Down, honoring the saved setting without resizing the window. Keep single frames and internal reloads paused.
+
+- Viewer: allow supported Y4M/.yuv resolution and color-space reinterpretation with correct frame boundaries, FPS, seeking and autoplay; refresh RAW menu labels after changes.
+
+- Viewer and Comparator: prevent hover/arrow navigation from executing commands; unify Viewer context-menu fonts/colors and remove dashed disabled outlines while retaining keyboard focus.
+
+- Viewer: keep Compare enabled without a file, opening an empty Comparator; avoid full menu scans when idle command availability is unchanged.
+
+---
+
 ## [2.8.1] — 2026-10-18
 
 ### Changed
@@ -515,7 +535,8 @@ Native display checks passed at 100–175%; 200% layout/font calculations passed
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.1...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.2...HEAD
+[2.8.2]: https://github.com/chammoru/Q1View/compare/v2.8.1...v2.8.2
 [2.8.1]: https://github.com/chammoru/Q1View/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/chammoru/Q1View/compare/v2.7.28...v2.8.0
 [2.7.28]: https://github.com/chammoru/Q1View/compare/v2.7.27...v2.7.28

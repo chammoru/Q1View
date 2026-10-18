@@ -128,6 +128,7 @@ public:
 	int FirstScene();
 	int LastScene();
 	void LoadSourceImage(LoadLayout layout = LOAD_RESIZE_WINDOW);
+	BOOL OpenNavigatedDocument(LPCTSTR path);
 	BOOL ReloadDocument();
 	void CloseMediaForRecycle();
 	void UpdateMenu();
@@ -147,6 +148,7 @@ public:
 #endif
 
 protected:
+	BOOL OpenDocumentImpl(LPCTSTR path, bool explicitOpen);
 	int QueueScene(int frameID);
 
 // Generated message map functions

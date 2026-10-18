@@ -134,11 +134,12 @@ public:
 		SelectObject(draw->hDC, Font(item)); SetBkMode(draw->hDC, TRANSPARENT);
 		const bool disabled = (draw->itemState & (ODS_DISABLED | ODS_GRAYED)) != 0;
 		const bool selected = !disabled && (draw->itemState & (ODS_SELECTED | ODS_HOTLIGHT)) != 0;
-		const auto background = item->bar ? WindowsUiCommandBackground(!disabled,
+		const bool checkedCommand = item->bar && !disabled && (draw->itemState & ODS_CHECKED);
+		const auto background = checkedCommand ? WindowsUiColor::Selection : item->bar ? WindowsUiCommandBackground(!disabled,
 			selected, (draw->itemState & ODS_SELECTED) != 0, WindowsUiColor::Window) :
 			selected ? WindowsUiColor::Selection : WindowsUiColor::Surface;
 		FillRect(draw->hDC, &draw->rcItem, WindowsUiColorBrush(background));
-		const auto foreground = selected ? (WindowsUiAppearanceState().HighContrast() ? WindowsUiColor::OnAccent : WindowsUiColor::Accent) :
+		const auto foreground = selected || checkedCommand ? (WindowsUiAppearanceState().HighContrast() ? WindowsUiColor::OnAccent : WindowsUiColor::Accent) :
 			disabled ? WindowsUiColor::Muted : WindowsUiColor::Text;
 		SetTextColor(draw->hDC, WindowsUiColorValue(foreground));
 		if (disabled && WindowsUiAppearanceState().HighContrast()) SetTextColor(draw->hDC, GetSysColor(COLOR_GRAYTEXT));
@@ -177,13 +178,6 @@ public:
 		const auto label = item->text.substr(0, tab);
 		const bool readOnlyStatus = item->bar && mReadOnlyStatus && GetMenuItemID(item->menu, item->position) == mReadOnlyStatus;
 		const bool rightAlignedStatus = readOnlyStatus && (item->type & MFT_RIGHTJUSTIFY);
-		if (item->bar && disabled && !readOnlyStatus) {
-			RECT edge = draw->rcItem; InflateRect(&edge, -2, -2);
-			HPEN pen = CreatePen(PS_DASH, 1, GetTextColor(draw->hDC));
-			auto oldPen = SelectObject(draw->hDC, pen), oldBrush = SelectObject(draw->hDC, GetStockObject(NULL_BRUSH));
-			Rectangle(draw->hDC, edge.left, edge.top, edge.right, edge.bottom);
-			SelectObject(draw->hDC, oldPen); SelectObject(draw->hDC, oldBrush); DeleteObject(pen);
-		}
 		DrawTextW(draw->hDC, label.c_str(), -1, &rect, flags | (rightAlignedStatus ? DT_RIGHT : DT_LEFT));
 		if (tab != std::wstring::npos)
 			DrawTextW(draw->hDC, item->text.c_str() + tab + 1, -1, &rect, flags | DT_RIGHT | DT_NOPREFIX);

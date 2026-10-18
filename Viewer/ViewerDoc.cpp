@@ -367,12 +367,25 @@ void CViewerDoc::UpdateMenu()
 	pMainFrm->UpdateFpsLabel(mFps);
 	pMainFrm->CheckFpsRadio(mFps);
 	pMainFrm->UpdateMagnication(pView->mN, pView->mWDst, pView->mHDst);
+	// Source labels change together on open, not on every zoom/status update.
+	pMainFrm->DrawMenuBar();
 }
 
 // CViewerDoc commands
 BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
-	bool explicitOpen = theApp.IsExplicitFileOpenInProgress();
+	return OpenDocumentImpl(lpszPathName, theApp.IsExplicitFileOpenInProgress());
+}
+
+BOOL CViewerDoc::OpenNavigatedDocument(LPCTSTR path)
+{
+	// User file movement is an explicit open for autoplay, but must not
+	// reinitialize or reactivate the entire MFC frame via the document manager.
+	return OpenDocumentImpl(path, true);
+}
+
+BOOL CViewerDoc::OpenDocumentImpl(LPCTSTR lpszPathName, bool explicitOpen)
+{
 	mAutoplayAfterPresent = false;
 	mAutoplayMessagePending = false;
 	++mOpenGeneration;
@@ -419,17 +432,21 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	if (mFrmSrc)
 		mFrmSrc->Release();
 
-	auto it = std::begin(mFrmSrcs);
-	for (; it != std::end(mFrmSrcs); it++) {
-		bool ok = (*it)->Open(mPathName);
+	// Y4M contains raw pixel payloads plus frame markers. Prefer the indexed
+	// RAW reader so interpretation controls stay editable, regardless of suffix.
+	const size_t preferred = q1view::HasY4mSignature(mPathName) ? mFrmSrcs.size() - 1 : 0;
+	size_t attempted = 0;
+	for (; attempted < mFrmSrcs.size(); ++attempted) {
+		auto* source = mFrmSrcs[(preferred + attempted) % mFrmSrcs.size()];
+		bool ok = source->Open(mPathName);
 		if (ok) {
-			mFrmSrc = *it;
+			mFrmSrc = source;
 			break;
 		}
 	}
 	// If this fires, even the raw fallback could not open the file.
-	ASSERT(it != std::end(mFrmSrcs));
-	if (it == std::end(mFrmSrcs)) {
+	ASSERT(attempted != mFrmSrcs.size());
+	if (attempted == mFrmSrcs.size()) {
 		AfxMessageBox(_T("Unsupported or unreadable file."));
 		return FALSE;
 	}
@@ -438,10 +455,12 @@ BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 
 	mOrigW = mOrigH = -1;
 	mFrmSrc->ConfigureDoc(this);
-	mAutoplayAfterPresent = explicitOpen && mFrmSrc->isVideo() &&
-		theApp.IsVideoAutoplayEnabled();
-
 	LoadSourceImage(mLoadLayout);
+	// The actual frame count is known only after loading. Raw byte streams are
+	// playable sequences too; decoded stills and internal reloads remain paused.
+	mAutoplayAfterPresent = explicitOpen && mFrames > 1 &&
+		(mFrmSrc->isVideo() || !mFrmSrc->isFixed()) && theApp.IsVideoAutoplayEnabled();
+	if (mAutoplayAfterPresent) pView->Invalidate(FALSE);
 
 	UpdateMenu();
 

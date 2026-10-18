@@ -7,6 +7,7 @@
 #include "../QVisionCore/Q1UiAppearanceMenuWin.h"
 #include "../Comparator/AnalysisLayout.h"
 #include <cmath>
+#include <functional>
 
 static void Require(bool value, const char* message)
 { if (!value) { std::fprintf(stderr, "FAIL: %s\n", message); std::exit(1); } }
@@ -51,12 +52,13 @@ static void TestCommandStates()
 		context.clipboardImage = (mask & 4) != 0; context.file = (mask & 8) != 0; context.selection = (mask & 16) != 0;
 		for (const auto& item : {std::make_pair(WindowsUiCommand::RawInput, context.rawInput),
 			std::make_pair(WindowsUiCommand::CopyPixels, context.pixels), std::make_pair(WindowsUiCommand::PasteImage, context.clipboardImage),
-			std::make_pair(WindowsUiCommand::CompareFile, context.file), std::make_pair(WindowsUiCommand::ClearSelection, context.selection)}) {
+			std::make_pair(WindowsUiCommand::OpenComparator, true), std::make_pair(WindowsUiCommand::ClearSelection, context.selection)}) {
 			const auto state = WindowsUiResolveCommand(item.first, context);
-			Require(state.enabled == item.second && state.unavailable && *state.unavailable, "command applicability and help reason share a single policy");
+			Require(state.enabled == item.second && state.unavailable && (state.enabled || *state.unavailable), "command applicability and help reason share a single policy");
 		}
 	}
 	Require(WindowsUiResolveCommand(WindowsUiCommand::RawInput, {}).enabled, "empty sessions retain RAW preconfiguration");
+	Require(WindowsUiResolveCommand(WindowsUiCommand::OpenComparator, {}).enabled, "Compare always opens a workspace, even without an input file");
 	Require(WindowsUiCommandBackground(false, true, true) == WindowsUiColor::SurfaceAlt, "disabled controls cannot acquire hot or pressed colors");
 	Require(WindowsUiCommandBackground(true, true, false) == WindowsUiColor::Hover &&
 		WindowsUiCommandBackground(true, true, true) == WindowsUiColor::Pressed, "hover and pressed states remain distinct");
@@ -246,7 +248,7 @@ static void TestMenus()
 				"disabled top-level actions and status ignore stale hover/pressed colors");
 			bool boundary=false;
 			for (int x=2;x<318;++x) boundary |= GetPixel(dc,x,2)!=WindowsUiColorValue(WindowsUiColor::Window);
-			Require(boundary == (id==105), "right-aligned disabled Compare has a non-color cue; read-only zoom does not");
+			Require(!boundary, "disabled actions and read-only status have no invented focus-like dashed boundary");
 		}
 	}
 	WindowsUiAppearanceState().Initialize(0);
@@ -269,6 +271,10 @@ static void TestMenus()
 struct FrameTestHost {
 	q1view::WindowsUiMenus menus;
 	q1view::WindowsUiFrame frame;
+	HMENU testPopup = nullptr;
+	int executed = 0, popupInitializations = 0;
+	bool queued = false, popupTimedOut = false, copiedDisabled = false;
+	std::function<void(HWND)> menuProbe;
 	static LRESULT CALLBACK Proc(HWND window, UINT message, WPARAM wp, LPARAM lp) {
 		auto* host = reinterpret_cast<FrameTestHost*>(GetWindowLongPtrW(window, GWLP_USERDATA));
 		if (message == WM_NCCREATE) {
@@ -277,6 +283,18 @@ struct FrameTestHost {
 		}
 		LRESULT result = 0;
 		if (host && host->frame.Before(message, wp, lp, result)) return result;
+		if (host && message == WM_INITMENUPOPUP && reinterpret_cast<HMENU>(wp) == host->testPopup) {
+			++host->popupInitializations; host->queued=false;
+			host->copiedDisabled = (GetMenuState(host->testPopup,503,MF_BYCOMMAND)&MF_GRAYED)!=0;
+			SetTimer(window,120,1500,nullptr);
+		}
+		if (host && host->testPopup && message == WM_ENTERIDLE && wp == MSGF_MENU && !host->queued) {
+			host->queued=true;
+			if (host->menuProbe) host->menuProbe(reinterpret_cast<HWND>(lp));
+			else PostMessageW(reinterpret_cast<HWND>(lp),WM_CHAR,L'x',1);
+		}
+		if (host && message == WM_TIMER && wp == 120) { host->popupTimedOut=true; KillTimer(window,120); EndMenu(); return 0; }
+		if (host && message == WM_COMMAND && LOWORD(wp) == 504) { ++host->executed; return 0; }
 		if (host && message == WM_MEASUREITEM && host->menus.Measure(reinterpret_cast<MEASUREITEMSTRUCT*>(lp))) return TRUE;
 		if (host && message == WM_DRAWITEM && host->menus.Draw(reinterpret_cast<DRAWITEMSTRUCT*>(lp))) return TRUE;
 		result = DefWindowProcW(window, message, wp, lp);
@@ -385,6 +403,7 @@ static void TestFrames()
 		-20000, -20000, 640, 480, nullptr, root, cls.hInstance, &host);
 	Require(window != nullptr, "isolated custom-frame host created");
 	host.frame.ReserveMenuWidth(102, L"888.88x");
+	host.menus.SetReadOnlyStatus(102);
 	host.frame.Initialize(window, host.menus);
 	Require(host.frame.Menu() == root && host.frame.RetainedMenu() == root, "custom chrome retains the original HMENU and commands");
 	Require(host.frame.MenuHost() != nullptr, "menu host uses a real child window");
@@ -474,24 +493,136 @@ static void TestFrames()
 	std::puts("Windows custom-frame tests passed (native menu retention, accessible buttons, wrapping, full screen, caption GDI lifetime).");
 }
 
+static void TestDirectMenuActivation()
+{
+	FrameTestHost host; HMENU root=CreateMenu(), popup=CreatePopupMenu();
+	AppendMenuW(root,MF_POPUP,reinterpret_cast<UINT_PTR>(popup),L"&File");
+	AppendMenuW(popup,MF_STRING,501,L"&Open");
+	AppendMenuW(root,MF_STRING,504,L"Browse");
+	HWND window=CreateWindowExW(0,L"Q1View.FrameRegressionTest",L"Direct command activation",WS_OVERLAPPEDWINDOW,
+		-20000,-20000,800,600,nullptr,root,GetModuleHandleW(nullptr),&host);
+	host.frame.Initialize(window,host.menus);
+	if(host.frame.Custom()) {
+		ShowWindow(window,SW_SHOWNOACTIVATE); host.testPopup=popup;
+		const HWND browse=GetDlgItem(host.frame.MenuHost(),2);
+		for(int probe : {0,1,2,3}) {
+			bool observed=false;
+			host.menuProbe=[&](HWND menuWindow) {
+				observed=true; RECT rect; GetWindowRect(browse,&rect);
+				MSG input={}; input.hwnd=menuWindow; input.pt={(rect.left+rect.right)/2,(rect.top+rect.bottom)/2};
+				if(probe==0) { input.message=WM_MOUSEMOVE; CallMsgFilterW(&input,MSGF_MENU); }
+				if(probe==1) { input.message=WM_KEYDOWN; input.wParam=VK_RIGHT; CallMsgFilterW(&input,MSGF_MENU); }
+				if(probe>=2) {
+					input.message=WM_LBUTTONDOWN; CallMsgFilterW(&input,MSGF_MENU);
+					Require(host.executed==0,"pressing a direct command during popup tracking does not execute before release");
+					input.message=WM_LBUTTONUP;
+					if(probe==2) input.pt={-30000,-30000};
+					CallMsgFilterW(&input,MSGF_MENU);
+				}
+				EndMenu();
+			};
+			MSG key={}; key.hwnd=window; key.message=WM_KEYDOWN; key.wParam=VK_F10;
+			SetFocus(window); host.frame.Translate(&key);
+			key.wParam=VK_DOWN; Require(host.frame.Translate(&key),"real native popup opens for direct-command regression");
+			KillTimer(window,120);
+			MSG pending; while(PeekMessageW(&pending,nullptr,0,0,PM_REMOVE)) { TranslateMessage(&pending); DispatchMessageW(&pending); }
+			Require(observed && !host.popupTimedOut,"direct-command probe ran inside actual native menu tracking without timing out");
+			Require(host.executed==(probe==3?1:0),"hover, arrow navigation and cancelled clicks never execute; a complete direct click executes exactly once");
+			if(probe==1) {
+				Require(GetFocus()==browse,"arrow navigation focuses Browse without opening the drawer");
+				key.wParam=VK_RETURN; host.frame.Translate(&key);
+				while(PeekMessageW(&pending,nullptr,0,0,PM_REMOVE)) { TranslateMessage(&pending); DispatchMessageW(&pending); }
+				Require(host.executed==1,"Enter explicitly executes the focused direct command exactly once");
+			}
+			host.executed=0; key.wParam=VK_ESCAPE; host.frame.Translate(&key);
+		}
+	}
+	DestroyWindow(window);
+	std::puts("Direct menu activation tests passed (hover/arrow inert, release activation, cancelled click, Enter).");
+}
+
+static void TestOptionalCommandOverflow()
+{
+	using namespace q1view;
+	const std::vector<std::wstring> labels = {L"&File",L"Browse",L"Fit",L"100%",L"&View",L"&Options",L"&Compare",L"&Help",L"8192x4320",L"RGBA1010102",L"120.00fps",L"&More"};
+	const int priorities[] = {0,2,2,3,4,5,6,7,100,100,100,0};
+	const int moreIndex=int(labels.size())-1;
+	HDC dc = CreateCompatibleDC(nullptr); WindowsUiFontCache fonts;
+	for(UINT dpi : {96u,120u,144u,192u}) for(double scale : {1.0,1.25,1.5,2.0,2.25}) {
+		WindowsUiDcState saved(dc); SelectObject(dc,fonts.Get(WindowsUiFontRole::Body,dpi,scale));
+		std::vector<WindowsUiCommandLayoutItem> items;
+		for(size_t i=0;i<labels.size();++i) {
+			RECT rect={}; DrawTextW(dc,labels[i].c_str(),-1,&rect,DT_SINGLELINE|DT_CALCRECT);
+			items.push_back({int(rect.right)+WindowsUiPixels(16,dpi,scale),int(i),priorities[i]});
+		}
+		for(int dip : {160,320,640,960,1440}) {
+			const int width=WindowsUiPixels(dip,dpi);
+			const auto plan=PlanWindowsUiCommandRow(items,moreIndex,width);
+			std::vector<int> counts(items.size()); int used=0;
+			for(int i:plan.visible) { ++counts[i]; used+=items[i].width; }
+			for(int i:plan.overflow) ++counts[i];
+			for(int count:counts) Require(count==1,"all measured commands are reachable exactly once in the row or overflow");
+			Require(used<=width || (plan.visible.size()==1 && plan.visible[0]==moreIndex),"measured row overflows before clipping other commands or adding a row");
+			Require(!plan.visible.empty() && plan.visible.back()==moreIndex,"More remains the final accessible command even with enlarged text");
+			for(int i:{8,9,10}) Require(std::find(plan.overflow.begin(),plan.overflow.end(),i)!=plan.overflow.end(),"advanced input controls remain available in More without duplicate status buttons");
+		}
+	}
+	DeleteDC(dc);
+	// Test the same policy on real child HWNDs, retaining disabled state and
+	// keyboard traversal while the control's position moves into overflow.
+	FrameTestHost host; HMENU root=CreateMenu(), file=CreatePopupMenu(), more=CreatePopupMenu();
+	AppendMenuW(root,MF_POPUP,reinterpret_cast<UINT_PTR>(file),L"&File");
+	AppendMenuW(file,MF_STRING,501,L"&Open");
+	AppendMenuW(root,MF_STRING,502,L"Browse");
+	AppendMenuW(root,MF_STRING|MF_GRAYED,503,L"&Compare selected files");
+	AppendMenuW(root,MF_STRING,504,L"E&xecute once");
+	AppendMenuW(root,MF_POPUP,reinterpret_cast<UINT_PTR>(more),L"&More");
+	HWND window=CreateWindowExW(0,L"Q1View.FrameRegressionTest",L"Viewer single row",WS_OVERLAPPEDWINDOW,
+		-20000,-20000,640,480,nullptr,root,GetModuleHandleW(nullptr),&host);
+	host.frame.ConfigureSingleRow(more,{{file,0,0,0,{}},{nullptr,502,1,2,{}},{nullptr,503,2,100,{}},{nullptr,504,3,100,{}}});
+	host.frame.Initialize(window,host.menus);
+	if(host.frame.Custom()) for(int width:{160,320,640,1440}) {
+		SetWindowPos(window,nullptr,0,0,width,480,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE); host.frame.Layout();
+		const auto& rects=host.frame.MenuRects();
+		Require(!IsWindowEnabled(GetDlgItem(host.frame.MenuHost(),3)),"overflow never enables a disabled native command");
+		Require(GetMenuItemCount(file)==1 && GetMenuItemID(file,0)==501,"layout preserves original popup lifetime and command IDs");
+		for(const auto& rect:rects) Require(rect.top==0,"real Viewer command HWNDs never gain a second row");
+	}
+	if(host.frame.Custom()) {
+		ShowWindow(window,SW_SHOWNOACTIVATE); host.testPopup=more;
+		MSG key={}; key.hwnd=window; key.message=WM_KEYDOWN; key.wParam=VK_F10;
+		Require(host.frame.Translate(&key),"F10 enters the real Viewer-style menu row");
+		key.wParam=VK_LEFT; Require(host.frame.Translate(&key),"Left traverses visual order to More, skipping hidden roots");
+		Require(GetFocus()==GetDlgItem(host.frame.MenuHost(),5),"More receives actual native keyboard focus");
+		key.wParam=VK_DOWN; Require(host.frame.Translate(&key),"Down opens the real overflow popup");
+		KillTimer(window,120);
+		MSG pending; while(PeekMessageW(&pending,nullptr,0,0,PM_REMOVE)) { TranslateMessage(&pending); DispatchMessageW(&pending); }
+		Require(!host.popupTimedOut && host.popupInitializations==1 && host.executed==1,"one native overflow selection executes its original command exactly once");
+		Require(host.copiedDisabled,"overflow popup preserves actual disabled state");
+		Require(GetMenuItemCount(more)==0 && GetMenuItemCount(file)==1,"temporary overflow entries detach without destroying borrowed submenus");
+	}
+	DestroyWindow(window);
+}
+
 static void TestViewerDefaultMenu()
 {
 	FrameTestHost host;
 	HMENU root = CreateMenu();
-	const wchar_t* labels[] = {L"&File", L"800&x600", L"YUV420", L"30.00f&ps", L"&View",
-		L"&Options", L"&Compare", L"&Help", L"800x600 (1.00x) \x00b7 Auto"};
+	const wchar_t* labels[] = {L"&File", L"800&x600", L"YUV420", L"30.00f&ps", L"Browse",
+		L"&Options", L"&Compare", L"&Help"};
 	for (UINT i = 0; i < _countof(labels); ++i)
 		AppendMenuW(root, MF_STRING | (i >= 6 ? MF_RIGHTJUSTIFY : 0), 200+i, labels[i]);
 	HWND window = CreateWindowExW(0, L"Q1View.FrameRegressionTest", L"Viewer startup measurement", WS_OVERLAPPEDWINDOW,
 		-20000, -20000, 900, 700, nullptr, root, GetModuleHandleW(nullptr), &host);
 	Require(window != nullptr, "realistic Viewer menu measurement host created");
+	host.frame.KeepTrailingMenuGroupTogether();
 	host.frame.Initialize(window, host.menus);
 	for (int update = 0; update < 2; ++update) {
 		if (update) { InsertMenuW(root, 7, MF_BYPOSITION | MF_STRING | MF_RIGHTJUSTIFY, 299, L"&Update"); host.frame.Sync(); }
 		for (UINT dpi : {96u, 120u, 144u}) {
 			const int measured = host.frame.SingleRowMenuWidth(dpi, 1.0);
 			const auto size = q1view::ViewerDefaultContentSize(dpi, measured, {1920,1200});
-			Require(size.cx >= measured, "realistic Viewer menu, detailed zoom and optional Update fit chosen default width");
+			Require(size.cx >= measured, "restored Viewer input menus and optional Update fit chosen default width without a zoom field");
 			std::printf("Viewer normal menu DPI %u, Update %d: %d px; default width %ld px\n", dpi, update, measured, size.cx);
 		}
 		if (host.frame.Custom()) {
@@ -503,6 +634,19 @@ static void TestViewerDefaultMenu()
 			host.frame.Layout();
 			if (q1view::WindowsUiSettings().Scale() == 1.0)
 				for (const auto& rect : host.frame.MenuRects()) Require(rect.top == 0, "realistic Viewer menu renders on one row at default width");
+			for (int dip : {320,640,960,1440}) {
+				SetWindowPos(window,nullptr,0,0,q1view::WindowsUiPixels(dip,dpi)+outer.right-outer.left-client.right,700,
+					SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+				host.frame.Layout(); RECT bounds; GetClientRect(window,&bounds);
+				const auto& rects=host.frame.MenuRects();
+				Require(host.frame.OverflowPositions().empty(),"restored Viewer menu never hides an original command in More");
+				for(size_t i=0;i<rects.size();++i) {
+					Require(rects[i].left>=0 && rects[i].right<=bounds.right && rects[i].right>rects[i].left,"every restored command stays visible inside its row");
+					for(size_t j=i+1;j<rects.size();++j) { RECT overlap; Require(!IntersectRect(&overlap,&rects[i],&rects[j]),"restored input menus and right-aligned commands never overlap"); }
+				}
+				Require(rects.back().right==bounds.right,
+					"Help occupies the far right without duplicate zoom controls, including narrow wrapped windows");
+			}
 		}
 	}
 	DestroyWindow(window); if (IsMenu(root)) DestroyMenu(root);
@@ -525,6 +669,8 @@ int wmain(int argc, wchar_t** argv)
 	TestMenus();
 	TestBufferedControls();
 	TestFrames();
+	TestDirectMenuActivation();
+	TestOptionalCommandOverflow();
 	TestViewerDefaultMenu();
 	TestAnalysisLayout();
 	HDC dc = CreateCompatibleDC(nullptr);

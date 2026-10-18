@@ -4,13 +4,14 @@
 
 #include "CscThread.h"
 #include "QHeifUtil.h"
+#include "Y4mReaderWin.h"
 
 #include <cmath>
 
 class RawFrmSrc : public FrmSrc {
 public:
 	RawFrmSrc(CViewerDoc *pDoc)
-	: FrmSrc(false), mNextFrame(-1)
+	: FrmSrc(false), mNextFrame(-1), mFrames(0)
 	{
 		for (int i = 0; i < NUM_THREADS; i++) {
 			mCscRequesters[i] = new CscThread(pDoc->mBufferPool, pDoc->mBufferQueue,
@@ -43,12 +44,27 @@ public:
 		mNextFrame = 0;
 
 		mFilePath = filePath;
+		mY4m = {};
+		if (q1view::HasY4mSignature(mFile) && !q1view::ParseY4m(mFile, mY4m)) {
+			mFile.Close(); return false;
+		}
 
 		return true;
 	}
 
 	virtual inline void ConfigureDoc(CViewerDoc *pDoc)
 	{
+		if (!mY4m.layout.offsets.empty()) {
+			pDoc->mW = mY4m.width; pDoc->mH = mY4m.height;
+			for (const auto& info : qcsc_info_table) if (info.cs == mY4m.colorSpace) {
+				pDoc->mColorSpace = info.cs; pDoc->mCsc2Rgb888 = info.csc2rgb888;
+				pDoc->mCsLoadInfo = info.cs_load_info; pDoc->mSampleNativePixel = info.sample_native_pixel;
+				break;
+			}
+			pDoc->mHasTimingFps = mY4m.fps > 0;
+			if (pDoc->mHasTimingFps) pDoc->mFps = mY4m.fps;
+			return;
+		}
 		int ret;
 		CString fileName = mFilePath.Mid(mFilePath.ReverseFind('\\') + 1);
 		fileName.MakeLower();
@@ -85,6 +101,7 @@ public:
 
 	virtual inline bool LoadOrigBuf(CViewerDoc *pDoc, BYTE *buf)
 	{
+		if (RawLayout()) return mY4m.layout.Read(mFile, pDoc->mCurFrameID, buf, pDoc->mOrigSceneSize);
 		if (mFile.m_hFile == CFile::hFileNull) {
 			LOGERR("File is not available");
 			return false;
@@ -110,14 +127,15 @@ public:
 
 	virtual inline long CalNumFrame(CViewerDoc *pDoc)
 	{
-		mFrames = long(mFile.GetLength() / pDoc->mOrigSceneSize);
+		mFrames = RawLayout() ? long(mY4m.layout.offsets.size()) : long(mFile.GetLength() / pDoc->mOrigSceneSize);
 		return mFrames;
 	}
 
 	virtual inline bool SetFramePos(CViewerDoc *pDoc, long id)
 	{
-		if (id >= mFrames)
+		if (id < 0 || id >= mFrames)
 			return false;
+		if (RawLayout()) { mNextFrame = id; return true; }
 
 		mNextFrame = id;
 
@@ -167,10 +185,15 @@ PlayFail:
 		if (mFile.m_hFile != CFile::hFileNull)
 			mFile.Close();
 		mNextFrame = -1;
+		mY4m = {};
+	}
+	const q1view::RawFrameLayout* RawLayout() const override {
+		return mY4m.layout.offsets.empty() ? nullptr : &mY4m.layout;
 	}
 
 private:
 	CFile mFile;
+	q1view::Y4mInfo mY4m;
 	long mNextFrame;
 	int mFrames;
 	CString mFilePath;

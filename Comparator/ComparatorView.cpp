@@ -886,9 +886,9 @@ int CComparatorView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	mNameQMenu.MoveWindow(&mRcNameQMenu);
 
 	// Right-click popup, mirroring the MFC Viewer's mouse menu: a checkable
-	// "Sel Mode" toggle plus "Clear Selection" for the synchronized rectangle.
+	// Selection Mode is also available in Options; clearing stays contextual.
 	mMouseMenu.CreatePopupMenu();
-	mMouseMenu.AppendMenu(MF_STRING, ID_MOUSEMENU_START + QMouseMenuSel, _T("Sel Mode"));
+	mMouseMenu.AppendMenu(MF_STRING, ID_SELECTION_MODE, L"&Selection Mode\tS");
 	mMouseMenu.AppendMenu(MF_STRING, ID_MOUSEMENU_START + QMouseMenuClear, _T("Clear Selection"));
 
 	return 0;
@@ -1376,7 +1376,11 @@ void CComparatorView::OnCsChange(UINT nID)
 
 void CComparatorView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
-	if (nChar == VK_TAB && mCsQMenu.IsWindowEnabled()) { mCsQMenu.SetFocus(); return; }
+	if (nChar == VK_TAB && mCsQMenu.IsWindowEnabled()) {
+		mCsQMenu.SetFocus();
+		mCsQMenu.SendMessage(WM_CHANGEUISTATE, MAKEWPARAM(UIS_CLEAR, UISF_HIDEFOCUS));
+		return;
+	}
 	CComparatorDoc* pDoc = GetDocument();
 
 	bool isProcessing = pDoc->CheckImgViewProcessing();
@@ -1414,8 +1418,8 @@ void CComparatorView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		Invalidate(FALSE);
 		break;
 	case 'S': // Toggle selection mode: left-drag selects a region (issue #74).
-		pDoc->mSelMode = !pDoc->mSelMode;
-		break;
+		pDoc->ToggleSelectionMode();
+		return;
 	case VK_ESCAPE: // Clear the synchronized selection rectangle.
 		ClearSelection(pDoc);
 		break;
@@ -1489,8 +1493,7 @@ void CComparatorView::OnMouseMenu(UINT nID)
 	switch (nID - ID_MOUSEMENU_START) {
 	case QMouseMenuSel:
 		// Same effect as the 'S' shortcut: left-drag selects instead of panning.
-		pDoc->mSelMode = !pDoc->mSelMode;
-		pDoc->UpdateAllViews(NULL);
+		pDoc->ToggleSelectionMode();
 		break;
 	case QMouseMenuClear:
 		ClearSelection(pDoc);

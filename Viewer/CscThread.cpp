@@ -6,6 +6,7 @@
 #include "QCommon.h"
 
 #include "QOcv.h"
+#include "FrmSrc.h"
 
 CscThread::CscThread(SBufferPool * pBufferPool,
 					 SSafeCQ<BufferInfo> *pBufferQueue,
@@ -30,7 +31,9 @@ bool CscThread::setupDetail(CViewerDoc *pDoc)
 		return false;
 	}
 
-	mFrames = long(mFile.GetLength() / mOrigSceneSize);
+	const auto* layout = pDoc->mFrmSrc ? pDoc->mFrmSrc->RawLayout() : nullptr;
+	mLayout = layout ? *layout : q1view::RawFrameLayout{};
+	mFrames = layout ? long(mLayout.offsets.size()) : long(mFile.GetLength() / mOrigSceneSize);
 
 	return true;
 }
@@ -51,6 +54,7 @@ bool CscThread::loadOrigBuf(long frameID, BYTE *buf)
 {
 	if (frameID >= mFrames)
 		return false;
+	if (!mLayout.offsets.empty()) return mLayout.Read(mFile, frameID, buf, mOrigSceneSize);
 
 	ULONGLONG pos = ULONGLONG(frameID) * mOrigSceneSize;
 	mFile.Seek(pos, CFile::begin);
@@ -62,6 +66,7 @@ bool CscThread::loadOrigBuf(long frameID, BYTE *buf)
 
 void CscThread::deinit()
 {
+	mLayout = {};
 	if (mFile.m_hFile != CFile::hFileNull)
 		mFile.Close();
 }

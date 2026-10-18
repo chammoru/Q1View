@@ -16,6 +16,8 @@
 #define ID_CS_END                       0x71ff
 #define ID_MOUSEMENU_START              0x7200
 #define ID_MOUSEMENU_END                0x72ff
+#define ID_SELECTION_MODE               ID_MOUSEMENU_START
+#define ID_SYNC_INPUT                   (ID_MOUSEMENU_START + 1)
 #define ID_FPS_START                    0x7300
 #define ID_FPS_END                      0x73ff
 #define ID_COMPARE                      32771
@@ -33,7 +35,7 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        140
-#define _APS_NEXT_COMMAND_VALUE         32780
+#define _APS_NEXT_COMMAND_VALUE         32782
 #define _APS_NEXT_CONTROL_VALUE         1004
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

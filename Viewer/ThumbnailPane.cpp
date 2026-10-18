@@ -1173,6 +1173,23 @@ void CThumbnailPane::BuildContextMenu(CMenu& menu, int index)
 	}
 }
 
+LRESULT CThumbnailPane::WindowProc(UINT message, WPARAM wp, LPARAM lp)
+{
+	if (mContextMenus) {
+		if (message == WM_INITMENUPOPUP && !HIWORD(lp)) {
+			mContextMenus->SyncPopup(m_hWnd, reinterpret_cast<HMENU>(wp));
+			return 0;
+		}
+		if (message == WM_MEASUREITEM && mContextMenus->Measure(reinterpret_cast<MEASUREITEMSTRUCT*>(lp))) return TRUE;
+		if (message == WM_DRAWITEM && mContextMenus->Draw(reinterpret_cast<DRAWITEMSTRUCT*>(lp))) return TRUE;
+		if (message == WM_MENUCHAR) {
+			LRESULT result;
+			if (mContextMenus->MenuChar(LOWORD(wp), reinterpret_cast<HMENU>(lp), result)) return result;
+		}
+	}
+	return CListCtrl::WindowProc(message, wp, lp);
+}
+
 void CThumbnailPane::ShowContextMenu(int index, CPoint screenPoint)
 {
 	const bool item = index >= 0 && index < int(mEntries.size());
@@ -1185,8 +1202,12 @@ void CThumbnailPane::ShowContextMenu(int index, CPoint screenPoint)
 	const std::wstring path = q1view::TrimDirectorySeparator(entry.path.GetString());
 	CMenu menu; BuildContextMenu(menu, index);
 	if (menu.GetMenuItemCount() == 0) return;
+	// Own style metadata only for this popup's lifetime, including its submenus.
+	q1view::WindowsUiMenus contextMenus;
+	mContextMenus = &contextMenus;
 	const UINT command = menu.TrackPopupMenu(TPM_RETURNCMD | TPM_RIGHTBUTTON,
 		screenPoint.x, screenPoint.y, this);
+	mContextMenus = nullptr;
 	// The popup runs a nested message loop: a watcher/new document may have
 	// changed the entries. Never act on a recycled index or a different folder.
 	if (!command || generation != mGen.load()) return;

@@ -9,6 +9,7 @@
 #include "Q1UiFontWin.h"
 #include "Q1UiMenuWin.h"
 #include "Q1UiFrameWin.h"
+#include "ViewerStatusBar.h"
 
 #define WM_RELOAD (WM_USER + 100)
 #define WM_APPLY_SYNC_INPUT (WM_APP + 100)
@@ -155,7 +156,7 @@ protected: // create from serialization only
 
 // Attributes
 private:
-	CMenu mResolutionMenu, mCsMenu, mFpsMenu, mOptionsMenu;
+	CMenu mResolutionMenu, mCsMenu, mFpsMenu;
 	BITMAPINFO mCopyBmi;
 	bool mSyncInput;
 	bool mSyncViewStatePending;
@@ -177,8 +178,14 @@ private:
 	CHelpOverlay mHelpOverlay;
 	q1view::WindowsUiMenus mUiMenus;
 	q1view::WindowsUiFrame mUiFrame;
+	ViewerStatusBar mStatusBar;
 	CDrawerTransitionOverlay mDrawerTransitionOverlay;
 	unsigned mCommandStateSignature = ~0u;
+	unsigned mCommandMenuSignature = ~0u;
+	HMENU mCommandMenu = nullptr;
+#ifdef Q1VIEW_GALLERY_TESTS
+	unsigned mCommandMenuRefreshCount = 0;
+#endif
 
 // Operations
 public:
@@ -197,7 +204,9 @@ public:
 	virtual BOOL OnCmdMsg(UINT id, int code, void* extra, AFX_CMDHANDLERINFO* handler);
 	q1view::WindowsUiCommandContext CommandContext() const;
 	bool IsCommandEnabled(UINT id) const;
-	void RefreshCommandStates();
+	void RefreshCommandStates(bool force = false);
+	void UpdateViewerStatus();
+	int StatusHeight() const;
 	afx_msg void OnIdleUpdateCmdUI();
 	virtual void OnUpdateFrameTitle(BOOL bAddToTitle);
 	virtual BOOL OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext);
@@ -277,6 +286,9 @@ public:
 	afx_msg void OnUpdateToggleDrawer(CCmdUI *pCmdUI);
 	afx_msg void OnToggleAutoplayVideos();
 	afx_msg void OnUpdateAutoplayVideos(CCmdUI *pCmdUI);
+	afx_msg void OnToggleSelectionMode();
+	afx_msg void OnUpdateSelectionMode(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateSyncInput(CCmdUI *pCmdUI);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	// "Update" menu command: download and install the available Store update.
 	afx_msg void OnUpdateNow();
@@ -287,6 +299,7 @@ public:
 private:
 	BOOL ResolveComparatorPath(CString &cmperPath);
 	BOOL LaunchComparator(const CString &cmperPath, const CString &quotedArgs);
+	BOOL StartComparator(const std::vector<CString>& filePaths);
 	void PinDrawerColumn();
 	void SetDrawerVisibleImmediately(bool visible);
 	// Settle the image after a drawer resize. Active fit mode is recomputed once

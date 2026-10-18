@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stdafx.h"
+#include "RawFrameLayout.h"
 
 class CViewerDoc;
 
@@ -22,6 +23,7 @@ public:
 	inline bool isFixed() { return mFixedResolution; }
 	virtual bool isVideo() const { return false; }
 	virtual bool usesHlgToneMapping() const { return false; }
+	virtual const q1view::RawFrameLayout* RawLayout() const { return nullptr; }
 
 private:
 	bool mFixedResolution;
