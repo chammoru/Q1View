@@ -100,7 +100,7 @@ BEGIN
         MENUITEM "Recent File",                 ID_FILE_MRU_FILE1,MFT_STRING,MFS_GRAYED
         MENUITEM MFT_SEPARATOR
     END
-    POPUP "&View",                          65535,MFT_STRING,MFS_ENABLED
+    POPUP "&Options",                       65535,MFT_STRING,MFS_ENABLED
     BEGIN
         POPUP "&Image Scaling",                 65535,MFT_STRING,MFS_ENABLED
         BEGIN

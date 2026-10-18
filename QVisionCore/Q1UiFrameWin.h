@@ -21,7 +21,7 @@ namespace q1view {
 // No global NONCLIENTMETRICS changes and no separate overlay windows/timers.
 class WindowsUiFrame {
 public:
-	// Opt-in Viewer policy. Comparator keeps its existing wrapping menu.
+	// Optional overflow policy; normal application menus use wrapping.
 	struct MenuRule {
 		HMENU popup; UINT command; int order; int priority;
 		std::wstring overflowPrefix;
@@ -41,6 +41,7 @@ private:
 	std::vector<int> mVisibleOrder;
 	bool mCustom = false, mMenuVisible = true, mTracking = false, mKeyboard = false;
 	bool mDeferredClose = false;
+	bool mKeepTrailingMenuGroupTogether = false;
 	int mTitleHeight = 0, mMenuHeight = 0, mOpen = -1, mNext = -1;
 	UINT mSelected = 0, mSelectedFlags = 0;
 	static WindowsUiFrame*& Tracking() { static thread_local WindowsUiFrame* value = nullptr; return value; }
@@ -283,6 +284,9 @@ public:
 	HWND MenuHost() const { return mBar; }
 	const std::vector<RECT>& MenuRects() const { return mButtonRects; }
 	const std::vector<int>& OverflowPositions() const { return mOverflowPositions; }
+	// Viewer keeps its right-aligned zoom group intact when narrowing a window.
+	// Opt-in so Comparator retains its existing wrapping behavior.
+	void KeepTrailingMenuGroupTogether() { mKeepTrailingMenuGroupTogether = true; }
 	void ConfigureSingleRow(HMENU overflow, const std::vector<MenuRule>& rules) {
 		ClearOverflow(); mOverflow = overflow; mMenuRules = rules;
 		if (Initialized()) Layout();
@@ -405,7 +409,16 @@ public:
 				mButtonRects[index] = {left, 0, left + w, rowHeight}; left += w;
 			}
 		} else {
+		size_t firstRight = mButtons.size();
+		int trailingWidth = 0;
 		for (size_t i = 0; i < mButtons.size(); ++i) {
+			if (firstRight == mButtons.size() && (Info(int(i)).fType & MFT_RIGHTJUSTIFY)) firstRight = i;
+			if (i >= firstRight) trailingWidth += widths[i];
+		}
+		for (size_t i = 0; i < mButtons.size(); ++i) {
+			if (mKeepTrailingMenuGroupTogether && i == firstRight && trailingWidth <= width && left && left + trailingWidth > width) {
+				left = 0; top += rowHeight;
+			}
 			const int buttonWidth = (std::min)((std::max)(1, width), widths[i]);
 			if (left && left + buttonWidth > width) { left = 0; top += rowHeight; }
 			mButtonRects[i] = {left, top, left + buttonWidth, top + rowHeight}; left += buttonWidth;

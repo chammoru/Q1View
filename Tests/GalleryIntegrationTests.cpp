@@ -320,7 +320,7 @@ struct GalleryIntegrationTests {
         frame->MoveWindow(initial.left, initial.top, q1view::WindowsUiPixels(320, dpi), initial.Height()); Pump(.1);
         bool wrapped = false;
         for (const auto& rect : frame->mUiFrame.MenuRects()) wrapped |= rect.top > 0;
-        Require(!wrapped && !frame->mUiFrame.OverflowPositions().empty(), "manual narrowing overflows commands without wrapping the Viewer row");
+        Require(wrapped && frame->mUiFrame.OverflowPositions().empty(), "manual narrowing wraps the original menus without hiding commands in More");
         frame->SizeDefaultWindow(); Pump(.1);
         CRect resizedContent; frame->GetContentRect(resizedContent);
         Require(resizedContent.Width() == expected.cx && resizedContent.Height() == expected.cy,
@@ -543,14 +543,14 @@ struct GalleryIntegrationTests {
             Pump(.08);
             frame->GetClientRect(client);
             const auto& rects = frame->mUiFrame.MenuRects();
+            Require(frame->mUiFrame.OverflowPositions().empty(), "Viewer keeps all original input menus directly accessible without More");
             for (size_t i=0; i<rects.size(); ++i) {
                 const auto& r=rects[i];
-                Require(r.top==0 && r.right<=client.right, "Viewer command targets stay in one measured row at the required client sizes");
-                const bool visible = r.right>r.left;
-                const bool inMore = std::find(frame->mUiFrame.OverflowPositions().begin(),frame->mUiFrame.OverflowPositions().end(),int(i)) != frame->mUiFrame.OverflowPositions().end();
-                Require(visible != inMore, "every root command is either visible or reachable through More, never lost");
-                for(size_t j=i+1; j<rects.size(); ++j) { CRect overlap; Require(!overlap.IntersectRect(&r,&rects[j]), "single-row command targets never overlap"); }
+                Require(r.left>=0 && r.top>=0 && r.right<=client.right && r.right>r.left, "all Viewer command targets remain visible within the measured wrapped rows");
+                for(size_t j=i+1; j<rects.size(); ++j) { CRect overlap; Require(!overlap.IntersectRect(&r,&rects[j]), "wrapped command targets never overlap"); }
             }
+            Require(rects.size()>=2 && rects[rects.size()-2].top==rects.back().top && rects.back().right==client.right,
+                "Fit and 100 percent remain together at the far right at all required client sizes");
             CRect status, content, splitter;
             ::GetWindowRect(frame->mStatusBar.Window(),status); frame->ScreenToClient(status);
             frame->GetContentRect(content); frame->mwndSplitter.GetWindowRect(splitter); frame->ScreenToClient(splitter);
@@ -584,7 +584,18 @@ struct GalleryIntegrationTests {
         auto doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
         Require(frame && view && doc, "real Viewer document/view created");
         for(int i=0;i<frame->GetMenu()->GetMenuItemCount();++i)
+        {
             Require(frame->GetMenu()->GetMenuItemID(i)!=ID_FILE_OPEN, "Viewer has no duplicate top-level Open command");
+            const auto label=frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),i,true);
+            Require(label!=L"&View" && label!=L"&More", "Viewer has no separate View or More menu");
+        }
+        Require(frame->GetMenu()->GetSubMenu(1)->GetSafeHmenu()==frame->mResolutionMenu.GetSafeHmenu() &&
+            frame->GetMenu()->GetSubMenu(2)->GetSafeHmenu()==frame->mCsMenu.GetSafeHmenu() &&
+            frame->GetMenu()->GetSubMenu(3)->GetSafeHmenu()==frame->mFpsMenu.GetSafeHmenu(),
+            "resolution, pixel format and FPS retain their original top-level positions");
+        const int rootCount=frame->GetMenu()->GetMenuItemCount();
+        Require(frame->GetMenu()->GetMenuItemID(rootCount-2)==ID_VIEW_FIT && frame->GetMenu()->GetMenuItemID(rootCount-1)==ID_VIEW_ACTUAL_SIZE,
+            "Fit and 100 percent are the two rightmost root commands");
         Require(frame->GetMenu()->GetSubMenu(0)->GetMenuState(ID_FILE_OPEN,MF_BYCOMMAND)!=UINT(-1),
             "File menu retains its original Open command");
         std::vector<ACCEL> accelerators(CopyAcceleratorTable(frame->m_hAccelTable,nullptr,0));
@@ -738,12 +749,12 @@ struct GalleryIntegrationTests {
         std::vector<BYTE> captureBytes;
         if (!captured.empty()) captureBytes.assign(captureBuffer,captureBuffer+captureSize);
         CRect appearanceBounds; frame->GetWindowRect(appearanceBounds);
-        HMENU options = GetSubMenu(frame->GetMenu()->GetSafeHmenu(),5);
-        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==1 &&
-            frame->mUiMenus.Text(options,0,true)==L"&Theme" && GetMenuItemCount(GetSubMenu(frame->GetMenu()->GetSafeHmenu(),4))==4 &&
-            GetMenuItemID(GetSubMenu(frame->GetMenu()->GetSafeHmenu(),4),2)==ID_VIEW_FIT &&
-            GetMenuItemID(GetSubMenu(frame->GetMenu()->GetSafeHmenu(),4),3)==ID_VIEW_ACTUAL_SIZE,
-            "Viewer exposes only Options > Theme; View retains image scaling without appearance/background duplicates");
+        HMENU options = GetSubMenu(frame->GetMenu()->GetSafeHmenu(),4);
+        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),4,true)==L"&Options" && options && GetMenuItemCount(options)==6 &&
+            frame->mUiMenus.Text(options,0,true)==L"&Image Scaling" && GetMenuItemCount(GetSubMenu(options,0))==3 &&
+            frame->mUiMenus.Text(options,2,true)==L"&Theme" &&
+            GetMenuItemID(options,4)==ID_VIEW_FIT && GetMenuItemID(options,5)==ID_VIEW_ACTUAL_SIZE,
+            "Options contains Image Scaling, Theme, Fit and Actual size without separate View or More menus");
         for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,
             q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
             if (command==q1view::ID_UI_APPEARANCE_DARK || command==q1view::ID_UI_APPEARANCE_SYSTEM)

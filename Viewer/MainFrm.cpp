@@ -619,7 +619,6 @@ CMainFrame::CMainFrame()
 	mResolutionMenu.CreatePopupMenu();
 	mCsMenu.CreatePopupMenu();
 	mFpsMenu.CreatePopupMenu();
-	mOptionsMenu.CreatePopupMenu();
 
 	BITMAPINFOHEADER &bmiHeader = mCopyBmi.bmiHeader;
 	bmiHeader.biSize = (DWORD)sizeof(BITMAPINFOHEADER);
@@ -634,7 +633,6 @@ CMainFrame::CMainFrame()
 CMainFrame::~CMainFrame()
 {
 	mFpsMenu.DestroyMenu();
-	mOptionsMenu.DestroyMenu();
 	mCsMenu.DestroyMenu();
 	mResolutionMenu.DestroyMenu();
 
@@ -667,21 +665,7 @@ LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 	result = CFrameWnd::WindowProc(message, wp, lp);
 	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
 	if (message == WM_CREATE && result != -1) {
-		CMenu* root = CFrameWnd::GetMenu();
-		mUiFrame.ConfigureSingleRow(mOverflowMenu.GetSafeHmenu(), {
-			{root->GetSubMenu(0)->GetSafeHmenu(), 0, 0, 0, {}},
-			{nullptr, ID_TOGGLE_DRAWER, 2, 2, {}},
-			{nullptr, ID_VIEW_FIT, 3, 2, {}},
-			{nullptr, ID_VIEW_ACTUAL_SIZE, 4, 3, {}},
-			{root->GetSubMenu(4)->GetSafeHmenu(), 0, 5, 4, {}},
-			{mOptionsMenu.GetSafeHmenu(), 0, 6, 5, {}},
-			{nullptr, ID_COMPARE, 7, 6, {}},
-			{nullptr, ID_VIEWER_HELP, 8, 7, {}},
-			{mResolutionMenu.GetSafeHmenu(), 0, 10, 100, L"Input size: "},
-			{mCsMenu.GetSafeHmenu(), 0, 11, 100, L"Pixel format: "},
-			{mFpsMenu.GetSafeHmenu(), 0, 12, 100, L"Frame rate: "},
-			{nullptr, ID_UPDATE, 9, 3, {}}
-		});
+		mUiFrame.KeepTrailingMenuGroupTogether();
 		mUiFrame.Initialize(m_hWnd, mUiMenus);
 		mStatusBar.Initialize(m_hWnd); UpdateViewerStatus(); RecalcLayout();
 	}
@@ -870,8 +854,7 @@ void CMainFrame::OnFileOpen()
 #define MENU_POS_RESOLUTION 1
 #define MENU_POS_COLORSPACE 2
 #define MENU_POS_FPS        3
-#define MENU_POS_VIEW       4
-#define MENU_POS_OPTIONS    5
+#define MENU_POS_OPTIONS    4
 
 void CMainFrame::UpdateResolutionLabel(int w, int h)
 {
@@ -983,8 +966,8 @@ void CMainFrame::CheckScalingRadio(int mode)
 		return;
 
 	UINT id = ID_SCALING_AUTO + static_cast<UINT>(mode);
-	CMenu *viewMenu = GetMenu()->GetSubMenu(MENU_POS_VIEW);
-	CMenu *scalingMenu = viewMenu ? viewMenu->GetSubMenu(0) : NULL;
+	CMenu *optionsMenu = GetMenu()->GetSubMenu(MENU_POS_OPTIONS);
+	CMenu *scalingMenu = optionsMenu ? optionsMenu->GetSubMenu(0) : NULL;
 	if (!scalingMenu)
 		return;
 	scalingMenu->CheckMenuRadioItem(ID_SCALING_AUTO, ID_SCALING_PIXEL_EXACT,
@@ -1045,21 +1028,17 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	mFpsMenu.AppendMenu(MF_STRING, ID_FPS_START + i, CA2W(qfps_info_table[i]));
 
 	AddMainMenu();
-	q1view::AppendWindowsUiThemeMenu(mOptionsMenu.GetSafeHmenu());
-	GetMenu()->InsertMenu(MENU_POS_OPTIONS, MF_BYPOSITION | MF_POPUP,
-		(UINT_PTR)mOptionsMenu.GetSafeHmenu(), _T("&Options"));
-	// Reuse this command row, not a second toolbar above the image. Preserve
-	// existing root positions for dynamic input menus and native fallback.
+	CMenu* optionsMenu = GetMenu()->GetSubMenu(MENU_POS_OPTIONS);
+	q1view::AppendWindowsUiThemeMenu(optionsMenu->GetSafeHmenu());
+	optionsMenu->AppendMenu(MF_SEPARATOR);
+	optionsMenu->AppendMenu(MF_STRING, ID_VIEW_FIT, L"Fit to window");
+	optionsMenu->AppendMenu(MF_STRING, ID_VIEW_ACTUAL_SIZE, L"Actual size (100%)");
+	// Keep input settings directly accessible in their original positions.
+	// Zoom actions belong at the far right, not beside File/Browse.
 	GetMenu()->DeleteMenu(ID_MAGNIFY, MF_BYCOMMAND);
-	GetMenu()->AppendMenu(MF_STRING, ID_TOGGLE_DRAWER, L"Browse");
-	GetMenu()->AppendMenu(MF_STRING, ID_VIEW_FIT, L"Fit");
-	GetMenu()->AppendMenu(MF_STRING, ID_VIEW_ACTUAL_SIZE, L"100%");
-	mOverflowMenu.CreatePopupMenu();
-	GetMenu()->AppendMenu(MF_POPUP, (UINT_PTR)mOverflowMenu.GetSafeHmenu(), L"&More");
-	CMenu* viewMenu = GetMenu()->GetSubMenu(MENU_POS_VIEW);
-	viewMenu->AppendMenu(MF_SEPARATOR);
-	viewMenu->AppendMenu(MF_STRING, ID_VIEW_FIT, L"Fit to window");
-	viewMenu->AppendMenu(MF_STRING, ID_VIEW_ACTUAL_SIZE, L"Actual size (100%)");
+	GetMenu()->InsertMenu(ID_COMPARE, MF_BYCOMMAND | MF_STRING, ID_TOGGLE_DRAWER, L"Browse");
+	GetMenu()->AppendMenu(MF_STRING | MF_RIGHTJUSTIFY, ID_VIEW_FIT, L"Fit");
+	GetMenu()->AppendMenu(MF_STRING | MF_RIGHTJUSTIFY, ID_VIEW_ACTUAL_SIZE, L"100%");
 	mAppliedCanvasColor = Q1UI_COLOR_CANVAS_BG;
 
 	CheckResolutionRadio(q1view::ViewerDefaultImageWidth, q1view::ViewerDefaultImageHeight);

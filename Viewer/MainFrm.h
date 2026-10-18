@@ -156,7 +156,7 @@ protected: // create from serialization only
 
 // Attributes
 private:
-	CMenu mResolutionMenu, mCsMenu, mFpsMenu, mOptionsMenu, mOverflowMenu;
+	CMenu mResolutionMenu, mCsMenu, mFpsMenu;
 	BITMAPINFO mCopyBmi;
 	bool mSyncInput;
 	bool mSyncViewStatePending;
