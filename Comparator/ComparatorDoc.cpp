@@ -36,7 +36,21 @@
 IMPLEMENT_DYNCREATE(CComparatorDoc, CDocument)
 
 BEGIN_MESSAGE_MAP(CComparatorDoc, CDocument)
+	ON_COMMAND(ID_SELECTION_MODE, &CComparatorDoc::ToggleSelectionMode)
+	ON_UPDATE_COMMAND_UI(ID_SELECTION_MODE, &CComparatorDoc::OnUpdateSelectionMode)
 END_MESSAGE_MAP()
+
+void CComparatorDoc::ToggleSelectionMode()
+{
+	mSelMode = !mSelMode;
+	UpdateAllViews(nullptr);
+}
+
+void CComparatorDoc::OnUpdateSelectionMode(CCmdUI *command)
+{
+	command->Enable(TRUE);
+	command->SetCheck(mSelMode);
+}
 
 
 CComparatorDoc::CComparatorDoc()

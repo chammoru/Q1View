@@ -126,6 +126,10 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_UPDATE_COMMAND_UI(ID_TOGGLE_DRAWER, &CMainFrame::OnUpdateToggleDrawer)
 	ON_COMMAND(ID_AUTOPLAY_VIDEOS, &CMainFrame::OnToggleAutoplayVideos)
 	ON_UPDATE_COMMAND_UI(ID_AUTOPLAY_VIDEOS, &CMainFrame::OnUpdateAutoplayVideos)
+	ON_COMMAND(ID_SELECTION_MODE, &CMainFrame::OnToggleSelectionMode)
+	ON_UPDATE_COMMAND_UI(ID_SELECTION_MODE, &CMainFrame::OnUpdateSelectionMode)
+	ON_COMMAND(ID_SYNC_INPUT, &CMainFrame::ToggleSyncInput)
+	ON_UPDATE_COMMAND_UI(ID_SYNC_INPUT, &CMainFrame::OnUpdateSyncInput)
 	ON_COMMAND(ID_UPDATE, &CMainFrame::OnUpdateNow)
 	ON_MESSAGE(WM_STORE_UPDATE_AVAILABLE, &CMainFrame::OnStoreUpdateAvailable)
 	ON_MESSAGE(WM_STORE_UPDATE_DONE, &CMainFrame::OnStoreUpdateDone)
@@ -1230,6 +1234,23 @@ void CMainFrame::OnToggleAutoplayVideos()
 void CMainFrame::OnUpdateAutoplayVideos(CCmdUI *pCmdUI)
 {
 	pCmdUI->SetCheck(theApp.IsVideoAutoplayEnabled() ? 1 : 0);
+}
+
+void CMainFrame::OnToggleSelectionMode()
+{
+	if (auto* view = DYNAMIC_DOWNCAST(CViewerView, GetActiveView())) view->ToggleSelMode();
+}
+
+void CMainFrame::OnUpdateSelectionMode(CCmdUI *pCmdUI)
+{
+	auto* view = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
+	pCmdUI->Enable(view != nullptr);
+	pCmdUI->SetCheck(view && view->mSelMode);
+}
+
+void CMainFrame::OnUpdateSyncInput(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(IsSyncInputEnabled());
 }
 
 int CMainFrame::GetDrawerReservedWidth() const

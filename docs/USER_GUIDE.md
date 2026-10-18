@@ -120,9 +120,11 @@ In the Windows Viewer, opening or closing the docked drawer changes the image vi
 ### Synchronized Viewer Windows
 
 To inspect related sources interactively, open more than one Viewer window,
-right-click each image area, and enable **Sync Input**. Navigation, zoom, pan,
+and enable **Options → Sync Input Across Viewer Windows** in each window. The same toggle remains available by right-clicking each image area. Navigation, zoom, pan,
 rotation, playback, FPS, and display mode changes are relayed between enabled
 Viewer windows.
+
+In both Windows Viewer and Comparator, **Options → Selection Mode**, the image's **Selection Mode** context command and the existing `S` shortcut control the same mode and show matching checks. This changes left-drag between selection and panning without adding a separate preference or reopening sources. Viewer's mode belongs to its window; Comparator's mode is shared across all comparison panes and remains accessible from Options when Timeline has focus. Comparator's **Clear Selection** stays in the image context menu and on `Esc`, rather than being moved into Options. Pane-specific Color Space controls remain with their panes.
 
 ## Comparator
 

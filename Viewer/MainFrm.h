@@ -286,6 +286,9 @@ public:
 	afx_msg void OnUpdateToggleDrawer(CCmdUI *pCmdUI);
 	afx_msg void OnToggleAutoplayVideos();
 	afx_msg void OnUpdateAutoplayVideos(CCmdUI *pCmdUI);
+	afx_msg void OnToggleSelectionMode();
+	afx_msg void OnUpdateSelectionMode(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateSyncInput(CCmdUI *pCmdUI);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	// "Update" menu command: download and install the available Store update.
 	afx_msg void OnUpdateNow();

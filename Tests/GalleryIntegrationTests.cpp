@@ -588,6 +588,43 @@ struct GalleryIntegrationTests {
             "autoplay fixtures cleaned up after releasing all decoder handles");
     }
 
+    void InteractionMenuTests(CMainFrame* frame,CViewerView* view) {
+        auto* options=frame->GetMenu()->GetSubMenu(5);
+        const bool selected=view->mSelMode, synced=frame->IsSyncInputEnabled();
+        const auto path=view->GetDocument()->mPathName;
+        const auto generation=view->GetDocument()->mOpenGeneration;
+        const auto pixels=view->mStableRgbBufferInfo.addr;
+        Require(options->GetMenuState(ID_SELECTION_MODE,MF_BYCOMMAND)!=UINT(-1) &&
+            options->GetMenuState(ID_SYNC_INPUT,MF_BYCOMMAND)!=UINT(-1) && view->mMouseMenu.GetMenuItemCount()==2,
+            "Viewer exposes selection/sync in Options while retaining both context shortcuts");
+        auto check=[&] {
+            frame->SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(options->GetSafeHmenu()),5);
+            view->SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(view->mMouseMenu.GetSafeHmenu()));
+            for(auto* menu : {options,&view->mMouseMenu}) {
+                Require(bool(menu->GetMenuState(ID_SELECTION_MODE,MF_BYCOMMAND)&MF_CHECKED)==view->mSelMode,
+                    "Options and context selection checks follow the one actual Viewer mode");
+                Require(bool(menu->GetMenuState(ID_SYNC_INPUT,MF_BYCOMMAND)&MF_CHECKED)==frame->IsSyncInputEnabled(),
+                    "Options and context sync checks follow the same per-window setting");
+            }
+        };
+        check();
+        if(frame->mpDrawer) frame->mpDrawer->SetFocus();
+        frame->SendMessage(WM_COMMAND,ID_SELECTION_MODE);
+        Require(view->mSelMode!=selected,"Viewer Options selection command toggles exactly once while browser has focus"); check();
+        view->SendMessage(WM_COMMAND,ID_SELECTION_MODE);
+        Require(view->mSelMode==selected,"Viewer context selection command uses the same toggle"); check();
+        view->SendMessage(WM_KEYDOWN,'S',1); view->SendMessage(WM_KEYUP,'S',1);
+        Require(view->mSelMode!=selected,"existing S shortcut shares the Options selection state"); check();
+        view->SendMessage(WM_KEYDOWN,'S',1); view->SendMessage(WM_KEYUP,'S',1);
+        frame->SendMessage(WM_COMMAND,ID_SYNC_INPUT);
+        Require(frame->IsSyncInputEnabled()!=synced,"Options toggles Viewer window synchronization exactly once"); check();
+        view->SendMessage(WM_COMMAND,ID_SYNC_INPUT);
+        Require(frame->IsSyncInputEnabled()==synced && view->mSelMode==selected,"context shortcut restores the shared interaction state"); check();
+        Require(view->GetDocument()->mPathName==path && view->GetDocument()->mOpenGeneration==generation &&
+            view->mStableRgbBufferInfo.addr==pixels,"interaction menu changes do not reopen or replace the current source");
+        view->SetFocus();
+    }
+
     void CommandRefreshTests(CMainFrame* frame) {
         frame->RefreshCommandStates(true);
         const auto applied = frame->mCommandMenuRefreshCount;
@@ -770,6 +807,7 @@ struct GalleryIntegrationTests {
         Require(theApp.IsVideoAutoplayEnabled()!=autoplayBefore,"moved autoplay command still toggles its original preference");
         verifyAutoplayCheck(); frame->SendMessage(WM_COMMAND,ID_AUTOPLAY_VIDEOS); verifyAutoplayCheck();
         Require(theApp.IsVideoAutoplayEnabled()==autoplayBefore,"autoplay preference is restored after isolated menu checks");
+        InteractionMenuTests(frame,view);
         std::vector<ACCEL> accelerators(CopyAcceleratorTable(frame->m_hAccelTable,nullptr,0));
         CopyAcceleratorTable(frame->m_hAccelTable,accelerators.data(),int(accelerators.size()));
         Require(std::any_of(accelerators.begin(),accelerators.end(),[](const ACCEL& key) {
@@ -925,10 +963,11 @@ struct GalleryIntegrationTests {
         if (!captured.empty()) captureBytes.assign(captureBuffer,captureBuffer+captureSize);
         CRect appearanceBounds; frame->GetWindowRect(appearanceBounds);
         HMENU options = GetSubMenu(frame->GetMenu()->GetSafeHmenu(),5);
-        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==4 &&
+        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==7 &&
             frame->mUiMenus.Text(options,0,true)==L"&Image Scaling" && GetMenuItemCount(GetSubMenu(options,0))==3 &&
-            GetMenuItemID(options,1)==ID_AUTOPLAY_VIDEOS && frame->mUiMenus.Text(options,3,true)==L"&Theme",
-            "Options contains Image Scaling, autoplay and Theme without unwanted zoom commands");
+            GetMenuItemID(options,1)==ID_AUTOPLAY_VIDEOS && GetMenuItemID(options,3)==ID_SELECTION_MODE &&
+            GetMenuItemID(options,4)==ID_SYNC_INPUT && frame->mUiMenus.Text(options,6,true)==L"&Theme",
+            "Options contains scaling, autoplay, interaction modes and Theme without unwanted zoom commands");
         for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,
             q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
             if (command==q1view::ID_UI_APPEARANCE_DARK || command==q1view::ID_UI_APPEARANCE_SYSTEM)

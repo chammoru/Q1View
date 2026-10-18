@@ -173,6 +173,8 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	void ViewOnMouseWheel(short zDelta, int wCanvas, int hCanvas);
+	void ToggleSelectionMode();
+	afx_msg void OnUpdateSelectionMode(CCmdUI *command);
 	virtual BOOL OnOpenDocument(LPCTSTR lpszPathName);
 };
 

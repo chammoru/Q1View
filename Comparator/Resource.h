@@ -24,6 +24,7 @@
 #define ID_OPTIONS_END                  0x75ff
 #define ID_MOUSEMENU_START              0x7600
 #define ID_MOUSEMENU_END                0x76ff
+#define ID_SELECTION_MODE               ID_MOUSEMENU_START
 #define ID_MAGNIFY                      32771
 #define ID_COMPARATOR_HELP              32772
 

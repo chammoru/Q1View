@@ -442,8 +442,38 @@ int RunComparerTypographyTests() {
 		const auto theme = q1view::WindowsUiAppearanceState().Appearance();
 		CRect themeBounds; frame->GetWindowRect(themeBounds);
 		HMENU options = frame->mOptionsMenu.GetSafeHmenu();
-		Check(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && GetMenuItemCount(options)==1 &&
-			GetMenuItemID(options,0)==ID_OPTIONS_DIFF_RESOLUTION, "Comparer has no theme menu and retains its comparison-specific option");
+		Check(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && GetMenuItemCount(options)==3 &&
+			GetMenuItemID(options,0)==ID_OPTIONS_DIFF_RESOLUTION && GetMenuItemID(options,2)==ID_SELECTION_MODE,
+			"Comparer Options retains resolution policy and adds selection mode, without theme/sync/clear actions");
+		{
+			const bool before=doc->mSelMode;
+			auto* active=frame->GetActiveView();
+			auto checkSelection=[&] {
+				frame->SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(options),5);
+				Check(bool(GetMenuState(options,ID_SELECTION_MODE,MF_BYCOMMAND)&MF_CHECKED)==doc->mSelMode,
+					"Comparer Options selection check follows shared document state");
+				for(int slot=0;slot<2;++slot) {
+					auto* paneView=doc->mPane[slot].pView;
+					CCmdUI state; state.m_nID=ID_SELECTION_MODE; state.m_nIndex=0;
+					state.m_nIndexMax=paneView->mMouseMenu.GetMenuItemCount(); state.m_pMenu=&paneView->mMouseMenu;
+					Check(static_cast<CCmdTarget*>(paneView)->OnCmdMsg(ID_SELECTION_MODE,CN_UPDATE_COMMAND_UI,&state,nullptr)!=FALSE,
+						"each pane routes selection command UI to the shared state");
+					Check(bool(paneView->mMouseMenu.GetMenuState(ID_SELECTION_MODE,MF_BYCOMMAND)&MF_CHECKED)==doc->mSelMode,
+						"all pane context selection checks agree with Options");
+				}
+			};
+			frame->SetActiveView(timeline); timeline->SetFocus();
+			frame->SendMessage(WM_COMMAND,ID_SELECTION_MODE);
+			Check(doc->mSelMode!=before,"Options selection toggles once even with Timeline active"); checkSelection();
+			doc->mPane[1].pView->SendMessage(WM_COMMAND,ID_SELECTION_MODE);
+			Check(doc->mSelMode==before,"candidate pane context command toggles the same document mode"); checkSelection();
+			frame->SetActiveView(active); Pump(50);
+			doc->mPane[0].pView->SendMessage(WM_KEYDOWN,'S',1); Pump(50);
+			Check(doc->mSelMode!=before,"Comparer S shortcut shares the Options/context mode"); checkSelection();
+			doc->mPane[0].pView->SendMessage(WM_KEYDOWN,'S',1); Pump(50);
+			Check(doc->mSelMode==before && doc->GetSelectionRect(l,t,r,b) && l==2 && t==3 && r==10 && b==12,
+				"selection-mode changes preserve the shared ROI and restore the original mode");
+		}
 		frame->SendMessage(WM_COMMAND,q1view::ID_UI_APPEARANCE_SYSTEM+(UINT(theme)+1)%3); Pump(30);
 		Check(q1view::WindowsUiAppearanceState().Appearance()==theme, "retired Comparer theme command cannot change shared preference");
 		auto SharedTheme = [&](unsigned choice) {

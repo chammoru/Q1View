@@ -8,6 +8,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ### Changed
 
+- Windows Viewer and Comparator: expose Selection Mode in Options while retaining the S shortcut and image context menus; also expose Viewer's per-window Sync Input setting in Options, with consistent shared check states and clearer labels. Comparator's Clear Selection remains a context/Esc action.
+
 - Windows Viewer: retain direct resolution, pixel-format and FPS menus, show sampling mode at the bottom left and live magnification at the bottom right without duplicate top-level zoom or Fit/100% controls, group image scaling, video autoplay and theme settings under Options, and remove the duplicate Thumbnail Browser entry from File while retaining Browse and E; preserve File > Open/Ctrl+O, mouse-wheel zoom, narrow-window menu wrapping, video progress, full-screen viewing and Comparator's layout. (#120)
 
 ### Fixed
