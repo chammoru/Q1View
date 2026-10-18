@@ -10,6 +10,7 @@ class ViewerStatusBar {
 	HWND mWindow = nullptr, mTip = nullptr;
 	q1view::WindowsUiFontCache mFonts;
 	std::wstring mText;
+	std::wstring mSampling, mZoom;
 	static LRESULT CALLBACK Proc(HWND window, UINT message, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
 		auto* self = reinterpret_cast<ViewerStatusBar*>(data);
 		if (message == WM_ERASEBKGND) return TRUE;
@@ -25,8 +26,10 @@ class ViewerStatusBar {
 				SetTextColor(buffer.Dc(), q1view::WindowsUiColorValue(q1view::WindowsUiColor::Muted));
 				RECT edge = rect; edge.bottom = 1;
 				FillRect(buffer.Dc(), &edge, q1view::WindowsUiColorBrush(q1view::WindowsUiColor::Border));
-				InflateRect(&rect, -q1view::WindowsUiPixels(8, q1view::WindowsUiDpi(window)), 0);
-				DrawTextW(buffer.Dc(), self->mText.c_str(), -1, &rect, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+				RECT sampling, zoom;
+				self->TextRects(buffer.Dc(), rect, sampling, zoom);
+				DrawTextW(buffer.Dc(), self->mSampling.c_str(), -1, &sampling, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+				DrawTextW(buffer.Dc(), self->mZoom.c_str(), -1, &zoom, DT_SINGLELINE | DT_VCENTER | DT_RIGHT | DT_END_ELLIPSIS | DT_NOPREFIX);
 			}
 			}
 			EndPaint(window, &paint); return 0;
@@ -52,6 +55,18 @@ public:
 	}
 	HWND Window() const { return mWindow; }
 	const std::wstring& Text() const { return mText; }
+	const std::wstring& SamplingText() const { return mSampling; }
+	const std::wstring& ZoomText() const { return mZoom; }
+	// The caller selects the same status font used by painting. Keep zoom at
+	// the right edge and let the left field ellipsize before the fields overlap.
+	void TextRects(HDC dc, RECT rect, RECT& sampling, RECT& zoom) const {
+		const int padding = q1view::WindowsUiPixels(8, q1view::WindowsUiDpi(mWindow));
+		rect.left = (std::min)(rect.right, rect.left + padding);
+		rect.right = (std::max)(rect.left, rect.right - padding);
+		SIZE size = {}; GetTextExtentPoint32W(dc, mZoom.c_str(), int(mZoom.size()), &size);
+		zoom = rect; zoom.left = (std::max)(rect.left, rect.right - size.cx);
+		sampling = rect; sampling.right = (std::max)(rect.left, zoom.left - padding);
+	}
 	int Height() const {
 		if (!mWindow) return 0;
 		const auto dpi = q1view::WindowsUiDpi(mWindow);
@@ -64,9 +79,11 @@ public:
 		SetWindowPos(mWindow, HWND_TOP, 0, (std::max)(0L, rect.bottom - Height()), rect.right, Height(),
 			SWP_NOACTIVATE | (visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
 	}
-	void SetText(const std::wstring& text) {
-		if (mText == text || !mWindow) return;
-		mText = text; SetWindowTextW(mWindow, mText.c_str());
+	void SetText(const std::wstring& sampling, const std::wstring& zoom) {
+		if ((mSampling == sampling && mZoom == zoom) || !mWindow) return;
+		mSampling = sampling; mZoom = zoom;
+		mText = sampling.empty() ? zoom : sampling + L"  |  " + zoom;
+		SetWindowTextW(mWindow, mText.c_str());
 		if (mTip) {
 			TOOLINFOW tool = {sizeof(tool)}; tool.hwnd = mWindow;
 			tool.uId = reinterpret_cast<UINT_PTR>(mWindow); tool.lpszText = const_cast<wchar_t*>(mText.c_str());

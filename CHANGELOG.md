@@ -8,7 +8,7 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ### Changed
 
-- Windows Viewer: retain direct resolution, pixel-format and FPS menus, restore a live read-only magnification at the far right without Fit or fixed 100% controls, combine image scaling and theme settings under Options without separate View or More menus, retain File > Open and Ctrl+O without a duplicate Open button, and separate actual image format, scale, sampling mode and frame position into a read-only status line; preserve mouse-wheel zoom, narrow-window menu wrapping, full-screen viewing and Comparator's layout. (#120)
+- Windows Viewer: retain direct resolution, pixel-format and FPS menus, show sampling mode at the bottom left and live magnification at the bottom right without duplicate top-level zoom or Fit/100% controls, group image scaling, video autoplay and theme settings under Options, and remove the duplicate Thumbnail Browser entry from File while retaining Browse and E; preserve File > Open/Ctrl+O, mouse-wheel zoom, narrow-window menu wrapping, video progress, full-screen viewing and Comparator's layout. (#120)
 
 ### Fixed
 

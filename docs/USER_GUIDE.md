@@ -38,13 +38,13 @@ Decoded images and video show RGB values only.
 
 ### Windows Viewer commands and status
 
-The top menu keeps **File, resolution, pixel format, FPS, Browse, Options**, followed by the right-aligned **Compare, Help, current magnification** group. **Browse** is immediately left of **Options**. The far-right percentage reports the actual zoom and updates with mouse-wheel zoom; it is read-only, not a reset button. There are no Fit or fixed 100% controls. Empty/loading input shows **--** rather than a fabricated zoom. Open files through **File → Open** or **Ctrl+O**, without a duplicate top-level Open button. **Browse** toggles the same thumbnail drawer as `E` and highlights when open. **Compare** is always available and can open an empty Comparator workspace.
+The top menu keeps **File, resolution, pixel format, FPS, Browse, Options**, followed by the right-aligned **Compare, Help** group. **Browse** is immediately left of **Options** and is the single menu entry for the thumbnail drawer; `E` performs the same toggle. There are no top-level zoom, Fit or fixed 100% controls. Open files through **File → Open** or **Ctrl+O**, without a duplicate top-level Open button. **Browse** highlights when open. **Compare** is always available and can open an empty Comparator workspace.
 
 Hovering over a direct command such as Browse or Compare never executes it, including while another menu is open. Arrow keys move keyboard focus; click, Enter or Space explicitly activates the focused command. Viewer canvas and thumbnail-browser context menus use the same app font, palette and row spacing as Comparator's menus, retaining native check states and commands.
 
-Menus use measured text widths at the current DPI and Windows text size, wrapping into additional rows when necessary rather than hiding commands or reducing font size. Resolution, pixel format and FPS remain directly visible as before; fixed decoded sources keep RAW-only settings unavailable. Image scaling and theme settings are grouped in **Options**, with no separate **View** or **More** menu. The zoom readout reserves compact measured space for ordinary percentages; values of 1000% or more expand only as needed rather than being clipped. Existing mouse-wheel zoom, automatic fitting on opening a source, Alt menu access and shortcuts remain available. Windows high-contrast/non-DWM fallback retains the OS-managed native menu.
+Menus use measured text widths at the current DPI and Windows text size, wrapping into additional rows when necessary rather than hiding commands or reducing font size. Resolution, pixel format and FPS remain directly visible as before; fixed decoded sources keep RAW-only settings unavailable. Image scaling, video autoplay and theme settings are grouped in **Options**, with no separate **View** or **More** menu. File contains file operations rather than duplicate drawer or autoplay settings. Existing mouse-wheel zoom, automatic fitting on opening a source, Alt menu access and shortcuts remain available. Windows high-contrast/non-DWM fallback retains the OS-managed native menu.
 
-The bottom status line is read-only: image dimensions, the active input/conversion pixel format (for example, a decoded photo is BGR888, not its original JPEG storage format), actual zoom percentage, Fit/Manual view mode, sampling mode, and the displayed frame position when there is more than one frame. Empty input shows **Ready**, not the default RAW dimensions as if an image were loaded. Long status text uses an ellipsis; hover for the full text, also exposed through the native accessibility name. Status updates do not resize the image area or move command buttons. Full screen hides both command and status areas.
+The bottom status line is read-only and has two fields: the current sampling label (**Smooth**, **Pixel**, or **Auto**, including **Auto→Pixel** at high zoom) on the left, and the actual zoom percentage on the far right. Resolution, color space, Fit/Manual and duplicate frame text are not shown here. Empty/loading input shows **--** in the zoom field rather than a fabricated percentage. The fields use the shared app font and palette; long text can ellipsize without overlapping, and the full text remains available through the tooltip and native accessibility name. Status updates do not resize the image area or move command buttons. The video's existing frame/time progress display is unchanged. Full screen hides both command and status areas.
 
 ### Image Scaling
 
@@ -97,7 +97,7 @@ In the Windows Viewer and Comparator, window titles, help descriptions, main app
 
 ### Thumbnail Browser
 
-Press `E` (or **File ▸ Thumbnail Browser**) to slide out a thumbnail drawer on
+Press `E` (or the top-level **Browse** command) to slide out a thumbnail drawer on
 the left. It is hidden by default, so the window is unchanged until you open
 it. The compact list is a complete view of the current folder, with thumbnails
 or labeled placeholders as appropriate. In the Windows Viewer, Ctrl+wheel over

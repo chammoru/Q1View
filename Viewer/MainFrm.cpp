@@ -664,8 +664,6 @@ LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
 	if (message == WM_CREATE && result != -1) {
 		mUiFrame.KeepTrailingMenuGroupTogether();
-		mUiFrame.ReserveMenuWidth(ID_MAGNIFY, L"888.8%");
-		mUiMenus.SetReadOnlyStatus(ID_MAGNIFY);
 		mUiFrame.Initialize(m_hWnd, mUiMenus);
 		mStatusBar.Initialize(m_hWnd); UpdateViewerStatus(); RecalcLayout();
 	}
@@ -1032,7 +1030,6 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	CMenu* optionsMenu = GetMenu()->GetSubMenu(MENU_POS_OPTIONS);
 	q1view::AppendWindowsUiThemeMenu(optionsMenu->GetSafeHmenu());
 	// Keep input settings directly accessible in their original positions.
-	// The original far-right magnification item is read-only, not a command.
 	mAppliedCanvasColor = Q1UI_COLOR_CANVAS_BG;
 
 	CheckResolutionRadio(q1view::ViewerDefaultImageWidth, q1view::ViewerDefaultImageHeight);
@@ -1618,31 +1615,13 @@ void CMainFrame::UpdateViewerStatus()
 {
 	auto* view = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
 	auto* doc = view ? view->GetDocument() : nullptr;
-	CString text;
+	CString sampling;
 	CString zoom = L"--";
-	if (!doc || !view->mStableRgbBufferInfo.addr || doc->mDocState == DOC_JUSTLOAD) {
-		text = doc && !doc->mPathName.IsEmpty() ? L"Loading..." : L"Ready";
-	} else {
+	if (doc && view->mStableRgbBufferInfo.addr && doc->mDocState != DOC_JUSTLOAD) {
 		zoom.Format(L"%.1f%%", double(view->mN) * 100.0);
-		CString format = L"Unknown";
-		for (const auto& info : qcsc_info_table) if (info.cs == doc->mColorSpace) { format = CString(info.name).MakeUpper(); break; }
-		const CString scaling = view->GetScalingStatusLabel();
-		text.Format(L"%d\x00d7%d  |  %s  |  %.1f%%  %s  |  %s", doc->mW, doc->mH,
-			format.GetString(), double(view->mN) * 100.0, view->IsFitToWindow() ? L"Fit" : L"Manual",
-			scaling.GetString());
-		if (doc->mFrames > 1) {
-			CString frame; frame.Format(L"  |  Frame %ld / %ld", long(view->mStableRgbBufferInfo.ID) + 1, doc->mFrames);
-			text += frame;
-		}
+		sampling = view->GetScalingStatusLabel();
 	}
-	mStatusBar.SetText(text.GetString());
-	const HMENU menu = mUiFrame.RetainedMenu();
-	if (menu && mUiMenus.Text(menu, ID_MAGNIFY) != zoom.GetString()) {
-		::ModifyMenuW(menu, ID_MAGNIFY, MF_BYCOMMAND | MF_STRING | MF_RIGHTJUSTIFY | MF_GRAYED,
-			ID_MAGNIFY, zoom.GetString());
-		mUiFrame.SyncLabel(ID_MAGNIFY);
-		if (!mUiFrame.Custom() && GetMenu()) ::DrawMenuBar(m_hWnd);
-	}
+	mStatusBar.SetText(sampling.GetString(), zoom.GetString());
 }
 
 void CMainFrame::ToggleSyncInput()

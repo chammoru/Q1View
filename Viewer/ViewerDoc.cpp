@@ -367,6 +367,8 @@ void CViewerDoc::UpdateMenu()
 	pMainFrm->UpdateFpsLabel(mFps);
 	pMainFrm->CheckFpsRadio(mFps);
 	pMainFrm->UpdateMagnication(pView->mN, pView->mWDst, pView->mHDst);
+	// Source labels change together on open, not on every zoom/status update.
+	pMainFrm->DrawMenuBar();
 }
 
 // CViewerDoc commands

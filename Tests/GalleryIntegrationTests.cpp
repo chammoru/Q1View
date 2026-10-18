@@ -481,9 +481,9 @@ struct GalleryIntegrationTests {
             }
             CRect after; frame->GetWindowRect(after);
             Require(before==after, "user file navigation keeps the existing outer window size");
-            CString position; position.Format(L"Frame %ld / %ld",long(view->mStableRgbBufferInfo.ID)+1,doc->mFrames);
-            Require(frame->mStatusBar.Text().find(position.GetString())!=std::wstring::npos,
-                "video status reports the actually presented frame, not a queued decoder position");
+            Require(doc->mCurFrameID==view->mStableRgbBufferInfo.ID && view->mHProgress>0 &&
+                frame->mStatusBar.Text().find(L"Frame")==std::wstring::npos,
+                "video retains its presented-frame progress bar without duplicating frame information in the status line");
         };
         navigate(VK_NEXT,first,true); // still -> video
         navigate(VK_NEXT,second,true); // playing video -> next video
@@ -544,6 +544,22 @@ struct GalleryIntegrationTests {
         Require(enabled==frame->CommandContext().rawInput, "cached refresh does not leave a rebuilt fixed-source RAW menu enabled");
     }
     void ViewerShellTests(CMainFrame* frame, CViewerView* view, CViewerDoc* doc) {
+        // A source change must refresh hosted labels independently of zoom.
+        frame->UpdateResolutionLabel(800,600);
+        frame->UpdateCsLabel(L"YUV420");
+        frame->UpdateFpsLabel(1.0);
+        frame->DrawMenuBar();
+        doc->UpdateMenu();
+        CString expectedLabels[3];
+        expectedLabels[0].Format(L"%d&x%d",doc->mW,doc->mH);
+        expectedLabels[1]=CString(q1::image_find_cs_name(doc->mSortedCscInfo,doc->mColorSpace)).MakeUpper();
+        expectedLabels[2].Format(L"%.2ff&ps",doc->mFps);
+        for(int i=0;i<3;++i) {
+            wchar_t label[256]={};
+            GetWindowTextW(::GetDlgItem(frame->mUiFrame.MenuHost(),i+2),label,_countof(label));
+            Require(expectedLabels[i]==label,
+                "opening a source refreshes the actual resolution, format and FPS buttons without a top zoom item");
+        }
         CRect original; frame->GetWindowRect(original);
         const CString path = doc->mPathName;
         const auto generation = doc->mOpenGeneration;
@@ -566,7 +582,7 @@ struct GalleryIntegrationTests {
                 for(size_t j=i+1; j<rects.size(); ++j) { CRect overlap; Require(!overlap.IntersectRect(&r,&rects[j]), "wrapped command targets never overlap"); }
             }
             Require(!rects.empty() && rects.back().right==client.right,
-                "actual read-only magnification remains at the far right at all required client sizes");
+                "Help remains at the far right without a duplicate top-level magnification field");
             CRect status, content, splitter;
             ::GetWindowRect(frame->mStatusBar.Window(),status); frame->ScreenToClient(status);
             frame->GetContentRect(content); frame->mwndSplitter.GetWindowRect(splitter); frame->ScreenToClient(splitter);
@@ -582,18 +598,26 @@ struct GalleryIntegrationTests {
         const int height = frame->mUiFrame.Height();
         auto verifyZoom=[&] {
             CString expected; expected.Format(L"%.1f%%",double(view->mN)*100.0);
-            Require(frame->mUiMenus.Text(frame->mUiFrame.RetainedMenu(),ID_MAGNIFY)==expected.GetString(),
-                "far-right magnification reports the real zoom, not a fixed 100 percent action");
-            const int index=frame->GetMenu()->GetMenuItemCount();
-            const HWND label=::GetDlgItem(frame->mUiFrame.MenuHost(),index);
-            wchar_t name[80]={}; GetWindowTextW(label,name,_countof(name));
-            Require(!IsWindowEnabled(label) && expected==name,"actual zoom has an updated native accessible name and cannot execute a command");
+            Require(frame->mStatusBar.ZoomText()==expected.GetString(),
+                "bottom-right magnification reports the real zoom without a duplicate menu item");
+            const std::wstring sampling=view->GetScalingStatusLabel().GetString();
+            Require(frame->mStatusBar.SamplingText()==sampling && frame->mStatusBar.Text()==sampling+L"  |  "+expected.GetString(),
+                "status retains the actual sampling mode and zoom only, excluding dimensions, color space, Fit/Manual and frame text");
+            q1view::WindowsUiFontCache fonts; HDC dc=CreateCompatibleDC(nullptr);
+            const auto old=SelectObject(dc,fonts.Get(q1view::WindowsUiFontRole::Supporting,frame->mStatusBar.Window()));
+            RECT bounds,left,right; ::GetClientRect(frame->mStatusBar.Window(),&bounds);
+            frame->mStatusBar.TextRects(dc,bounds,left,right);
+            const int padding=q1view::WindowsUiPixels(8,q1view::WindowsUiDpi(frame->mStatusBar.Window()));
+            SIZE size={}; GetTextExtentPoint32W(dc,expected,expected.GetLength(),&size);
+            Require(left.left==padding && right.right==bounds.right-padding && left.right<=right.left && right.right-right.left>=size.cx,
+                "sampling stays left and the entire measured zoom stays right without overlap or clipping");
+            SelectObject(dc,old); DeleteDC(dc);
             Require(frame->mUiFrame.Height()==height,"changing magnification never changes menu height");
             const auto& current=frame->mUiFrame.MenuRects();
-            if(view->mN<10.f) for(size_t i=0;i<rects.size();++i) Require(EqualRect(&rects[i],&current[i])!=FALSE,
-                "normal magnification changes preserve Help and every menu rectangle with a compact zoom width");
+            for(size_t i=0;i<rects.size();++i) Require(EqualRect(&rects[i],&current[i])!=FALSE,
+                "all magnification changes preserve Help and every menu rectangle");
             CRect client; frame->GetClientRect(client);
-            Require(current.back().right==client.right,"compact zoom text remains at the far right, including exceptionally large values");
+            Require(current.back().right==client.right,"status changes do not move the right-aligned Help menu");
             for(size_t i=0;i<current.size();++i) for(size_t j=i+1;j<current.size();++j) {
                 CRect overlap; Require(!overlap.IntersectRect(&current[i],&current[j]),
                     "zoom values beyond the compact reservation expand without overlapping other labels");
@@ -614,6 +638,11 @@ struct GalleryIntegrationTests {
         view->SendMessage(WM_MOUSEWHEEL,MAKEWPARAM(0,WHEEL_DELTA),MAKELPARAM(wheel.x,wheel.y)); Pump(.03);
         Require(view->mN>1.f,"mouse wheel actually zooms beyond 100 percent"); verifyZoom();
         view->FitToWindow(); view->Invalidate(FALSE); Pump(.03); verifyZoom();
+        const auto originalMode=view->GetScalingMode();
+        for(auto mode : {q1::ImageScalingMode::Smooth,q1::ImageScalingMode::PixelExact,q1::ImageScalingMode::Auto}) {
+            view->SetScalingMode(mode,false,false); Pump(.03); verifyZoom();
+        }
+        view->SetScalingMode(originalMode,false,false); Pump(.03);
         Require(frame->mUiFrame.Height()==height && frame->mUiFrame.MenuRects().size()==rects.size(), "zoom status never changes command row height or control count");
         for(size_t i=0;i<rects.size();++i) Require(EqualRect(&rects[i],&frame->mUiFrame.MenuRects()[i])!=FALSE,"zoom leaves Help and every command hit target fixed");
         Require(doc->mPathName==path && doc->mOpenGeneration==generation && view->mStableRgbBufferInfo.addr==pixels &&
@@ -644,6 +673,7 @@ struct GalleryIntegrationTests {
         for(int i=0;i<frame->GetMenu()->GetMenuItemCount();++i)
         {
             Require(frame->GetMenu()->GetMenuItemID(i)!=ID_FILE_OPEN, "Viewer has no duplicate top-level Open command");
+            Require(frame->GetMenu()->GetMenuItemID(i)!=ID_MAGNIFY,"magnification appears only in the bottom status, never in the menu bar");
             const auto label=frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),i,true);
             Require(label!=L"&View" && label!=L"&More", "Viewer has no separate View or More menu");
         }
@@ -655,16 +685,34 @@ struct GalleryIntegrationTests {
         Require(frame->GetMenu()->GetMenuItemID(4)==ID_TOGGLE_DRAWER &&
             frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options",
             "Browse appears immediately left of Options in root and native button order");
-        Require(rootCount>=9 && frame->GetMenu()->GetMenuItemID(rootCount-1)==ID_MAGNIFY &&
-            (frame->GetMenu()->GetMenuState(ID_MAGNIFY,MF_BYCOMMAND)&MF_GRAYED),
-            "only the original read-only magnification remains at the far right, without Fit or 100 percent buttons");
+        Require(rootCount>=8 && frame->GetMenu()->GetMenuItemID(rootCount-1)==ID_VIEWER_HELP,
+            "Help is the last root item, with no zoom, Fit or 100 percent menu controls");
         Require(frame->GetMenu()->GetSubMenu(0)->GetMenuState(ID_FILE_OPEN,MF_BYCOMMAND)!=UINT(-1),
             "File menu retains its original Open command");
+        CMenu* fileMenu=frame->GetMenu()->GetSubMenu(0);
+        CMenu* settingsMenu=frame->GetMenu()->GetSubMenu(5);
+        Require(fileMenu->GetMenuState(ID_TOGGLE_DRAWER,MF_BYCOMMAND)==UINT(-1) &&
+            fileMenu->GetMenuState(ID_AUTOPLAY_VIDEOS,MF_BYCOMMAND)==UINT(-1) &&
+            settingsMenu->GetMenuState(ID_AUTOPLAY_VIDEOS,MF_BYCOMMAND)!=UINT(-1),
+            "File has no duplicate browser or autoplay setting; autoplay is available under Options");
+        const bool autoplayBefore=theApp.IsVideoAutoplayEnabled();
+        auto verifyAutoplayCheck=[&] {
+            frame->SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(settingsMenu->GetSafeHmenu()),5);
+            Require(bool(settingsMenu->GetMenuState(ID_AUTOPLAY_VIDEOS,MF_BYCOMMAND)&MF_CHECKED)==theApp.IsVideoAutoplayEnabled(),
+                "Options autoplay check reflects the unchanged saved preference and existing command handler");
+        };
+        verifyAutoplayCheck(); frame->SendMessage(WM_COMMAND,ID_AUTOPLAY_VIDEOS);
+        Require(theApp.IsVideoAutoplayEnabled()!=autoplayBefore,"moved autoplay command still toggles its original preference");
+        verifyAutoplayCheck(); frame->SendMessage(WM_COMMAND,ID_AUTOPLAY_VIDEOS); verifyAutoplayCheck();
+        Require(theApp.IsVideoAutoplayEnabled()==autoplayBefore,"autoplay preference is restored after isolated menu checks");
         std::vector<ACCEL> accelerators(CopyAcceleratorTable(frame->m_hAccelTable,nullptr,0));
         CopyAcceleratorTable(frame->m_hAccelTable,accelerators.data(),int(accelerators.size()));
         Require(std::any_of(accelerators.begin(),accelerators.end(),[](const ACCEL& key) {
             return key.cmd==ID_FILE_OPEN && key.key=='O' && (key.fVirt&(FVIRTKEY|FCONTROL))==(FVIRTKEY|FCONTROL);
         }), "Ctrl+O retains the original file-open command binding");
+        Require(std::any_of(accelerators.begin(),accelerators.end(),[](const ACCEL& key) {
+            return key.cmd==ID_TOGGLE_DRAWER && key.key=='E' && (key.fVirt&FVIRTKEY) && !(key.fVirt&(FCONTROL|FALT|FSHIFT));
+        }),"E still toggles Browse after removing its duplicate File entry");
         frame->RefreshCommandStates();
         const auto commandContext = frame->CommandContext();
         Require(frame->IsCommandEnabled(ID_EDIT_PASTE) == bool(IsClipboardFormatAvailable(CF_DIB) || IsClipboardFormatAvailable(CF_DIBV5)),
@@ -677,7 +725,7 @@ struct GalleryIntegrationTests {
         }
         Require(!frame->OpenComparatorFiles({}), "selection-based comparison still rejects an empty batch instead of launching a blank workspace");
         Require(!frame->OpenComparatorFiles(std::vector<CString>(5,L"unused.png")), "selection-based comparison still rejects more than four files");
-        if(!commandContext.pixels) Require(frame->mUiMenus.Text(frame->mUiFrame.RetainedMenu(),ID_MAGNIFY)==L"--",
+        if(!commandContext.pixels) Require(frame->mStatusBar.ZoomText()==L"--" && frame->mStatusBar.SamplingText().empty(),
             "empty input does not pretend to have a loaded 100 percent zoom");
         const auto clipboardSequence = GetClipboardSequenceNumber();
         if (!commandContext.pixels) {
@@ -812,10 +860,10 @@ struct GalleryIntegrationTests {
         if (!captured.empty()) captureBytes.assign(captureBuffer,captureBuffer+captureSize);
         CRect appearanceBounds; frame->GetWindowRect(appearanceBounds);
         HMENU options = GetSubMenu(frame->GetMenu()->GetSafeHmenu(),5);
-        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==3 &&
+        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==4 &&
             frame->mUiMenus.Text(options,0,true)==L"&Image Scaling" && GetMenuItemCount(GetSubMenu(options,0))==3 &&
-            frame->mUiMenus.Text(options,2,true)==L"&Theme",
-            "Options retains Image Scaling and Theme without the unwanted Fit or Actual size commands");
+            GetMenuItemID(options,1)==ID_AUTOPLAY_VIDEOS && frame->mUiMenus.Text(options,3,true)==L"&Theme",
+            "Options contains Image Scaling, autoplay and Theme without unwanted zoom commands");
         for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,
             q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
             if (command==q1view::ID_UI_APPEARANCE_DARK || command==q1view::ID_UI_APPEARANCE_SYSTEM)

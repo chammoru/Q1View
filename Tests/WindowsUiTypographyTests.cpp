@@ -609,25 +609,20 @@ static void TestViewerDefaultMenu()
 	FrameTestHost host;
 	HMENU root = CreateMenu();
 	const wchar_t* labels[] = {L"&File", L"800&x600", L"YUV420", L"30.00f&ps", L"Browse",
-		L"&Options", L"&Compare", L"&Help", L"100.0%"};
+		L"&Options", L"&Compare", L"&Help"};
 	for (UINT i = 0; i < _countof(labels); ++i)
-		AppendMenuW(root, MF_STRING | (i >= 6 ? MF_RIGHTJUSTIFY : 0) | (i==8 ? MF_GRAYED : 0), 200+i, labels[i]);
+		AppendMenuW(root, MF_STRING | (i >= 6 ? MF_RIGHTJUSTIFY : 0), 200+i, labels[i]);
 	HWND window = CreateWindowExW(0, L"Q1View.FrameRegressionTest", L"Viewer startup measurement", WS_OVERLAPPEDWINDOW,
 		-20000, -20000, 900, 700, nullptr, root, GetModuleHandleW(nullptr), &host);
 	Require(window != nullptr, "realistic Viewer menu measurement host created");
 	host.frame.KeepTrailingMenuGroupTogether();
-	host.frame.ReserveMenuWidth(208,L"888.8%"); host.menus.SetReadOnlyStatus(208);
 	host.frame.Initialize(window, host.menus);
 	for (int update = 0; update < 2; ++update) {
 		if (update) { InsertMenuW(root, 7, MF_BYPOSITION | MF_STRING | MF_RIGHTJUSTIFY, 299, L"&Update"); host.frame.Sync(); }
 		for (UINT dpi : {96u, 120u, 144u}) {
 			const int measured = host.frame.SingleRowMenuWidth(dpi, 1.0);
-			host.frame.ReserveMenuWidth(208,L"88888.8%");
-			const int previousWidth=host.frame.SingleRowMenuWidth(dpi,1.0);
-			host.frame.ReserveMenuWidth(208,L"888.8%");
-			Require(measured<previousWidth,"compact magnification reservation reduces the measured row width at each DPI");
 			const auto size = q1view::ViewerDefaultContentSize(dpi, measured, {1920,1200});
-			Require(size.cx >= measured, "restored Viewer input menus, live zoom readout and optional Update fit chosen default width");
+			Require(size.cx >= measured, "restored Viewer input menus and optional Update fit chosen default width without a zoom field");
 			std::printf("Viewer normal menu DPI %u, Update %d: %d px; default width %ld px\n", dpi, update, measured, size.cx);
 		}
 		if (host.frame.Custom()) {
@@ -650,7 +645,7 @@ static void TestViewerDefaultMenu()
 					for(size_t j=i+1;j<rects.size();++j) { RECT overlap; Require(!IntersectRect(&overlap,&rects[i],&rects[j]),"restored input menus and right-aligned commands never overlap"); }
 				}
 				Require(rects.back().right==bounds.right,
-					"actual zoom readout occupies the far right, including narrow wrapped windows");
+					"Help occupies the far right without duplicate zoom controls, including narrow wrapped windows");
 			}
 		}
 	}
