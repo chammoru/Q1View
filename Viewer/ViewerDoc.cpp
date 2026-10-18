@@ -451,10 +451,12 @@ BOOL CViewerDoc::OpenDocumentImpl(LPCTSTR lpszPathName, bool explicitOpen)
 
 	mOrigW = mOrigH = -1;
 	mFrmSrc->ConfigureDoc(this);
-	mAutoplayAfterPresent = explicitOpen && mFrmSrc->isVideo() &&
-		theApp.IsVideoAutoplayEnabled();
-
 	LoadSourceImage(mLoadLayout);
+	// The actual frame count is known only after loading. Raw byte streams are
+	// playable sequences too; decoded stills and internal reloads remain paused.
+	mAutoplayAfterPresent = explicitOpen && mFrames > 1 &&
+		(mFrmSrc->isVideo() || !mFrmSrc->isFixed()) && theApp.IsVideoAutoplayEnabled();
+	if (mAutoplayAfterPresent) pView->Invalidate(FALSE);
 
 	UpdateMenu();
 

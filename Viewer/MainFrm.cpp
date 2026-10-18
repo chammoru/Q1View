@@ -1336,6 +1336,10 @@ void CMainFrame::RefreshView()
 
 		pView->AdjustWindowSize();
 	}
+	// RAW interpretation changes also replace root menu labels. Refresh these
+	// once here, independently of the read-only zoom/status update path.
+	RefreshCommandStates();
+	DrawMenuBar();
 }
 
 namespace {

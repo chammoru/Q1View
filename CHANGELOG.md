@@ -12,6 +12,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ### Fixed
 
+- Windows Viewer: refresh resolution and color-space menu labels after RAW interpretation changes, and honor the existing autoplay preference for multi-frame RAW files as well as videos on direct open and Page Up/Page Down navigation; keep single-frame inputs, internal reloads and disabled autoplay paused.
+
 - Windows Viewer and Comparator: prevent top-level direct commands from executing on hover or arrow navigation during popup tracking; activate only on an explicit click or keyboard action. Place Viewer's Browse immediately left of Options, and match Viewer canvas and thumbnail-browser context menus to Comparator's shared font, colors and spacing.
 
 - Windows Viewer: keep the main Compare launcher enabled without an open file and open an empty Comparator workspace in that case; preserve the separate browser selection requirements.

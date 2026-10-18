@@ -372,9 +372,47 @@ struct GalleryIntegrationTests {
         Require(doc->mFrmSrc && !doc->mFrmSrc->isFixed() && doc->mW == 800 && doc->mH == 600 &&
             doc->mOrigSceneSize == 720000 && doc->mFrames == 1,
             "unnamed RAW uses 800x600 pixels and correct YUV420 frame bytes/count");
+        Require(AfxGetApp()->OpenDocumentFile(L"Tests\\fixtures\\sample_16x16.png") != nullptr,
+            "decoded photo opens before testing the return to editable RAW menus");
+        frame->RefreshCommandStates(true);
+        Require(AfxGetApp()->OpenDocumentFile(named) != nullptr,"explicit RAW opens after a decoded photo");
+        frame->RefreshCommandStates(); Pump(.05);
+        for(UINT position : {1u,2u}) {
+            Require(!(frame->GetMenu()->GetMenuState(position,MF_BYPOSITION)&(MF_DISABLED|MF_GRAYED)) &&
+                IsWindowEnabled(::GetDlgItem(frame->mUiFrame.MenuHost(),position+1)),
+                "returning from a decoded photo enables the actual RAW root menu button");
+            auto* popup=frame->GetMenu()->GetSubMenu(position);
+            frame->SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(popup->GetSafeHmenu()),position);
+            Require(!(popup->GetMenuState(0,MF_BYPOSITION)&(MF_DISABLED|MF_GRAYED)),
+                "opening a RAW popup retains enabled interpretation commands after native MFC updates");
+        }
+        auto requireHostedLabel=[&](UINT position,const CString& expected) {
+            wchar_t label[256]={}; GetWindowTextW(::GetDlgItem(frame->mUiFrame.MenuHost(),position+1),label,_countof(label));
+            Require(expected==label,"RAW menu command updates its actual hosted label as well as document state");
+        };
+        for(int i=0;i<ARRAY_SIZE(qcsc_info_table);++i) if(qcsc_info_table[i].cs==QIMAGE_CS_NV12) {
+            frame->SendMessage(WM_COMMAND,ID_CS_START+i); Pump(.05);
+            Require(doc->mColorSpace==QIMAGE_CS_NV12,"RAW color-space menu command actually changes interpretation");
+            requireHostedLabel(2,L"NV12");
+        }
+        for(int i=0;i<ARRAY_SIZE(qcsc_info_table);++i) if(qcsc_info_table[i].cs==QIMAGE_CS_YUV420) {
+            frame->SendMessage(WM_COMMAND,ID_CS_START+i); Pump(.05);
+            Require(doc->mColorSpace==QIMAGE_CS_YUV420,"RAW color-space menu can restore YUV420");
+        }
         Require(AfxGetApp()->OpenDocumentFile(named) != nullptr && doc->mW == 16 && doc->mH == 16 && doc->mFrames == 1,
             "explicit RAW filename dimensions override the new default");
-        frame->ApplyResolution(320, 240);
+        frame->ApplyResolution(800,600);
+        Require(AfxGetApp()->OpenDocumentFile(unnamed)!=nullptr,"full-sized RAW fixture reopens before resolution command");
+        for(int i=0;i<ARRAY_SIZE(q1::resolution_info_table)-1;++i) {
+            int width=0,height=0;
+            if(!q1::image_parse_w_h(q1::resolution_info_table[i],&width,&height) && width==320 && height==240)
+                frame->SendMessage(WM_COMMAND,ID_RESOLUTION_START+i);
+        }
+        Require(doc->mW==320 && doc->mH==240,"RAW resolution menu command actually changes interpreted dimensions");
+        Await([&]{return view->mStableRgbBufferInfo.addr && doc->mDocState!=DOC_JUSTLOAD;},"reinterpreted RAW frame is presented");
+        Require(view->mW==320 && view->mH==240 && doc->mFrames==6,
+            "resolution command updates the displayed RAW dimensions and recalculates its frame count");
+        requireHostedLabel(1,L"320&x240");
         Require(AfxGetApp()->OpenDocumentFile(unnamed) != nullptr && doc->mW == 320 && doc->mH == 240,
             "unnamed RAW continues to honor a manually selected resolution");
         frame->ApplyResolution(800, 600);
@@ -458,6 +496,15 @@ struct GalleryIntegrationTests {
             for (int i=0;i<150;++i) writer.write(cv::Mat(64,96,CV_8UC3,cv::Scalar(i%256,(i*3)%256,(i*7)%256)));
         }
         Require(CopyFileW(first, second, TRUE) != FALSE, "second autoplay navigation video generated");
+        const CString raw=root+L"d_96x64_yuv420_30fps.yuv", single=root+L"e_96x64_yuv420.yuv",
+            lastRaw=root+L"f_96x64_yuv420_30fps.yuv";
+        auto writeRaw=[&](const CString& path,int frames) {
+            CFile file; Require(file.Open(path,CFile::modeCreate|CFile::modeWrite|CFile::typeBinary)!=FALSE,
+                "RAW autoplay navigation fixture opened for writing");
+            std::vector<BYTE> pixels(96*64*3/2,128);
+            for(int i=0;i<frames;++i) { pixels[0]=BYTE(i); file.Write(pixels.data(),UINT(pixels.size())); }
+        };
+        writeRaw(raw,150); writeRaw(single,1); writeRaw(lastRaw,150);
         theApp.SetVideoAutoplayEnabled(true);
         Require(AfxGetApp()->OpenDocumentFile(photo) != nullptr, "navigation starts on a still image");
         Await([&] { return view->mStableRgbBufferInfo.addr && doc->mDocState != DOC_JUSTLOAD; }, "navigation photo presented");
@@ -469,21 +516,21 @@ struct GalleryIntegrationTests {
         auto navigate = [&](UINT key, const CString& expected, bool playing) {
             CRect before; frame->GetWindowRect(before);
             sendKey(key);
-            Require(doc->mPathName.CompareNoCase(expected)==0, "file navigation selects the expected adjacent video");
-            Await([&] { return view->mStableRgbBufferInfo.addr && doc->mDocState != DOC_JUSTLOAD; }, "adjacent video first frame presented");
+            Require(doc->mPathName.CompareNoCase(expected)==0, "file navigation selects the expected adjacent source");
+            Await([&] { return view->mStableRgbBufferInfo.addr && doc->mDocState != DOC_JUSTLOAD; }, "adjacent source first frame presented");
             if (playing) Await([&] { return view->mIsPlaying && view->mStableRgbBufferInfo.ID>0; },
-                "adjacent video autoplays and advances when the setting is enabled");
+                "adjacent multi-frame source autoplays and advances when the setting is enabled");
             else {
                 Pump(.15);
                 Require(!view->mIsPlaying && view->mStableRgbBufferInfo.ID==0 &&
                     !doc->mAutoplayAfterPresent && !doc->mAutoplayMessagePending,
-                    "adjacent video remains paused at its first frame when autoplay is disabled");
+                    "disabled autoplay or a single-frame source remains paused without a stale autoplay request");
             }
             CRect after; frame->GetWindowRect(after);
             Require(before==after, "user file navigation keeps the existing outer window size");
-            Require(doc->mCurFrameID==view->mStableRgbBufferInfo.ID && view->mHProgress>0 &&
+            Require(doc->mCurFrameID==view->mStableRgbBufferInfo.ID && (view->mHProgress>0)==(doc->mFrames>1) &&
                 frame->mStatusBar.Text().find(L"Frame")==std::wstring::npos,
-                "video retains its presented-frame progress bar without duplicating frame information in the status line");
+                "multi-frame sources retain their progress bar without duplicating frame information in the status line");
         };
         navigate(VK_NEXT,first,true); // still -> video
         navigate(VK_NEXT,second,true); // playing video -> next video
@@ -515,11 +562,29 @@ struct GalleryIntegrationTests {
         Pump(.2);
         Require(!view->mIsPlaying && !doc->mAutoplayAfterPresent && !doc->mAutoplayMessagePending,
             "moving from video to photo cannot consume a stale autoplay request");
+        navigate(VK_NEXT,first,true); navigate(VK_NEXT,second,true);
+        navigate(VK_NEXT,raw,true);
+        Require(!doc->mFrmSrc->isFixed() && doc->mFrames==150,"navigation opens a multi-frame RAW source, not a fixed video decoder");
+        navigate(VK_NEXT,single,false); navigate(VK_NEXT,lastRaw,true);
+        view->KillPlayTimerSafe(); navigate(VK_PRIOR,single,false); navigate(VK_PRIOR,raw,true);
+        view->ToggleFullScreen(); Pump(.05);
+        navigate(VK_PRIOR,second,true); navigate(VK_NEXT,raw,true);
+        view->ToggleFullScreen(); Pump(.05);
+        theApp.SetVideoAutoplayEnabled(false);
+        navigate(VK_PRIOR,second,false); navigate(VK_NEXT,raw,false);
+        theApp.SetVideoAutoplayEnabled(true);
+        Require(doc->ReloadDocument()!=FALSE,"RAW internal reload succeeds"); Pump(.1);
+        Require(!view->mIsPlaying && !doc->mAutoplayAfterPresent && !doc->mAutoplayMessagePending,
+            "RAW internal reload remains paused despite enabled autoplay");
+        Require(AfxGetApp()->OpenDocumentFile(photo)!=nullptr,"a different source opens before the explicit RAW-open check");
+        Require(AfxGetApp()->OpenDocumentFile(raw)!=nullptr,"explicit multi-frame RAW open succeeds");
+        Await([&]{return view->mIsPlaying && view->mStableRgbBufferInfo.ID>0;},"explicit RAW open also autoplays after presentation");
         const CString reopen = previous.IsEmpty() ? CString(L"Tests\\fixtures\\sample_16x16.png") : previous;
         Require(AfxGetApp()->OpenDocumentFile(reopen)!=nullptr, "original source restored after autoplay regression checks");
         frame->MoveWindow(originalWindow);
         Pump(.1);
-        Require(DeleteFileW(photo) && DeleteFileW(first) && DeleteFileW(second) && RemoveDirectoryW(root),
+        Require(DeleteFileW(photo) && DeleteFileW(first) && DeleteFileW(second) &&
+            DeleteFileW(raw) && DeleteFileW(single) && DeleteFileW(lastRaw) && RemoveDirectoryW(root),
             "autoplay fixtures cleaned up after releasing all decoder handles");
     }
 

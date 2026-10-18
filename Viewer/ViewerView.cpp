@@ -919,7 +919,7 @@ LRESULT CViewerView::OnAutoplayVideo(WPARAM wParam, LPARAM lParam)
 	pDoc->mAutoplayMessagePending = false;
 
 	if (pDoc->mDocState == DOC_JUSTLOAD || mIsPlaying ||
-			!pDoc->mFrmSrc || !pDoc->mFrmSrc->isVideo() ||
+			!pDoc->mFrmSrc || (!pDoc->mFrmSrc->isVideo() && pDoc->mFrmSrc->isFixed()) ||
 			pDoc->mFrames <= 1 || !theApp.IsVideoAutoplayEnabled()) {
 		return 0;
 	}
