@@ -664,7 +664,7 @@ LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
 	if (message == WM_CREATE && result != -1) {
 		mUiFrame.KeepTrailingMenuGroupTogether();
-		mUiFrame.ReserveMenuWidth(ID_MAGNIFY, L"88888.8%");
+		mUiFrame.ReserveMenuWidth(ID_MAGNIFY, L"888.8%");
 		mUiMenus.SetReadOnlyStatus(ID_MAGNIFY);
 		mUiFrame.Initialize(m_hWnd, mUiMenus);
 		mStatusBar.Initialize(m_hWnd); UpdateViewerStatus(); RecalcLayout();

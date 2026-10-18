@@ -1,5 +1,11 @@
 # Issue #120: Viewer command row and read-only status
 
+## Compact magnification spacing — 2026-10-18
+
+At the user's request, reduce only Viewer's magnification reservation from 88888.8% to 888.8%. The measured normal menu width decreases from 588 to 570 px at 96 DPI, 745 to 723 at 120 DPI and 877 to 851 at 144 DPI. Normal values below 1000% keep menu geometry fixed; exceptionally large values use their actual measured width without clipping or overlap. Live percentage updates, read-only semantics, Browse/Options order and other command behavior are unchanged. The previous all-values geometry reservation below is superseded by this compact policy.
+
+Verification passed: WindowsUiTypographyTests (including explicit before/after width measurements at all three DPIs), **74 startup/RAW checks** (`issue-120-compact-zoom-startup.txt`) and **798 focused loaded-source/shell/wheel/navigation checks** (`issue-120-compact-zoom-focused.txt`), exit 0. Normal zoom values retain their rectangles; large values remain far-right and do not overlap other labels. Ordinary and instrumented Viewer Release/x64/v143 builds and `git diff --check` passed. This one-line Viewer production adjustment did not repeat the earlier full GPU/Comparator suites or modify their sources. The updated ordinary binary is `Viewer/x64/Issue120ZoomReview/Viewer.exe`; no new ordinary UI session, OS change, merge or release occurred for this spacing correction.
+
 ## Remove zoom commands; restore real magnification — 2026-10-18
 
 The user rejected the added Fit button and fixed 100% action. Remove both top-level controls and their added Options entries/command handlers; keep existing mouse-wheel zoom and automatic fitting unchanged. Retain the original ID_MAGNIFY as a read-only, far-right current percentage, refreshed from the actual presented view zoom. Empty/loading input shows --. Update only changed text and reserve measured width at the active font/DPI/text scale so Help and menu/content geometry do not move as digits change. The retained HMENU also updates during full screen. Browse order, context-menu styling, direct-command activation fixes and Comparator layout are unchanged. Earlier Fit/100% control descriptions below are historical, not the current UX.

@@ -589,8 +589,15 @@ struct GalleryIntegrationTests {
             wchar_t name[80]={}; GetWindowTextW(label,name,_countof(name));
             Require(!IsWindowEnabled(label) && expected==name,"actual zoom has an updated native accessible name and cannot execute a command");
             Require(frame->mUiFrame.Height()==height,"changing magnification never changes menu height");
-            for(size_t i=0;i<rects.size();++i) Require(EqualRect(&rects[i],&frame->mUiFrame.MenuRects()[i])!=FALSE,
-                "changing magnification preserves Help and every menu rectangle");
+            const auto& current=frame->mUiFrame.MenuRects();
+            if(view->mN<10.f) for(size_t i=0;i<rects.size();++i) Require(EqualRect(&rects[i],&current[i])!=FALSE,
+                "normal magnification changes preserve Help and every menu rectangle with a compact zoom width");
+            CRect client; frame->GetClientRect(client);
+            Require(current.back().right==client.right,"compact zoom text remains at the far right, including exceptionally large values");
+            for(size_t i=0;i<current.size();++i) for(size_t j=i+1;j<current.size();++j) {
+                CRect overlap; Require(!overlap.IntersectRect(&current[i],&current[j]),
+                    "zoom values beyond the compact reservation expand without overlapping other labels");
+            }
         };
         auto setZoom=[&](float zoom) {
             ViewerSyncInputState input={}; input.command=VIEWER_SYNC_VIEW_STATE; input.scalar=zoom;

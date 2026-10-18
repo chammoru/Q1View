@@ -616,12 +616,16 @@ static void TestViewerDefaultMenu()
 		-20000, -20000, 900, 700, nullptr, root, GetModuleHandleW(nullptr), &host);
 	Require(window != nullptr, "realistic Viewer menu measurement host created");
 	host.frame.KeepTrailingMenuGroupTogether();
-	host.frame.ReserveMenuWidth(208,L"88888.8%"); host.menus.SetReadOnlyStatus(208);
+	host.frame.ReserveMenuWidth(208,L"888.8%"); host.menus.SetReadOnlyStatus(208);
 	host.frame.Initialize(window, host.menus);
 	for (int update = 0; update < 2; ++update) {
 		if (update) { InsertMenuW(root, 7, MF_BYPOSITION | MF_STRING | MF_RIGHTJUSTIFY, 299, L"&Update"); host.frame.Sync(); }
 		for (UINT dpi : {96u, 120u, 144u}) {
 			const int measured = host.frame.SingleRowMenuWidth(dpi, 1.0);
+			host.frame.ReserveMenuWidth(208,L"88888.8%");
+			const int previousWidth=host.frame.SingleRowMenuWidth(dpi,1.0);
+			host.frame.ReserveMenuWidth(208,L"888.8%");
+			Require(measured<previousWidth,"compact magnification reservation reduces the measured row width at each DPI");
 			const auto size = q1view::ViewerDefaultContentSize(dpi, measured, {1920,1200});
 			Require(size.cx >= measured, "restored Viewer input menus, live zoom readout and optional Update fit chosen default width");
 			std::printf("Viewer normal menu DPI %u, Update %d: %d px; default width %ld px\n", dpi, update, measured, size.cx);
