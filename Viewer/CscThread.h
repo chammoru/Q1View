@@ -2,6 +2,7 @@
 
 #include "FrmProvideThread.h"
 #include "QOcv.h"
+#include "RawFrameLayout.h"
 
 class CscThread : public FrmProvideThread {
 public:
@@ -20,4 +21,5 @@ public:
 
 private:
 	CFile mFile;
+	q1view::RawFrameLayout mLayout;
 };

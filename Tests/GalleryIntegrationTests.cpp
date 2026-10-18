@@ -6,6 +6,7 @@
 #include "../Viewer/ViewerDoc.h"
 #include "../Viewer/ViewerView.h"
 #include "../Viewer/FrmSrc.h"
+#include "../Viewer/Y4mReaderWin.h"
 #include "../Viewer/ThumbnailPane.h"
 #include "../Viewer/GalleryGridCanvas.h"
 #include "QViewerCmn.h"
@@ -588,6 +589,78 @@ struct GalleryIntegrationTests {
             "autoplay fixtures cleaned up after releasing all decoder handles");
     }
 
+    void Y4mInterpretationTests(CMainFrame* frame,CViewerView* view,CViewerDoc* doc) {
+        const CString previous=doc->mPathName;
+        CRect bounds; frame->GetWindowRect(bounds);
+        struct Restore { bool autoplay=theApp.IsVideoAutoplayEnabled(); ~Restore(){theApp.SetVideoAutoplayEnabled(autoplay);} } restore;
+        theApp.SetVideoAutoplayEnabled(false);
+        wchar_t temp[MAX_PATH]; GetTempPathW(MAX_PATH,temp);
+        CString root; root.Format(L"%sQ1View-y4m-%lu-%llu\\",temp,GetCurrentProcessId(),GetTickCount64());
+        Require(CreateDirectoryW(root,nullptr)!=FALSE,"isolated Y4M test directory created");
+        const CString path=root+L"framed_96x64.yuv", malformed=root+L"malformed.y4m";
+        {
+            CFile file; Require(file.Open(path,CFile::modeCreate|CFile::modeWrite|CFile::typeBinary)!=FALSE,"Y4M fixture opened");
+            const std::string header="YUV4MPEG2 W96 H64 F30000:1001 Ip A1:1\n";
+            file.Write(header.data(),UINT(header.size()));
+            std::vector<BYTE> pixels(96*64*3/2,128);
+            for(int i=0;i<90;++i) {
+                const std::string marker=i%2 ? "FRAME Xtest="+std::to_string(i)+"\n" : "FRAME\n";
+                file.Write(marker.data(),UINT(marker.size()));
+                std::fill(pixels.begin(),pixels.begin()+96*64,BYTE(40+i));
+                file.Write(pixels.data(),UINT(pixels.size()));
+            }
+        }
+        auto verify=[&](const CString& input,bool generated) {
+            Require(AfxGetApp()->OpenDocumentFile(input)!=nullptr,"framed YUV opens through the ordinary document route");
+            Await([&]{return view->mStableRgbBufferInfo.addr && doc->mDocState!=DOC_JUSTLOAD;},"framed YUV first payload is presented");
+            Require(doc->mFrmSrc && !doc->mFrmSrc->isFixed() && doc->mFrmSrc->RawLayout() && doc->mFrames>1,
+                "playable Y4M is indexed RAW input rather than a locked decoded-video source");
+            frame->RefreshCommandStates();
+            Require(frame->IsCommandEnabled(ID_RESOLUTION_START) && frame->IsCommandEnabled(ID_CS_START) &&
+                IsWindowEnabled(::GetDlgItem(frame->mUiFrame.MenuHost(),2)) && IsWindowEnabled(::GetDlgItem(frame->mUiFrame.MenuHost(),3)),
+                "playable framed RAW exposes enabled resolution and color-space buttons");
+            const int width=doc->mW,height=doc->mH; const long count=doc->mFrames;
+            Require(doc->mColorSpace==QIMAGE_CS_YUV420 && std::abs(doc->mFps-30000.0/1001)<.00001,
+                "Y4M header supplies native YUV420 and rational timing instead of decoded BGR");
+            if(generated) Require(count==90 && width==96 && height==64 && doc->mOrigBuf[0]==40,
+                "variable FRAME markers are excluded from native pixel data and frame count");
+            Require(doc->SeekScene(17)>=0,"indexed framed RAW seeks to frame 17"); Pump(.05);
+            if(generated) Require(doc->mOrigBuf[0]==57,"seeking skips variable-length markers and reads the correct raw payload");
+            auto format=[&](QIMAGE_CS cs) {
+                for(int i=0;i<ARRAY_SIZE(qcsc_info_table);++i) if(qcsc_info_table[i].cs==cs) frame->SendMessage(WM_COMMAND,ID_CS_START+i);
+                Pump(.05); Require(doc->mColorSpace==cs,"framed RAW color-space menu changes actual interpretation");
+            };
+            format(QIMAGE_CS_NV12);
+            view->SendMessage(WM_KEYDOWN,VK_SPACE,1);
+            Await([&]{return view->mIsPlaying && view->mStableRgbBufferInfo.ID>0;},"reinterpreted framed RAW plays through indexed worker reads");
+            frame->SendMessage(WM_COMMAND,ID_RESOLUTION_START+1); Pump(.05); // 320x240
+            Require(doc->mW==320 && doc->mH==240 && doc->mFrames==count && !view->mIsPlaying,
+                "resolution can change during RAW playback safely, retaining container frame boundaries");
+            const auto bytes=doc->mFrmSrc->RawLayout()->payloadBytes;
+            Require(doc->mOrigSceneSize>bytes && doc->mOrigBuf[bytes]==0 && doc->mOrigBuf[doc->mOrigSceneSize-1]==0,
+                "oversized reinterpretation pads missing pixels instead of reading frame headers or the next image");
+            frame->ApplyResolution(width,height); format(QIMAGE_CS_YUV420);
+            theApp.SetVideoAutoplayEnabled(true);
+            Require(AfxGetApp()->OpenDocumentFile(L"Tests\\fixtures\\sample_16x16.png")!=nullptr,"still source opens before framed RAW autoplay");
+            Require(AfxGetApp()->OpenDocumentFile(input)!=nullptr,"framed RAW is opened again as a new source");
+            Await([&]{return view->mIsPlaying && view->mStableRgbBufferInfo.ID>0;},"framed RAW autoplays with editable native interpretation");
+            view->KillPlayTimerSafe(); theApp.SetVideoAutoplayEnabled(false);
+        };
+        verify(path,true);
+        wchar_t real[32768]={};
+        if(GetEnvironmentVariableW(L"Q1VIEW_Y4M_TEST_FILE",real,_countof(real))) verify(real,false);
+        for(const std::string& data : {std::string("YUV4MPEG2 W0 H64\nFRAME\n"),std::string("YUV4MPEG2 W2 H2 C444\nFRAME\n"),
+            std::string("YUV4MPEG2 W2 H2\nFRAME\n12"),std::string("YUV4MPEG2 W2147483647 H2147483647 C420p10\nFRAME\n")}) {
+            CFile file; Require(file.Open(malformed,CFile::modeCreate|CFile::modeReadWrite|CFile::typeBinary)!=FALSE,"parser boundary fixture opened");
+            file.Write(data.data(),UINT(data.size())); file.Seek(0,CFile::begin);
+            q1view::Y4mInfo info;
+            Require(!q1view::ParseY4m(file,info),"invalid dimensions, unsupported layouts and truncated payloads are rejected safely");
+        }
+        Require(AfxGetApp()->OpenDocumentFile(previous)!=nullptr,"original source restored after framed RAW checks");
+        frame->MoveWindow(bounds); Pump(.05);
+        Require(DeleteFileW(path) && DeleteFileW(malformed) && RemoveDirectoryW(root),"generated framed RAW fixtures released and cleaned up");
+    }
+
     void InteractionMenuTests(CMainFrame* frame,CViewerView* view) {
         auto* options=frame->GetMenu()->GetSubMenu(5);
         const bool selected=view->mSelMode, synced=frame->IsSyncInputEnabled();
@@ -879,6 +952,7 @@ struct GalleryIntegrationTests {
         ViewerShellTests(frame, view, doc);
         CommandRefreshTests(frame);
         AutoplayNavigationTests(frame);
+        Y4mInterpretationTests(frame,view,doc);
         wchar_t navigationOnly[8] = {};
         if (GetEnvironmentVariableW(L"Q1VIEW_AUTOPLAY_NAVIGATION_ONLY", navigationOnly, _countof(navigationOnly))) {
             fprintf(report,"Autoplay navigation-only run; full gallery/GPU suite is separate\n");

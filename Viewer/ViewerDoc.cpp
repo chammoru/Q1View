@@ -432,17 +432,21 @@ BOOL CViewerDoc::OpenDocumentImpl(LPCTSTR lpszPathName, bool explicitOpen)
 	if (mFrmSrc)
 		mFrmSrc->Release();
 
-	auto it = std::begin(mFrmSrcs);
-	for (; it != std::end(mFrmSrcs); it++) {
-		bool ok = (*it)->Open(mPathName);
+	// Y4M contains raw pixel payloads plus frame markers. Prefer the indexed
+	// RAW reader so interpretation controls stay editable, regardless of suffix.
+	const size_t preferred = q1view::HasY4mSignature(mPathName) ? mFrmSrcs.size() - 1 : 0;
+	size_t attempted = 0;
+	for (; attempted < mFrmSrcs.size(); ++attempted) {
+		auto* source = mFrmSrcs[(preferred + attempted) % mFrmSrcs.size()];
+		bool ok = source->Open(mPathName);
 		if (ok) {
-			mFrmSrc = *it;
+			mFrmSrc = source;
 			break;
 		}
 	}
 	// If this fires, even the raw fallback could not open the file.
-	ASSERT(it != std::end(mFrmSrcs));
-	if (it == std::end(mFrmSrcs)) {
+	ASSERT(attempted != mFrmSrcs.size());
+	if (attempted == mFrmSrcs.size()) {
 		AfxMessageBox(_T("Unsupported or unreadable file."));
 		return FALSE;
 	}
