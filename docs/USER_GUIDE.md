@@ -38,7 +38,7 @@ Decoded images and video show RGB values only.
 
 ### Windows Viewer commands and status
 
-The existing top command row now provides **File, Open, Browse, Fit, 100%, View, Options, Compare, Help, More** when space permits. **Browse** toggles the same thumbnail drawer as `E`. **Fit** shows the whole image without enlarging small images; **100%** switches to manual actual-pixel size. The active Browse/Fit/100% state is highlighted. Commands that require an image are unavailable until a valid frame is loaded.
+The existing top command row now provides **File, Open, Browse, Fit, 100%, View, Options, Compare, Help, More** when space permits. **Browse** toggles the same thumbnail drawer as `E`. **Fit** shows the whole image without enlarging small images; **100%** switches to manual actual-pixel size. The active Browse/Fit/100% state is highlighted. Fit/100% require a valid displayed frame, but **Compare** is always available and can open an empty Comparator workspace.
 
 The row uses measured text widths at the current DPI and Windows text size. When space is tight, lower-priority commands move into **More** instead of reducing the font size or adding a second row. **More** also contains input-size, pixel-format and frame-rate menus; fixed decoded sources keep RAW-only settings unavailable. Existing Alt menu access and shortcuts remain available. Windows high-contrast/non-DWM fallback retains the OS-managed native menu, which may wrap.
 
@@ -58,7 +58,7 @@ Theme changes do not tint image pixels or alter color conversion, captured regio
 
 ### Controls
 
-Windows command availability follows the same rules in menus, keyboard command handlers and contextual help. Viewer RAW resolution/color-space controls are available for RAW inputs and empty-session setup, but not for decoded images or videos. Copy needs presented image pixels; Paste needs a supported image on the clipboard; the main Compare command needs an open file. The browser's separate Compare selected files command still applies to its own selection. Unavailable commands do not execute through alternate entry points.
+Windows command availability follows the same rules in menus, keyboard command handlers and contextual help. Viewer RAW resolution/color-space controls are available for RAW inputs and empty-session setup, but not for decoded images or videos. Copy needs presented image pixels; Paste needs a supported image on the clipboard. The main Compare command is always available: with an open file it passes that file to Comparator, and without one it opens an empty Comparator workspace. The browser's separate Compare selected files command still applies to its own selection. Unavailable commands do not execute through alternate entry points.
 
 In Comparator, each source's format menu is a native keyboard-accessible button for RAW input; decoded-source format buttons are disabled and read-only filenames are not buttons. Tab from an eligible source canvas focuses its format button, Space/Enter opens it, and Tab returns to the canvas. Normal, hover and pressed states differ; keyboard focus has a visible outline, while unavailable commands use muted text without an extra dashed outline. Native Alt menus and Windows high-contrast behavior are retained. This does not add a new toolbar or change global shortcut routing.
 

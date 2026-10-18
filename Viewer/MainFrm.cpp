@@ -1376,7 +1376,7 @@ bool ViewerCommandKind(UINT id, q1view::WindowsUiCommand& kind)
 	if ((id >= ID_RESOLUTION_START && id <= ID_RESOLUTION_END) || (id >= ID_CS_START && id <= ID_CS_END)) kind = q1view::WindowsUiCommand::RawInput;
 	else if (id == ID_EDIT_COPY || id == ID_VIEW_FIT || id == ID_VIEW_ACTUAL_SIZE) kind = q1view::WindowsUiCommand::CopyPixels;
 	else if (id == ID_EDIT_PASTE) kind = q1view::WindowsUiCommand::PasteImage;
-	else if (id == ID_COMPARE) kind = q1view::WindowsUiCommand::CompareFile;
+	else if (id == ID_COMPARE) kind = q1view::WindowsUiCommand::OpenComparator;
 	else return false;
 	return true;
 }
@@ -1882,13 +1882,21 @@ void CMainFrame::OnExecComparator()
 	std::vector<CString> paths;
 	if (pDoc != NULL && !pDoc->mPathName.IsEmpty())
 		paths.push_back(pDoc->mPathName);
-	OpenComparatorFiles(paths);
+	// Compare is an application launcher, not an image-only operation. With
+	// no current file, open the same empty workspace as Comparator.exe itself.
+	StartComparator(paths);
 }
 
 BOOL CMainFrame::OpenComparatorFiles(const std::vector<CString>& filePaths)
 {
 	if (filePaths.empty() || filePaths.size() > 4)
 		return FALSE;
+	return StartComparator(filePaths);
+}
+
+BOOL CMainFrame::StartComparator(const std::vector<CString>& filePaths)
+{
+	if (filePaths.size() > 4) return FALSE;
 
 	CString cmperPath;
 	if (!ResolveComparatorPath(cmperPath)) {

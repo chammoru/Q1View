@@ -12,6 +12,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ### Fixed
 
+- Windows Viewer: keep the main Compare launcher enabled without an open file and open an empty Comparator workspace in that case; preserve the separate browser selection requirements.
+
 - Windows Viewer: previous/next file navigation now honors the saved video autoplay preference just like File > Open and thumbnail activation, while retaining the current window size; internal reloads and paused-video rotation do not trigger autoplay.
 
 - Windows Viewer and Comparator: remove the unfamiliar dashed disabled-command outlines, retain muted unavailable text, and distinguish keyboard focus from mouse activation.

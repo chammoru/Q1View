@@ -51,12 +51,13 @@ static void TestCommandStates()
 		context.clipboardImage = (mask & 4) != 0; context.file = (mask & 8) != 0; context.selection = (mask & 16) != 0;
 		for (const auto& item : {std::make_pair(WindowsUiCommand::RawInput, context.rawInput),
 			std::make_pair(WindowsUiCommand::CopyPixels, context.pixels), std::make_pair(WindowsUiCommand::PasteImage, context.clipboardImage),
-			std::make_pair(WindowsUiCommand::CompareFile, context.file), std::make_pair(WindowsUiCommand::ClearSelection, context.selection)}) {
+			std::make_pair(WindowsUiCommand::OpenComparator, true), std::make_pair(WindowsUiCommand::ClearSelection, context.selection)}) {
 			const auto state = WindowsUiResolveCommand(item.first, context);
-			Require(state.enabled == item.second && state.unavailable && *state.unavailable, "command applicability and help reason share a single policy");
+			Require(state.enabled == item.second && state.unavailable && (state.enabled || *state.unavailable), "command applicability and help reason share a single policy");
 		}
 	}
 	Require(WindowsUiResolveCommand(WindowsUiCommand::RawInput, {}).enabled, "empty sessions retain RAW preconfiguration");
+	Require(WindowsUiResolveCommand(WindowsUiCommand::OpenComparator, {}).enabled, "Compare always opens a workspace, even without an input file");
 	Require(WindowsUiCommandBackground(false, true, true) == WindowsUiColor::SurfaceAlt, "disabled controls cannot acquire hot or pressed colors");
 	Require(WindowsUiCommandBackground(true, true, false) == WindowsUiColor::Hover &&
 		WindowsUiCommandBackground(true, true, true) == WindowsUiColor::Pressed, "hover and pressed states remain distinct");

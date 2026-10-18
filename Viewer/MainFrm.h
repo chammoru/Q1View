@@ -298,6 +298,7 @@ public:
 private:
 	BOOL ResolveComparatorPath(CString &cmperPath);
 	BOOL LaunchComparator(const CString &cmperPath, const CString &quotedArgs);
+	BOOL StartComparator(const std::vector<CString>& filePaths);
 	void PinDrawerColumn();
 	void SetDrawerVisibleImmediately(bool visible);
 	// Settle the image after a drawer resize. Active fit mode is recomputed once

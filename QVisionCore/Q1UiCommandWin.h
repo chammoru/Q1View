@@ -5,7 +5,7 @@
 namespace q1view {
 
 // Incremental policy for existing commands, not a replacement command router.
-enum class WindowsUiCommand { RawInput, CopyPixels, PasteImage, CompareFile, ClearSelection };
+enum class WindowsUiCommand { RawInput, CopyPixels, PasteImage, OpenComparator, ClearSelection };
 struct WindowsUiCommandContext {
 	bool rawInput = true; // An empty session may preconfigure RAW interpretation.
 	bool pixels = false, clipboardImage = false, file = false, selection = false;
@@ -17,7 +17,7 @@ inline WindowsUiCommandState WindowsUiResolveCommand(WindowsUiCommand command, c
 	case WindowsUiCommand::RawInput: return {context.rawInput, L"Raw input only"};
 	case WindowsUiCommand::CopyPixels: return {context.pixels, L"No image pixels available"};
 	case WindowsUiCommand::PasteImage: return {context.clipboardImage, L"No image on the clipboard"};
-	case WindowsUiCommand::CompareFile: return {context.file, L"Open a file first"};
+	case WindowsUiCommand::OpenComparator: return {true, L""}; // Launch an empty comparison workspace too.
 	case WindowsUiCommand::ClearSelection: return {context.selection, L"No selection to clear"};
 	}
 	return {false, L"Unavailable"};

@@ -587,7 +587,14 @@ struct GalleryIntegrationTests {
         const auto commandContext = frame->CommandContext();
         Require(frame->IsCommandEnabled(ID_EDIT_PASTE) == bool(IsClipboardFormatAvailable(CF_DIB) || IsClipboardFormatAvailable(CF_DIBV5)),
             "paste menu policy reflects supported clipboard formats without changing the clipboard");
-        Require(frame->IsCommandEnabled(ID_COMPARE) == !doc->mPathName.IsEmpty(), "compare availability follows an actual source file");
+        Require(frame->IsCommandEnabled(ID_COMPARE), "main Compare remains enabled with or without a current file");
+        for (int i=0;i<frame->GetMenu()->GetMenuItemCount();++i) if(frame->GetMenu()->GetMenuItemID(i)==ID_COMPARE) {
+            Require((frame->GetMenu()->GetMenuState(i,MF_BYPOSITION)&(MF_GRAYED|MF_DISABLED))==0 &&
+                IsWindowEnabled(::GetDlgItem(frame->mUiFrame.MenuHost(),i+1)),
+                "the actual Compare menu and native button are enabled, including the empty startup window");
+        }
+        Require(!frame->OpenComparatorFiles({}), "selection-based comparison still rejects an empty batch instead of launching a blank workspace");
+        Require(!frame->OpenComparatorFiles(std::vector<CString>(5,L"unused.png")), "selection-based comparison still rejects more than four files");
         Require(frame->IsCommandEnabled(ID_VIEW_FIT)==commandContext.pixels && frame->IsCommandEnabled(ID_VIEW_ACTUAL_SIZE)==commandContext.pixels,
             "Fit and actual-size availability require real displayed pixels");
         const auto clipboardSequence = GetClipboardSequenceNumber();

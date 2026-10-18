@@ -1,5 +1,13 @@
 # Issue #120: Viewer command row and read-only status
 
+## Compare launcher correction — 2026-10-18
+
+The user corrected the earlier availability decision: the main Compare command launches Comparator, even without a current Viewer file. Requiring a file and dimming the command was an incorrect agent assumption, not an approved product concept. The correction changes the shared command role to OpenComparator, which is enabled in every input context, and permits the main launcher to start an empty workspace. Existing-file forwarding is retained. The browser's separate selection API still rejects empty or more-than-four batches, and its 2–4 selected-media menu policy is unchanged. No overflow priorities or layout are changed by this correction; the interrupted interpretation about pinning Compare was not implemented.
+
+The earlier inspection notes below describing an empty-window disabled Compare are historical, not the corrected behavior. The updated regression checks require both the actual native Compare button and menu to remain enabled, including startup without media. Correction verification passed: startup/empty/RAW **52 checks**, source-loaded shell/navigation/autoplay **436 checks**, common Windows UI tests (all 32 applicability contexts) and CoreRegressionTests, plus both ordinary Release/x64/v143 builds. Reports: `issue-120-compare-launcher-startup.txt` and `issue-120-compare-launcher-focused.txt` under `Tests/bin/x64/Release`. The earlier full-suite counts below belong to the prior implementation; this narrow launcher correction used the focused suites, not a new full metric/GPU run.
+
+Computer Use relaunched the ordinary Viewer, confirmed its native Compare button was enabled in the empty Ready window, clicked Compare once and observed exactly one new Comparator with empty A/B drop targets and Reference not loaded. Both windows remain open for the user. The verified ordinary Comparator and its ONNX runtime were copied beside the review Viewer to match the normal installed layout; the executable copy hash was checked. No overflow priority, OS setting, installed Store package, merge or release was changed.
+
 Date: 2026-10-18 (Asia/Seoul). Windows MFC Viewer only for the new layout; the shared menu implementation remains opt-in and Comparator retains its existing wrapping layout. Branch: `codex/issue-120-viewer-command-status`, based on current `origin/master` `ea10a53` with the separately committed, previously verified follow-up `eb5a5aa` (navigation autoplay, disabled feedback, idle menu caching). The user's unrelated untracked design assets are not part of these commits. No merge, version bump, release tag or shutdown is authorized by this implementation request.
 
 ## Approved decisions
