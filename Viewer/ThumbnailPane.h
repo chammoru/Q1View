@@ -21,6 +21,7 @@
 #include <memory>
 #include <functional>
 #include "QBrowserSelection.h"
+#include "Q1UiMenuWin.h"
 
 class CGalleryGridCanvas;
 
@@ -40,6 +41,7 @@ public:
 	// Create the list control as a child of pParent with control id nID.
 	BOOL CreatePane(CWnd *pParent, UINT nID);
 	virtual BOOL PreTranslateMessage(MSG* message);
+	virtual LRESULT WindowProc(UINT message, WPARAM wp, LPARAM lp) override;
 	bool GoToParent();
 	bool CanGoToParent() const;
 	void ShowContextMenu(int index, CPoint screenPoint);
@@ -82,6 +84,7 @@ protected:
 	afx_msg LRESULT OnDirectoryChanged(WPARAM wParam, LPARAM lParam);
 
 private:
+	q1view::WindowsUiMenus* mContextMenus = nullptr;
 	friend class CGalleryGridCanvas;
 	friend struct GalleryIntegrationTests;
 	enum ContextCommand { CMD_OPEN = 1, CMD_EXPLORER, CMD_COPY, CMD_PATH, CMD_NAME, CMD_PROPERTIES, CMD_RECYCLE, CMD_COMPARE };

@@ -14,6 +14,7 @@ class DxgiPresenter;
 
 #include <QViewerCmn.h>
 #include "Q1UiFontWin.h"
+#include "Q1UiMenuWin.h"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -176,6 +177,7 @@ public:
 	bool  mVolumeMuted;
 	bool  mVolumeDragging;
 	CMenu mMouseMenu;
+	q1view::WindowsUiMenus mUiPopupMenus;
 
 	bool mSelMode;
 	bool mYMode;
@@ -271,6 +273,7 @@ private:
 public:
 	virtual void OnDraw(CDC* pDC);  // overridden to draw this view
 	virtual BOOL PreCreateWindow(CREATESTRUCT& cs);
+	virtual LRESULT WindowProc(UINT message, WPARAM wp, LPARAM lp) override;
 protected:
 
 // Implementation

@@ -854,7 +854,7 @@ void CMainFrame::OnFileOpen()
 #define MENU_POS_RESOLUTION 1
 #define MENU_POS_COLORSPACE 2
 #define MENU_POS_FPS        3
-#define MENU_POS_OPTIONS    4
+#define MENU_POS_OPTIONS    5
 
 void CMainFrame::UpdateResolutionLabel(int w, int h)
 {
@@ -1028,6 +1028,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	mFpsMenu.AppendMenu(MF_STRING, ID_FPS_START + i, CA2W(qfps_info_table[i]));
 
 	AddMainMenu();
+	GetMenu()->InsertMenu(MENU_POS_OPTIONS - 1, MF_BYPOSITION | MF_STRING, ID_TOGGLE_DRAWER, L"Browse");
 	CMenu* optionsMenu = GetMenu()->GetSubMenu(MENU_POS_OPTIONS);
 	q1view::AppendWindowsUiThemeMenu(optionsMenu->GetSafeHmenu());
 	optionsMenu->AppendMenu(MF_SEPARATOR);
@@ -1036,7 +1037,6 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	// Keep input settings directly accessible in their original positions.
 	// Zoom actions belong at the far right, not beside File/Browse.
 	GetMenu()->DeleteMenu(ID_MAGNIFY, MF_BYCOMMAND);
-	GetMenu()->InsertMenu(ID_COMPARE, MF_BYCOMMAND | MF_STRING, ID_TOGGLE_DRAWER, L"Browse");
 	GetMenu()->AppendMenu(MF_STRING | MF_RIGHTJUSTIFY, ID_VIEW_FIT, L"Fit");
 	GetMenu()->AppendMenu(MF_STRING | MF_RIGHTJUSTIFY, ID_VIEW_ACTUAL_SIZE, L"100%");
 	mAppliedCanvasColor = Q1UI_COLOR_CANVAS_BG;

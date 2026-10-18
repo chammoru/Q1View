@@ -98,6 +98,22 @@ struct GalleryIntegrationTests {
             CString singleRecycleLabel; singleMenu.GetMenuString(CThumbnailPane::CMD_RECYCLE, singleRecycleLabel, MF_BYCOMMAND);
             Require(singleMenu.GetMenuState(CThumbnailPane::CMD_COMPARE, MF_BYCOMMAND) == UINT(-1) &&
                 singleRecycleLabel == L"Move to Recycle Bin", "single-file menu uses singular Recycle Bin wording without Compare");
+            {
+                q1view::WindowsUiMenus contextMenus; pane.mContextMenus=&contextMenus;
+                pane.SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(singleMenu.GetSafeHmenu()));
+                MENUITEMINFOW info={sizeof(info)}; info.fMask=MIIM_FTYPE|MIIM_DATA;
+                Require(GetMenuItemInfoW(singleMenu.GetSafeHmenu(),0,TRUE,&info) && (info.fType&MFT_OWNERDRAW),
+                    "thumbnail context popup uses the same shared painting as Comparator menus");
+                MEASUREITEMSTRUCT measure={}; measure.CtlType=ODT_MENU; measure.itemData=info.dwItemData;
+                Require(pane.SendMessage(WM_MEASUREITEM,0,reinterpret_cast<LPARAM>(&measure)) &&
+                    measure.itemHeight>=UINT(q1view::WindowsUiPixels(32,q1view::WindowsUiDpi(pane.m_hWnd),q1view::WindowsUiSettings().Scale())),
+                    "thumbnail context popup routes measurement through shared DPI-aware body-font sizing");
+                HMENU names=GetSubMenu(singleMenu.GetSafeHmenu(),4);
+                pane.SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(names));
+                Require(names && GetMenuItemInfoW(names,0,TRUE,&info) && (info.fType&MFT_OWNERDRAW),
+                    "nested Copy path/name popup receives the same styling as its parent");
+                pane.mContextMenus=nullptr;
+            }
             click(last, MK_CONTROL);
             Require(pane.SelectedMediaPaths().size() == 2, "MFC Ctrl-click selects disjoint media in both views");
             CMenu compareTwo; pane.BuildContextMenu(compareTwo, first);
@@ -583,6 +599,19 @@ struct GalleryIntegrationTests {
         auto view = static_cast<CViewerView*>(frame->GetActiveView());
         auto doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
         Require(frame && view && doc, "real Viewer document/view created");
+        {
+            const UINT selectionState=view->mMouseMenu.GetMenuState(ID_MOUSEMENU_START,MF_BYCOMMAND);
+            view->SendMessage(WM_INITMENUPOPUP,reinterpret_cast<WPARAM>(view->mMouseMenu.GetSafeHmenu()));
+            MENUITEMINFOW info={sizeof(info)}; info.fMask=MIIM_FTYPE|MIIM_DATA|MIIM_STATE;
+            Require(GetMenuItemInfoW(view->mMouseMenu.GetSafeHmenu(),0,TRUE,&info) && (info.fType&MFT_OWNERDRAW),
+                "Viewer canvas right-click menu uses Comparator's shared menu renderer");
+            MEASUREITEMSTRUCT measure={}; measure.CtlType=ODT_MENU; measure.itemData=info.dwItemData;
+            Require(view->SendMessage(WM_MEASUREITEM,0,reinterpret_cast<LPARAM>(&measure)) &&
+                measure.itemHeight>=UINT(q1view::WindowsUiPixels(32,q1view::WindowsUiDpi(view->m_hWnd),q1view::WindowsUiSettings().Scale())),
+                "Viewer context menu uses the same DPI-aware body font and row spacing as Comparator");
+            Require((view->mMouseMenu.GetMenuState(ID_MOUSEMENU_START,MF_BYCOMMAND)&MF_CHECKED)==(selectionState&MF_CHECKED),
+                "context-menu styling preserves selection mode's native checked state");
+        }
         for(int i=0;i<frame->GetMenu()->GetMenuItemCount();++i)
         {
             Require(frame->GetMenu()->GetMenuItemID(i)!=ID_FILE_OPEN, "Viewer has no duplicate top-level Open command");
@@ -594,6 +623,9 @@ struct GalleryIntegrationTests {
             frame->GetMenu()->GetSubMenu(3)->GetSafeHmenu()==frame->mFpsMenu.GetSafeHmenu(),
             "resolution, pixel format and FPS retain their original top-level positions");
         const int rootCount=frame->GetMenu()->GetMenuItemCount();
+        Require(frame->GetMenu()->GetMenuItemID(4)==ID_TOGGLE_DRAWER &&
+            frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options",
+            "Browse appears immediately left of Options in root and native button order");
         Require(frame->GetMenu()->GetMenuItemID(rootCount-2)==ID_VIEW_FIT && frame->GetMenu()->GetMenuItemID(rootCount-1)==ID_VIEW_ACTUAL_SIZE,
             "Fit and 100 percent are the two rightmost root commands");
         Require(frame->GetMenu()->GetSubMenu(0)->GetMenuState(ID_FILE_OPEN,MF_BYCOMMAND)!=UINT(-1),
@@ -749,8 +781,8 @@ struct GalleryIntegrationTests {
         std::vector<BYTE> captureBytes;
         if (!captured.empty()) captureBytes.assign(captureBuffer,captureBuffer+captureSize);
         CRect appearanceBounds; frame->GetWindowRect(appearanceBounds);
-        HMENU options = GetSubMenu(frame->GetMenu()->GetSafeHmenu(),4);
-        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),4,true)==L"&Options" && options && GetMenuItemCount(options)==6 &&
+        HMENU options = GetSubMenu(frame->GetMenu()->GetSafeHmenu(),5);
+        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==6 &&
             frame->mUiMenus.Text(options,0,true)==L"&Image Scaling" && GetMenuItemCount(GetSubMenu(options,0))==3 &&
             frame->mUiMenus.Text(options,2,true)==L"&Theme" &&
             GetMenuItemID(options,4)==ID_VIEW_FIT && GetMenuItemID(options,5)==ID_VIEW_ACTUAL_SIZE,

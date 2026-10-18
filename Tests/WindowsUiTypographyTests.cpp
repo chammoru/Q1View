@@ -7,6 +7,7 @@
 #include "../QVisionCore/Q1UiAppearanceMenuWin.h"
 #include "../Comparator/AnalysisLayout.h"
 #include <cmath>
+#include <functional>
 
 static void Require(bool value, const char* message)
 { if (!value) { std::fprintf(stderr, "FAIL: %s\n", message); std::exit(1); } }
@@ -273,6 +274,7 @@ struct FrameTestHost {
 	HMENU testPopup = nullptr;
 	int executed = 0, popupInitializations = 0;
 	bool queued = false, popupTimedOut = false, copiedDisabled = false;
+	std::function<void(HWND)> menuProbe;
 	static LRESULT CALLBACK Proc(HWND window, UINT message, WPARAM wp, LPARAM lp) {
 		auto* host = reinterpret_cast<FrameTestHost*>(GetWindowLongPtrW(window, GWLP_USERDATA));
 		if (message == WM_NCCREATE) {
@@ -287,7 +289,9 @@ struct FrameTestHost {
 			SetTimer(window,120,1500,nullptr);
 		}
 		if (host && host->testPopup && message == WM_ENTERIDLE && wp == MSGF_MENU && !host->queued) {
-			host->queued=true; PostMessageW(reinterpret_cast<HWND>(lp),WM_CHAR,L'x',1);
+			host->queued=true;
+			if (host->menuProbe) host->menuProbe(reinterpret_cast<HWND>(lp));
+			else PostMessageW(reinterpret_cast<HWND>(lp),WM_CHAR,L'x',1);
 		}
 		if (host && message == WM_TIMER && wp == 120) { host->popupTimedOut=true; KillTimer(window,120); EndMenu(); return 0; }
 		if (host && message == WM_COMMAND && LOWORD(wp) == 504) { ++host->executed; return 0; }
@@ -489,6 +493,54 @@ static void TestFrames()
 	std::puts("Windows custom-frame tests passed (native menu retention, accessible buttons, wrapping, full screen, caption GDI lifetime).");
 }
 
+static void TestDirectMenuActivation()
+{
+	FrameTestHost host; HMENU root=CreateMenu(), popup=CreatePopupMenu();
+	AppendMenuW(root,MF_POPUP,reinterpret_cast<UINT_PTR>(popup),L"&File");
+	AppendMenuW(popup,MF_STRING,501,L"&Open");
+	AppendMenuW(root,MF_STRING,504,L"Browse");
+	HWND window=CreateWindowExW(0,L"Q1View.FrameRegressionTest",L"Direct command activation",WS_OVERLAPPEDWINDOW,
+		-20000,-20000,800,600,nullptr,root,GetModuleHandleW(nullptr),&host);
+	host.frame.Initialize(window,host.menus);
+	if(host.frame.Custom()) {
+		ShowWindow(window,SW_SHOWNOACTIVATE); host.testPopup=popup;
+		const HWND browse=GetDlgItem(host.frame.MenuHost(),2);
+		for(int probe : {0,1,2,3}) {
+			bool observed=false;
+			host.menuProbe=[&](HWND menuWindow) {
+				observed=true; RECT rect; GetWindowRect(browse,&rect);
+				MSG input={}; input.hwnd=menuWindow; input.pt={(rect.left+rect.right)/2,(rect.top+rect.bottom)/2};
+				if(probe==0) { input.message=WM_MOUSEMOVE; CallMsgFilterW(&input,MSGF_MENU); }
+				if(probe==1) { input.message=WM_KEYDOWN; input.wParam=VK_RIGHT; CallMsgFilterW(&input,MSGF_MENU); }
+				if(probe>=2) {
+					input.message=WM_LBUTTONDOWN; CallMsgFilterW(&input,MSGF_MENU);
+					Require(host.executed==0,"pressing a direct command during popup tracking does not execute before release");
+					input.message=WM_LBUTTONUP;
+					if(probe==2) input.pt={-30000,-30000};
+					CallMsgFilterW(&input,MSGF_MENU);
+				}
+				EndMenu();
+			};
+			MSG key={}; key.hwnd=window; key.message=WM_KEYDOWN; key.wParam=VK_F10;
+			SetFocus(window); host.frame.Translate(&key);
+			key.wParam=VK_DOWN; Require(host.frame.Translate(&key),"real native popup opens for direct-command regression");
+			KillTimer(window,120);
+			MSG pending; while(PeekMessageW(&pending,nullptr,0,0,PM_REMOVE)) { TranslateMessage(&pending); DispatchMessageW(&pending); }
+			Require(observed && !host.popupTimedOut,"direct-command probe ran inside actual native menu tracking without timing out");
+			Require(host.executed==(probe==3?1:0),"hover, arrow navigation and cancelled clicks never execute; a complete direct click executes exactly once");
+			if(probe==1) {
+				Require(GetFocus()==browse,"arrow navigation focuses Browse without opening the drawer");
+				key.wParam=VK_RETURN; host.frame.Translate(&key);
+				while(PeekMessageW(&pending,nullptr,0,0,PM_REMOVE)) { TranslateMessage(&pending); DispatchMessageW(&pending); }
+				Require(host.executed==1,"Enter explicitly executes the focused direct command exactly once");
+			}
+			host.executed=0; key.wParam=VK_ESCAPE; host.frame.Translate(&key);
+		}
+	}
+	DestroyWindow(window);
+	std::puts("Direct menu activation tests passed (hover/arrow inert, release activation, cancelled click, Enter).");
+}
+
 static void TestOptionalCommandOverflow()
 {
 	using namespace q1view;
@@ -556,8 +608,8 @@ static void TestViewerDefaultMenu()
 {
 	FrameTestHost host;
 	HMENU root = CreateMenu();
-	const wchar_t* labels[] = {L"&File", L"800&x600", L"YUV420", L"30.00f&ps", L"&Options",
-		L"Browse", L"&Compare", L"&Help", L"Fit", L"100%"};
+	const wchar_t* labels[] = {L"&File", L"800&x600", L"YUV420", L"30.00f&ps", L"Browse",
+		L"&Options", L"&Compare", L"&Help", L"Fit", L"100%"};
 	for (UINT i = 0; i < _countof(labels); ++i)
 		AppendMenuW(root, MF_STRING | (i >= 6 ? MF_RIGHTJUSTIFY : 0), 200+i, labels[i]);
 	HWND window = CreateWindowExW(0, L"Q1View.FrameRegressionTest", L"Viewer startup measurement", WS_OVERLAPPEDWINDOW,
@@ -617,6 +669,7 @@ int wmain(int argc, wchar_t** argv)
 	TestMenus();
 	TestBufferedControls();
 	TestFrames();
+	TestDirectMenuActivation();
 	TestOptionalCommandOverflow();
 	TestViewerDefaultMenu();
 	TestAnalysisLayout();

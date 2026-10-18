@@ -2606,6 +2606,21 @@ void CViewerView::OnTimer(UINT_PTR nIDEvent)
 	CView::OnTimer(nIDEvent);
 }
 
+LRESULT CViewerView::WindowProc(UINT message, WPARAM wp, LPARAM lp)
+{
+	if (message == WM_INITMENUPOPUP && !HIWORD(lp)) {
+		mUiPopupMenus.SyncPopup(m_hWnd, reinterpret_cast<HMENU>(wp));
+		return 0;
+	}
+	if (message == WM_MEASUREITEM && mUiPopupMenus.Measure(reinterpret_cast<MEASUREITEMSTRUCT*>(lp))) return TRUE;
+	if (message == WM_DRAWITEM && mUiPopupMenus.Draw(reinterpret_cast<DRAWITEMSTRUCT*>(lp))) return TRUE;
+	if (message == WM_MENUCHAR) {
+		LRESULT result;
+		if (mUiPopupMenus.MenuChar(LOWORD(wp), reinterpret_cast<HMENU>(lp), result)) return result;
+	}
+	return CView::WindowProc(message, wp, lp);
+}
+
 void CViewerView::OnRButtonUp(UINT nFlags, CPoint point)
 {
 	if ((!mRcVolume.IsRectEmpty() && mRcVolume.PtInRect(point)) ||

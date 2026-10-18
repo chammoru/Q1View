@@ -42,6 +42,8 @@ private:
 	bool mCustom = false, mMenuVisible = true, mTracking = false, mKeyboard = false;
 	bool mDeferredClose = false;
 	bool mKeepTrailingMenuGroupTogether = false;
+	bool mActivateNext = false;
+	int mPressedMenuButton = -1;
 	int mTitleHeight = 0, mMenuHeight = 0, mOpen = -1, mNext = -1;
 	UINT mSelected = 0, mSelectedFlags = 0;
 	static WindowsUiFrame*& Tracking() { static thread_local WindowsUiFrame* value = nullptr; return value; }
@@ -223,7 +225,17 @@ private:
 		if (code == MSGF_MENU && self) {
 			const auto* message = reinterpret_cast<MSG*>(lp);
 			int next = -1;
-			if (message->message == WM_MOUSEMOVE) next = self->ButtonAt(message->pt);
+			const int hit = self->ButtonAt(message->pt);
+			// Hover switches popups, never executes toolbar-like commands.
+			if (message->message == WM_MOUSEMOVE && hit >= 0 && self->Info(hit).hSubMenu) next = hit;
+			if (message->message == WM_LBUTTONDOWN && hit >= 0 && !self->Info(hit).hSubMenu) {
+				self->mPressedMenuButton = hit; return 1;
+			}
+			if (message->message == WM_LBUTTONUP && self->mPressedMenuButton >= 0) {
+				const int pressed = self->mPressedMenuButton; self->mPressedMenuButton = -1;
+				if (hit != pressed) return 1;
+				next = hit; self->mActivateNext = true;
+			}
 			if (message->message == WM_KEYDOWN && self->mSelectedMenu == self->Info(self->mOpen).hSubMenu) {
 				if (message->wParam == VK_LEFT) next = self->NextEnabled(self->mOpen, -1);
 				if (message->wParam == VK_RIGHT && !(self->mSelectedFlags & MF_POPUP)) next = self->NextEnabled(self->mOpen, 1);
@@ -239,14 +251,20 @@ private:
 		WindowsUiFrame* previous = Tracking(); Tracking() = this;
 		HHOOK hook = SetWindowsHookExW(WH_MSGFILTER, MenuFilter, nullptr, GetCurrentThreadId());
 		UINT command = 0;
+		bool activate = true;
+		mPressedMenuButton = -1;
 		do {
-			mOpen = position; mNext = -1; mSelectedMenu = Info(position).hSubMenu; mSelectedFlags = 0;
+			mOpen = position; mNext = -1; mActivateNext = false; mSelectedMenu = Info(position).hSubMenu; mSelectedFlags = 0;
 			int anchor = position;
 			if (mOverflow && mButtonRects[position].right == mButtonRects[position].left)
 				for (size_t i = 0; i < mButtons.size(); ++i) if (Info(int(i)).hSubMenu == mOverflow) anchor = int(i);
 			if (keyboard) SetFocus(mButtons[anchor]);
 			const auto item = Info(position);
-			if (!item.hSubMenu) { command = item.wID; break; }
+			if (!item.hSubMenu) {
+				if (activate) command = item.wID;
+				else { mKeyboard = true; SetFocus(mButtons[position]); }
+				break;
+			}
 			if (item.hSubMenu == mOverflow) PopulateOverflow();
 			RECT rect = mButtonRects[anchor]; MapWindowPoints(mBar, nullptr, reinterpret_cast<POINT*>(&rect), 2);
 			InvalidateRect(mButtons[position], nullptr, FALSE); UpdateWindow(mButtons[position]);
@@ -256,10 +274,11 @@ private:
 			if (item.hSubMenu == mOverflow) ClearOverflow();
 			InvalidateRect(mButtons[position], nullptr, FALSE);
 			position = mNext;
+			activate = mActivateNext;
 		} while (!command && position >= 0 && !mDeferredClose && IsWindow(mWindow));
 		if (hook) UnhookWindowsHookEx(hook);
-		Tracking() = previous; mTracking = false; mOpen = -1;
-		if (command || !keyboard) RestoreFocus();
+		Tracking() = previous; mTracking = false; mOpen = -1; mPressedMenuButton = -1;
+		if (command || !mKeyboard) RestoreFocus();
 		if (IsWindow(mWindow)) {
 			for (HWND button : mButtons) InvalidateRect(button, nullptr, FALSE);
 			if (mDeferredClose) { mDeferredClose = false; PostMessageW(mWindow, WM_CLOSE, 0, 0); }
