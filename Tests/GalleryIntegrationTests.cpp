@@ -583,6 +583,15 @@ struct GalleryIntegrationTests {
         auto view = static_cast<CViewerView*>(frame->GetActiveView());
         auto doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
         Require(frame && view && doc, "real Viewer document/view created");
+        for(int i=0;i<frame->GetMenu()->GetMenuItemCount();++i)
+            Require(frame->GetMenu()->GetMenuItemID(i)!=ID_FILE_OPEN, "Viewer has no duplicate top-level Open command");
+        Require(frame->GetMenu()->GetSubMenu(0)->GetMenuState(ID_FILE_OPEN,MF_BYCOMMAND)!=UINT(-1),
+            "File menu retains its original Open command");
+        std::vector<ACCEL> accelerators(CopyAcceleratorTable(frame->m_hAccelTable,nullptr,0));
+        CopyAcceleratorTable(frame->m_hAccelTable,accelerators.data(),int(accelerators.size()));
+        Require(std::any_of(accelerators.begin(),accelerators.end(),[](const ACCEL& key) {
+            return key.cmd==ID_FILE_OPEN && key.key=='O' && (key.fVirt&(FVIRTKEY|FCONTROL))==(FVIRTKEY|FCONTROL);
+        }), "Ctrl+O retains the original file-open command binding");
         frame->RefreshCommandStates();
         const auto commandContext = frame->CommandContext();
         Require(frame->IsCommandEnabled(ID_EDIT_PASTE) == bool(IsClipboardFormatAvailable(CF_DIB) || IsClipboardFormatAvailable(CF_DIBV5)),

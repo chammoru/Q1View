@@ -38,7 +38,7 @@ Decoded images and video show RGB values only.
 
 ### Windows Viewer commands and status
 
-The existing top command row now provides **File, Open, Browse, Fit, 100%, View, Options, Compare, Help, More** when space permits. **Browse** toggles the same thumbnail drawer as `E`. **Fit** shows the whole image without enlarging small images; **100%** switches to manual actual-pixel size. The active Browse/Fit/100% state is highlighted. Fit/100% require a valid displayed frame, but **Compare** is always available and can open an empty Comparator workspace.
+The existing top command row now provides **File, Browse, Fit, 100%, View, Options, Compare, Help, More** when space permits. Open files through **File → Open** or **Ctrl+O**, without a duplicate top-level Open button. **Browse** toggles the same thumbnail drawer as `E`. **Fit** shows the whole image without enlarging small images; **100%** switches to manual actual-pixel size. The active Browse/Fit/100% state is highlighted. Fit/100% require a valid displayed frame, but **Compare** is always available and can open an empty Comparator workspace.
 
 The row uses measured text widths at the current DPI and Windows text size. When space is tight, lower-priority commands move into **More** instead of reducing the font size or adding a second row. **More** also contains input-size, pixel-format and frame-rate menus; fixed decoded sources keep RAW-only settings unavailable. Existing Alt menu access and shortcuts remain available. Windows high-contrast/non-DWM fallback retains the OS-managed native menu, which may wrap.
 

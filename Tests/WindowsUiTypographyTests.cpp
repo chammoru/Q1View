@@ -492,8 +492,9 @@ static void TestFrames()
 static void TestViewerCommandLayout()
 {
 	using namespace q1view;
-	const std::vector<std::wstring> labels = {L"&File",L"Open",L"Browse",L"Fit",L"100%",L"&View",L"&Options",L"&Compare",L"&Help",L"8192x4320",L"RGBA1010102",L"120.00fps",L"&More"};
-	const int priorities[] = {0,1,2,2,3,4,5,6,7,100,100,100,0};
+	const std::vector<std::wstring> labels = {L"&File",L"Browse",L"Fit",L"100%",L"&View",L"&Options",L"&Compare",L"&Help",L"8192x4320",L"RGBA1010102",L"120.00fps",L"&More"};
+	const int priorities[] = {0,2,2,3,4,5,6,7,100,100,100,0};
+	const int moreIndex=int(labels.size())-1;
 	HDC dc = CreateCompatibleDC(nullptr); WindowsUiFontCache fonts;
 	for(UINT dpi : {96u,120u,144u,192u}) for(double scale : {1.0,1.25,1.5,2.0,2.25}) {
 		WindowsUiDcState saved(dc); SelectObject(dc,fonts.Get(WindowsUiFontRole::Body,dpi,scale));
@@ -504,14 +505,14 @@ static void TestViewerCommandLayout()
 		}
 		for(int dip : {160,320,640,960,1440}) {
 			const int width=WindowsUiPixels(dip,dpi);
-			const auto plan=PlanWindowsUiCommandRow(items,12,width);
+			const auto plan=PlanWindowsUiCommandRow(items,moreIndex,width);
 			std::vector<int> counts(items.size()); int used=0;
 			for(int i:plan.visible) { ++counts[i]; used+=items[i].width; }
 			for(int i:plan.overflow) ++counts[i];
 			for(int count:counts) Require(count==1,"all measured commands are reachable exactly once in the row or overflow");
-			Require(used<=width || (plan.visible.size()==1 && plan.visible[0]==12),"measured row overflows before clipping other commands or adding a row");
-			Require(!plan.visible.empty() && plan.visible.back()==12,"More remains the final accessible command even with enlarged text");
-			for(int i:{9,10,11}) Require(std::find(plan.overflow.begin(),plan.overflow.end(),i)!=plan.overflow.end(),"advanced input controls remain available in More without duplicate status buttons");
+			Require(used<=width || (plan.visible.size()==1 && plan.visible[0]==moreIndex),"measured row overflows before clipping other commands or adding a row");
+			Require(!plan.visible.empty() && plan.visible.back()==moreIndex,"More remains the final accessible command even with enlarged text");
+			for(int i:{8,9,10}) Require(std::find(plan.overflow.begin(),plan.overflow.end(),i)!=plan.overflow.end(),"advanced input controls remain available in More without duplicate status buttons");
 		}
 	}
 	DeleteDC(dc);

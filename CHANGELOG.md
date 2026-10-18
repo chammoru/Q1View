@@ -8,7 +8,7 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ### Changed
 
-- Windows Viewer: reuse the existing command row for Open, Browse, Fit and 100%, move lower-priority commands into More instead of wrapping the row, and separate actual image format, scale, sampling mode and frame position into a read-only status line; keep full-screen viewing and Comparator's layout unchanged. (#120)
+- Windows Viewer: reuse the existing command row for Browse, Fit and 100%, retain File > Open and Ctrl+O without a duplicate Open button, move lower-priority commands into More instead of wrapping the row, and separate actual image format, scale, sampling mode and frame position into a read-only status line; keep full-screen viewing and Comparator's layout unchanged. (#120)
 
 ### Fixed
 

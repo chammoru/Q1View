@@ -670,7 +670,6 @@ LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 		CMenu* root = CFrameWnd::GetMenu();
 		mUiFrame.ConfigureSingleRow(mOverflowMenu.GetSafeHmenu(), {
 			{root->GetSubMenu(0)->GetSafeHmenu(), 0, 0, 0, {}},
-			{nullptr, ID_FILE_OPEN, 1, 1, {}},
 			{nullptr, ID_TOGGLE_DRAWER, 2, 2, {}},
 			{nullptr, ID_VIEW_FIT, 3, 2, {}},
 			{nullptr, ID_VIEW_ACTUAL_SIZE, 4, 3, {}},
@@ -1052,7 +1051,6 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	// Reuse this command row, not a second toolbar above the image. Preserve
 	// existing root positions for dynamic input menus and native fallback.
 	GetMenu()->DeleteMenu(ID_MAGNIFY, MF_BYCOMMAND);
-	GetMenu()->AppendMenu(MF_STRING, ID_FILE_OPEN, L"Open");
 	GetMenu()->AppendMenu(MF_STRING, ID_TOGGLE_DRAWER, L"Browse");
 	GetMenu()->AppendMenu(MF_STRING, ID_VIEW_FIT, L"Fit");
 	GetMenu()->AppendMenu(MF_STRING, ID_VIEW_ACTUAL_SIZE, L"100%");

@@ -1,5 +1,13 @@
 # Issue #120: Viewer command row and read-only status
 
+## Remove duplicate Open — 2026-10-18
+
+The user requested removal of only the redundant top-level Open button. Production changes remove its AppendMenu entry and its single-row rule; File > Open, Ctrl+O, the file-open handler, Compare and other command policies are unchanged. The remaining relative command order is unchanged. Integration checks explicitly reject a top-level ID_FILE_OPEN, retain File's original command and verify Ctrl+O in the actual accelerator table. The measured layout fixture now reflects the shorter row. Earlier descriptions of a separate top-level Open below are historical.
+
+Verification passed: startup/empty/RAW **65 checks** (`issue-120-no-open-startup.txt`), loaded-source shell/navigation **407 checks** (`issue-120-no-open-focused.txt`), WindowsUiTypographyTests (including the updated measured overflow matrix) and CoreRegressionTests. Viewer ordinary and instrumented Release/x64/v143 builds passed; `git diff --check` passed. A test-only local variable name collision was corrected and the typography build/test rerun successfully. This is a focused verification of the two-line Viewer-only production change, not a newly repeated full Comparator/GPU suite.
+
+Existing ordinary review windows were left intact; the new ordinary build uses `Viewer/x64/Issue120NoOpenReview/Viewer.exe` so no running executable or user session is replaced implicitly. The previously verified Comparator and ONNX runtime were copied beside it so the existing Compare launcher remains usable. No UI input, OS changes, merge or release occurred for this correction. The only production diff is removal of the duplicate root entry and its layout rule; resource definitions, file-open implementation, accelerator bindings and shared layout code are unchanged.
+
 ## Compare launcher correction — 2026-10-18
 
 The user corrected the earlier availability decision: the main Compare command launches Comparator, even without a current Viewer file. Requiring a file and dimming the command was an incorrect agent assumption, not an approved product concept. The correction changes the shared command role to OpenComparator, which is enabled in every input context, and permits the main launcher to start an empty workspace. Existing-file forwarding is retained. The browser's separate selection API still rejects empty or more-than-four batches, and its 2–4 selected-media menu policy is unchanged. No overflow priorities or layout are changed by this correction; the interrupted interpretation about pinning Compare was not implemented.
@@ -12,7 +20,7 @@ Date: 2026-10-18 (Asia/Seoul). Windows MFC Viewer only for the new layout; the s
 
 ## Approved decisions
 
-- Reuse the existing top command row, not an additional toolbar. Wide order: File, Open, Browse, Fit, 100%, View, Options, Compare, Help, More. The compact Viewer row has a 36-DIP minimum height and grows for Windows text enlargement; its height does not change with window width. Comparator keeps its existing row policy.
+- Reuse the existing top command row, not an additional toolbar. Current wide order: File, Browse, Fit, 100%, View, Options, Compare, Help, More. File > Open and Ctrl+O provide file opening without a duplicate button. The compact Viewer row has a 36-DIP minimum height and grows for Windows text enlargement; its height does not change with window width. Comparator keeps its existing row policy.
 - Use actual font/DPI/text-scale measurements, retaining full text instead of shrinking it. Move the lowest-priority actions into More first. Input size, pixel format and frame-rate controls are always in More; decoded sources retain disabled RAW interpretation. Extremely narrow windows can retain only More rather than losing commands.
 - Reuse the root HMENU, popup HMENUs, existing command IDs, native menu tracking and execution guards. Temporary More entries borrow submenus, retain enabled/checked state and original IDs, and are detached with RemoveMenu after tracking, never recursively destroyed. Left/right traversal follows visual order, skips hidden roots and preserves existing Alt access keys. HWND sibling order also follows the visual order for native accessibility.
 - Browse, Fit and manual 100% show their active state through the shared selection palette, never a disabled dashed outline. Fit uses the existing no-upscale behavior. Explicit Fit/100% actions reuse current view transform/synchronization paths; internal fitting does not gain an unsolicited sync broadcast.
