@@ -565,8 +565,8 @@ struct GalleryIntegrationTests {
                 Require(r.left>=0 && r.top>=0 && r.right<=client.right && r.right>r.left, "all Viewer command targets remain visible within the measured wrapped rows");
                 for(size_t j=i+1; j<rects.size(); ++j) { CRect overlap; Require(!overlap.IntersectRect(&r,&rects[j]), "wrapped command targets never overlap"); }
             }
-            Require(rects.size()>=2 && rects[rects.size()-2].top==rects.back().top && rects.back().right==client.right,
-                "Fit and 100 percent remain together at the far right at all required client sizes");
+            Require(!rects.empty() && rects.back().right==client.right,
+                "actual read-only magnification remains at the far right at all required client sizes");
             CRect status, content, splitter;
             ::GetWindowRect(frame->mStatusBar.Window(),status); frame->ScreenToClient(status);
             frame->GetContentRect(content); frame->mwndSplitter.GetWindowRect(splitter); frame->ScreenToClient(splitter);
@@ -580,18 +580,40 @@ struct GalleryIntegrationTests {
             "native read-only status exposes the full actual zoom text, independent of visual ellipsis");
         const auto rects = frame->mUiFrame.MenuRects();
         const int height = frame->mUiFrame.Height();
-        frame->SendMessage(WM_COMMAND,ID_VIEW_ACTUAL_SIZE); Pump(.05);
-        Require(view->mN==1.0f && !view->IsFitToWindow() && frame->mStatusBar.Text().find(L"100.0%  Manual")!=std::wstring::npos,
-            "actual-size command uses manual 100 percent and updates the real status");
-        frame->SendMessage(WM_COMMAND,ID_VIEW_FIT); Pump(.05);
-        Require(view->IsFitToWindow() && view->mN<=1.0f, "Fit uses the existing no-upscale policy");
+        auto verifyZoom=[&] {
+            CString expected; expected.Format(L"%.1f%%",double(view->mN)*100.0);
+            Require(frame->mUiMenus.Text(frame->mUiFrame.RetainedMenu(),ID_MAGNIFY)==expected.GetString(),
+                "far-right magnification reports the real zoom, not a fixed 100 percent action");
+            const int index=frame->GetMenu()->GetMenuItemCount();
+            const HWND label=::GetDlgItem(frame->mUiFrame.MenuHost(),index);
+            wchar_t name[80]={}; GetWindowTextW(label,name,_countof(name));
+            Require(!IsWindowEnabled(label) && expected==name,"actual zoom has an updated native accessible name and cannot execute a command");
+            Require(frame->mUiFrame.Height()==height,"changing magnification never changes menu height");
+            for(size_t i=0;i<rects.size();++i) Require(EqualRect(&rects[i],&frame->mUiFrame.MenuRects()[i])!=FALSE,
+                "changing magnification preserves Help and every menu rectangle");
+        };
+        auto setZoom=[&](float zoom) {
+            ViewerSyncInputState input={}; input.command=VIEWER_SYNC_VIEW_STATE; input.scalar=zoom;
+            view->ApplySyncInput(input);
+        };
+        for(float zoom : {.67f,1.f,1.13f,2.f,9.99f,10.f,99.99f,128.f}) {
+            setZoom(zoom); Pump(.02); verifyZoom();
+        }
+        setZoom(.99f);
+        CPoint wheel(view->mWCanvas/2,view->mHCanvas/2); view->ClientToScreen(&wheel);
+        view->SendMessage(WM_MOUSEWHEEL,MAKEWPARAM(0,WHEEL_DELTA),MAKELPARAM(wheel.x,wheel.y)); Pump(.03);
+        Require(view->mN==1.f,"the existing mouse-wheel zoom can still reach exact 100 percent without a reset button");
+        verifyZoom();
+        view->SendMessage(WM_MOUSEWHEEL,MAKEWPARAM(0,WHEEL_DELTA),MAKELPARAM(wheel.x,wheel.y)); Pump(.03);
+        Require(view->mN>1.f,"mouse wheel actually zooms beyond 100 percent"); verifyZoom();
+        view->FitToWindow(); view->Invalidate(FALSE); Pump(.03); verifyZoom();
         Require(frame->mUiFrame.Height()==height && frame->mUiFrame.MenuRects().size()==rects.size(), "zoom status never changes command row height or control count");
-        for(size_t i=0;i<rects.size();++i) Require(EqualRect(&rects[i],&frame->mUiFrame.MenuRects()[i])!=FALSE,"Fit/zoom leave Help and every command hit target fixed");
+        for(size_t i=0;i<rects.size();++i) Require(EqualRect(&rects[i],&frame->mUiFrame.MenuRects()[i])!=FALSE,"zoom leaves Help and every command hit target fixed");
         Require(doc->mPathName==path && doc->mOpenGeneration==generation && view->mStableRgbBufferInfo.addr==pixels &&
             view->mStableRgbBufferInfo.ID==presented && view->mSelRegions.size()==selection,
             "Viewer shell changes preserve source, presented frame, decoder generation and ROI selection");
         // The full suite below separately exercises manual pan anchors, E,
-        // playback and GPU recreation. These actions test the new commands.
+        // playback and GPU recreation. These checks exercise live zoom labels.
     }
 
     void Run() {
@@ -626,8 +648,9 @@ struct GalleryIntegrationTests {
         Require(frame->GetMenu()->GetMenuItemID(4)==ID_TOGGLE_DRAWER &&
             frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options",
             "Browse appears immediately left of Options in root and native button order");
-        Require(frame->GetMenu()->GetMenuItemID(rootCount-2)==ID_VIEW_FIT && frame->GetMenu()->GetMenuItemID(rootCount-1)==ID_VIEW_ACTUAL_SIZE,
-            "Fit and 100 percent are the two rightmost root commands");
+        Require(rootCount>=9 && frame->GetMenu()->GetMenuItemID(rootCount-1)==ID_MAGNIFY &&
+            (frame->GetMenu()->GetMenuState(ID_MAGNIFY,MF_BYCOMMAND)&MF_GRAYED),
+            "only the original read-only magnification remains at the far right, without Fit or 100 percent buttons");
         Require(frame->GetMenu()->GetSubMenu(0)->GetMenuState(ID_FILE_OPEN,MF_BYCOMMAND)!=UINT(-1),
             "File menu retains its original Open command");
         std::vector<ACCEL> accelerators(CopyAcceleratorTable(frame->m_hAccelTable,nullptr,0));
@@ -647,8 +670,8 @@ struct GalleryIntegrationTests {
         }
         Require(!frame->OpenComparatorFiles({}), "selection-based comparison still rejects an empty batch instead of launching a blank workspace");
         Require(!frame->OpenComparatorFiles(std::vector<CString>(5,L"unused.png")), "selection-based comparison still rejects more than four files");
-        Require(frame->IsCommandEnabled(ID_VIEW_FIT)==commandContext.pixels && frame->IsCommandEnabled(ID_VIEW_ACTUAL_SIZE)==commandContext.pixels,
-            "Fit and actual-size availability require real displayed pixels");
+        if(!commandContext.pixels) Require(frame->mUiMenus.Text(frame->mUiFrame.RetainedMenu(),ID_MAGNIFY)==L"--",
+            "empty input does not pretend to have a loaded 100 percent zoom");
         const auto clipboardSequence = GetClipboardSequenceNumber();
         if (!commandContext.pixels) {
             frame->SendMessage(WM_COMMAND, ID_EDIT_COPY); frame->OnEditCopy();
@@ -782,11 +805,10 @@ struct GalleryIntegrationTests {
         if (!captured.empty()) captureBytes.assign(captureBuffer,captureBuffer+captureSize);
         CRect appearanceBounds; frame->GetWindowRect(appearanceBounds);
         HMENU options = GetSubMenu(frame->GetMenu()->GetSafeHmenu(),5);
-        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==6 &&
+        Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==3 &&
             frame->mUiMenus.Text(options,0,true)==L"&Image Scaling" && GetMenuItemCount(GetSubMenu(options,0))==3 &&
-            frame->mUiMenus.Text(options,2,true)==L"&Theme" &&
-            GetMenuItemID(options,4)==ID_VIEW_FIT && GetMenuItemID(options,5)==ID_VIEW_ACTUAL_SIZE,
-            "Options contains Image Scaling, Theme, Fit and Actual size without separate View or More menus");
+            frame->mUiMenus.Text(options,2,true)==L"&Theme",
+            "Options retains Image Scaling and Theme without the unwanted Fit or Actual size commands");
         for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,
             q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {
             if (command==q1view::ID_UI_APPEARANCE_DARK || command==q1view::ID_UI_APPEARANCE_SYSTEM)

@@ -101,8 +101,6 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_WM_DROPFILES()
 	ON_COMMAND(ID_VIEWER_HELP, &CMainFrame::OnHelp)
 	ON_COMMAND(ID_FILE_OPEN, &CMainFrame::OnFileOpen)
-	ON_COMMAND(ID_VIEW_FIT, &CMainFrame::OnViewFit)
-	ON_COMMAND(ID_VIEW_ACTUAL_SIZE, &CMainFrame::OnViewActualSize)
 	ON_COMMAND(ID_COMPARE, &CMainFrame::OnExecComparator)
 	ON_COMMAND_RANGE(ID_RESOLUTION_START, ID_RESOLUTION_END, &CMainFrame::OnResolutionChange)
 	ON_COMMAND_RANGE(ID_CS_START, ID_CS_END, &CMainFrame::OnCsChange)
@@ -666,6 +664,8 @@ LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
 	if (message == WM_CREATE && result != -1) {
 		mUiFrame.KeepTrailingMenuGroupTogether();
+		mUiFrame.ReserveMenuWidth(ID_MAGNIFY, L"88888.8%");
+		mUiMenus.SetReadOnlyStatus(ID_MAGNIFY);
 		mUiFrame.Initialize(m_hWnd, mUiMenus);
 		mStatusBar.Initialize(m_hWnd); UpdateViewerStatus(); RecalcLayout();
 	}
@@ -1031,14 +1031,8 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	GetMenu()->InsertMenu(MENU_POS_OPTIONS - 1, MF_BYPOSITION | MF_STRING, ID_TOGGLE_DRAWER, L"Browse");
 	CMenu* optionsMenu = GetMenu()->GetSubMenu(MENU_POS_OPTIONS);
 	q1view::AppendWindowsUiThemeMenu(optionsMenu->GetSafeHmenu());
-	optionsMenu->AppendMenu(MF_SEPARATOR);
-	optionsMenu->AppendMenu(MF_STRING, ID_VIEW_FIT, L"Fit to window");
-	optionsMenu->AppendMenu(MF_STRING, ID_VIEW_ACTUAL_SIZE, L"Actual size (100%)");
 	// Keep input settings directly accessible in their original positions.
-	// Zoom actions belong at the far right, not beside File/Browse.
-	GetMenu()->DeleteMenu(ID_MAGNIFY, MF_BYCOMMAND);
-	GetMenu()->AppendMenu(MF_STRING | MF_RIGHTJUSTIFY, ID_VIEW_FIT, L"Fit");
-	GetMenu()->AppendMenu(MF_STRING | MF_RIGHTJUSTIFY, ID_VIEW_ACTUAL_SIZE, L"100%");
+	// The original far-right magnification item is read-only, not a command.
 	mAppliedCanvasColor = Q1UI_COLOR_CANVAS_BG;
 
 	CheckResolutionRadio(q1view::ViewerDefaultImageWidth, q1view::ViewerDefaultImageHeight);
@@ -1351,7 +1345,7 @@ namespace {
 bool ViewerCommandKind(UINT id, q1view::WindowsUiCommand& kind)
 {
 	if ((id >= ID_RESOLUTION_START && id <= ID_RESOLUTION_END) || (id >= ID_CS_START && id <= ID_CS_END)) kind = q1view::WindowsUiCommand::RawInput;
-	else if (id == ID_EDIT_COPY || id == ID_VIEW_FIT || id == ID_VIEW_ACTUAL_SIZE) kind = q1view::WindowsUiCommand::CopyPixels;
+	else if (id == ID_EDIT_COPY) kind = q1view::WindowsUiCommand::CopyPixels;
 	else if (id == ID_EDIT_PASTE) kind = q1view::WindowsUiCommand::PasteImage;
 	else if (id == ID_COMPARE) kind = q1view::WindowsUiCommand::OpenComparator;
 	else return false;
@@ -1393,11 +1387,9 @@ BOOL CMainFrame::OnCmdMsg(UINT id, int code, void* extra, AFX_CMDHANDLERINFO* ha
 void CMainFrame::RefreshCommandStates(bool force)
 {
 	const auto context = CommandContext();
-	auto* view = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
 	const unsigned signature = unsigned(context.rawInput) | (unsigned(context.pixels) << 1) |
 		(unsigned(context.clipboardImage) << 2) | (unsigned(context.file) << 3) |
-		(unsigned(view && view->IsFitToWindow()) << 4) | (unsigned(mDrawerVisible) << 5) |
-		(unsigned(view && view->mN == 1.0f) << 6);
+		(unsigned(mDrawerVisible) << 5);
 	const unsigned helpSignature = signature & 15u;
 	if (helpSignature != mCommandStateSignature) {
 		mCommandStateSignature = helpSignature;
@@ -1429,7 +1421,7 @@ void CMainFrame::RefreshCommandStates(bool force)
 		if (auto* popup = menu->GetSubMenu(position)) for (int i = 0; i < popup->GetMenuItemCount(); ++i)
 			enable(popup, i, MF_BYPOSITION, context.rawInput);
 	}
-	for (UINT id : {UINT(ID_EDIT_COPY), UINT(ID_EDIT_PASTE), UINT(ID_COMPARE), UINT(ID_VIEW_FIT), UINT(ID_VIEW_ACTUAL_SIZE)}) {
+	for (UINT id : {UINT(ID_EDIT_COPY), UINT(ID_EDIT_PASTE), UINT(ID_COMPARE)}) {
 		q1view::WindowsUiCommand kind;
 		if (ViewerCommandKind(id, kind)) {
 			const bool changed = enable(menu, id, MF_BYCOMMAND, q1view::WindowsUiResolveCommand(kind, context).enabled);
@@ -1438,10 +1430,8 @@ void CMainFrame::RefreshCommandStates(bool force)
 	}
 	for (int i = 0; i < menu->GetMenuItemCount(); ++i) {
 		const UINT id = menu->GetMenuItemID(i);
-		if (id != ID_TOGGLE_DRAWER && id != ID_VIEW_FIT && id != ID_VIEW_ACTUAL_SIZE) continue;
-		if (id == ID_VIEW_FIT || id == ID_VIEW_ACTUAL_SIZE) nativeBarChanged |= enable(menu, i, MF_BYPOSITION, context.pixels);
-		const bool checked = id == ID_TOGGLE_DRAWER ? mDrawerVisible : context.pixels &&
-			(id == ID_VIEW_FIT ? view->IsFitToWindow() : !view->IsFitToWindow() && view->mN == 1.0f);
+		if (id != ID_TOGGLE_DRAWER) continue;
+		const bool checked = mDrawerVisible;
 		const bool old = (menu->GetMenuState(i, MF_BYPOSITION) & MF_CHECKED) != 0;
 		if (old != checked) {
 			menu->CheckMenuItem(i, MF_BYPOSITION | (checked ? MF_CHECKED : MF_UNCHECKED));
@@ -1629,9 +1619,11 @@ void CMainFrame::UpdateViewerStatus()
 	auto* view = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
 	auto* doc = view ? view->GetDocument() : nullptr;
 	CString text;
+	CString zoom = L"--";
 	if (!doc || !view->mStableRgbBufferInfo.addr || doc->mDocState == DOC_JUSTLOAD) {
 		text = doc && !doc->mPathName.IsEmpty() ? L"Loading..." : L"Ready";
 	} else {
+		zoom.Format(L"%.1f%%", double(view->mN) * 100.0);
 		CString format = L"Unknown";
 		for (const auto& info : qcsc_info_table) if (info.cs == doc->mColorSpace) { format = CString(info.name).MakeUpper(); break; }
 		const CString scaling = view->GetScalingStatusLabel();
@@ -1644,23 +1636,13 @@ void CMainFrame::UpdateViewerStatus()
 		}
 	}
 	mStatusBar.SetText(text.GetString());
-}
-
-void CMainFrame::OnViewFit()
-{
-	if (!IsCommandEnabled(ID_VIEW_FIT)) return;
-	auto* view = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
-	if (!view || !view->mStableRgbBufferInfo.addr) return;
-	view->FitToWindow(true); view->Invalidate(FALSE); view->SetFocus();
-}
-
-void CMainFrame::OnViewActualSize()
-{
-	if (!IsCommandEnabled(ID_VIEW_ACTUAL_SIZE)) return;
-	auto* view = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
-	if (!view || !view->mStableRgbBufferInfo.addr) return;
-	view->ShowActualSize();
-	UpdateViewerStatus(); view->SetFocus();
+	const HMENU menu = mUiFrame.RetainedMenu();
+	if (menu && mUiMenus.Text(menu, ID_MAGNIFY) != zoom.GetString()) {
+		::ModifyMenuW(menu, ID_MAGNIFY, MF_BYCOMMAND | MF_STRING | MF_RIGHTJUSTIFY | MF_GRAYED,
+			ID_MAGNIFY, zoom.GetString());
+		mUiFrame.SyncLabel(ID_MAGNIFY);
+		if (!mUiFrame.Custom() && GetMenu()) ::DrawMenuBar(m_hWnd);
+	}
 }
 
 void CMainFrame::ToggleSyncInput()

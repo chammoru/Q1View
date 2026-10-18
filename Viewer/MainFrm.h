@@ -272,8 +272,6 @@ public:
 	afx_msg void OnUpdateAppearanceCommand(CCmdUI* command);
 	COLORREF mAppliedCanvasColor = 0xffffffff;
 	afx_msg void OnFileOpen();
-	afx_msg void OnViewFit();
-	afx_msg void OnViewActualSize();
 	afx_msg void OnExecComparator();
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg void OnResolutionChange(UINT nID);

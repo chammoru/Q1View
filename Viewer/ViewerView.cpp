@@ -1593,12 +1593,6 @@ void CViewerView::ChangeZoom(short zDelta, CPoint &pt)
 	pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
 }
 
-void CViewerView::ShowActualSize()
-{
-	ApplyViewState(1.0f, mXOff, mYOff);
-	BroadcastViewState(true);
-}
-
 void CViewerView::ApplyViewState(float zoom, float xOff, float yOff)
 {
 	float previousZoom = mN;
