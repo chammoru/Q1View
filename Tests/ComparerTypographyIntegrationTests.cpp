@@ -256,6 +256,8 @@ void CheckSourceCommandButton()
 	command.SendMessage(WM_MOUSEMOVE, 0, MAKELPARAM(20, 20));
 	Check(::GetCapture() != command.m_hWnd, "source-command hover does not capture the pointer");
 	command.SendMessage(WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(20, 20));
+	Check((command.SendMessage(WM_QUERYUISTATE) & UISF_HIDEFOCUS)!=0,
+		"mouse activation hides the keyboard-only source focus cue");
 	Check(host.opened == 0, "source command does not activate on mouse-down");
 	host.SetTimer(119, 1500, nullptr);
 	command.SendMessage(WM_LBUTTONUP, 0, MAKELPARAM(20, 20)); Pump(40); host.KillTimer(119);
@@ -267,6 +269,8 @@ void CheckSourceCommandButton()
 	host.SetTimer(119, 1500, nullptr);
 	command.SendMessage(WM_KEYUP, VK_SPACE); Pump(40); host.KillTimer(119);
 	Check(host.opened == 2 && host.executed == 2, "held Space activates once on release without duplicate command notification");
+	Check((command.SendMessage(WM_QUERYUISTATE) & UISF_HIDEFOCUS)==0,
+		"keyboard activation exposes the native source focus cue");
 	host.SetTimer(119, 1500, nullptr);
 	command.SendMessage(WM_KEYDOWN, VK_RETURN); Pump(40); host.KillTimer(119);
 	Check(host.opened == 3 && host.executed == 3, "Enter activates the same existing popup command once");
@@ -276,6 +280,20 @@ void CheckSourceCommandButton()
 	command.EnableWindow(FALSE); command.SendMessage(BM_CLICK);
 	host.SendMessage(WM_COMMAND, MAKEWPARAM(0xffff, BN_CLICKED), reinterpret_cast<LPARAM>(command.m_hWnd)); Pump(20);
 	Check(host.opened == 3 && host.executed == 3, "disabled control rejects native clicks and forged notifications");
+	{
+		ScopedWindowsUiPaintTestTheme restoreTheme;
+		for (auto theme : {q1view::WindowsUiAppearance::Light,q1view::WindowsUiAppearance::Dark}) {
+			q1view::WindowsUiAppearanceState().SetAppearance(theme);
+			command.Invalidate(FALSE); command.UpdateWindow();
+			const auto pixels=Pixels(command.m_hWnd);
+			CRect bounds; command.GetClientRect(bounds);
+			const auto edge=q1view::WindowsUiColorValue(q1view::WindowsUiColor::Boundary);
+			const DWORD expected=(DWORD(GetRValue(edge))<<16)|(DWORD(GetGValue(edge))<<8)|GetBValue(edge);
+			bool solid=true;
+			for (int x=1;x<bounds.right-1;++x) solid=solid && pixels[x]==expected;
+			Check(solid,"disabled source buttons keep the ordinary solid edge with no invented dashed pattern");
+		}
+	}
 	IAccessible* accessible = nullptr;
 	Check(SUCCEEDED(AccessibleObjectFromWindow(command.m_hWnd, OBJID_CLIENT, IID_IAccessible, reinterpret_cast<void**>(&accessible))), "source command exposes native accessibility metadata");
 	VARIANT self; VariantInit(&self); self.vt = VT_I4; self.lVal = CHILDID_SELF;

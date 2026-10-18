@@ -177,13 +177,6 @@ public:
 		const auto label = item->text.substr(0, tab);
 		const bool readOnlyStatus = item->bar && mReadOnlyStatus && GetMenuItemID(item->menu, item->position) == mReadOnlyStatus;
 		const bool rightAlignedStatus = readOnlyStatus && (item->type & MFT_RIGHTJUSTIFY);
-		if (item->bar && disabled && !readOnlyStatus) {
-			RECT edge = draw->rcItem; InflateRect(&edge, -2, -2);
-			HPEN pen = CreatePen(PS_DASH, 1, GetTextColor(draw->hDC));
-			auto oldPen = SelectObject(draw->hDC, pen), oldBrush = SelectObject(draw->hDC, GetStockObject(NULL_BRUSH));
-			Rectangle(draw->hDC, edge.left, edge.top, edge.right, edge.bottom);
-			SelectObject(draw->hDC, oldPen); SelectObject(draw->hDC, oldBrush); DeleteObject(pen);
-		}
 		DrawTextW(draw->hDC, label.c_str(), -1, &rect, flags | (rightAlignedStatus ? DT_RIGHT : DT_LEFT));
 		if (tab != std::wstring::npos)
 			DrawTextW(draw->hDC, item->text.c_str() + tab + 1, -1, &rect, flags | DT_RIGHT | DT_NOPREFIX);

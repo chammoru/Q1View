@@ -71,7 +71,7 @@ void CQMenuItem::Paint(HDC dc)
 	if (mMenu) {
 		const int arrow = q1view::WindowsUiPixels(10, q1view::WindowsUiDpi(m_hWnd));
 		const int x = rect.right - arrow / 2, y = rect.CenterPoint().y;
-		CPen pen(enabled ? PS_SOLID : PS_DASH, 1, q1view::WindowsUiColorValue(q1view::WindowsUiColor::Boundary));
+		CPen pen(PS_SOLID, 1, q1view::WindowsUiColorValue(q1view::WindowsUiColor::Boundary));
 		CPen* oldPen = target->SelectObject(&pen);
 		auto* oldBrush = target->SelectStockObject(NULL_BRUSH);
 		target->Rectangle(mRcClient);
@@ -81,7 +81,7 @@ void CQMenuItem::Paint(HDC dc)
 	}
 	if (pressed) rect.OffsetRect(1, 1);
 	target->DrawText(text, &rect, DT_SINGLELINE | DT_VCENTER | mTextHorizAlign | DT_END_ELLIPSIS | DT_NOPREFIX);
-	if (mMenu && enabled && GetFocus() == this) {
+	if (mMenu && enabled && GetFocus() == this && !(SendMessage(WM_QUERYUISTATE) & UISF_HIDEFOCUS)) {
 		CRect focus = mRcClient; focus.DeflateRect(3, 3); target->DrawFocusRect(focus);
 	}
 }
@@ -121,13 +121,14 @@ BOOL CQMenuItem::OnEraseBkgnd(CDC*) { return TRUE; }
 LRESULT CQMenuItem::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 {
 	if (message == OpenPopupMessage) { if (mPopupQueued) OpenPopup(); return 0; }
+	if (mMenu && message == WM_LBUTTONDOWN) SendMessage(WM_CHANGEUISTATE, MAKEWPARAM(UIS_SET, UISF_HIDEFOCUS));
 	const HWND self = m_hWnd;
 	const LRESULT result = CWnd::WindowProc(message, wp, lp);
 	// Owner-drawn native buttons can request a parent draw synchronously on a
 	// state change. Our local buffered WM_PAINT path must be invalidated too.
 	if (::IsWindow(self) && CWnd::FromHandlePermanent(self) == this &&
 		(message == BM_SETSTATE || message == WM_CAPTURECHANGED || message == WM_LBUTTONDOWN ||
-		message == WM_LBUTTONUP || message == WM_KEYDOWN || message == WM_KEYUP)) Invalidate(FALSE);
+		message == WM_LBUTTONUP || message == WM_KEYDOWN || message == WM_KEYUP || message == WM_UPDATEUISTATE)) Invalidate(FALSE);
 	return result;
 }
 void CQMenuItem::OnSize(UINT type, int cx, int cy) { CWnd::OnSize(type, cx, cy); mRcClient.SetRect(0, 0, cx, cy); }
@@ -145,6 +146,7 @@ void CQMenuItem::OnKillFocus(CWnd* next) { CWnd::OnKillFocus(next); Invalidate(F
 void CQMenuItem::OnEnable(BOOL enable) { CWnd::OnEnable(enable); mMouseIn = false; Invalidate(FALSE); }
 void CQMenuItem::OnKeyDown(UINT key, UINT repeat, UINT flags)
 {
+	if (mMenu && IsWindowEnabled()) SendMessage(WM_CHANGEUISTATE, MAKEWPARAM(UIS_CLEAR, UISF_HIDEFOCUS));
 	if (mMenu && key == VK_TAB) { GetParent()->SetFocus(); return; }
 	if (mMenu && IsWindowEnabled() && (key == VK_RETURN || key == VK_DOWN || key == VK_F4)) {
 		if (!(flags & KF_REPEAT)) OnClicked();

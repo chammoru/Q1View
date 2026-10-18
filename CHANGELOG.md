@@ -6,6 +6,14 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Fixed
+
+- Windows Viewer: previous/next file navigation now honors the saved video autoplay preference just like File > Open and thumbnail activation, while retaining the current window size; internal reloads and paused-video rotation do not trigger autoplay.
+
+- Windows Viewer and Comparator: remove the unfamiliar dashed disabled-command outlines, retain muted unavailable text, and distinguish keyboard focus from mouse activation.
+
+- Windows Viewer: skip full menu and hosted-button availability scans on unchanged idle updates, while refreshing changed inputs, clipboard availability, rebuilt menus and full-screen help correctly.
+
 ---
 
 ## [2.8.1] — 2026-10-18

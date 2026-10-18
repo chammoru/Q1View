@@ -372,7 +372,18 @@ void CViewerDoc::UpdateMenu()
 // CViewerDoc commands
 BOOL CViewerDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
-	bool explicitOpen = theApp.IsExplicitFileOpenInProgress();
+	return OpenDocumentImpl(lpszPathName, theApp.IsExplicitFileOpenInProgress());
+}
+
+BOOL CViewerDoc::OpenNavigatedDocument(LPCTSTR path)
+{
+	// User file movement is an explicit open for autoplay, but must not
+	// reinitialize or reactivate the entire MFC frame via the document manager.
+	return OpenDocumentImpl(path, true);
+}
+
+BOOL CViewerDoc::OpenDocumentImpl(LPCTSTR lpszPathName, bool explicitOpen)
+{
 	mAutoplayAfterPresent = false;
 	mAutoplayMessagePending = false;
 	++mOpenGeneration;

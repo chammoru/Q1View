@@ -2013,7 +2013,9 @@ bool CViewerView::FindFile(CViewerDoc* pDoc, UINT nChar)
 		// the frame to the image.
 		LoadLayout prevLayout = pDoc->mLoadLayout;
 		pDoc->mLoadLayout = LOAD_FIT_TO_WINDOW;
-		BOOL opened = pDoc->OnOpenDocument(candidate);
+		// Keep the existing in-place navigation path, but distinguish this
+		// explicit user choice from an internal reload for autoplay purposes.
+		BOOL opened = pDoc->OpenNavigatedDocument(candidate);
 		pDoc->mLoadLayout = prevLayout;
 		if (opened) {
 			pDoc->SetPathName(candidate, TRUE);

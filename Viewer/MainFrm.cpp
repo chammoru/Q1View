@@ -488,7 +488,7 @@ void CMainFrame::OnDrawItem(int id, LPDRAWITEMSTRUCT item)
 
 void CMainFrame::OnInitMenuPopup(CMenu* menu, UINT index, BOOL system)
 {
-	if (!system) RefreshCommandStates();
+	if (!system) RefreshCommandStates(true);
 	CFrameWnd::OnInitMenuPopup(menu, index, system);
 	if (!system) mUiMenus.Sync(m_hWnd, GetMenu() ? GetMenu()->GetSafeHmenu() : nullptr, mUiFrame.Custom());
 }
@@ -682,6 +682,7 @@ CMenu* CMainFrame::GetMenu() const
 
 BOOL CMainFrame::SetMenu(CMenu* menu)
 {
+	mCommandMenu = nullptr;
 	if (!mUiFrame.Initialized()) return CFrameWnd::SetMenu(menu);
 	mUiFrame.SetMenu(menu ? menu->GetSafeHmenu() : nullptr); RecalcLayout(); return TRUE;
 }
@@ -869,6 +870,7 @@ void CMainFrame::UpdateResolutionLabel(int w, int h)
 	str.Format(_T("%d&x%d"), w, h);
 	GetMenu()->ModifyMenu(MENU_POS_RESOLUTION, nFlags,
 		(UINT_PTR)mResolutionMenu.m_hMenu, str);
+	mCommandMenuSignature = ~0u;
 }
 
 void CMainFrame::UpdateCsLabel(const TCHAR *csLabel)
@@ -878,6 +880,7 @@ void CMainFrame::UpdateCsLabel(const TCHAR *csLabel)
 
 	GetMenu()->ModifyMenu(MENU_POS_COLORSPACE, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mCsMenu.m_hMenu, csLabel);
+	mCommandMenuSignature = ~0u;
 }
 
 void CMainFrame::UpdateFpsLabel(double fps)
@@ -1375,7 +1378,7 @@ BOOL CMainFrame::OnCmdMsg(UINT id, int code, void* extra, AFX_CMDHANDLERINFO* ha
 	return CFrameWnd::OnCmdMsg(id, code, extra, handler);
 }
 
-void CMainFrame::RefreshCommandStates()
+void CMainFrame::RefreshCommandStates(bool force)
 {
 	const auto context = CommandContext();
 	const unsigned signature = unsigned(context.rawInput) | (unsigned(context.pixels) << 1) |
@@ -1386,6 +1389,15 @@ void CMainFrame::RefreshCommandStates()
 	}
 	// Full screen hides the menu, not the context-sensitive help.
 	CMenu* menu = GetMenu(); if (!menu) return;
+	// Clipboard/source availability is cheap to sample. Do not enumerate all
+	// menu items or hosted buttons again on every idle message when unchanged.
+	const HMENU handle = menu->GetSafeHmenu();
+	if (!force && mCommandMenu == handle && mCommandMenuSignature == signature) return;
+	mCommandMenu = handle;
+	mCommandMenuSignature = signature;
+#ifdef Q1VIEW_GALLERY_TESTS
+	++mCommandMenuRefreshCount;
+#endif
 	bool nativeBarChanged = false;
 	auto enable = [](CMenu* target, UINT item, UINT by, bool available) {
 		const UINT old = target->GetMenuState(item, by);

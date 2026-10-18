@@ -179,6 +179,11 @@ private:
 	q1view::WindowsUiFrame mUiFrame;
 	CDrawerTransitionOverlay mDrawerTransitionOverlay;
 	unsigned mCommandStateSignature = ~0u;
+	unsigned mCommandMenuSignature = ~0u;
+	HMENU mCommandMenu = nullptr;
+#ifdef Q1VIEW_GALLERY_TESTS
+	unsigned mCommandMenuRefreshCount = 0;
+#endif
 
 // Operations
 public:
@@ -197,7 +202,7 @@ public:
 	virtual BOOL OnCmdMsg(UINT id, int code, void* extra, AFX_CMDHANDLERINFO* handler);
 	q1view::WindowsUiCommandContext CommandContext() const;
 	bool IsCommandEnabled(UINT id) const;
-	void RefreshCommandStates();
+	void RefreshCommandStates(bool force = false);
 	afx_msg void OnIdleUpdateCmdUI();
 	virtual void OnUpdateFrameTitle(BOOL bAddToTitle);
 	virtual BOOL OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext);

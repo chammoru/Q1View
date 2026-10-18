@@ -422,6 +422,109 @@ struct GalleryIntegrationTests {
             CheckWindowsUiErase(view->m_hWnd,q1view::WindowsUiColor::Canvas,false,check);
         }
     }
+    void AutoplayNavigationTests(CMainFrame* frame) {
+        auto* view = static_cast<CViewerView*>(frame->GetActiveView());
+        auto* doc = view->GetDocument();
+        const CString previous = doc->mPathName;
+        CRect originalWindow; frame->GetWindowRect(originalWindow);
+        struct RestoreAutoplay {
+            bool enabled = theApp.IsVideoAutoplayEnabled();
+            ~RestoreAutoplay() { theApp.SetVideoAutoplayEnabled(enabled); }
+        } restoreAutoplay;
+        wchar_t temp[MAX_PATH]; GetTempPathW(MAX_PATH, temp);
+        CString root; root.Format(L"%sQ1View-autoplay-nav-%lu-%llu\\", temp, GetCurrentProcessId(), GetTickCount64());
+        Require(CreateDirectoryW(root, nullptr) != FALSE, "isolated autoplay navigation folder created");
+        const CString photo = root + L"a.png", first = root + L"b.avi", second = root + L"c.avi";
+        Require(q1::imwriteW(photo.GetString(), cv::Mat(64,96,CV_8UC3,cv::Scalar(40,80,120))), "autoplay navigation photo generated");
+        {
+            cv::VideoWriter writer(std::string(CW2A(first,CP_UTF8)), cv::VideoWriter::fourcc('M','J','P','G'),30.0,cv::Size(96,64));
+            Require(writer.isOpened(), "autoplay navigation video writer opened");
+            for (int i=0;i<150;++i) writer.write(cv::Mat(64,96,CV_8UC3,cv::Scalar(i%256,(i*3)%256,(i*7)%256)));
+        }
+        Require(CopyFileW(first, second, TRUE) != FALSE, "second autoplay navigation video generated");
+        theApp.SetVideoAutoplayEnabled(true);
+        Require(AfxGetApp()->OpenDocumentFile(photo) != nullptr, "navigation starts on a still image");
+        Await([&] { return view->mStableRgbBufferInfo.addr && doc->mDocState != DOC_JUSTLOAD; }, "navigation photo presented");
+        auto sendKey = [&](UINT key) {
+            Await([&] { return !view->mKeyProcessing && doc->mDocState != DOC_JUSTLOAD; }, "view is ready for the next user navigation key");
+            view->SendMessage(WM_KEYDOWN,key,1);
+            view->SendMessage(WM_KEYUP,key,1 | (1L<<30) | (1L<<31));
+        };
+        auto navigate = [&](UINT key, const CString& expected, bool playing) {
+            CRect before; frame->GetWindowRect(before);
+            sendKey(key);
+            Require(doc->mPathName.CompareNoCase(expected)==0, "file navigation selects the expected adjacent video");
+            Await([&] { return view->mStableRgbBufferInfo.addr && doc->mDocState != DOC_JUSTLOAD; }, "adjacent video first frame presented");
+            if (playing) Await([&] { return view->mIsPlaying && view->mStableRgbBufferInfo.ID>0; },
+                "adjacent video autoplays and advances when the setting is enabled");
+            else {
+                Pump(.15);
+                Require(!view->mIsPlaying && view->mStableRgbBufferInfo.ID==0 &&
+                    !doc->mAutoplayAfterPresent && !doc->mAutoplayMessagePending,
+                    "adjacent video remains paused at its first frame when autoplay is disabled");
+            }
+            CRect after; frame->GetWindowRect(after);
+            Require(before==after, "user file navigation keeps the existing outer window size");
+        };
+        navigate(VK_NEXT,first,true); // still -> video
+        navigate(VK_NEXT,second,true); // playing video -> next video
+        view->ToggleFullScreen(); Pump(.1);
+        Require(view->IsFullScreen() && !frame->GetMenu(), "full-screen navigation starts without menu chrome");
+        navigate(VK_PRIOR,first,true);
+        Require(view->IsFullScreen() && !frame->GetMenu(), "previous-file autoplay retains full-screen mode and hidden menu");
+        navigate(VK_NEXT,second,true);
+        Require(view->IsFullScreen() && !frame->GetMenu(), "next-file autoplay retains full-screen mode and hidden menu");
+        view->ToggleFullScreen(); Pump(.1);
+        navigate(VK_PRIOR,first,true); // playing video -> previous video
+        view->KillPlayTimerSafe();
+        navigate(VK_NEXT,second,true); // manual pause does not disable the preference
+        theApp.SetVideoAutoplayEnabled(false);
+        navigate(VK_PRIOR,first,false);
+        navigate(VK_NEXT,second,false);
+        theApp.SetVideoAutoplayEnabled(true);
+        Require(doc->ReloadDocument()!=FALSE, "internal reload succeeds with autoplay preference enabled");
+        Pump(.2);
+        Require(!view->mIsPlaying && !doc->mAutoplayAfterPresent && !doc->mAutoplayMessagePending,
+            "internal reload does not turn a paused video into an explicit autoplay open");
+        doc->Rotate90(); Pump(.2);
+        Require(!view->mIsPlaying && !doc->mAutoplayAfterPresent && !doc->mAutoplayMessagePending,
+            "rotating a paused video does not start autoplay");
+        sendKey(VK_PRIOR);
+        Await([&] { return view->mIsPlaying; }, "previous video plays before moving back to a photo");
+        sendKey(VK_PRIOR);
+        Require(doc->mPathName.CompareNoCase(photo)==0, "navigation returns to the still image");
+        Pump(.2);
+        Require(!view->mIsPlaying && !doc->mAutoplayAfterPresent && !doc->mAutoplayMessagePending,
+            "moving from video to photo cannot consume a stale autoplay request");
+        const CString reopen = previous.IsEmpty() ? CString(L"Tests\\fixtures\\sample_16x16.png") : previous;
+        Require(AfxGetApp()->OpenDocumentFile(reopen)!=nullptr, "original source restored after autoplay regression checks");
+        frame->MoveWindow(originalWindow);
+        Pump(.1);
+        Require(DeleteFileW(photo) && DeleteFileW(first) && DeleteFileW(second) && RemoveDirectoryW(root),
+            "autoplay fixtures cleaned up after releasing all decoder handles");
+    }
+
+    void CommandRefreshTests(CMainFrame* frame) {
+        frame->RefreshCommandStates(true);
+        const auto applied = frame->mCommandMenuRefreshCount;
+        const double begin = CGalleryGridCanvas::Now();
+        for (int i=0;i<2000;++i) frame->RefreshCommandStates();
+        const double cached = CGalleryGridCanvas::Now()-begin;
+        Require(frame->mCommandMenuRefreshCount==applied, "unchanged idle state performs no full menu enumeration or hosted-button synchronization");
+        const double forceBegin = CGalleryGridCanvas::Now();
+        for (int i=0;i<2000;++i) frame->RefreshCommandStates(true);
+        fprintf(report,"Command refresh / 2000 calls: cached %.3f ms; forced full update %.3f ms\n", cached*1000,(CGalleryGridCanvas::Now()-forceBegin)*1000);
+        Require(frame->mCommandMenuRefreshCount==applied+2000, "explicit menu initialization can still force a complete availability refresh");
+        auto* view = static_cast<CViewerView*>(frame->GetActiveView());
+        auto* doc = view->GetDocument();
+        frame->UpdateCsLabel(CString(q1::image_find_cs_name(doc->mSortedCscInfo,doc->mColorSpace)).MakeUpper());
+        frame->RefreshCommandStates();
+        Require(frame->mCommandMenuRefreshCount==applied+2001, "rebuilding a source-format menu label invalidates cached menu availability");
+        const auto root = frame->GetMenu()->GetSafeHmenu();
+        const bool enabled = !(GetMenuState(root,2,MF_BYPOSITION)&(MF_GRAYED|MF_DISABLED));
+        Require(enabled==frame->CommandContext().rawInput, "cached refresh does not leave a rebuilt fixed-source RAW menu enabled");
+    }
+
     void Run() {
         auto frame = static_cast<CMainFrame*>(AfxGetMainWnd());
         auto view = static_cast<CViewerView*>(frame->GetActiveView());
@@ -478,6 +581,13 @@ struct GalleryIntegrationTests {
         if (!frame->mDrawerVisible) frame->OnToggleDrawer();
         Pump(.4);
         ChromeTests(frame, view);
+        CommandRefreshTests(frame);
+        AutoplayNavigationTests(frame);
+        wchar_t navigationOnly[8] = {};
+        if (GetEnvironmentVariableW(L"Q1VIEW_AUTOPLAY_NAVIGATION_ONLY", navigationOnly, _countof(navigationOnly))) {
+            fprintf(report,"Autoplay navigation-only run; full gallery/GPU suite is separate\n");
+            return;
+        }
         auto& pane = *frame->mpDrawer;
         Require(pane.mPrivateFontLoaded && pane.mFontFamily == L"Pretendard Variable",
             "bundled Pretendard typography loaded for the MFC drawer");

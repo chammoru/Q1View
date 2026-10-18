@@ -1376,7 +1376,11 @@ void CComparatorView::OnCsChange(UINT nID)
 
 void CComparatorView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
-	if (nChar == VK_TAB && mCsQMenu.IsWindowEnabled()) { mCsQMenu.SetFocus(); return; }
+	if (nChar == VK_TAB && mCsQMenu.IsWindowEnabled()) {
+		mCsQMenu.SetFocus();
+		mCsQMenu.SendMessage(WM_CHANGEUISTATE, MAKEWPARAM(UIS_CLEAR, UISF_HIDEFOCUS));
+		return;
+	}
 	CComparatorDoc* pDoc = GetDocument();
 
 	bool isProcessing = pDoc->CheckImgViewProcessing();

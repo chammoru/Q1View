@@ -246,7 +246,7 @@ static void TestMenus()
 				"disabled top-level actions and status ignore stale hover/pressed colors");
 			bool boundary=false;
 			for (int x=2;x<318;++x) boundary |= GetPixel(dc,x,2)!=WindowsUiColorValue(WindowsUiColor::Window);
-			Require(boundary == (id==105), "right-aligned disabled Compare has a non-color cue; read-only zoom does not");
+			Require(!boundary, "disabled actions and read-only status have no invented focus-like dashed boundary");
 		}
 	}
 	WindowsUiAppearanceState().Initialize(0);
@@ -385,6 +385,7 @@ static void TestFrames()
 		-20000, -20000, 640, 480, nullptr, root, cls.hInstance, &host);
 	Require(window != nullptr, "isolated custom-frame host created");
 	host.frame.ReserveMenuWidth(102, L"888.88x");
+	host.menus.SetReadOnlyStatus(102);
 	host.frame.Initialize(window, host.menus);
 	Require(host.frame.Menu() == root && host.frame.RetainedMenu() == root, "custom chrome retains the original HMENU and commands");
 	Require(host.frame.MenuHost() != nullptr, "menu host uses a real child window");

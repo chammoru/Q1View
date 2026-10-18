@@ -117,6 +117,7 @@ class WindowsUiFrame {
 	}
 	static LRESULT CALLBACK ButtonProc(HWND window, UINT message, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data) {
 		auto* self = reinterpret_cast<WindowsUiFrame*>(data);
+		if (message == WM_LBUTTONDOWN || message == WM_RBUTTONDOWN) self->mKeyboard = false;
 		if (message == WM_MOUSEMOVE && IsWindowEnabled(window) && self->mHotButton != window) {
 			if (self->mHotButton) InvalidateRect(self->mHotButton, nullptr, FALSE);
 			self->mHotButton = window;
@@ -159,7 +160,9 @@ class WindowsUiFrame {
 				WindowsUiBufferedPaint paint(draw.hDC,draw.rcItem,WindowsUiColor::Window);
 				draw.hDC = paint.Dc();
 				if (!self->mMenus->Draw(&draw)) FillRect(draw.hDC, &draw.rcItem, WindowsUiColorBrush(WindowsUiColor::Window));
-				if (draw.itemState & ODS_FOCUS) { InflateRect(&draw.rcItem, -2, -2); DrawFocusRect(draw.hDC, &draw.rcItem); }
+				if (self->mKeyboard && !(draw.itemState & ODS_DISABLED) && (draw.itemState & ODS_FOCUS)) {
+					InflateRect(&draw.rcItem, -2, -2); DrawFocusRect(draw.hDC, &draw.rcItem);
+				}
 				return TRUE;
 			}
 		}
