@@ -6,27 +6,25 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.8.2] — 2026-10-19
+
 ### Changed
 
-- Windows Viewer and Comparator: expose Selection Mode in Options while retaining the S shortcut and image context menus; also expose Viewer's per-window Sync Input setting in Options, with consistent shared check states and clearer labels. Comparator's Clear Selection remains a context/Esc action.
+- Windows Viewer: retain direct resolution, color-space and FPS menus; show sampling at bottom left and zoom at bottom right. Simplify Options and Browse without duplicate Open/Browser, View/More or Fit/100% controls. (#120)
 
-- Windows Viewer: retain direct resolution, pixel-format and FPS menus, show sampling mode at the bottom left and live magnification at the bottom right without duplicate top-level zoom or Fit/100% controls, group image scaling, video autoplay and theme settings under Options, and remove the duplicate Thumbnail Browser entry from File while retaining Browse and E; preserve File > Open/Ctrl+O, mouse-wheel zoom, narrow-window menu wrapping, video progress, full-screen viewing and Comparator's layout. (#120)
+- Windows Viewer and Comparator: add Selection Mode to Options, retaining S/context shortcuts and matching checks. Add Viewer window synchronization to Options; keep Comparator Clear Selection in its context menu/Esc.
 
 ### Fixed
 
-- Windows Viewer: keep native resolution/color-space interpretation editable for supported Y4M raw-frame containers, including files named .yuv, while retaining frame-header boundaries, rational FPS, seeking and autoplay; safely pad oversized interpretations instead of consuming the next frame's headers or pixels.
+- Viewer: autoplay videos and multi-frame RAW on open and Page Up/Page Down, honoring the saved setting without resizing the window. Keep single frames and internal reloads paused.
 
-- Windows Viewer: refresh resolution and color-space menu labels after RAW interpretation changes, and honor the existing autoplay preference for multi-frame RAW files as well as videos on direct open and Page Up/Page Down navigation; keep single-frame inputs, internal reloads and disabled autoplay paused.
+- Viewer: allow supported Y4M/.yuv resolution and color-space reinterpretation with correct frame boundaries, FPS, seeking and autoplay; refresh RAW menu labels after changes.
 
-- Windows Viewer and Comparator: prevent top-level direct commands from executing on hover or arrow navigation during popup tracking; activate only on an explicit click or keyboard action. Place Viewer's Browse immediately left of Options, and match Viewer canvas and thumbnail-browser context menus to Comparator's shared font, colors and spacing.
+- Viewer and Comparator: prevent hover/arrow navigation from executing commands; unify Viewer context-menu fonts/colors and remove dashed disabled outlines while retaining keyboard focus.
 
-- Windows Viewer: keep the main Compare launcher enabled without an open file and open an empty Comparator workspace in that case; preserve the separate browser selection requirements.
-
-- Windows Viewer: previous/next file navigation now honors the saved video autoplay preference just like File > Open and thumbnail activation, while retaining the current window size; internal reloads and paused-video rotation do not trigger autoplay.
-
-- Windows Viewer and Comparator: remove the unfamiliar dashed disabled-command outlines, retain muted unavailable text, and distinguish keyboard focus from mouse activation.
-
-- Windows Viewer: skip full menu and hosted-button availability scans on unchanged idle updates, while refreshing changed inputs, clipboard availability, rebuilt menus and full-screen help correctly.
+- Viewer: keep Compare enabled without a file, opening an empty Comparator; avoid full menu scans when idle command availability is unchanged.
 
 ---
 
@@ -537,7 +535,8 @@ Native display checks passed at 100–175%; 200% layout/font calculations passed
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.1...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.2...HEAD
+[2.8.2]: https://github.com/chammoru/Q1View/compare/v2.8.1...v2.8.2
 [2.8.1]: https://github.com/chammoru/Q1View/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/chammoru/Q1View/compare/v2.7.28...v2.8.0
 [2.7.28]: https://github.com/chammoru/Q1View/compare/v2.7.27...v2.7.28

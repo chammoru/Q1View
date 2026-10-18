@@ -1,5 +1,11 @@
 # Issue #120: Viewer command row and read-only status
 
+## User acceptance and release preparation — 2026-10-19
+
+The user approved clearing the completed related issue and releasing after the latest preview. Prepare v2.8.2 for the completed #120 scope and its documented post-v2.8.1 follow-ups; keep future redesign jobs and their coordination epics open. Prior statements below that prohibit merge/release describe the earlier review stage, not this new authorization. Production evidence is the final 1,790 Viewer / 131 startup-RAW checks and the earlier 779 Comparator checks (Comparator production code is unchanged by the Y4M follow-up), plus common UI/core tests, both ordinary Windows Release builds and actual latest-preview inspection. CoreRegressionTests was rebuilt/rerun for release preparation; only changelog/verification documentation changed afterward.
+
+Curated v2.8.2 notes are 1,173 characters, below the Store pipeline's 1,500-character limit, with one logical line per bullet. Local version remains 0.0.0-dev; the direct version script is machine-policy-blocked, and no policy bypass is used. The tagged Actions workflow owns release versioning, final builds, packaging/signing and GitHub/Store publication. PR source-build checks still running at approval are not represented as completed; do not wait/poll for release completion after pushing the release tag. Tag/run links and the actual queued/running state are the handoff, not a claim that binaries or Store publication already finished. The user's unrelated untracked design files remain outside the release commits.
+
 ## Playable RAW/Y4M controls and actual latest preview — 2026-10-19
 
 The user's running Viewer was still Issue120RawPlaybackReview, predating the already committed Options additions in 609649a; the new menu was not missing from the source/build. The reported .yuv contains a YUV4MPEG2 header and had been opened by VidCapFrmSrc as intrinsically fixed decoded BGR, so merely enabling the existing buttons would have fed mismatched dimensions/format into that decoder. Implement an indexed native-RAW path for supported Y4M layouts instead, selected by signature before the normal image/video/raw order. Other inputs retain their existing order and unsupported Y4M layouts retain decoded-video fallback. Qt and Comparator production code are unchanged.
