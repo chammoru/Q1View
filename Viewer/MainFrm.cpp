@@ -101,6 +101,8 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_WM_DROPFILES()
 	ON_COMMAND(ID_VIEWER_HELP, &CMainFrame::OnHelp)
 	ON_COMMAND(ID_FILE_OPEN, &CMainFrame::OnFileOpen)
+	ON_COMMAND(ID_VIEW_FIT, &CMainFrame::OnViewFit)
+	ON_COMMAND(ID_VIEW_ACTUAL_SIZE, &CMainFrame::OnViewActualSize)
 	ON_COMMAND(ID_COMPARE, &CMainFrame::OnExecComparator)
 	ON_COMMAND_RANGE(ID_RESOLUTION_START, ID_RESOLUTION_END, &CMainFrame::OnResolutionChange)
 	ON_COMMAND_RANGE(ID_CS_START, ID_CS_END, &CMainFrame::OnCsChange)
@@ -466,7 +468,7 @@ LRESULT CMainFrame::OnAppearanceChanged(WPARAM, LPARAM)
 	const COLORREF canvas = Q1UI_COLOR_CANVAS_BG;
 	const bool canvasChanged = canvas != mAppliedCanvasColor;
 	mAppliedCanvasColor = canvas;
-	mUiFrame.RefreshSettings(); mUiFrame.Sync();
+	mUiFrame.RefreshSettings(); mUiFrame.Sync(); RecalcLayout();
 	SendMessageToDescendants(q1view::WM_UI_APPEARANCE_CHANGED, canvasChanged);
 	mHelpOverlay.Relayout();
 	RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN);
@@ -665,8 +667,24 @@ LRESULT CMainFrame::WindowProc(UINT message, WPARAM wp, LPARAM lp)
 	result = CFrameWnd::WindowProc(message, wp, lp);
 	if (message == WM_DESTROY) { mUiFrame.Destroy(); return result; }
 	if (message == WM_CREATE && result != -1) {
-		mUiMenus.SetReadOnlyStatus(ID_MAGNIFY);
-		mUiFrame.Initialize(m_hWnd, mUiMenus); RecalcLayout();
+		CMenu* root = CFrameWnd::GetMenu();
+		mUiFrame.ConfigureSingleRow(mOverflowMenu.GetSafeHmenu(), {
+			{root->GetSubMenu(0)->GetSafeHmenu(), 0, 0, 0, {}},
+			{nullptr, ID_FILE_OPEN, 1, 1, {}},
+			{nullptr, ID_TOGGLE_DRAWER, 2, 2, {}},
+			{nullptr, ID_VIEW_FIT, 3, 2, {}},
+			{nullptr, ID_VIEW_ACTUAL_SIZE, 4, 3, {}},
+			{root->GetSubMenu(4)->GetSafeHmenu(), 0, 5, 4, {}},
+			{mOptionsMenu.GetSafeHmenu(), 0, 6, 5, {}},
+			{nullptr, ID_COMPARE, 7, 6, {}},
+			{nullptr, ID_VIEWER_HELP, 8, 7, {}},
+			{mResolutionMenu.GetSafeHmenu(), 0, 10, 100, L"Input size: "},
+			{mCsMenu.GetSafeHmenu(), 0, 11, 100, L"Pixel format: "},
+			{mFpsMenu.GetSafeHmenu(), 0, 12, 100, L"Frame rate: "},
+			{nullptr, ID_UPDATE, 9, 3, {}}
+		});
+		mUiFrame.Initialize(m_hWnd, mUiMenus);
+		mStatusBar.Initialize(m_hWnd); UpdateViewerStatus(); RecalcLayout();
 	}
 	mUiFrame.After(message);
 	if (message == WM_ACTIVATE && LOWORD(wp) != WA_INACTIVE && q1view::ReloadSharedWindowsUiTheme())
@@ -697,12 +715,16 @@ void CMainFrame::OnUpdateFrameMenu(HMENU menu)
 }
 
 void CMainFrame::GetContentRect(CRect& rect) const
-{ GetClientRect(&rect); rect.top = std::min(rect.bottom, LONG(mUiFrame.Height())); }
+{ GetClientRect(&rect); rect.top = std::min(rect.bottom, LONG(mUiFrame.Height())); rect.bottom = std::max(rect.top, rect.bottom - StatusHeight()); }
+
+int CMainFrame::StatusHeight() const
+{ return GetMenu() && (GetStyle() & WS_CAPTION) == WS_CAPTION ? mStatusBar.Height() : 0; }
 
 void CMainFrame::RecalcLayout(BOOL notify)
 {
 	if (mUiFrame.Initialized()) mUiFrame.Layout();
-	m_rectBorder.SetRect(0, mUiFrame.Height(), 0, 0);
+	mStatusBar.Layout(m_hWnd, StatusHeight() > 0);
+	m_rectBorder.SetRect(0, mUiFrame.Height(), 0, StatusHeight());
 	CFrameWnd::RecalcLayout(notify);
 }
 
@@ -740,7 +762,7 @@ void CMainFrame::SizeDefaultWindow()
 	const int borderHeight = outer.Height() - client.Height();
 	SIZE available = {
 		monitor.rcWork.right - monitor.rcWork.left - borderWidth,
-		monitor.rcWork.bottom - monitor.rcWork.top - borderHeight - mUiFrame.Height()
+		monitor.rcWork.bottom - monitor.rcWork.top - borderHeight - mUiFrame.Height() - StatusHeight()
 	};
 	// Keep the normal default roomy; enlarged accessibility text still wraps
 	// rather than forcing a very wide launch or resizing the user's window.
@@ -751,7 +773,7 @@ void CMainFrame::SizeDefaultWindow()
 	if (width != outer.Width())
 		SetWindowPos(nullptr, 0, 0, width, outer.Height(), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 	RecalcLayout();
-	const int chrome = mUiFrame.Height();
+	const int chrome = mUiFrame.Height() + StatusHeight();
 	available.cy = monitor.rcWork.bottom - monitor.rcWork.top - borderHeight - chrome;
 	const SIZE content = q1view::ViewerDefaultContentSize(dpi, menuWidth, available);
 	const int height = content.cy + chrome + borderHeight;
@@ -1027,6 +1049,19 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	q1view::AppendWindowsUiThemeMenu(mOptionsMenu.GetSafeHmenu());
 	GetMenu()->InsertMenu(MENU_POS_OPTIONS, MF_BYPOSITION | MF_POPUP,
 		(UINT_PTR)mOptionsMenu.GetSafeHmenu(), _T("&Options"));
+	// Reuse this command row, not a second toolbar above the image. Preserve
+	// existing root positions for dynamic input menus and native fallback.
+	GetMenu()->DeleteMenu(ID_MAGNIFY, MF_BYCOMMAND);
+	GetMenu()->AppendMenu(MF_STRING, ID_FILE_OPEN, L"Open");
+	GetMenu()->AppendMenu(MF_STRING, ID_TOGGLE_DRAWER, L"Browse");
+	GetMenu()->AppendMenu(MF_STRING, ID_VIEW_FIT, L"Fit");
+	GetMenu()->AppendMenu(MF_STRING, ID_VIEW_ACTUAL_SIZE, L"100%");
+	mOverflowMenu.CreatePopupMenu();
+	GetMenu()->AppendMenu(MF_POPUP, (UINT_PTR)mOverflowMenu.GetSafeHmenu(), L"&More");
+	CMenu* viewMenu = GetMenu()->GetSubMenu(MENU_POS_VIEW);
+	viewMenu->AppendMenu(MF_SEPARATOR);
+	viewMenu->AppendMenu(MF_STRING, ID_VIEW_FIT, L"Fit to window");
+	viewMenu->AppendMenu(MF_STRING, ID_VIEW_ACTUAL_SIZE, L"Actual size (100%)");
 	mAppliedCanvasColor = Q1UI_COLOR_CANVAS_BG;
 
 	CheckResolutionRadio(q1view::ViewerDefaultImageWidth, q1view::ViewerDefaultImageHeight);
@@ -1339,7 +1374,7 @@ namespace {
 bool ViewerCommandKind(UINT id, q1view::WindowsUiCommand& kind)
 {
 	if ((id >= ID_RESOLUTION_START && id <= ID_RESOLUTION_END) || (id >= ID_CS_START && id <= ID_CS_END)) kind = q1view::WindowsUiCommand::RawInput;
-	else if (id == ID_EDIT_COPY) kind = q1view::WindowsUiCommand::CopyPixels;
+	else if (id == ID_EDIT_COPY || id == ID_VIEW_FIT || id == ID_VIEW_ACTUAL_SIZE) kind = q1view::WindowsUiCommand::CopyPixels;
 	else if (id == ID_EDIT_PASTE) kind = q1view::WindowsUiCommand::PasteImage;
 	else if (id == ID_COMPARE) kind = q1view::WindowsUiCommand::CompareFile;
 	else return false;
@@ -1381,10 +1416,14 @@ BOOL CMainFrame::OnCmdMsg(UINT id, int code, void* extra, AFX_CMDHANDLERINFO* ha
 void CMainFrame::RefreshCommandStates(bool force)
 {
 	const auto context = CommandContext();
+	auto* view = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
 	const unsigned signature = unsigned(context.rawInput) | (unsigned(context.pixels) << 1) |
-		(unsigned(context.clipboardImage) << 2) | (unsigned(context.file) << 3);
-	if (signature != mCommandStateSignature) {
-		mCommandStateSignature = signature;
+		(unsigned(context.clipboardImage) << 2) | (unsigned(context.file) << 3) |
+		(unsigned(view && view->IsFitToWindow()) << 4) | (unsigned(mDrawerVisible) << 5) |
+		(unsigned(view && view->mN == 1.0f) << 6);
+	const unsigned helpSignature = signature & 15u;
+	if (helpSignature != mCommandStateSignature) {
+		mCommandStateSignature = helpSignature;
 		if (mHelpOverlay.GetSafeHwnd() && mHelpOverlay.IsShown()) mHelpOverlay.Relayout();
 	}
 	// Full screen hides the menu, not the context-sensitive help.
@@ -1413,11 +1452,24 @@ void CMainFrame::RefreshCommandStates(bool force)
 		if (auto* popup = menu->GetSubMenu(position)) for (int i = 0; i < popup->GetMenuItemCount(); ++i)
 			enable(popup, i, MF_BYPOSITION, context.rawInput);
 	}
-	for (UINT id : {UINT(ID_EDIT_COPY), UINT(ID_EDIT_PASTE), UINT(ID_COMPARE)}) {
+	for (UINT id : {UINT(ID_EDIT_COPY), UINT(ID_EDIT_PASTE), UINT(ID_COMPARE), UINT(ID_VIEW_FIT), UINT(ID_VIEW_ACTUAL_SIZE)}) {
 		q1view::WindowsUiCommand kind;
 		if (ViewerCommandKind(id, kind)) {
 			const bool changed = enable(menu, id, MF_BYCOMMAND, q1view::WindowsUiResolveCommand(kind, context).enabled);
 			nativeBarChanged |= changed && id == ID_COMPARE;
+		}
+	}
+	for (int i = 0; i < menu->GetMenuItemCount(); ++i) {
+		const UINT id = menu->GetMenuItemID(i);
+		if (id != ID_TOGGLE_DRAWER && id != ID_VIEW_FIT && id != ID_VIEW_ACTUAL_SIZE) continue;
+		if (id == ID_VIEW_FIT || id == ID_VIEW_ACTUAL_SIZE) nativeBarChanged |= enable(menu, i, MF_BYPOSITION, context.pixels);
+		const bool checked = id == ID_TOGGLE_DRAWER ? mDrawerVisible : context.pixels &&
+			(id == ID_VIEW_FIT ? view->IsFitToWindow() : !view->IsFitToWindow() && view->mN == 1.0f);
+		const bool old = (menu->GetMenuState(i, MF_BYPOSITION) & MF_CHECKED) != 0;
+		if (old != checked) {
+			menu->CheckMenuItem(i, MF_BYPOSITION | (checked ? MF_CHECKED : MF_UNCHECKED));
+			if (mUiFrame.MenuHost()) ::InvalidateRect(::GetDlgItem(mUiFrame.MenuHost(), i + 1), nullptr, FALSE);
+			nativeBarChanged = true;
 		}
 	}
 	mUiFrame.SyncEnabledStates();
@@ -1428,6 +1480,7 @@ void CMainFrame::OnIdleUpdateCmdUI()
 {
 	CFrameWnd::OnIdleUpdateCmdUI();
 	RefreshCommandStates();
+	UpdateViewerStatus();
 }
 
 void CMainFrame::OnResolutionChange(UINT nID)
@@ -1591,30 +1644,46 @@ void CMainFrame::OnUpdateScalingMode(CCmdUI *pCmdUI)
 
 void CMainFrame::UpdateMagnication(float n, int wDst, int hDst)
 {
-	if (GetMenu() == NULL)
-		return;
+	UpdateViewerStatus();
+}
 
-	CString str;
-	str.Format(_T("%dx%d (%.2fx)"), wDst, hDst, n);
-	CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
-	if (pView) {
-		str += _T(" ");
-		str.AppendChar(0x00b7);
-		str += _T(" ");
-		str += pView->GetScalingStatusLabel();
+void CMainFrame::UpdateViewerStatus()
+{
+	auto* view = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
+	auto* doc = view ? view->GetDocument() : nullptr;
+	CString text;
+	if (!doc || !view->mStableRgbBufferInfo.addr || doc->mDocState == DOC_JUSTLOAD) {
+		text = doc && !doc->mPathName.IsEmpty() ? L"Loading..." : L"Ready";
+	} else {
+		CString format = L"Unknown";
+		for (const auto& info : qcsc_info_table) if (info.cs == doc->mColorSpace) { format = CString(info.name).MakeUpper(); break; }
+		const CString scaling = view->GetScalingStatusLabel();
+		text.Format(L"%d\x00d7%d  |  %s  |  %.1f%%  %s  |  %s", doc->mW, doc->mH,
+			format.GetString(), double(view->mN) * 100.0, view->IsFitToWindow() ? L"Fit" : L"Manual",
+			scaling.GetString());
+		if (doc->mFrames > 1) {
+			CString frame; frame.Format(L"  |  Frame %ld / %ld", long(view->mStableRgbBufferInfo.ID) + 1, doc->mFrames);
+			text += frame;
+		}
 	}
+	mStatusBar.SetText(text.GetString());
+}
 
-	CMenu *pMenu = GetMenu();
-	if (pMenu == NULL)
-		return;
+void CMainFrame::OnViewFit()
+{
+	if (!IsCommandEnabled(ID_VIEW_FIT)) return;
+	auto* view = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
+	if (!view || !view->mStableRgbBufferInfo.addr) return;
+	view->FitToWindow(true); view->Invalidate(FALSE); view->SetFocus();
+}
 
-	pMenu->ModifyMenu(ID_MAGNIFY, MF_BYCOMMAND | MF_RIGHTJUSTIFY | MF_GRAYED, ID_MAGNIFY, str);
-
-	// While the divider is dragged, DrawMenuBar would repaint the whole
-	// non-buffered menu bar each time. Update the label text now but defer the
-	// repaint until the drag settles.
-	if (!mDrawerResizing)
-		DrawMenuBar();
+void CMainFrame::OnViewActualSize()
+{
+	if (!IsCommandEnabled(ID_VIEW_ACTUAL_SIZE)) return;
+	auto* view = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
+	if (!view || !view->mStableRgbBufferInfo.addr) return;
+	view->ShowActualSize();
+	UpdateViewerStatus(); view->SetFocus();
 }
 
 void CMainFrame::ToggleSyncInput()

@@ -301,7 +301,7 @@ struct GalleryIntegrationTests {
         CRect client; frame->GetClientRect(client);
         const SIZE available = {
             monitor.rcWork.right - monitor.rcWork.left - (initial.Width() - client.Width()),
-            monitor.rcWork.bottom - monitor.rcWork.top - (initial.Height() - client.Height()) - frame->mUiFrame.Height()
+            monitor.rcWork.bottom - monitor.rcWork.top - (initial.Height() - client.Height()) - frame->mUiFrame.Height() - frame->StatusHeight()
         };
         const auto expected = q1view::ViewerDefaultContentSize(dpi, menuWidth, available);
         Require(content.Width() == expected.cx && content.Height() == expected.cy,
@@ -320,7 +320,7 @@ struct GalleryIntegrationTests {
         frame->MoveWindow(initial.left, initial.top, q1view::WindowsUiPixels(320, dpi), initial.Height()); Pump(.1);
         bool wrapped = false;
         for (const auto& rect : frame->mUiFrame.MenuRects()) wrapped |= rect.top > 0;
-        Require(wrapped, "manual narrowing still wraps the application menu");
+        Require(!wrapped && !frame->mUiFrame.OverflowPositions().empty(), "manual narrowing overflows commands without wrapping the Viewer row");
         frame->SizeDefaultWindow(); Pump(.1);
         CRect resizedContent; frame->GetContentRect(resizedContent);
         Require(resizedContent.Width() == expected.cx && resizedContent.Height() == expected.cy,
@@ -465,6 +465,9 @@ struct GalleryIntegrationTests {
             }
             CRect after; frame->GetWindowRect(after);
             Require(before==after, "user file navigation keeps the existing outer window size");
+            CString position; position.Format(L"Frame %ld / %ld",long(view->mStableRgbBufferInfo.ID)+1,doc->mFrames);
+            Require(frame->mStatusBar.Text().find(position.GetString())!=std::wstring::npos,
+                "video status reports the actually presented frame, not a queued decoder position");
         };
         navigate(VK_NEXT,first,true); // still -> video
         navigate(VK_NEXT,second,true); // playing video -> next video
@@ -524,6 +527,56 @@ struct GalleryIntegrationTests {
         const bool enabled = !(GetMenuState(root,2,MF_BYPOSITION)&(MF_GRAYED|MF_DISABLED));
         Require(enabled==frame->CommandContext().rawInput, "cached refresh does not leave a rebuilt fixed-source RAW menu enabled");
     }
+    void ViewerShellTests(CMainFrame* frame, CViewerView* view, CViewerDoc* doc) {
+        CRect original; frame->GetWindowRect(original);
+        const CString path = doc->mPathName;
+        const auto generation = doc->mOpenGeneration;
+        const auto pixels = view->mStableRgbBufferInfo.addr;
+        const auto presented = view->mStableRgbBufferInfo.ID;
+        const auto selection = view->mSelRegions.size();
+        const UINT dpi = q1view::WindowsUiDpi(frame->m_hWnd);
+        for (auto size : {CSize(640,480), CSize(960,600), CSize(1440,900)}) {
+            // The specified client dimensions, not an outer-window estimate.
+            CRect outer, client; frame->GetWindowRect(outer); frame->GetClientRect(client);
+            frame->SetWindowPos(nullptr, 0, 0, q1view::WindowsUiPixels(size.cx,dpi) + outer.Width()-client.Width(),
+                q1view::WindowsUiPixels(size.cy,dpi) + outer.Height()-client.Height(), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+            Pump(.08);
+            frame->GetClientRect(client);
+            const auto& rects = frame->mUiFrame.MenuRects();
+            for (size_t i=0; i<rects.size(); ++i) {
+                const auto& r=rects[i];
+                Require(r.top==0 && r.right<=client.right, "Viewer command targets stay in one measured row at the required client sizes");
+                const bool visible = r.right>r.left;
+                const bool inMore = std::find(frame->mUiFrame.OverflowPositions().begin(),frame->mUiFrame.OverflowPositions().end(),int(i)) != frame->mUiFrame.OverflowPositions().end();
+                Require(visible != inMore, "every root command is either visible or reachable through More, never lost");
+                for(size_t j=i+1; j<rects.size(); ++j) { CRect overlap; Require(!overlap.IntersectRect(&r,&rects[j]), "single-row command targets never overlap"); }
+            }
+            CRect status, content, splitter;
+            ::GetWindowRect(frame->mStatusBar.Window(),status); frame->ScreenToClient(status);
+            frame->GetContentRect(content); frame->mwndSplitter.GetWindowRect(splitter); frame->ScreenToClient(splitter);
+            Require(status.bottom==client.bottom && status.Height()==frame->StatusHeight() && content.bottom==status.top && content==splitter,
+                "read-only status reserves exactly its measured height without covering the image");
+        }
+        frame->MoveWindow(original); Pump(.1);
+        frame->UpdateViewerStatus();
+        wchar_t accessible[1024] = {}; GetWindowTextW(frame->mStatusBar.Window(),accessible,_countof(accessible));
+        Require(frame->mStatusBar.Text()==accessible && frame->mStatusBar.Text().find(L"%")!=std::wstring::npos,
+            "native read-only status exposes the full actual zoom text, independent of visual ellipsis");
+        const auto rects = frame->mUiFrame.MenuRects();
+        const int height = frame->mUiFrame.Height();
+        frame->SendMessage(WM_COMMAND,ID_VIEW_ACTUAL_SIZE); Pump(.05);
+        Require(view->mN==1.0f && !view->IsFitToWindow() && frame->mStatusBar.Text().find(L"100.0%  Manual")!=std::wstring::npos,
+            "actual-size command uses manual 100 percent and updates the real status");
+        frame->SendMessage(WM_COMMAND,ID_VIEW_FIT); Pump(.05);
+        Require(view->IsFitToWindow() && view->mN<=1.0f, "Fit uses the existing no-upscale policy");
+        Require(frame->mUiFrame.Height()==height && frame->mUiFrame.MenuRects().size()==rects.size(), "zoom status never changes command row height or control count");
+        for(size_t i=0;i<rects.size();++i) Require(EqualRect(&rects[i],&frame->mUiFrame.MenuRects()[i])!=FALSE,"Fit/zoom leave Help and every command hit target fixed");
+        Require(doc->mPathName==path && doc->mOpenGeneration==generation && view->mStableRgbBufferInfo.addr==pixels &&
+            view->mStableRgbBufferInfo.ID==presented && view->mSelRegions.size()==selection,
+            "Viewer shell changes preserve source, presented frame, decoder generation and ROI selection");
+        // The full suite below separately exercises manual pan anchors, E,
+        // playback and GPU recreation. These actions test the new commands.
+    }
 
     void Run() {
         auto frame = static_cast<CMainFrame*>(AfxGetMainWnd());
@@ -535,6 +588,8 @@ struct GalleryIntegrationTests {
         Require(frame->IsCommandEnabled(ID_EDIT_PASTE) == bool(IsClipboardFormatAvailable(CF_DIB) || IsClipboardFormatAvailable(CF_DIBV5)),
             "paste menu policy reflects supported clipboard formats without changing the clipboard");
         Require(frame->IsCommandEnabled(ID_COMPARE) == !doc->mPathName.IsEmpty(), "compare availability follows an actual source file");
+        Require(frame->IsCommandEnabled(ID_VIEW_FIT)==commandContext.pixels && frame->IsCommandEnabled(ID_VIEW_ACTUAL_SIZE)==commandContext.pixels,
+            "Fit and actual-size availability require real displayed pixels");
         const auto clipboardSequence = GetClipboardSequenceNumber();
         if (!commandContext.pixels) {
             frame->SendMessage(WM_COMMAND, ID_EDIT_COPY); frame->OnEditCopy();
@@ -581,6 +636,7 @@ struct GalleryIntegrationTests {
         if (!frame->mDrawerVisible) frame->OnToggleDrawer();
         Pump(.4);
         ChromeTests(frame, view);
+        ViewerShellTests(frame, view, doc);
         CommandRefreshTests(frame);
         AutoplayNavigationTests(frame);
         wchar_t navigationOnly[8] = {};
@@ -668,7 +724,9 @@ struct GalleryIntegrationTests {
         CRect appearanceBounds; frame->GetWindowRect(appearanceBounds);
         HMENU options = GetSubMenu(frame->GetMenu()->GetSafeHmenu(),5);
         Require(frame->mUiMenus.Text(frame->GetMenu()->GetSafeHmenu(),5,true)==L"&Options" && options && GetMenuItemCount(options)==1 &&
-            frame->mUiMenus.Text(options,0,true)==L"&Theme" && GetMenuItemCount(GetSubMenu(frame->GetMenu()->GetSafeHmenu(),4))==1,
+            frame->mUiMenus.Text(options,0,true)==L"&Theme" && GetMenuItemCount(GetSubMenu(frame->GetMenu()->GetSafeHmenu(),4))==4 &&
+            GetMenuItemID(GetSubMenu(frame->GetMenu()->GetSafeHmenu(),4),2)==ID_VIEW_FIT &&
+            GetMenuItemID(GetSubMenu(frame->GetMenu()->GetSafeHmenu(),4),3)==ID_VIEW_ACTUAL_SIZE,
             "Viewer exposes only Options > Theme; View retains image scaling without appearance/background duplicates");
         for (UINT command : {q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_DARK,
             q1view::ID_UI_APPEARANCE_LIGHT,q1view::ID_UI_APPEARANCE_SYSTEM}) {

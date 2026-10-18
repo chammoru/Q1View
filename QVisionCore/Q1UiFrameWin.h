@@ -3,6 +3,7 @@
 #include "Q1UiMenuWin.h"
 #include "Q1UiBufferedPaintWin.h"
 #include "Q1UiCommandWin.h"
+#include "Q1UiCommandLayout.h"
 #include <dwmapi.h>
 #include <commctrl.h>
 #include <windowsx.h>
@@ -19,6 +20,13 @@ namespace q1view {
 // buttons. Popup HMENUs, command IDs, and Windows popup tracking are retained.
 // No global NONCLIENTMETRICS changes and no separate overlay windows/timers.
 class WindowsUiFrame {
+public:
+	// Opt-in Viewer policy. Comparator keeps its existing wrapping menu.
+	struct MenuRule {
+		HMENU popup; UINT command; int order; int priority;
+		std::wstring overflowPrefix;
+	};
+private:
 	HWND mWindow = nullptr, mBar = nullptr, mPreviousFocus = nullptr;
 	HWND mHotButton = nullptr;
 	HMENU mMenu = nullptr, mOwnedMenu = nullptr, mSelectedMenu = nullptr;
@@ -27,6 +35,10 @@ class WindowsUiFrame {
 	std::vector<HWND> mButtons;
 	std::vector<RECT> mButtonRects;
 	std::vector<std::pair<UINT, std::wstring>> mMinimumMenuText;
+	HMENU mOverflow = nullptr;
+	std::vector<MenuRule> mMenuRules;
+	std::vector<int> mOverflowPositions;
+	std::vector<int> mVisibleOrder;
 	bool mCustom = false, mMenuVisible = true, mTracking = false, mKeyboard = false;
 	bool mDeferredClose = false;
 	int mTitleHeight = 0, mMenuHeight = 0, mOpen = -1, mNext = -1;
@@ -66,6 +78,29 @@ class WindowsUiFrame {
 		MENUITEMINFOW item = {sizeof(item)};
 		item.fMask = MIIM_ID | MIIM_SUBMENU | MIIM_STATE | MIIM_FTYPE | MIIM_DATA;
 		GetMenuItemInfoW(mMenu, position, TRUE, &item); return item;
+	}
+	MenuRule Rule(int position) const {
+		const auto item = Info(position);
+		for (const auto& rule : mMenuRules)
+			if (rule.popup ? rule.popup == item.hSubMenu : !item.hSubMenu && rule.command == item.wID) return rule;
+		return {item.hSubMenu, item.wID, 90, 5, {}};
+	}
+	void ClearOverflow() {
+		// These submenus are borrowed from the retained root. Detach, never
+		// DeleteMenu/DestroyMenu them through the temporary overflow tree.
+		while (IsMenu(mOverflow) && GetMenuItemCount(mOverflow) > 0) RemoveMenu(mOverflow, 0, MF_BYPOSITION);
+	}
+	void PopulateOverflow() {
+		ClearOverflow();
+		for (int position : mOverflowPositions) {
+			auto item = Info(position);
+			auto text = Rule(position).overflowPrefix + mMenus->Text(mMenu, UINT(position), true);
+			item.fMask = MIIM_ID | MIIM_SUBMENU | MIIM_STATE | MIIM_FTYPE | MIIM_STRING;
+			item.fType &= ~(MFT_OWNERDRAW | MFT_RIGHTJUSTIFY | MFT_MENUBREAK | MFT_MENUBARBREAK);
+			item.dwTypeData = const_cast<wchar_t*>(text.c_str());
+			InsertMenuItemW(mOverflow, UINT(-1), TRUE, &item);
+		}
+		mMenus->SyncPopup(mWindow, mOverflow);
 	}
 	int ButtonAt(POINT screen) const {
 		if (!mBar || !IsWindowVisible(mBar)) return -1;
@@ -108,6 +143,16 @@ class WindowsUiFrame {
 		mKeyboard = false;
 	}
 	int NextEnabled(int position, int direction) const {
+		if (mOverflow) {
+			if (mVisibleOrder.empty()) return -1;
+			auto found = std::find(mVisibleOrder.begin(), mVisibleOrder.end(), position);
+			int index = found == mVisibleOrder.end() ? (direction > 0 ? -1 : 0) : int(found - mVisibleOrder.begin());
+			for (size_t i = 0; i < mVisibleOrder.size(); ++i) {
+				index = (index + direction + int(mVisibleOrder.size())) % int(mVisibleOrder.size());
+				if (IsWindowEnabled(mButtons[mVisibleOrder[index]])) return mVisibleOrder[index];
+			}
+			return -1;
+		}
 		const int count = int(mButtons.size());
 		for (int i = 0; i < count; ++i) {
 			position = (position + direction + count) % count;
@@ -156,6 +201,7 @@ class WindowsUiFrame {
 				draw.CtlType = ODT_MENU; draw.itemData = self->Info(index).dwItemData;
 				if (self->mHotButton == draw.hwndItem) draw.itemState |= ODS_HOTLIGHT;
 				if (self->mTracking && self->mOpen == index) draw.itemState |= ODS_SELECTED;
+				if (self->Info(index).fState & MFS_CHECKED) draw.itemState |= ODS_CHECKED;
 				if (!self->mKeyboard) draw.itemState |= ODS_NOACCEL;
 				WindowsUiBufferedPaint paint(draw.hDC,draw.rcItem,WindowsUiColor::Window);
 				draw.hDC = paint.Dc();
@@ -194,14 +240,19 @@ class WindowsUiFrame {
 		UINT command = 0;
 		do {
 			mOpen = position; mNext = -1; mSelectedMenu = Info(position).hSubMenu; mSelectedFlags = 0;
-			if (keyboard) SetFocus(mButtons[position]);
+			int anchor = position;
+			if (mOverflow && mButtonRects[position].right == mButtonRects[position].left)
+				for (size_t i = 0; i < mButtons.size(); ++i) if (Info(int(i)).hSubMenu == mOverflow) anchor = int(i);
+			if (keyboard) SetFocus(mButtons[anchor]);
 			const auto item = Info(position);
 			if (!item.hSubMenu) { command = item.wID; break; }
-			RECT rect = mButtonRects[position]; MapWindowPoints(mBar, nullptr, reinterpret_cast<POINT*>(&rect), 2);
+			if (item.hSubMenu == mOverflow) PopulateOverflow();
+			RECT rect = mButtonRects[anchor]; MapWindowPoints(mBar, nullptr, reinterpret_cast<POINT*>(&rect), 2);
 			InvalidateRect(mButtons[position], nullptr, FALSE); UpdateWindow(mButtons[position]);
 			TPMPARAMS parameters = {sizeof(parameters)}; parameters.rcExclude = rect;
 			command = TrackPopupMenuEx(item.hSubMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RETURNCMD,
 				rect.left, rect.bottom, mWindow, &parameters);
+			if (item.hSubMenu == mOverflow) ClearOverflow();
 			InvalidateRect(mButtons[position], nullptr, FALSE);
 			position = mNext;
 		} while (!command && position >= 0 && !mDeferredClose && IsWindow(mWindow));
@@ -217,6 +268,7 @@ class WindowsUiFrame {
 public:
 	~WindowsUiFrame() { Destroy(); }
 	void Destroy() {
+		ClearOverflow();
 		// Detaching the root menu transfers its former HWND-owned lifetime to
 		// this helper. Native fallback menus remain HWND-owned on destruction.
 		if (mOwnedMenu && IsMenu(mOwnedMenu) && ::GetMenu(mWindow) != mOwnedMenu) DestroyMenu(mOwnedMenu);
@@ -230,6 +282,11 @@ public:
 	int TitleHeight() const { return mTitleHeight; }
 	HWND MenuHost() const { return mBar; }
 	const std::vector<RECT>& MenuRects() const { return mButtonRects; }
+	const std::vector<int>& OverflowPositions() const { return mOverflowPositions; }
+	void ConfigureSingleRow(HMENU overflow, const std::vector<MenuRule>& rules) {
+		ClearOverflow(); mOverflow = overflow; mMenuRules = rules;
+		if (Initialized()) Layout();
+	}
 	// Availability changes do not recreate controls, relayout, or restart media.
 	void SyncEnabledStates() {
 		if (!mMenu || !mBar) return;
@@ -271,7 +328,9 @@ public:
 	// Callers may measure normal text independently of the user's enlargement.
 	int SingleRowMenuWidth(UINT dpi, double scale) {
 		int width = 0;
-		for (int button : MeasureMenuWidths(dpi, scale)) width += button;
+		const auto widths = MeasureMenuWidths(dpi, scale);
+		for (size_t i = 0; i < widths.size(); ++i)
+			if (!mOverflow || Info(int(i)).hSubMenu == mOverflow || Rule(int(i)).priority < 100) width += widths[i];
 		return width;
 	}
 	void Initialize(HWND window, WindowsUiMenus& menus) {
@@ -324,10 +383,28 @@ public:
 		const int width = client.right;
 		const UINT dpi = WindowsUiDpi(mWindow); const double scale = WindowsUiSettings().Scale();
 		mTitleHeight = (std::max)(Px(32), WindowsUiPixels(20, dpi, scale) + Px(12));
-		const int rowHeight = (std::max)(Px(32), WindowsUiPixels(20, dpi, scale) + Px(8));
+		const int rowHeight = mOverflow ? (std::max)(Px(36), WindowsUiPixels(20, dpi, scale) + Px(12)) :
+			(std::max)(Px(32), WindowsUiPixels(20, dpi, scale) + Px(8));
 		mButtonRects.resize(mButtons.size());
 		int left = 0, top = 0;
 		const auto widths = MeasureMenuWidths(dpi, scale);
+		if (mOverflow && mCustom) {
+			// Measure at the real font/DPI/text scale. Overflow lower-priority
+			// actions before changing row height or shrinking any labels.
+			int more = -1;
+			std::vector<WindowsUiCommandLayoutItem> items;
+			for (size_t i = 0; i < mButtons.size(); ++i) {
+				mButtonRects[i] = {};
+				if (Info(int(i)).hSubMenu == mOverflow) more = int(i);
+				const auto rule = Rule(int(i)); items.push_back({widths[i], rule.order, rule.priority});
+			}
+			auto plan = PlanWindowsUiCommandRow(items, more, width);
+			mVisibleOrder = std::move(plan.visible); mOverflowPositions = std::move(plan.overflow);
+			for (int index : mVisibleOrder) {
+				const int w = (std::min)((std::max)(1, width - left), widths[index]);
+				mButtonRects[index] = {left, 0, left + w, rowHeight}; left += w;
+			}
+		} else {
 		for (size_t i = 0; i < mButtons.size(); ++i) {
 			const int buttonWidth = (std::min)((std::max)(1, width), widths[i]);
 			if (left && left + buttonWidth > width) { left = 0; top += rowHeight; }
@@ -342,16 +419,31 @@ public:
 			if (sameRow && shift > 0) for (size_t j = i; j < mButtons.size(); ++j) OffsetRect(&mButtonRects[j], shift, 0);
 			break;
 		}
+		}
 		mMenuHeight = mMenuVisible && !mButtons.empty() ? top + rowHeight : 0;
 		const bool visible = mCustom && Caption() && mMenuVisible;
 		SetWindowPos(mBar, HWND_TOP, 0, mTitleHeight, width, mMenuHeight,
 			SWP_NOACTIVATE | (visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
 		for (size_t i = 0; i < mButtons.size(); ++i) {
 			const auto& rect = mButtonRects[i];
+			const bool show = rect.right > rect.left;
+			if (!show && GetFocus() == mButtons[i]) RestoreFocus();
+			ShowWindow(mButtons[i], show ? SW_SHOWNA : SW_HIDE);
 			RECT current; GetWindowRect(mButtons[i], &current);
 			MapWindowPoints(nullptr, mBar, reinterpret_cast<POINT*>(&current), 2);
 			if (!EqualRect(&rect, &current))
 				MoveWindow(mButtons[i], rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, TRUE);
+		}
+		if (mOverflow && mCustom) {
+			// Native accessibility enumerates HWND sibling order. Keep that order
+			// consistent with the visual row and keyboard left/right traversal.
+			HWND previous = nullptr;
+			for (int index : mVisibleOrder) {
+				if (GetWindow(mButtons[index], GW_HWNDPREV) != previous)
+					SetWindowPos(mButtons[index], previous ? previous : HWND_TOP, 0, 0, 0, 0,
+						SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+				previous = mButtons[index];
+			}
 		}
 		RECT title = {0, 0, width, mTitleHeight}; InvalidateRect(mWindow, &title, FALSE);
 	}
@@ -484,7 +576,17 @@ public:
 			LRESULT match;
 			if (mMenus->MenuChar(UINT(message->wParam), mMenu, match)) {
 				RememberFocus(GetFocus()); mKeyboard = true; const int index = LOWORD(match);
-				SetFocus(mButtons[index]); Open(index, true); return true;
+				if (IsWindowVisible(mButtons[index])) { SetFocus(mButtons[index]); Open(index, true); }
+				else {
+					// Preserve existing Alt access keys even after an item overflows.
+					for (size_t i = 0; i < mButtons.size(); ++i) if (Info(int(i)).hSubMenu == mOverflow) {
+						SetFocus(mButtons[i]);
+						if (Info(index).hSubMenu) { Open(index, true); }
+						else { PostMessageW(mWindow, WM_COMMAND, Info(index).wID, 0); RestoreFocus(); }
+						break;
+					}
+				}
+				return true;
 			}
 		}
 		if (message->message != WM_KEYDOWN) return false;

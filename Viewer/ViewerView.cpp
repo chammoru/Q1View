@@ -453,7 +453,7 @@ void CViewerView::AdjustWindowSize()
 	}
 }
 
-void CViewerView::FitToWindow()
+void CViewerView::FitToWindow(bool broadcast)
 {
 	mFitToWindow = true;
 	CRect rcClient;
@@ -482,6 +482,7 @@ void CViewerView::FitToWindow()
 
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
+	if (broadcast) BroadcastViewState(true);
 }
 
 void CViewerView::RestoreImageScreenOrigin(const CPoint &screenOrigin)
@@ -1447,6 +1448,7 @@ void CViewerView::OnDraw(CDC *pDC)
 	}
 
 	pDoc->mCurFrameID = mStableRgbBufferInfo.ID;
+	if (!pDC->IsPrinting()) static_cast<CMainFrame*>(GetParentFrame())->UpdateViewerStatus();
 
 	// Defer autoplay until the first valid RGB buffer has been fully presented.
 	// Posting a generation-tagged UI message avoids starting decoder/audio work
@@ -1589,6 +1591,12 @@ void CViewerView::ChangeZoom(short zDelta, CPoint &pt)
 
 	CMainFrame *pMainFrm = static_cast<CMainFrame *>(AfxGetMainWnd());
 	pMainFrm->UpdateMagnication(mN, mWDst, mHDst);
+}
+
+void CViewerView::ShowActualSize()
+{
+	ApplyViewState(1.0f, mXOff, mYOff);
+	BroadcastViewState(true);
 }
 
 void CViewerView::ApplyViewState(float zoom, float xOff, float yOff)

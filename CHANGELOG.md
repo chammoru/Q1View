@@ -6,6 +6,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Changed
+
+- Windows Viewer: reuse the existing command row for Open, Browse, Fit and 100%, move lower-priority commands into More instead of wrapping the row, and separate actual image format, scale, sampling mode and frame position into a read-only status line; keep full-screen viewing and Comparator's layout unchanged. (#120)
+
 ### Fixed
 
 - Windows Viewer: previous/next file navigation now honors the saved video autoplay preference just like File > Open and thumbnail activation, while retaining the current window size; internal reloads and paused-video rotation do not trigger autoplay.

@@ -9,6 +9,7 @@
 #include "Q1UiFontWin.h"
 #include "Q1UiMenuWin.h"
 #include "Q1UiFrameWin.h"
+#include "ViewerStatusBar.h"
 
 #define WM_RELOAD (WM_USER + 100)
 #define WM_APPLY_SYNC_INPUT (WM_APP + 100)
@@ -155,7 +156,7 @@ protected: // create from serialization only
 
 // Attributes
 private:
-	CMenu mResolutionMenu, mCsMenu, mFpsMenu, mOptionsMenu;
+	CMenu mResolutionMenu, mCsMenu, mFpsMenu, mOptionsMenu, mOverflowMenu;
 	BITMAPINFO mCopyBmi;
 	bool mSyncInput;
 	bool mSyncViewStatePending;
@@ -177,6 +178,7 @@ private:
 	CHelpOverlay mHelpOverlay;
 	q1view::WindowsUiMenus mUiMenus;
 	q1view::WindowsUiFrame mUiFrame;
+	ViewerStatusBar mStatusBar;
 	CDrawerTransitionOverlay mDrawerTransitionOverlay;
 	unsigned mCommandStateSignature = ~0u;
 	unsigned mCommandMenuSignature = ~0u;
@@ -203,6 +205,8 @@ public:
 	q1view::WindowsUiCommandContext CommandContext() const;
 	bool IsCommandEnabled(UINT id) const;
 	void RefreshCommandStates(bool force = false);
+	void UpdateViewerStatus();
+	int StatusHeight() const;
 	afx_msg void OnIdleUpdateCmdUI();
 	virtual void OnUpdateFrameTitle(BOOL bAddToTitle);
 	virtual BOOL OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext);
@@ -268,6 +272,8 @@ public:
 	afx_msg void OnUpdateAppearanceCommand(CCmdUI* command);
 	COLORREF mAppliedCanvasColor = 0xffffffff;
 	afx_msg void OnFileOpen();
+	afx_msg void OnViewFit();
+	afx_msg void OnViewActualSize();
 	afx_msg void OnExecComparator();
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg void OnResolutionChange(UINT nID);

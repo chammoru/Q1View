@@ -36,6 +36,14 @@ identifies the active pixel-value mode and row order (`Y/U/V` or `R/G/B`)
 without adding labels to every pixel.
 Decoded images and video show RGB values only.
 
+### Windows Viewer commands and status
+
+The existing top command row now provides **File, Open, Browse, Fit, 100%, View, Options, Compare, Help, More** when space permits. **Browse** toggles the same thumbnail drawer as `E`. **Fit** shows the whole image without enlarging small images; **100%** switches to manual actual-pixel size. The active Browse/Fit/100% state is highlighted. Commands that require an image are unavailable until a valid frame is loaded.
+
+The row uses measured text widths at the current DPI and Windows text size. When space is tight, lower-priority commands move into **More** instead of reducing the font size or adding a second row. **More** also contains input-size, pixel-format and frame-rate menus; fixed decoded sources keep RAW-only settings unavailable. Existing Alt menu access and shortcuts remain available. Windows high-contrast/non-DWM fallback retains the OS-managed native menu, which may wrap.
+
+The bottom status line is read-only: image dimensions, the active input/conversion pixel format (for example, a decoded photo is BGR888, not its original JPEG storage format), actual zoom percentage, Fit/Manual view mode, sampling mode, and the displayed frame position when there is more than one frame. Empty input shows **Ready**, not the default RAW dimensions as if an image were loaded. Long status text uses an ellipsis; hover for the full text, also exposed through the native accessibility name. Status updates do not resize the image area or move command buttons. Full screen hides both command and status areas.
+
 ### Image Scaling
 
 Choose **View → Image Scaling** or press `I` to cycle through **Auto**, **Smooth (Bilinear)**, and **Pixel Exact (Nearest)**. Auto uses bilinear sampling for moderate still-image reductions so thin document text remains legible, area sampling for reductions of 2x or more to suppress aliasing in large photos, and nearest sampling for pixel inspection and timed sources. The active choice appears beside the magnification readout and in the Qt status bar; at high zoom, `Auto→Pixel` confirms that Auto is displaying exact source pixels.

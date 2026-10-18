@@ -134,11 +134,12 @@ public:
 		SelectObject(draw->hDC, Font(item)); SetBkMode(draw->hDC, TRANSPARENT);
 		const bool disabled = (draw->itemState & (ODS_DISABLED | ODS_GRAYED)) != 0;
 		const bool selected = !disabled && (draw->itemState & (ODS_SELECTED | ODS_HOTLIGHT)) != 0;
-		const auto background = item->bar ? WindowsUiCommandBackground(!disabled,
+		const bool checkedCommand = item->bar && !disabled && (draw->itemState & ODS_CHECKED);
+		const auto background = checkedCommand ? WindowsUiColor::Selection : item->bar ? WindowsUiCommandBackground(!disabled,
 			selected, (draw->itemState & ODS_SELECTED) != 0, WindowsUiColor::Window) :
 			selected ? WindowsUiColor::Selection : WindowsUiColor::Surface;
 		FillRect(draw->hDC, &draw->rcItem, WindowsUiColorBrush(background));
-		const auto foreground = selected ? (WindowsUiAppearanceState().HighContrast() ? WindowsUiColor::OnAccent : WindowsUiColor::Accent) :
+		const auto foreground = selected || checkedCommand ? (WindowsUiAppearanceState().HighContrast() ? WindowsUiColor::OnAccent : WindowsUiColor::Accent) :
 			disabled ? WindowsUiColor::Muted : WindowsUiColor::Text;
 		SetTextColor(draw->hDC, WindowsUiColorValue(foreground));
 		if (disabled && WindowsUiAppearanceState().HighContrast()) SetTextColor(draw->hDC, GetSysColor(COLOR_GRAYTEXT));

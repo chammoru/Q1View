@@ -199,7 +199,8 @@ public:
 // Operations
 public:
 	void AdjustWindowSize();
-	void FitToWindow();
+	void FitToWindow(bool broadcast = false);
+	void ShowActualSize();
 	bool IsFitToWindow() const { return mFitToWindow; }
 	// Keep the displayed image origin fixed in desktop coordinates when the
 	// hosting viewport moves during a drawer layout change in manual zoom mode.
