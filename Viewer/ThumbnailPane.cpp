@@ -32,6 +32,12 @@
 
 #pragma comment(lib, "shell32.lib")
 
+// The SDK declares these annotation GUIDs but does not export them from the
+// import libraries. Instantiate the two SDK definitions in this TU only.
+#include <initguid.h>
+DEFINE_GUID(CLSID_AccPropServices, 0xb5f8350b, 0x0548, 0x48b1, 0xa6, 0xee, 0x88, 0xbd, 0x00, 0xb4, 0xa5, 0xe7);
+DEFINE_GUID(PROPID_ACC_NAME, 0x608d3df8, 0x8128, 0x4aa7, 0xa4, 0x28, 0xf5, 0x5e, 0x49, 0x26, 0x72, 0x91);
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -51,6 +57,24 @@ static const int kDefaultStep = 0;
 // Debounced timers: rescan visible after scrolling; re-fit the grid after a resize.
 static const UINT_PTR kScanTimerId = 0x7100;
 static const UINT_PTR kDirectoryRefreshTimerId = 0x7101;
+
+// The metadata worker owns no pane pointers. A blocked network call cannot
+// keep the UI alive or publish a result into a recycled HWND after shutdown.
+struct BrowserNavigationState {
+	struct Request {
+		unsigned long long id = 0;
+		CString folder, current;
+		bool notify = false, restore = false;
+		std::vector<CString> selected;
+		std::function<q1view::BrowserDirectory(const std::wstring&)> read;
+	};
+	std::mutex mutex;
+	std::condition_variable wake;
+	bool stop = false, pending = false, ready = false;
+	unsigned long long serial = 0;
+	Request next, completed;
+	q1view::BrowserDirectory result;
+};
 
 BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_WM_CREATE()
@@ -75,6 +99,7 @@ BEGIN_MESSAGE_MAP(CThumbnailPane, CListCtrl)
 	ON_MESSAGE(WM_THUMB_READY, &CThumbnailPane::OnThumbReady)
 	ON_MESSAGE(WM_DRAWER_ACTIVATE, &CThumbnailPane::OnActivatePosted)
 	ON_MESSAGE(WM_DRAWER_DIRECTORY_CHANGED, &CThumbnailPane::OnDirectoryChanged)
+	ON_MESSAGE(WM_DRAWER_NAVIGATION_READY, &CThumbnailPane::OnNavigationReady)
 END_MESSAGE_MAP()
 
 CThumbnailPane::CThumbnailPane()
@@ -98,6 +123,12 @@ CThumbnailPane::CThumbnailPane()
 	};
 	mReportRecycle = [this](const CString& message) {
 		MessageBox(message, _T("Move to Recycle Bin"), MB_OK | MB_ICONINFORMATION);
+	};
+	mReadDirectory = q1view::ReadBrowserDirectory;
+	mReportNavigation = [this](const CString& message) {
+		const HWND focus = ::GetFocus();
+		MessageBox(message, L"Can't open folder", MB_OK | MB_ICONWARNING);
+		if (::IsWindow(focus) && (focus == m_hWnd || ::IsChild(m_hWnd, focus))) ::SetFocus(focus);
 	};
 }
 
@@ -138,7 +169,7 @@ BOOL CThumbnailPane::CreatePane(CWnd *pParent, UINT nID)
 {
 	// Keep the compact report list as the host; the grid has its own child canvas.
 	DWORD style = WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | LVS_OWNERDRAWFIXED |
-		LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOCOLUMNHEADER;
+		LVS_REPORT | LVS_SHOWSELALWAYS;
 	return Create(style, CRect(0, 0, 0, 0), pParent, nID);
 }
 
@@ -160,6 +191,35 @@ int CThumbnailPane::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	SetImageList(&mImages, LVSIL_NORMAL);
 
 	InsertColumn(0, _T(""), LVCFMT_LEFT, 0);
+	if (!(mPathHeader.SubclassWindow)(GetHeaderCtrl()->GetSafeHwnd())) return -1;
+	mPathHeader.ModifyStyle(HDS_BUTTONS | HDS_DRAGDROP, HDS_NOSIZING | WS_CLIPCHILDREN);
+	if (!mPathBar.Create(WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_READONLY | ES_AUTOHSCROLL,
+		CRect(0, 0, 0, 0), &mPathHeader, 1)) return -1;
+	mPathBar.keyHandler = [this](MSG* message) { return HandlePathKey(message); };
+	mPathBar.SetPath(L"No folder");
+	mNavigation = std::make_shared<BrowserNavigationState>();
+	const auto navigation = mNavigation;
+	const HWND target = m_hWnd;
+	mNavigationThread = std::thread([navigation, target]() {
+		for (;;) {
+			BrowserNavigationState::Request request;
+			{
+				std::unique_lock<std::mutex> lock(navigation->mutex);
+				navigation->wake.wait(lock, [&] { return navigation->stop || navigation->pending; });
+				if (navigation->stop) return;
+				request = std::move(navigation->next); navigation->pending = false;
+			}
+			q1view::BrowserDirectory result;
+			try { result = request.read(request.folder.GetString()); }
+			catch (...) { result.folder = request.folder.GetString(); result.error = ERROR_NOT_ENOUGH_MEMORY; }
+			std::lock_guard<std::mutex> lock(navigation->mutex);
+			if (navigation->stop) return;
+			if (request.id != navigation->serial) continue;
+			navigation->completed = std::move(request);
+			navigation->result = std::move(result); navigation->ready = true;
+			::PostMessage(target, WM_DRAWER_NAVIGATION_READY, 0, 0);
+		}
+	});
 
 	TCHAR module[MAX_PATH] = {};
 	GetModuleFileName(nullptr, module, _countof(module));
@@ -194,6 +254,8 @@ int CThumbnailPane::OnCreate(LPCREATESTRUCT lpCreateStruct)
 void CThumbnailPane::RebuildFonts(UINT dpi)
 {
 	SetFont(nullptr);
+	if (mPathBar.GetSafeHwnd()) mPathBar.SetFont(nullptr);
+	if (mPathHeader.GetSafeHwnd()) mPathHeader.SetFont(nullptr);
 	mLabelFont.DeleteObject();
 	mFolderFont.DeleteObject();
 	mExtFont.DeleteObject();
@@ -204,14 +266,21 @@ void CThumbnailPane::RebuildFonts(UINT dpi)
 	label.lfQuality = CLEARTYPE_NATURAL_QUALITY;
 	mLabelFont.CreateFontIndirect(&label);
 	SetFont(&mLabelFont);
+	if (mPathBar.GetSafeHwnd()) mPathBar.SetMargins(MulDiv(6, dpi, 96), MulDiv(6, dpi, 96));
 	label.lfWeight = FW_MEDIUM;
 	mFolderFont.CreateFontIndirect(&label);
+	// The location is a header, not another selectable entry. Reuse the
+	// medium-weight caption font without introducing another GDI font cache.
+	if (mPathBar.GetSafeHwnd()) mPathBar.SetFont(&mFolderFont);
+	if (mPathHeader.GetSafeHwnd()) mPathHeader.SetFont(&mFolderFont);
 
 	LOGFONT lf = q1view::WindowsUiLogFont(q1view::WindowsUiFontRole::Supporting, dpi, q1view::WindowsUiSettings().Scale());
 	lstrcpyn(lf.lfFaceName, mFontFamily, LF_FACESIZE);
 	lf.lfWeight = FW_SEMIBOLD;
 	lf.lfQuality = CLEARTYPE_NATURAL_QUALITY;
 	mExtFont.CreateFontIndirect(&lf);
+	if (GetSafeHwnd()) SetWindowPos(nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+	LayoutPath();
 }
 
 LRESULT CThumbnailPane::OnAppearanceChanged(WPARAM, LPARAM)
@@ -229,6 +298,7 @@ LRESULT CThumbnailPane::OnAppearanceChanged(WPARAM, LPARAM)
 	}
 	Invalidate(FALSE);
 	if (mGrid && mGrid->GetSafeHwnd()) mGrid->Invalidate(FALSE);
+	if (mPathBar.GetSafeHwnd()) mPathHeader.RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
 	return 0;
 }
 
@@ -242,8 +312,9 @@ LRESULT CThumbnailPane::OnDpiChanged(WPARAM, LPARAM)
 void CThumbnailPane::OnSize(UINT nType, int cx, int cy)
 {
     CListCtrl::OnSize(nType, cx, cy);
+    LayoutPath();
     if (mGrid && mGrid->GetSafeHwnd() && IsGrid()) {
-        mGrid->MoveWindow(0, 0, cx, cy, FALSE);
+        mGrid->MoveWindow(GridViewport(), FALSE);
         if (cx <= 0 || cy <= 0) mGrid->PauseAnimation();
         return;
     }
@@ -256,6 +327,50 @@ void CThumbnailPane::OnSetFocus(CWnd* oldWnd)
 {
 	CListCtrl::OnSetFocus(oldWnd);
 	if (IsGrid() && mGrid && mGrid->GetSafeHwnd()) mGrid->SetFocus();
+}
+
+CRect CThumbnailPane::GridViewport() const
+{
+	CRect rect; GetClientRect(rect);
+	if (mPathHeader.GetSafeHwnd()) {
+		CRect header; mPathHeader.GetWindowRect(header);
+		rect.top = std::min<LONG>(rect.bottom, header.Height());
+	}
+	return rect;
+}
+
+void CThumbnailPane::LayoutPath()
+{
+	if (!mPathBar.GetSafeHwnd() || !mPathHeader.GetSafeHwnd()) return;
+	CRect rect; mPathHeader.GetClientRect(rect);
+	rect.DeflateRect(0, MulDiv(4, GetDpiForWindow(m_hWnd), 96));
+	if (rect.Height() < 0) rect.bottom = rect.top;
+	mPathBar.MoveWindow(rect, FALSE);
+	mPathBar.Invalidate(FALSE);
+}
+
+void CThumbnailPane::FocusPath()
+{
+	if (mPathBar.IsWindowVisible()) { mPathBar.SetFocus(); mPathBar.SetSel(0, -1); }
+}
+
+bool CThumbnailPane::HandlePathKey(MSG* message)
+{
+	if (message->message == WM_KEYDOWN) {
+		const bool control = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+		if (control && message->wParam == 'A') { mPathBar.SetSel(0, -1); return true; }
+		if (control && message->wParam == 'C') { mPathBar.Copy(); return true; }
+		if ((control && (message->wParam == 'V' || message->wParam == 'X' || message->wParam == 'Z')) ||
+			(message->wParam >= VK_LEFT && message->wParam <= VK_DOWN) ||
+			message->wParam == VK_HOME || message->wParam == VK_END || message->wParam == VK_DELETE || message->wParam == VK_INSERT)
+			return false; // Native read-only edit keys must not become image commands.
+		if (message->wParam == VK_ESCAPE || message->wParam == VK_TAB) { SetFocus(); return true; }
+		if (message->wParam == VK_BACK) { GoToParent(); return true; }
+		if (message->wParam == VK_RETURN) return true;
+	}
+	if (message->message == WM_SYSKEYDOWN && message->wParam == VK_UP) { GoToParent(); return true; }
+	CMainFrame* frame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd());
+	return frame && frame->TranslateGlobalAccelerator(message);
 }
 
 // ---------------------------------------------------------------------------
@@ -306,11 +421,11 @@ void CThumbnailPane::ApplyViewStep(int step, bool persist)
 
 	// Re-list the folder because the list and grid use different presentation and
 	// tile sizes. Folder entries and their names remain available in both modes.
-	Populate(mFolder, current);
+	if (mHasDirectory) CommitDirectory(mDirectorySnapshot, current);
 	if (!selectedPaths.empty()) RestoreSelection(selectedPaths, current);
 	if (IsGrid()) {
 		ShowScrollBar(SB_BOTH, FALSE);
-		CRect rc; GetClientRect(&rc); mGrid->MoveWindow(rc, FALSE);
+		mGrid->MoveWindow(GridViewport(), FALSE);
 		mGrid->SetFocus();
 	} else SetFocus();
 }
@@ -542,6 +657,8 @@ void CThumbnailPane::DrawItem(LPDRAWITEMSTRUCT dis)
 		CString name;
 		if (e.kind == ENTRY_PARENT) {
 			name = _T("[..]");
+		} else if (mFolder.IsEmpty()) {
+			name = L"[" + e.path + L"]";
 		} else {
 			name = e.path;
 			if (!name.IsEmpty() && name[name.GetLength() - 1] == _T('\\'))
@@ -572,6 +689,22 @@ void CThumbnailPane::OnDestroy()
 
 void CThumbnailPane::Shutdown()
 {
+	if (mNavigation) {
+		{
+			std::lock_guard<std::mutex> lock(mNavigation->mutex);
+			mNavigation->stop = true; mNavigation->pending = false; mNavigation->ready = false;
+		}
+		mNavigation->wake.notify_all();
+		if (mNavigationThread.joinable()) {
+			CancelSynchronousIo(mNavigationThread.native_handle());
+			// The stopped mailbox owns the worker's remaining lifetime, not a CWnd.
+			mNavigationThread.detach();
+		}
+		if (GetSafeHwnd()) {
+			MSG message;
+			while (::PeekMessage(&message, m_hWnd, WM_DRAWER_NAVIGATION_READY, WM_DRAWER_NAVIGATION_READY, PM_REMOVE)) {}
+		}
+	}
 	StopDirectoryWatch();
 	if (GetSafeHwnd())
 		KillTimer(kDirectoryRefreshTimerId);
@@ -618,8 +751,11 @@ static CString ExtensionOf(const CString &path)
 
 void CThumbnailPane::SetCurrentFile(LPCTSTR lpszPath)
 {
-	if (!GetSafeHwnd() || lpszPath == NULL || lpszPath[0] == _T('\0'))
+	if (!GetSafeHwnd()) return;
+	if (lpszPath == NULL || lpszPath[0] == _T('\0')) {
+		if (!mHasDirectory && !mNavigationBusy) RequestDirectory(L"", L"", false);
 		return;
+	}
 
 	CString path(lpszPath);
 	path.Replace(_T('/'), _T('\\'));
@@ -630,13 +766,15 @@ void CThumbnailPane::SetCurrentFile(LPCTSTR lpszPath)
 	CString folder = path.Left(slash + 1);
 
 	if (folder.CompareNoCase(mFolder) == 0 && !mEntries.empty()) {
+		if (mNavigationBusy) mDirectoryRefreshPending = true;
+		CancelNavigation();
 		if (mDirectoryRefreshPending)
 			RefreshDirectoryContents();
 		SelectByPath(path);
 		return;
 	}
 
-	Populate(folder, path);
+	RequestDirectory(folder, path, false);
 }
 
 void CThumbnailPane::StartDirectoryWatch(const CString& folder)
@@ -695,30 +833,14 @@ LRESULT CThumbnailPane::OnDirectoryChanged(WPARAM wParam, LPARAM)
 
 void CThumbnailPane::RefreshDirectoryContents()
 {
-	if (!mDirectoryRefreshPending || mRecycleBusy || !GetSafeHwnd() || mFolder.IsEmpty())
+	if (!mDirectoryRefreshPending || mRecycleBusy || mNavigationBusy || !GetSafeHwnd() || mFolder.IsEmpty())
 		return;
 	const CString folder = mFolder;
-	const auto selectedPaths = SelectedMediaPaths();
 	const CString focusedPath = mSelection.focus >= 0 &&
 		mSelection.focus < static_cast<int>(mEntries.size())
 		? mEntries[mSelection.focus].path : CString();
 	mDirectoryRefreshPending = false;
-	Populate(folder, focusedPath);
-	CString restoredFocus = focusedPath;
-	const bool focusStillExists = std::any_of(mEntries.begin(), mEntries.end(),
-		[&](const Entry& entry) { return entry.path.CompareNoCase(restoredFocus) == 0; });
-	if (!focusStillExists) {
-		restoredFocus.Empty();
-		for (const CString& path : selectedPaths) {
-			if (std::any_of(mEntries.begin(), mEntries.end(), [&](const Entry& entry) {
-				return entry.path.CompareNoCase(path) == 0;
-			})) {
-				restoredFocus = path;
-				break;
-			}
-		}
-	}
-	RestoreSelection(selectedPaths, restoredFocus);
+	RequestDirectory(folder, focusedPath, false, true);
 }
 
 // Returns the parent folder (with trailing '\\') of a folder, or "" if it has
@@ -728,12 +850,100 @@ static CString ParentFolderOf(const CString &folder)
 	return CString(q1view::ParentDirectory(folder.GetString()).c_str());
 }
 
-void CThumbnailPane::Populate(const CString &folder, const CString &current)
+bool CThumbnailPane::Populate(const CString &folder, const CString &current)
 {
+	CancelNavigation();
+	const auto snapshot = mReadDirectory(folder.GetString());
+	if (snapshot.error) return false;
+	CommitDirectory(snapshot, current);
+	return true;
+}
+
+void CThumbnailPane::CancelNavigation()
+{
+	if (!mNavigation) return;
+	std::lock_guard<std::mutex> lock(mNavigation->mutex);
+	if (mNavigationThread.joinable()) CancelSynchronousIo(mNavigationThread.native_handle());
+	++mNavigation->serial; mNavigation->pending = false; mNavigation->ready = false;
+	mNavigationBusy = false;
+}
+
+void CThumbnailPane::RequestDirectory(const CString& folder, const CString& current, bool notify, bool restore)
+{
+	if (!mNavigation) return;
+	// A queued click belongs to the old list, even while its replacement is
+	// still being prepared. A later, new click on the retained list is valid.
+	if (!restore) { mPendingGeneration = 0; mPendingFolder.Empty(); }
+	BrowserNavigationState::Request request;
+	request.folder = folder; request.current = current; request.notify = notify;
+	request.restore = restore; request.read = mReadDirectory;
+	if (restore) request.selected = SelectedMediaPaths();
+	{
+		std::lock_guard<std::mutex> lock(mNavigation->mutex);
+		if (mNavigation->stop) return;
+		// Interrupt a superseded device/UNC read before the worker can take the
+		// next request. Drivers that support cancellation need not time out first.
+		if (mNavigationThread.joinable()) CancelSynchronousIo(mNavigationThread.native_handle());
+		request.id = ++mNavigation->serial;
+		mNavigation->next = std::move(request); mNavigation->pending = true; mNavigation->ready = false;
+		mNavigationBusy = true;
+	}
+	mNavigation->wake.notify_one();
+}
+
+LRESULT CThumbnailPane::OnNavigationReady(WPARAM, LPARAM)
+{
+	BrowserNavigationState::Request request;
+	q1view::BrowserDirectory snapshot;
+	{
+		std::lock_guard<std::mutex> lock(mNavigation->mutex);
+		if (mNavigation->stop || !mNavigation->ready) return 0;
+		request = std::move(mNavigation->completed);
+		snapshot = std::move(mNavigation->result); mNavigation->ready = false;
+		if (request.id != mNavigation->serial) return 0;
+	}
+	mNavigationBusy = false;
+	if (snapshot.error) {
+		if (request.notify) mReportNavigation(q1view::BrowserNavigationError(request.folder.GetString(), snapshot.error).c_str());
+		if (mDirectoryRefreshPending) RefreshDirectoryContents();
+		return 0;
+	}
+	if (request.restore && mHasDirectory && snapshot.folder == mDirectorySnapshot.folder &&
+		snapshot.directories == mDirectorySnapshot.directories && snapshot.files == mDirectorySnapshot.files) {
+		// Watch registration validation and no-op notifications must not reset
+		// selection, scroll, or thumbnail generations for identical contents.
+		if (mDirectoryRefreshPending) RefreshDirectoryContents();
+		return 0;
+	}
+	if (request.restore && request.folder.CompareNoCase(mFolder) == 0) {
+		request.selected = SelectedMediaPaths();
+		request.current = mSelection.focus >= 0 && mSelection.focus < int(mEntries.size()) ? mEntries[mSelection.focus].path : CString();
+	}
+	CommitDirectory(snapshot, request.current);
+	if (request.restore) {
+		CString focus = request.current;
+		if (!std::any_of(mEntries.begin(), mEntries.end(), [&](const Entry& entry) { return entry.path.CompareNoCase(focus) == 0; })) {
+			focus.Empty();
+			for (const auto& path : request.selected)
+				if (std::any_of(mEntries.begin(), mEntries.end(), [&](const Entry& entry) { return entry.path.CompareNoCase(path) == 0; })) { focus = path; break; }
+		}
+		RestoreSelection(request.selected, focus);
+	}
+	if (mDirectoryRefreshPending) RefreshDirectoryContents();
+	return 0;
+}
+
+void CThumbnailPane::CommitDirectory(const q1view::BrowserDirectory& snapshot, const CString &current)
+{
+	const CString folder(snapshot.folder.c_str());
+	mDirectorySnapshot = snapshot;
 	if (folder.CompareNoCase(mFolder) != 0) {
 		StopDirectoryWatch();
 		mDirectoryRefreshPending = false;
 		StartDirectoryWatch(folder);
+		// Cover changes between worker enumeration and watch registration.
+		// An identical validation snapshot is discarded without rebuilding UI.
+		mDirectoryRefreshPending = !folder.IsEmpty();
 	}
 	// Invalidate any in-flight decode tasks from the previous folder.
 	mGen++;
@@ -751,6 +961,8 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 	// Size the tiles for the current mode/width before (re)building the image list.
 	if (!IsGrid()) { mThumb = kListThumb; ResetImageList(); }
 	mFolder = folder;
+	mHasDirectory = true;
+	mPathBar.SetPath(folder.IsEmpty() ? CString(L"Drives") : folder);
 
 	// Grids are visual media browsers: they retain thumbnail-capable image/video
 	// entries and folder navigation, while the compact list remains the complete
@@ -761,9 +973,8 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 	if (folder.IsEmpty()) {
 		// The drive chooser is available in both presentation modes.  This makes
 		// switching volumes possible even when the drawer is currently a grid.
-		TCHAR buf[512] = {0, };
-		::GetLogicalDriveStrings(_countof(buf) - 1, buf);
-		for (TCHAR *d = buf; *d; d += lstrlen(d) + 1) {
+		for (const auto& drive : snapshot.directories) {
+			const wchar_t* d = drive.c_str();
 			if (!grid) {
 				CString label = _T("[") + CString(d) + _T("]");
 				InsertItem(row, label, -1);
@@ -776,28 +987,8 @@ void CThumbnailPane::Populate(const CString &folder, const CString &current)
 		// Collect sub-directories and supported files separately.
 		std::vector<CString> dirs;
 		std::vector<CString> files;
-		CFileFind finder;
-		BOOL working = finder.FindFile(folder + _T("*"));
-		while (working) {
-			working = finder.FindNextFile();
-			if (finder.IsDots())
-				continue;
-			if (finder.IsDirectory()) {
-				if (!finder.IsHidden() && !finder.IsSystem())
-					dirs.push_back(finder.GetFilePath());
-			} else {
-				// List every file, not just images: the main view pages through
-				// the whole folder (PgUp/PgDn), so the drawer must hold each of
-				// those files for its selection to stay in sync (issue #84).
-				files.push_back(finder.GetFilePath());
-			}
-		}
-		finder.Close();
-
-		// Match the main view's PgUp/PgDn/Home/End order exactly: both paths now use
-		// the same ordinal, case-insensitive filename sort helper.
-		std::sort(dirs.begin(), dirs.end(), q1view::LessFileNameOrdinal);
-		std::sort(files.begin(), files.end(), q1view::LessFileNameOrdinal);
+		for (const auto& path : snapshot.directories) dirs.emplace_back(path.c_str());
+		for (const auto& path : snapshot.files) files.emplace_back(path.c_str());
 
 		// Keep parent navigation first in every mode. A drive/share root also
 		// gets a visible [..] entry; activating it opens the logical-drive
@@ -874,12 +1065,12 @@ void CThumbnailPane::NavigateTo(const CString &folder)
 {
 	// Browse to another folder without changing the main view; selecting a file
 	// there loads it.
-	if (folder.IsEmpty() || PathIsDirectory(folder)) Populate(folder, _T(""));
+	RequestDirectory(folder, L"", true);
 }
 
 bool CThumbnailPane::CanGoToParent() const
 {
-	return !ParentFolderOf(mFolder).IsEmpty();
+	return !mFolder.IsEmpty();
 }
 
 bool CThumbnailPane::GoToParent()
@@ -890,18 +1081,18 @@ bool CThumbnailPane::GoToParent()
 		// A drive/share root has no filesystem parent, but Backspace/Alt+Up can
 		// still return to the logical-drive chooser to switch volumes.
 		if (!child.IsEmpty()) {
-			Populate(_T(""), child);
+			RequestDirectory(L"", child, true);
 			return true;
 		}
 		return false;
 	}
-	if (!PathIsDirectory(parent)) return false;
-	Populate(parent, child);
+	RequestDirectory(parent, child, true);
 	return true;
 }
 
 BOOL CThumbnailPane::PreTranslateMessage(MSG* message)
 {
+	if (message->message == WM_KEYDOWN && message->wParam == VK_TAB) { FocusPath(); return TRUE; }
 	if (message->message == WM_KEYDOWN && HandleSelectionKey(UINT(message->wParam),
 		(GetKeyState(VK_CONTROL) & 0x8000) != 0, (GetKeyState(VK_SHIFT) & 0x8000) != 0)) return TRUE;
 	CMainFrame *frame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd());
@@ -1064,6 +1255,12 @@ void CThumbnailPane::RecycleSelected()
 	if (mRecycleBusy) return;
 	const auto paths = SelectedMediaPaths();
 	if (paths.empty()) return;
+	// An explicit action on the retained list pins that list, just like opening
+	// one of its files. Do not silently ignore Delete during a watcher refresh.
+	if (mNavigationBusy) {
+		mDirectoryRefreshPending = !mFolder.IsEmpty();
+		CancelNavigation();
+	}
 	const CString folder = mFolder;
 	const unsigned generation = mGen.load();
 	mRecycleBusy = true;
@@ -1075,7 +1272,7 @@ void CThumbnailPane::RecycleSelected()
 			pane.QueueVisibleThumbs();
 		}
 	} finish{*this};
-	if (!mConfirmRecycle(paths.size()) || generation != mGen.load() || folder != mFolder) return;
+	if (!mConfirmRecycle(paths.size()) || mNavigationBusy || generation != mGen.load() || folder != mFolder) return;
 
 	std::vector<CString> before;
 	for (int i = 0; i < int(mEntries.size()); ++i) if (IsMediaEntry(i)) before.push_back(mEntries[i].path);
@@ -1272,7 +1469,7 @@ LRESULT CThumbnailPane::OnActivatePosted(WPARAM wParam, LPARAM /*lParam*/)
 	Entry e = mPending;
 	mPendingGeneration = 0;
 	mPendingFolder.Empty();
-	if (e.kind != ENTRY_PARENT && GetFileAttributes(e.path) == INVALID_FILE_ATTRIBUTES) return 0;
+	if (e.kind == ENTRY_FILE && GetFileAttributes(e.path) == INVALID_FILE_ATTRIBUTES) return 0;
 	if (e.kind == ENTRY_FILE) {
 		// Opening routes through CViewerDoc::OnOpenDocument (raw files included).
 		// Thumbnail selection keeps the current window size and fits the image
@@ -1443,7 +1640,7 @@ LRESULT CThumbnailPane::OnThumbReady(WPARAM wParam, LPARAM /*lParam*/)
 			const CString selection = selected >= 0 && selected < (int)mEntries.size()
 				? mEntries[selected].path : CString();
 			if (!PreviewRejected(rejected)) mRejectedPreviews.push_back(rejected);
-			Populate(mFolder, selection);
+			CommitDirectory(mDirectorySnapshot, selection);
 			if (!selectedPaths.empty()) RestoreSelection(selectedPaths, selection);
 		} else {
 			// Supported images remain discoverable even when their pixels are

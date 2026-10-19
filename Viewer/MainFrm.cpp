@@ -777,6 +777,16 @@ BOOL CMainFrame::PreTranslateMessage(MSG *pMsg)
 	// auto-repeat prevents a held E from rapidly opening and closing the drawer.
 	if (IsRepeatedDrawerShortcut(pMsg))
 		return TRUE;
+	if (mpDrawer && mDrawerVisible && pMsg) {
+		// MFC's frame/splitter Tab and accelerator routing runs before child
+		// controls. Give the read-only path its native text-input scope first.
+		if (mpDrawer->IsPathFocused()) return mpDrawer->TranslatePathMessage(pMsg);
+		const HWND focus = ::GetFocus();
+		if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_TAB &&
+			(focus == mpDrawer->GetSafeHwnd() || ::IsChild(mpDrawer->GetSafeHwnd(), focus))) {
+			mpDrawer->FocusPath(); return TRUE;
+		}
+	}
 	if (pMsg != NULL && pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_ESCAPE) {
 		CViewerView *pView = DYNAMIC_DOWNCAST(CViewerView, GetActiveView());
 		if (pView != NULL && pView->IsFullScreen()) {
@@ -1203,6 +1213,7 @@ void CMainFrame::SetDrawerVisibleImmediately(bool visible)
 		CDocument *pDoc = GetActiveDocument();
 		if (pDoc != NULL && !pDoc->GetPathName().IsEmpty())
 			mpDrawer->SetCurrentFile(pDoc->GetPathName());
+		else mpDrawer->SetCurrentFile(nullptr);
 		mpDrawer->SetFocus();
 	} else if (!visible && pView != NULL && ::IsWindow(pView->GetSafeHwnd())) {
 		// A zero-width drawer can otherwise retain keyboard focus. Return it to

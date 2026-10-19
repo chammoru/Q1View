@@ -75,9 +75,12 @@ static void TestAppearance()
 	for (bool dark : {false,true}) {
 		const auto colors = ResolveWindowsUiPalette(dark);
 		auto color = [&](WindowsUiColor role) { return colors[size_t(role)]; };
-		for (auto background : {WindowsUiColor::Window,WindowsUiColor::Surface,WindowsUiColor::SurfaceAlt,WindowsUiColor::Selection})
+		for (auto background : {WindowsUiColor::Window,WindowsUiColor::Surface,WindowsUiColor::SurfaceAlt,WindowsUiColor::Selection,WindowsUiColor::LocationHeader})
 			for (auto text : {WindowsUiColor::Text,WindowsUiColor::Muted})
 				Require(Contrast(color(text),color(background)) >= 4.5, "Light/Dark normal and supporting text meet 4.5:1 contrast");
+		Require(color(WindowsUiColor::LocationHeader)!=color(WindowsUiColor::SurfaceAlt) &&
+			color(WindowsUiColor::LocationHeader)!=color(WindowsUiColor::Selection),
+			"location header has a distinct neutral surface rather than list or selection styling");
 		for (auto text : {WindowsUiColor::OverlayText,WindowsUiColor::Warning,WindowsUiColor::Danger,WindowsUiColor::Success})
 			Require(Contrast(color(text),color(WindowsUiColor::Overlay)) >= 4.5, "overlay and semantic status text meet 4.5:1 contrast");
 		Require(Contrast(color(WindowsUiColor::Boundary),color(WindowsUiColor::Surface)) >= 3.0 &&
@@ -94,6 +97,7 @@ static void TestAppearance()
 			"System/Light/Dark resolve the entire theme including canvas together");
 	}
 	Require(WindowsUiSystemColor(WindowsUiColor::Canvas)==COLOR_WINDOW && WindowsUiSystemColor(WindowsUiColor::Text)==COLOR_WINDOWTEXT &&
+		WindowsUiSystemColor(WindowsUiColor::LocationHeader)==COLOR_WINDOW && WindowsUiSystemColor(WindowsUiColor::Border)==COLOR_WINDOWTEXT &&
 		WindowsUiSystemColor(WindowsUiColor::Selection)==COLOR_HIGHLIGHT && WindowsUiSystemColor(WindowsUiColor::OnAccent)==COLOR_HIGHLIGHTTEXT,
 		"high-contrast roles defer to Windows system colors");
 	struct Profile {

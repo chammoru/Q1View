@@ -153,6 +153,7 @@ CString CGalleryGridCanvas::Label(int index) const {
     const auto& entry = mOwner.mEntries[index];
     if (entry.kind == CThumbnailPane::ENTRY_PARENT) return _T("[..]");
     if (entry.kind == CThumbnailPane::ENTRY_DIR) {
+        if (mOwner.mFolder.IsEmpty()) return L"[" + entry.path + L"]";
         CString path = entry.path; path.TrimRight(_T("\\"));
         CString name = PathFindFileName(path);
         name = name.IsEmpty() ? path : name;
@@ -166,6 +167,7 @@ CString CGalleryGridCanvas::Tooltip(int index) const {
     const auto& entry = mOwner.mEntries[index];
     if (entry.kind == CThumbnailPane::ENTRY_PARENT) return _T("..");
     if (entry.kind == CThumbnailPane::ENTRY_DIR) {
+        if (mOwner.mFolder.IsEmpty()) return entry.path;
         CString path = entry.path; path.TrimRight(_T("\\"));
         CString name = PathFindFileName(path);
         return name.IsEmpty() ? path : name;
@@ -476,6 +478,7 @@ LRESULT CGalleryGridCanvas::OnMouseLeave(WPARAM, LPARAM) { mTracking = false; mH
 LRESULT CGalleryGridCanvas::OnDpiChanged(WPARAM, LPARAM) { DropDevice(); Relayout(false); return 0; }
 void CGalleryGridCanvas::OnDestroy() { PauseAnimation(); ClearCache(); DropDevice(); CWnd::OnDestroy(); }
 BOOL CGalleryGridCanvas::PreTranslateMessage(MSG* message) {
+    if (message->message == WM_KEYDOWN && message->wParam == VK_TAB) { mOwner.FocusPath(); return TRUE; }
     if (message->message == WM_KEYDOWN && mOwner.HandleSelectionKey(UINT(message->wParam),
         (GetKeyState(VK_CONTROL) & 0x8000) != 0, (GetKeyState(VK_SHIFT) & 0x8000) != 0)) return TRUE;
     CMainFrame *frame = DYNAMIC_DOWNCAST(CMainFrame, AfxGetMainWnd());

@@ -399,11 +399,23 @@ int RunComparerTypographyTests() {
 			}
 			const float savedN = doc->mN, savedD = doc->mD, savedX = doc->mXOff, savedY = doc->mYOff;
 			auto* view = doc->mPane[0].pView;
+			// This checks menu repaint/layout, not the fit/100-percent stop.
+			// Restoring a differently sized CI desktop can leave the opening fit
+			// below 1 even when the image now fits at 1; zoom-out at 1 is then a
+			// legitimate no-op. Start above that boundary and still require every
+			// real wheel action to change magnification in the correct direction.
+			doc->mN = 1.f; doc->mD = ZOOM_DELTA(doc->mN);
+			doc->ViewOnMouseWheel(-WHEEL_DELTA, doc->mW, doc->mH);
+			Check(doc->mN == 1.f, "zoom-out at 100 percent legitimately stops when the image already fits");
+			doc->mN = 2.f; doc->mD = ZOOM_DELTA(doc->mN); doc->setDstSize();
+			for (int slot = 0; slot < CComparatorDoc::IMG_VIEW_MAX; ++slot)
+				if (doc->mPane[slot].pView) doc->mPane[slot].pView->DeterminDestOriginCoord(doc);
+			frame->UpdateMagnication(doc->mN); doc->UpdateAllViews(nullptr); Pump(20);
 			CPoint center(view->mWCanvas / 2, view->mRcControls.bottom + view->mHCanvas / 2); view->ClientToScreen(&center);
 			for (int repeat = 0; repeat < 4; ++repeat) for (short delta : {short(WHEEL_DELTA), short(-WHEEL_DELTA)}) {
 				const float previousN = doc->mN;
 				view->OnMouseWheel(0, delta, center); Pump(5);
-				Check(doc->mN != previousN, "real image-wheel handler still zooms in and out");
+				Check(delta > 0 ? doc->mN > previousN : doc->mN < previousN, "real image-wheel handler still zooms in and out");
 				CRect helpAfter; ::GetWindowRect(help, helpAfter);
 				Check(helpAfter == helpBefore, "real wheel handler does not move Help");
 			}

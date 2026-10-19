@@ -22,8 +22,11 @@
 #include <functional>
 #include "QBrowserSelection.h"
 #include "Q1UiMenuWin.h"
+#include "BrowserDirectoryWin.h"
+#include "BrowserPathBar.h"
 
 class CGalleryGridCanvas;
+struct BrowserNavigationState;
 
 // Worker -> UI notification carrying a decoded thumbnail (see Result).
 #define WM_THUMB_READY (WM_APP + 200)
@@ -31,6 +34,7 @@ class CGalleryGridCanvas;
 // (mutating the list inside its own notification handler is unsafe).
 #define WM_DRAWER_ACTIVATE (WM_APP + 201)
 #define WM_DRAWER_DIRECTORY_CHANGED (WM_APP + 202)
+#define WM_DRAWER_NAVIGATION_READY (WM_APP + 203)
 
 class CThumbnailPane : public CListCtrl
 {
@@ -44,6 +48,9 @@ public:
 	virtual LRESULT WindowProc(UINT message, WPARAM wp, LPARAM lp) override;
 	bool GoToParent();
 	bool CanGoToParent() const;
+	void FocusPath();
+	bool IsPathFocused() const { return ::GetFocus() == mPathBar.GetSafeHwnd(); }
+	BOOL TranslatePathMessage(MSG* message) { return mPathBar.PreTranslateMessage(message); }
 	void ShowContextMenu(int index, CPoint screenPoint);
 
 	// Show the folder containing lpszPath (repopulating only when the folder
@@ -82,6 +89,7 @@ protected:
 	afx_msg LRESULT OnThumbReady(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnActivatePosted(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnDirectoryChanged(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnNavigationReady(WPARAM, LPARAM);
 
 private:
 	q1view::WindowsUiMenus* mContextMenus = nullptr;
@@ -109,10 +117,25 @@ private:
 	std::function<bool(size_t)> mConfirmRecycle;
 	std::function<void(const CString&)> mReportRecycle;
 	std::unique_ptr<CGalleryGridCanvas> mGrid;
+	CBrowserPathHeader mPathHeader;
+	CBrowserPathBar mPathBar;
+	CRect GridViewport() const;
+	void LayoutPath();
+	bool HandlePathKey(MSG* message);
+	bool mHasDirectory = false;
+	q1view::BrowserDirectory mDirectorySnapshot;
+	std::shared_ptr<BrowserNavigationState> mNavigation;
+	std::thread mNavigationThread;
+	bool mNavigationBusy = false;
+	std::function<q1view::BrowserDirectory(const std::wstring&)> mReadDirectory;
+	std::function<void(const CString&)> mReportNavigation;
+	void RequestDirectory(const CString& folder, const CString& current, bool notify, bool restore = false);
+	void CancelNavigation();
+	void CommitDirectory(const q1view::BrowserDirectory& snapshot, const CString& current);
 	struct Task { unsigned gen; int index; int size; bool crop; CString path; };
 	struct Result { unsigned gen; int index; int size; HBITMAP hbmp; };
 
-	void Populate(const CString &folder, const CString &current);
+	bool Populate(const CString &folder, const CString &current);
 	void RebuildFonts(UINT dpi);
 	bool PreviewRejected(const CString &path) const;
 	void StepFile(bool next);              // PgUp/PgDn: select prev/next file (no open)
