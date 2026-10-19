@@ -53,6 +53,174 @@ struct GalleryIntegrationTests {
         while (!predicate() && CGalleryGridCanvas::Now() < end) Pump(.05);
         Require(predicate(), text);
     }
+    void BrowserNavigationTests(CMainFrame* frame, const CString& fixture) {
+        auto& pane = *frame->mpDrawer;
+        auto& grid = *pane.mGrid;
+        auto* doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
+        auto* view = static_cast<CViewerView*>(frame->GetActiveView());
+        const CString oldFolder = pane.mFolder;
+        const auto reader = pane.mReadDirectory;
+        const auto reporter = pane.mReportNavigation;
+        const int oldStep = pane.mViewStep;
+        wchar_t temp[MAX_PATH]; GetTempPathW(MAX_PATH, temp);
+        CString root; root.Format(L"%sQ1View-navigation-%lu-%llu\\",temp,GetCurrentProcessId(),GetTickCount64());
+        CString child = root + L"\xC5EC\xD589 \xC0AC\xC9C4 long folder name\\";
+        Require(CreateDirectoryW(root,nullptr) && CreateDirectoryW(child,nullptr), "navigation fixtures use isolated Unicode directories");
+        const CString image = root + L"sample.png";
+        Require(CopyFileW(fixture,image,TRUE)!=FALSE,"navigation fixture image copied");
+        pane.NavigateTo(root);
+        Await([&] { return !pane.mNavigationBusy && pane.mFolder==root; },"real directory metadata commits asynchronously");
+        const CString document = doc->mPathName;
+        const auto openGeneration = doc->mOpenGeneration;
+        const float zoom = view->mN;
+        const int x = view->mXDst, y = view->mYDst;
+        const auto pixels = view->mStableRgbBufferInfo.addr;
+        for (int step : {0,1,5}) {
+            pane.ApplyViewStep(step,false); Pump(.05);
+            CString path; pane.mPathBar.GetWindowText(path);
+            Require(path==root && pane.mPathBar.IsWindowVisible() && (pane.mPathBar.GetStyle()&ES_READONLY),
+                "list and grid retain the exact read-only current Browse path");
+            CRect header; pane.mPathHeader.GetWindowRect(header); pane.ScreenToClient(header);
+            if(step) { CRect canvas; grid.GetWindowRect(canvas); pane.ScreenToClient(canvas);
+                Require(canvas.top>=header.bottom && canvas.Height()>0,"grid is laid out below the native path header without overlap"); }
+            else { CRect row; pane.GetItemRect(0,row,LVIR_BOUNDS);
+                Require(row.top>=header.bottom,"compact rows start below the path header"); }
+            pane.FocusPath();
+            Require(::GetFocus()==pane.mPathBar.m_hWnd,"path is keyboard focusable in both presentations");
+            pane.mPathBar.SendMessage(WM_CHAR,'z'); pane.mPathBar.GetWindowText(path);
+            Require(path==root,"typing cannot edit the path or navigate");
+            MSG key{};key.hwnd=pane.mPathBar.m_hWnd;key.message=WM_KEYDOWN;key.wParam=VK_ESCAPE;
+            Require(pane.mPathBar.PreTranslateMessage(&key) && ::GetFocus()!=pane.mPathBar.m_hWnd,"Escape returns to the list/grid without closing the app");
+        }
+        IAccessible* accessible=nullptr;
+        Require(SUCCEEDED(AccessibleObjectFromWindow(pane.mPathBar.m_hWnd,OBJID_CLIENT,IID_PPV_ARGS(&accessible))),"native path edit exposes MSAA");
+        VARIANT self{};self.vt=VT_I4;self.lVal=CHILDID_SELF;
+        BSTR name=nullptr,value=nullptr;
+        accessible->get_accName(self,&name);accessible->get_accValue(self,&value);
+        Require(name && !wcscmp(name,L"Current folder") && value && root==value,"accessible path has a meaningful name and full unelided value");
+        SysFreeString(name);SysFreeString(value);accessible->Release();
+        {
+            CClientDC dc(&pane.mPathBar);CFont* old=dc.SelectObject(&pane.mLabelFont);
+            const CString longPath=L"D:\\very long ancestor directory\\another ancestor\\\xC5EC\xD589 \xC0AC\xC9C4\\";
+            const CString expected=L"D:\\\x2026\\\xC5EC\xD589 \xC0AC\xC9C4";
+            SIZE size{};GetTextExtentPoint32W(dc,expected,expected.GetLength(),&size);
+            Require(CBrowserPathBar::Compact(dc,longPath,size.cx+1)==expected,"compact path preserves the drive and current Unicode folder, eliding ancestors rather than the tail");
+            const CString unc=L"\\\\server\\share\\long ancestor\\another ancestor\\current";
+            const CString compactUnc=L"\\\\server\\share\\\x2026\\current";
+            GetTextExtentPoint32W(dc,compactUnc,compactUnc.GetLength(),&size);
+            Require(CBrowserPathBar::Compact(dc,unc,size.cx+1)==compactUnc,"UNC compaction preserves share identity and the current leaf");
+            for(int width : {10,40,80,120,240}) {
+                const CString compact=CBrowserPathBar::Compact(dc,longPath,width);
+                GetTextExtentPoint32W(dc,compact,compact.GetLength(),&size);
+                Require(size.cx<=width,"even extremely narrow path text remains inside its measured bounds");
+            }
+            dc.SelectObject(old);
+            for(UINT dpi : {96u,144u,192u}) {
+                pane.RebuildFonts(dpi);
+                CClientDC measured(&pane.mPathBar);CFont* previous=measured.SelectObject(&pane.mLabelFont);
+                TEXTMETRIC metrics{};measured.GetTextMetrics(&metrics);measured.SelectObject(previous);
+                CRect bounds;pane.mPathBar.GetClientRect(bounds);
+                Require(bounds.Height()>=metrics.tmHeight,"native path row expands to contain enlarged 100/150/200-percent caption metrics");
+            }
+            pane.RebuildFonts(GetDpiForWindow(pane.m_hWnd));
+        }
+        pane.SetFocus();
+        const HWND browseFocus=::GetFocus();
+        Require(PostMessageW(browseFocus,WM_KEYDOWN,VK_TAB,1) && PostMessageW(browseFocus,WM_KEYUP,VK_TAB,1|(1L<<30)|(1L<<31)),"physical Tab messages queued from the browser");
+        Pump(.05);
+        Require(pane.IsPathFocused(),"the real MFC message-pump Tab path reaches the path text before splitter traversal");
+        {
+            Microsoft::WRL::ComPtr<IDataObject> clipboard; OleGetClipboard(&clipboard);
+            struct Restore { IDataObject* data; ~Restore(){OleSetClipboard(data);OleFlushClipboard();} } restore{clipboard.Get()};
+            pane.FocusPath(); BYTE keyboard[256], saved[256]; GetKeyboardState(saved); memcpy(keyboard,saved,sizeof(keyboard)); keyboard[VK_CONTROL]=0x80;
+            struct RestoreKeys { BYTE* keys; ~RestoreKeys(){SetKeyboardState(keys);} } keys{saved};
+            SetKeyboardState(keyboard);
+            MSG key{};key.hwnd=pane.mPathBar.m_hWnd;key.message=WM_KEYDOWN;key.wParam='A';
+            Require(AfxGetApp()->PreTranslateMessage(&key),"Ctrl+A is handled by path text, not file selection");
+            key.wParam='C';Require(AfxGetApp()->PreTranslateMessage(&key),"Ctrl+C uses the focused read-only path");
+            Require(OpenClipboard(frame->m_hWnd)!=FALSE,"path copy clipboard opened for verification");
+            const HANDLE data=GetClipboardData(CF_UNICODETEXT);const wchar_t* copied=data?static_cast<const wchar_t*>(GlobalLock(data)):nullptr;
+            const bool exact=copied && root==copied;if(copied) GlobalUnlock(data);CloseClipboard();
+            Require(exact,"path clipboard contains the exact full value, not the visually elided string");
+        }
+        pane.SetFocus();
+        {
+            ScopedWindowsUiPaintTestTheme theme;
+            for(auto appearance : {q1view::WindowsUiAppearance::Light,q1view::WindowsUiAppearance::Dark}) {
+                q1view::WindowsUiAppearanceState().SetAppearance(appearance);
+                pane.SendMessage(q1view::WM_UI_APPEARANCE_CHANGED);
+                auto check=[&](bool okay,const char* text){Require(okay,text);};
+                CheckWindowsUiErase(pane.mPathBar.m_hWnd,q1view::WindowsUiColor::SurfaceAlt,true,check);
+                CheckWindowsUiErase(pane.mPathHeader.m_hWnd,q1view::WindowsUiColor::SurfaceAlt,true,check);
+                WindowsUiPaintTestSurface surface(pane.mPathBar.m_hWnd);
+                const auto brush=HBRUSH(pane.mPathHeader.SendMessage(WM_CTLCOLORSTATIC,WPARAM(surface.Dc()),LPARAM(pane.mPathBar.m_hWnd)));
+                LOGBRUSH logical{};
+                Require(brush && GetObjectW(brush,sizeof(logical),&logical) && logical.lbColor==Q1UI_COLOR_SURFACE_ALT,
+                    "focused native path edit uses the same Light/Dark background as its header");
+            }
+        }
+        pane.SendMessage(q1view::WM_UI_APPEARANCE_CHANGED);
+        pane.NavigateTo(child); Await([&] { return !pane.mNavigationBusy && pane.mFolder==child; },"accessible empty Unicode folder opens normally");
+        Require(pane.mEntries.size()==1 && pane.mEntries.front().kind==CThumbnailPane::ENTRY_PARENT,"empty folder retains its parent rather than being treated as an error");
+        pane.GoToParent();Await([&] { return !pane.mNavigationBusy && pane.mFolder==root; },"parent navigation commits with the same worker");
+        Require(pane.mSelection.focus>=0 && pane.mEntries[pane.mSelection.focus].path==child,"going up reveals the child directory");
+        const CString late=child+L"late.png";
+        auto once=std::make_shared<std::atomic<bool>>(false);
+        pane.mReadDirectory=[reader,fixture,late,once](const std::wstring& folder){auto snapshot=reader(folder);if(!once->exchange(true)) CopyFileW(fixture,late,TRUE);return snapshot;};
+        pane.NavigateTo(child);
+        Await([&]{return !pane.mNavigationBusy && pane.mFolder==child && pane.mEntries.size()==2;},"post-registration validation catches a file created after enumeration but before its watch exists");
+        pane.mReadDirectory=reader;
+        pane.GoToParent();Await([&]{return !pane.mNavigationBusy && pane.mFolder==root;},"parent restored after watch-registration race check");
+        Require(DeleteFileW(late)!=FALSE,"late-arrival fixture cleaned up");
+        int errors=0;CString lastError;
+        pane.mReportNavigation=[&](const CString& message){++errors;lastError=message;};
+        for(DWORD code : {DWORD(ERROR_PATH_NOT_FOUND),DWORD(ERROR_ACCESS_DENIED),DWORD(ERROR_NOT_READY),DWORD(ERROR_DEVICE_NOT_CONNECTED),DWORD(ERROR_READ_FAULT)}) {
+            pane.mReadDirectory=[code](const std::wstring& folder){q1view::BrowserDirectory result;result.folder=folder;result.files.push_back(L"partial.png");result.error=code;return result;};
+            const auto generation=pane.mGen.load();const auto size=pane.mEntries.size();const auto selected=pane.mSelection.focus;const float scroll=grid.mLayout.scroll;
+            const int before=errors;
+            pane.NavigateTo(root+L"unavailable\\");
+            Await([&] { return !pane.mNavigationBusy; },"injected directory error is delivered through the production request path");
+            CString path;pane.mPathBar.GetWindowText(path);
+            Require(pane.mFolder==root && path==root && pane.mGen==generation && pane.mEntries.size()==size && pane.mSelection.focus==selected && grid.mLayout.scroll==scroll,
+                "all directory failure types retain committed path, entries, selection, scroll and thumbnail generation");
+            Require(errors==before+1 && lastError.Find(L"unavailable")>=0,"explicit failure supplies one actionable message including its target");
+            pane.mDirectoryRefreshPending=true;pane.RefreshDirectoryContents();
+            Await([&] { return !pane.mNavigationBusy; },"background refresh error completes");
+            Require(errors==before+1 && pane.mGen==generation,"background failure neither opens a modal nor invalidates thumbnails");
+        }
+        // Hold an old request while accepting a newer one: no sleeps or device
+        // disconnects are needed to reproduce a late network completion.
+        auto entered=std::make_shared<std::atomic<bool>>(false);
+        auto release=std::make_shared<std::atomic<bool>>(false);
+        pane.mReadDirectory=[entered,release,reader](const std::wstring& folder){entered->store(true);while(!release->load()) Sleep(1);auto result=reader(folder);result.error=ERROR_ACCESS_DENIED;return result;};
+        pane.NavigateTo(child);Await([&]{return entered->load();},"slow old navigation starts off the UI thread");
+        const int previousErrors=errors;
+        pane.mReadDirectory=reader;pane.NavigateTo(root);release->store(true);
+        Await([&]{return !pane.mNavigationBusy;},"newest queued request wins after a slow old failure");
+        Require(pane.mFolder==root && errors==previousErrors,"stale failures do not replace a newer folder or display an error");
+        pane.mReadDirectory=reader;
+        pane.NavigateTo(root.Left(3));Await([&]{return !pane.mNavigationBusy;},"drive root metadata loads");
+        Require(pane.CanGoToParent() && pane.mEntries.front().kind==CThumbnailPane::ENTRY_PARENT,"drive root keeps a visible, applicable parent action");
+        pane.GoToParent();Await([&]{return !pane.mNavigationBusy;},"root parent opens drive chooser");
+        CString path;pane.mPathBar.GetWindowText(path);
+        Require(pane.mHasDirectory && pane.mFolder.IsEmpty() && path==L"Drives","drive chooser is explicit rather than an uninitialized empty path");
+        Require(!pane.mEntries.empty() && grid.Label(0)==L"["+pane.mEntries[0].path+L"]","drive labels retain their root backslash in bracket notation");
+        Require(doc->mPathName==document && doc->mOpenGeneration==openGeneration && view->mStableRgbBufferInfo.addr==pixels && view->mN==zoom && view->mXDst==x && view->mYDst==y,
+            "browsing success and failure never reopen or transform the displayed image");
+        pane.mReportNavigation=reporter;pane.NavigateTo(oldFolder);Await([&]{return !pane.mNavigationBusy;},"original Browse location restored");
+        pane.ApplyViewStep(oldStep,false);
+        {
+            CThumbnailPane closing;
+            Require(closing.CreatePane(frame,0x7c11)!=FALSE,"isolated drawer created for blocked-worker shutdown");
+            auto started=std::make_shared<std::atomic<bool>>(false), unblock=std::make_shared<std::atomic<bool>>(false), finished=std::make_shared<std::atomic<bool>>(false);
+            closing.mReadDirectory=[started,unblock,finished](const std::wstring& folder){started->store(true);while(!unblock->load()) Sleep(1);q1view::BrowserDirectory result;result.folder=folder;finished->store(true);return result;};
+            closing.NavigateTo(root);Await([&]{return started->load();},"isolated metadata worker is blocked without blocking the UI");
+            const auto before=GetTickCount64();closing.DestroyWindow();
+            Require(GetTickCount64()-before<1500,"closing a drawer does not join an indefinitely blocked metadata read");
+            unblock->store(true);Await([&]{return finished->load();},"detached stopped worker releases its owned request safely");
+        }
+        Require(DeleteFileW(image) && RemoveDirectoryW(child) && RemoveDirectoryW(root),"temporary navigation fixtures removed");
+    }
     void RecycleTests(CMainFrame* frame, const CString& fixture) {
         auto& pane = *frame->mpDrawer;
         auto& grid = *pane.mGrid;
@@ -172,6 +340,7 @@ struct GalleryIntegrationTests {
                 "directory refresh waits until an in-progress recycle operation finishes");
             pane.mRecycleBusy = false;
             pane.RefreshDirectoryContents();
+            Await([&] { return !pane.mNavigationBusy; }, "deferred directory enumeration completes before selection checks");
             Require(!pane.mDirectoryRefreshPending && pane.SelectedMediaPaths() ==
                 std::vector<CString>{files[0], files[1]},
                 "deferred directory refresh retains selection after recycling finishes");
@@ -218,9 +387,11 @@ struct GalleryIntegrationTests {
             }
             pane.mConfirmRecycle = [&](size_t) { pane.NavigateTo(child); return true; };
             pane.RecycleSelected();
+            Await([&] { return !pane.mNavigationBusy && pane.mFolder == child; }, "confirmation navigation completes without recycling old items");
             Require(pane.mFolder == child && GetFileAttributes(files[0]) != INVALID_FILE_ATTRIBUTES,
                 "MFC folder change during confirmation invalidates batch");
-            pane.NavigateTo(folder); pane.SelectByPath(files[0]); pane.SelectIndex(indexOf(files[3]), true);
+            pane.NavigateTo(folder); Await([&] { return !pane.mNavigationBusy && pane.mFolder == folder; }, "recycle fixture folder reopens before choosing files");
+            pane.SelectByPath(files[0]); pane.SelectIndex(indexOf(files[3]), true);
             const unsigned oldGeneration = pane.mGen.load();
             pane.ActivateIndex(indexOf(files[0]), true);
             pane.mConfirmRecycle = [](size_t) { return true; };
@@ -948,6 +1119,22 @@ struct GalleryIntegrationTests {
         frame->MoveWindow(20, 20, 1200, 850);
         if (!frame->mDrawerVisible) frame->OnToggleDrawer();
         Pump(.4);
+        wchar_t browserOnly[8] = {};
+        if (GetEnvironmentVariableW(L"Q1VIEW_BROWSER_NAVIGATION_ONLY",browserOnly,_countof(browserOnly))) {
+            wchar_t fixture[MAX_PATH]; GetFullPathNameW(L"Tests\\fixtures\\sample_16x16.png",MAX_PATH,fixture,nullptr);
+            Require(AfxGetApp()->OpenDocumentFile(fixture)!=nullptr,"repository sample opened for focused navigation checks");
+            Pump(.2);
+            BrowserNavigationTests(frame,fixture);
+            RecycleTests(frame,fixture);
+            fprintf(report,"Focused Browse navigation and interaction checks completed\n"); return;
+        }
+        // The shell/zoom checks below require a displayed image. A no-argument
+        // startup run has deliberately just verified the empty -- status.
+        if (doc->mPathName.IsEmpty()) {
+            wchar_t fixture[MAX_PATH]; GetFullPathNameW(L"Tests\\fixtures\\sample_16x16.png",MAX_PATH,fixture,nullptr);
+            Require(AfxGetApp()->OpenDocumentFile(fixture)!=nullptr,"loaded-source shell checks establish their own repository fixture");
+            Pump(.2);
+        }
         ChromeTests(frame, view);
         ViewerShellTests(frame, view, doc);
         CommandRefreshTests(frame);
@@ -1149,6 +1336,7 @@ struct GalleryIntegrationTests {
 		// to the image (or back) while the key's remaining messages are still queued.
 		const CString documentBeforePhysicalE = doc->GetPathName();
 		auto PostPhysicalE = [&]() {
+			const bool wasVisible = frame->mDrawerVisible;
 			HWND target = ::GetFocus();
 			Require(target != NULL, "physical E regression has a focused target window");
 			Require(::PostMessage(target, WM_KEYDOWN, 'E', 1) != FALSE,
@@ -1156,7 +1344,11 @@ struct GalleryIntegrationTests {
 			Require(::PostMessage(target, WM_KEYUP, 'E',
 				1 | (1L << 30) | (1L << 31)) != FALSE,
 				"physical E keyup posted through the Windows message queue");
-			Pump(.2);
+			// A pending metadata commit/thumbnail presentation can consume a
+			// fixed 200 ms pump before the posted keyboard message is dequeued.
+			// Wait for that message's actual effect, not for an arbitrary delay.
+			Await([&] { return frame->mDrawerVisible != wasVisible; }, "physical E reaches the frame through the real message queue");
+			Pump(.05);
 		};
 		PostPhysicalE();
 		Require(!frame->mDrawerVisible && doc->GetPathName() == documentBeforePhysicalE,
@@ -1199,7 +1391,9 @@ struct GalleryIntegrationTests {
             pane.mEntries.front().kind == CThumbnailPane::ENTRY_DIR,
             "activating the drive-root parent tile opens the drive chooser");
         pane.NavigateTo(driveRoot); Pump(.2);
-        Require(pane.GoToParent() && pane.mFolder.IsEmpty() && !pane.mEntries.empty() &&
+        Require(pane.GoToParent(), "drive-root parent request accepted");
+        Await([&] { return !pane.mNavigationBusy; }, "drive-root parent request completes");
+        Require(pane.mFolder.IsEmpty() && !pane.mEntries.empty() &&
             pane.mEntries.front().kind == CThumbnailPane::ENTRY_DIR,
             "drive chooser opens after navigating above a drive root");
         pane.NavigateTo(folder); Pump(.5);
@@ -1226,9 +1420,14 @@ struct GalleryIntegrationTests {
         Require(grid.mDevice != nullptr, "GPU rendering recovers after fallback");
         CString missing = folder + L"missing\\";
         const auto beforeMissing = pane.mGen.load();
+        const auto navigationReporter = pane.mReportNavigation;
+        int missingErrors = 0;
+        pane.mReportNavigation = [&](const CString&) { ++missingErrors; };
         pane.NavigateTo(missing); Pump(.1);
-        Require(pane.mGen == beforeMissing && pane.mEntries.size() == 3001, "missing folder leaves navigation and cache intact");
+        Await([&] { return !pane.mNavigationBusy; }, "missing-folder result delivered");
+        Require(pane.mGen == beforeMissing && pane.mEntries.size() == 3001 && missingErrors == 1, "missing folder leaves navigation and cache intact with one error");
         pane.NavigateTo(folder); pane.NavigateTo(missing); pane.NavigateTo(folder); Pump(1);
+        pane.mReportNavigation = navigationReporter;
         Require(pane.mOutstanding <= 4, "decode plus posted-result backlog bounded to four");
         CRect beforeOpen; frame->GetWindowRect(&beforeOpen);
         CString expected = pane.mEntries[3].path;
@@ -1496,6 +1695,7 @@ struct GalleryIntegrationTests {
             }
             for (int mode = 0; mode < pane.ViewStepCount(); ++mode) {
                 pane.NavigateTo(folder); pane.ApplyViewStep(mode, false);
+                Await([&] { return !pane.mNavigationBusy && pane.mFolder == folder; }, "filtering checks wait for the requested directory snapshot");
                 const auto containsPath = [&](const CString& path) {
                     return std::any_of(pane.mEntries.begin(), pane.mEntries.end(),
                         [&](const CThumbnailPane::Entry& entry) { return entry.path.CompareNoCase(path) == 0; });
@@ -1533,12 +1733,14 @@ struct GalleryIntegrationTests {
                     }, "video with a meaningful thumbnail remains in the grid");
                 }
                 pane.NavigateTo(child); pane.ApplyViewStep(mode, false);
+                Await([&] { return !pane.mNavigationBusy && pane.mFolder == child; }, "child folder opens before testing its parent tile");
                 Require(!pane.mEntries.empty() && pane.mEntries.front().kind == CThumbnailPane::ENTRY_PARENT &&
                     (pane.IsGrid() ? grid.Label(0) == L"[..]" : pane.GetItemText(0, 0) == L"[..]"),
                     "typographic parent entry is first at every thumbnail size");
                 CMenu parentMenu; pane.BuildContextMenu(parentMenu, 0);
                 Require(parentMenu.GetMenuItemCount() == 0, "parent navigation is represented by the tile, not a context command");
-                pane.ActivateIndex(0, true); Pump(.05);
+                pane.ActivateIndex(0, true);
+                Await([&] { return !pane.mNavigationBusy && pane.mFolder == folder; }, "parent tile completes its asynchronous navigation");
                 const int selected = pane.IsGrid() ? grid.Selection() : pane.GetNextItem(-1, LVNI_SELECTED);
                 Require(pane.mFolder == folder && pane.mViewStep == mode && selected >= 0 &&
                     pane.mEntries[selected].path == child, "parent tile reveals child folder at every thumbnail size");
@@ -1559,7 +1761,8 @@ struct GalleryIntegrationTests {
                 // Await the actual outcome, retaining the bounded failure timeout.
                 Await([&] { return pane.mFolder == child; }, "folder activation survives a same-folder asynchronous refresh");
                 MSG up = {}; up.hwnd = pane.GetSafeHwnd(); up.message = WM_KEYDOWN; up.wParam = VK_BACK;
-                Require(pane.PreTranslateMessage(&up) && pane.mFolder == folder, "Backspace remains a parent-navigation shortcut");
+                Require(pane.PreTranslateMessage(&up), "Backspace remains a parent-navigation shortcut");
+                Await([&] { return !pane.mNavigationBusy && pane.mFolder == folder; }, "Backspace navigation completes in the parent folder");
                 CMenu background; pane.BuildContextMenu(background, -1);
                 Require(background.GetMenuItemCount() == 0, "empty background has no redundant parent context command");
                 Require(view->mIsPlaying && doc->mPathName == media && doc->mOpenGeneration == openGeneration,
@@ -1576,6 +1779,7 @@ struct GalleryIntegrationTests {
             Require(doc->mPathName == media, "stale deferred activation cannot open an item after folder change");
             view->KillPlayTimerSafe();
         }
+        BrowserNavigationTests(frame, fixture);
         RecycleTests(frame, fixture);
         wchar_t hold[16];
         if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_TEST_HOLD_SECONDS",hold,_countof(hold))) {

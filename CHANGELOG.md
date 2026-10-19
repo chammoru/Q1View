@@ -6,6 +6,14 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+### Changed
+
+- Windows Viewer: show the current Browse folder above both list and grid views, with compact path text and keyboard-accessible full-path copying; keep parent and drive navigation unchanged. (#121)
+
+### Fixed
+
+- Windows Viewer: prepare directory listings before replacing Browse contents, preserving the previous folder, selection, scroll and image on access or device failures; explain explicit failures without repeated background-refresh dialogs and discard superseded navigation results. (#121)
+
 ---
 
 ## [2.8.2] — 2026-10-19
