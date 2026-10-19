@@ -6,9 +6,13 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.8.3] — 2026-10-19
+
 ### Changed
 
-- Windows Viewer: show the current Browse folder above both list and grid views, with compact path text and keyboard-accessible full-path copying; keep parent and drive navigation unchanged. (#121)
+- Windows Viewer: show the current Browse folder in a distinct, medium-weight header with a neutral background and thin separator above both list and grid views, with compact path text and keyboard-accessible full-path copying; keep parent and drive navigation unchanged. (#121)
 
 ### Fixed
 
@@ -543,7 +547,8 @@ Native display checks passed at 100–175%; 200% layout/font calculations passed
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.2...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.3...HEAD
+[2.8.3]: https://github.com/chammoru/Q1View/compare/v2.8.2...v2.8.3
 [2.8.2]: https://github.com/chammoru/Q1View/compare/v2.8.1...v2.8.2
 [2.8.1]: https://github.com/chammoru/Q1View/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/chammoru/Q1View/compare/v2.7.28...v2.8.0
