@@ -60,7 +60,8 @@ protected:
     LRESULT WindowProc(UINT message, WPARAM wp, LPARAM lp) override {
         if (message == WM_ERASEBKGND) {
             CRect rect; GetClientRect(rect);
-            CDC* dc = CDC::FromHandle(HDC(wp)); dc->FillSolidRect(rect, Q1UI_COLOR_SURFACE_ALT); return 1;
+            CDC* dc = CDC::FromHandle(HDC(wp));
+            dc->FillSolidRect(rect, q1view::WindowsUiColorValue(q1view::WindowsUiColor::LocationHeader)); return 1;
         }
         if (message == WM_DESTROY && properties) {
             const MSAAPROPID name = PROPID_ACC_NAME;
@@ -70,7 +71,7 @@ protected:
         if (message == WM_PAINT && ::GetFocus() != m_hWnd) {
             CPaintDC dc(this);
             CRect rect; GetClientRect(rect);
-            dc.FillSolidRect(rect, Q1UI_COLOR_SURFACE_ALT);
+            dc.FillSolidRect(rect, q1view::WindowsUiColorValue(q1view::WindowsUiColor::LocationHeader));
             CFont* old = dc.SelectObject(GetFont());
             dc.SetBkMode(TRANSPARENT); dc.SetTextColor(Q1UI_COLOR_TEXT);
             rect.DeflateRect(MulDiv(6, GetDpiForWindow(m_hWnd), 96), 0);
@@ -102,23 +103,29 @@ protected:
 // This avoids replacing the splitter, list, scroll coordinate system or focus
 // routing just to add one line. The single native column is not interactive.
 class CBrowserPathHeader : public CHeaderCtrl {
-    CBrush brush;
-    COLORREF color = CLR_INVALID;
+public:
+    static int SeparatorThickness(UINT dpi) { return q1view::WindowsUiPixels(1, dpi); }
 protected:
+    void Paint(HDC dc) {
+        CRect rect; GetClientRect(rect);
+        CDC* target = CDC::FromHandle(dc);
+        target->FillSolidRect(rect, q1view::WindowsUiColorValue(q1view::WindowsUiColor::LocationHeader));
+        // A structural boundary, not a selection/focus outline. Leave the
+        // native edit inset above it so text selection cannot cover the line.
+        rect.top = (std::max)(rect.top, rect.bottom - SeparatorThickness(GetDpiForWindow(m_hWnd)));
+        target->FillSolidRect(rect, Q1UI_COLOR_BORDER_SOFT);
+    }
     LRESULT WindowProc(UINT message, WPARAM wp, LPARAM lp) override {
         if (message == WM_PAINT) {
-            CPaintDC dc(this); CRect rect; GetClientRect(rect);
-            dc.FillSolidRect(rect, Q1UI_COLOR_SURFACE_ALT); return 0;
+            CPaintDC dc(this); Paint(dc.GetSafeHdc()); return 0;
         }
-        if (message == WM_CTLCOLORSTATIC || message == WM_CTLCOLOREDIT || message == WM_ERASEBKGND) {
-            if (color != Q1UI_COLOR_SURFACE_ALT) {
-                brush.DeleteObject(); color = Q1UI_COLOR_SURFACE_ALT; brush.CreateSolidBrush(color);
-            }
-            if (message == WM_ERASEBKGND) {
-                CRect rect; GetClientRect(rect); ::FillRect(HDC(wp), rect, HBRUSH(brush.GetSafeHandle())); return 1;
-            }
-            ::SetBkColor(HDC(wp), color); ::SetTextColor(HDC(wp), Q1UI_COLOR_TEXT);
-            return LRESULT(brush.GetSafeHandle());
+        if (message == WM_PRINTCLIENT || message == WM_ERASEBKGND) {
+            Paint(HDC(wp)); return message == WM_ERASEBKGND ? 1 : 0;
+        }
+        if (message == WM_CTLCOLORSTATIC || message == WM_CTLCOLOREDIT) {
+            ::SetBkColor(HDC(wp), q1view::WindowsUiColorValue(q1view::WindowsUiColor::LocationHeader));
+            ::SetTextColor(HDC(wp), Q1UI_COLOR_TEXT);
+            return LRESULT(q1view::WindowsUiColorBrush(q1view::WindowsUiColor::LocationHeader));
         }
         LRESULT result = CHeaderCtrl::WindowProc(message, wp, lp);
         if (message == HDM_LAYOUT && result) {

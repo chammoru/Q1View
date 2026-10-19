@@ -266,11 +266,13 @@ void CThumbnailPane::RebuildFonts(UINT dpi)
 	label.lfQuality = CLEARTYPE_NATURAL_QUALITY;
 	mLabelFont.CreateFontIndirect(&label);
 	SetFont(&mLabelFont);
-	if (mPathBar.GetSafeHwnd()) mPathBar.SetFont(&mLabelFont);
 	if (mPathBar.GetSafeHwnd()) mPathBar.SetMargins(MulDiv(6, dpi, 96), MulDiv(6, dpi, 96));
-	if (mPathHeader.GetSafeHwnd()) mPathHeader.SetFont(&mLabelFont);
 	label.lfWeight = FW_MEDIUM;
 	mFolderFont.CreateFontIndirect(&label);
+	// The location is a header, not another selectable entry. Reuse the
+	// medium-weight caption font without introducing another GDI font cache.
+	if (mPathBar.GetSafeHwnd()) mPathBar.SetFont(&mFolderFont);
+	if (mPathHeader.GetSafeHwnd()) mPathHeader.SetFont(&mFolderFont);
 
 	LOGFONT lf = q1view::WindowsUiLogFont(q1view::WindowsUiFontRole::Supporting, dpi, q1view::WindowsUiSettings().Scale());
 	lstrcpyn(lf.lfFaceName, mFontFamily, LF_FACESIZE);

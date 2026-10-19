@@ -14,7 +14,7 @@ enum class WindowsUiAppearance { System, Light, Dark };
 enum class WindowsUiColor {
 	Window, Surface, SurfaceAlt, Hover, Pressed, Border, Boundary, Text, Muted,
 	Accent, OnAccent, Selection, Warning, Danger, Success, Overlay, OverlayText,
-	Canvas, CanvasText, CanvasMuted, Count
+	Canvas, CanvasText, CanvasMuted, LocationHeader, Count
 };
 
 using WindowsUiPalette = std::array<COLORREF, static_cast<size_t>(WindowsUiColor::Count)>;

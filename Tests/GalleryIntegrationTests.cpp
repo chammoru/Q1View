@@ -81,6 +81,10 @@ struct GalleryIntegrationTests {
             Require(path==root && pane.mPathBar.IsWindowVisible() && (pane.mPathBar.GetStyle()&ES_READONLY),
                 "list and grid retain the exact read-only current Browse path");
             CRect header; pane.mPathHeader.GetWindowRect(header); pane.ScreenToClient(header);
+            CRect pathBounds; pane.mPathBar.GetWindowRect(pathBounds); pane.ScreenToClient(pathBounds);
+            const int separator=CBrowserPathHeader::SeparatorThickness(GetDpiForWindow(pane.mPathHeader.m_hWnd));
+            Require(pathBounds.top>=header.top && pathBounds.bottom<header.bottom-separator,
+                "read-only path leaves clear space above the header separator in list and grid");
             if(step) { CRect canvas; grid.GetWindowRect(canvas); pane.ScreenToClient(canvas);
                 Require(canvas.top>=header.bottom && canvas.Height()>0,"grid is laid out below the native path header without overlap"); }
             else { CRect row; pane.GetItemRect(0,row,LVIR_BOUNDS);
@@ -100,7 +104,7 @@ struct GalleryIntegrationTests {
         Require(name && !wcscmp(name,L"Current folder") && value && root==value,"accessible path has a meaningful name and full unelided value");
         SysFreeString(name);SysFreeString(value);accessible->Release();
         {
-            CClientDC dc(&pane.mPathBar);CFont* old=dc.SelectObject(&pane.mLabelFont);
+            CClientDC dc(&pane.mPathBar);CFont* old=dc.SelectObject(pane.mPathBar.GetFont());
             const CString longPath=L"D:\\very long ancestor directory\\another ancestor\\\xC5EC\xD589 \xC0AC\xC9C4\\";
             const CString expected=L"D:\\\x2026\\\xC5EC\xD589 \xC0AC\xC9C4";
             SIZE size{};GetTextExtentPoint32W(dc,expected,expected.GetLength(),&size);
@@ -117,8 +121,16 @@ struct GalleryIntegrationTests {
             dc.SelectObject(old);
             for(UINT dpi : {96u,144u,192u}) {
                 pane.RebuildFonts(dpi);
-                CClientDC measured(&pane.mPathBar);CFont* previous=measured.SelectObject(&pane.mLabelFont);
+                CClientDC measured(&pane.mPathBar);CFont* previous=measured.SelectObject(pane.mPathBar.GetFont());
                 TEXTMETRIC metrics{};measured.GetTextMetrics(&metrics);measured.SelectObject(previous);
+                LOGFONT pathFont{}, rowFont{};
+                pane.mPathBar.GetFont()->GetLogFont(&pathFont); pane.mLabelFont.GetLogFont(&rowFont);
+                Require(pathFont.lfWeight==FW_MEDIUM && rowFont.lfWeight==FW_NORMAL &&
+                    pathFont.lfHeight==rowFont.lfHeight && !lstrcmp(pathFont.lfFaceName,rowFont.lfFaceName) &&
+                    pane.mPathBar.GetFont()->GetSafeHandle()==pane.mFolderFont.GetSafeHandle(),
+                    "location header reuses medium Pretendard at the same caption size without changing regular item text");
+                Require(CBrowserPathHeader::SeparatorThickness(dpi)==q1view::WindowsUiPixels(1,dpi),
+                    "location boundary remains one DIP at 100/150/200-percent DPI");
                 CRect bounds;pane.mPathBar.GetClientRect(bounds);
                 Require(bounds.Height()>=metrics.tmHeight,"native path row expands to contain enlarged 100/150/200-percent caption metrics");
             }
@@ -149,14 +161,35 @@ struct GalleryIntegrationTests {
             for(auto appearance : {q1view::WindowsUiAppearance::Light,q1view::WindowsUiAppearance::Dark}) {
                 q1view::WindowsUiAppearanceState().SetAppearance(appearance);
                 pane.SendMessage(q1view::WM_UI_APPEARANCE_CHANGED);
-                auto check=[&](bool okay,const char* text){Require(okay,text);};
-                CheckWindowsUiErase(pane.mPathBar.m_hWnd,q1view::WindowsUiColor::SurfaceAlt,true,check);
-                CheckWindowsUiErase(pane.mPathHeader.m_hWnd,q1view::WindowsUiColor::SurfaceAlt,true,check);
-                WindowsUiPaintTestSurface surface(pane.mPathBar.m_hWnd);
-                const auto brush=HBRUSH(pane.mPathHeader.SendMessage(WM_CTLCOLORSTATIC,WPARAM(surface.Dc()),LPARAM(pane.mPathBar.m_hWnd)));
-                LOGBRUSH logical{};
-                Require(brush && GetObjectW(brush,sizeof(logical),&logical) && logical.lbColor==Q1UI_COLOR_SURFACE_ALT,
-                    "focused native path edit uses the same Light/Dark background as its header");
+                for(int step : {0,1,5}) {
+                    pane.ApplyViewStep(step,false); Pump(.05);
+                    auto check=[&](bool okay,const char* text){Require(okay,text);};
+                    CheckWindowsUiErase(pane.mPathBar.m_hWnd,q1view::WindowsUiColor::LocationHeader,true,check);
+                    WindowsUiPaintTestSurface surface(pane.mPathBar.m_hWnd);
+                    for(UINT message : {UINT(WM_CTLCOLORSTATIC),UINT(WM_CTLCOLOREDIT)}) {
+                        const auto brush=HBRUSH(pane.mPathHeader.SendMessage(message,WPARAM(surface.Dc()),LPARAM(pane.mPathBar.m_hWnd)));
+                        LOGBRUSH logical{};
+                        Require(brush && GetObjectW(brush,sizeof(logical),&logical) &&
+                            logical.lbColor==q1view::WindowsUiColorValue(q1view::WindowsUiColor::LocationHeader) && GetTextColor(surface.Dc())==Q1UI_COLOR_TEXT,
+                            "focused and unfocused native path keep the neutral header surface and readable normal text color");
+                    }
+                    WindowsUiPaintTestSurface header(pane.mPathHeader.m_hWnd);
+                    const int thickness=CBrowserPathHeader::SeparatorThickness(GetDpiForWindow(pane.mPathHeader.m_hWnd));
+                    for(UINT message : {UINT(WM_ERASEBKGND),UINT(WM_PRINTCLIENT)}) {
+                        header.Fill(RGB(17,34,51));
+                        pane.mPathHeader.SendMessage(message,WPARAM(header.Dc()),PRF_CLIENT);
+                        GdiFlush();
+                        Require(GetPixel(header.Dc(),2,0)==q1view::WindowsUiColorValue(q1view::WindowsUiColor::LocationHeader) &&
+                            GetPixel(header.Dc(),2,header.rect.bottom-thickness-1)==q1view::WindowsUiColorValue(q1view::WindowsUiColor::LocationHeader) &&
+                            GetPixel(header.Dc(),2,header.rect.bottom-thickness)==Q1UI_COLOR_BORDER_SOFT &&
+                            GetPixel(header.Dc(),header.rect.right-2,header.rect.bottom-1)==Q1UI_COLOR_BORDER_SOFT,
+                            "header paint and erase draw exactly one full-width bottom separator, without per-row or focus outlines");
+                    }
+                    const DWORD gdi=GetGuiResources(GetCurrentProcess(),GR_GDIOBJECTS);
+                    for(int i=0;i<100;++i) pane.mPathHeader.SendMessage(WM_PRINTCLIENT,WPARAM(header.Dc()),PRF_CLIENT);
+                    Require(GetGuiResources(GetCurrentProcess(),GR_GDIOBJECTS)==gdi,
+                        "repeated location header painting allocates no persistent GDI objects");
+                }
             }
         }
         pane.SendMessage(q1view::WM_UI_APPEARANCE_CHANGED);
