@@ -6,6 +6,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ## [Unreleased]
 
+---
+
+## [2.8.4] — 2026-10-25
+
 ### Changed
 
 - Windows Viewer: align Gallery folder and drive names at the top left while keeping [..] centered; retain existing card sizes and fonts and avoid drawing partial final caption lines. (part of #122)
@@ -557,7 +561,8 @@ Native display checks passed at 100–175%; 200% layout/font calculations passed
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.3...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.4...HEAD
+[2.8.4]: https://github.com/chammoru/Q1View/compare/v2.8.3...v2.8.4
 [2.8.3]: https://github.com/chammoru/Q1View/compare/v2.8.2...v2.8.3
 [2.8.2]: https://github.com/chammoru/Q1View/compare/v2.8.1...v2.8.2
 [2.8.1]: https://github.com/chammoru/Q1View/compare/v2.8.0...v2.8.1
