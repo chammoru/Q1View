@@ -15,6 +15,7 @@
 #include "GalleryGridCanvas.h"
 #include "MainFrm.h"
 #include "ViewerDoc.h"
+#include "ViewerView.h"
 
 #include "QViewerCmn.h"
 #include "QCvUtil.h"
@@ -1298,7 +1299,10 @@ void CThumbnailPane::RecycleSelected()
 	const bool closeActive = doc && std::any_of(paths.begin(), paths.end(), [&](const CString& path) {
 		return path.CompareNoCase(active) == 0;
 	});
-	if (closeActive) doc->CloseMediaForRecycle();
+	auto* view = frame ? DYNAMIC_DOWNCAST(CViewerView, frame->GetActiveView()) : nullptr;
+	const bool resumePlayback = closeActive && view &&
+		(view->mIsPlaying || doc->mAutoplayAfterPresent || doc->mAutoplayMessagePending);
+	auto* suspendedSource = closeActive ? doc->SuspendMediaForRecycle() : nullptr;
 	const unsigned openGeneration = doc ? doc->mOpenGeneration : 0;
 	const auto results = q1view::RecycleFiles(m_hWnd, payload);
 	std::vector<CString> failed;
@@ -1321,12 +1325,22 @@ void CThumbnailPane::RecycleSelected()
 		Populate(folder, closeActive ? next : focused);
 		if (!failed.empty()) RestoreSelection(failed, closeActive ? next : focused);
 	}
-	if (sameFolder && closeActive && doc->mOpenGeneration == openGeneration && !next.IsEmpty()) {
-		const LoadLayout layout = doc->mLoadLayout;
-		doc->mLoadLayout = LOAD_FIT_TO_WINDOW;
-		AfxGetApp()->OpenDocumentFile(next);
-		doc->mLoadLayout = layout;
-		if (folder == mFolder && !failed.empty()) RestoreSelection(failed, next);
+	if (closeActive && doc->mOpenGeneration == openGeneration) {
+		if (next.CompareNoCase(active) == 0) {
+			doc->ResumeMediaAfterRecycle(suspendedSource, resumePlayback);
+		} else {
+			doc->CloseMediaForRecycle();
+			if (sameFolder && !next.IsEmpty()) {
+				const LoadLayout layout = doc->mLoadLayout;
+				doc->mLoadLayout = LOAD_FIT_TO_WINDOW;
+				// Like Page Up/Down, replace only the source: MFC's app-level
+				// open route reactivates the frame/view and steals Browse focus.
+				const BOOL opened = doc->OpenNavigatedDocument(next);
+				doc->mLoadLayout = layout;
+				if (opened) doc->SetPathName(next, TRUE);
+				if (folder == mFolder && !failed.empty()) RestoreSelection(failed, next);
+			}
+		}
 	}
 	if (!failed.empty()) {
 		CString message;

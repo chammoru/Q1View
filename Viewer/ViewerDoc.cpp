@@ -478,8 +478,9 @@ BOOL CViewerDoc::ReloadDocument()
 	return ok;
 }
 
-void CViewerDoc::CloseMediaForRecycle()
+FrmSrc* CViewerDoc::SuspendMediaForRecycle()
 {
+	FrmSrc* source = mFrmSrc;
 	mFileChangeNotiThread->Stop();
 	mAutoplayAfterPresent = mAutoplayMessagePending = mPendingExplicitOpen = false;
 	mPendingFile.Empty();
@@ -490,8 +491,47 @@ void CViewerDoc::CloseMediaForRecycle()
 	auto* view = static_cast<CViewerView*>(frame->GetActiveView());
 	view->KillPlayTimer();
 	view->mAudioPlayer.Close();
-	for (auto* source : mFrmSrcs) { source->Stop(); source->Release(); }
+	for (auto* candidate : mFrmSrcs) { candidate->Stop(); candidate->Release(); }
 	mFrmSrc = nullptr;
+	// Discard unpublished frames only after all producers have stopped. The
+	// stable RGB buffer remains allocated and visible throughout the Shell call.
+	view->mNewRgbBufferInfoQ->init();
+	return source;
+}
+
+bool CViewerDoc::ResumeMediaAfterRecycle(FrmSrc* source, bool resumePlayback)
+{
+	if (!source || !source->Open(mPathName)) {
+		CloseMediaForRecycle();
+		return false;
+	}
+	mFrmSrc = source;
+	auto* frame = static_cast<CMainFrame*>(AfxGetMainWnd());
+	auto* view = static_cast<CViewerView*>(frame->GetActiveView());
+	// Reuse the existing document interpretation, rotation, ROI and view state;
+	// a failed deletion is not a new file-open or an autoplay preference change.
+	mBufferPool->enable(view->mStableRgbBufferInfo.addr);
+	mBufferQueue->init();
+	if (view->mStableRgbBufferInfo.addr) {
+		if (mFrames > 1) source->SetFramePos(this, mCurFrameID + 1);
+	} else if (!QueueSource2View()) {
+		CloseMediaForRecycle();
+		return false;
+	}
+	mFileChangeNotiThread->fire(frame, mPathName);
+	// This restores an existing playback intent, even when automatic playback
+	// for newly opened files is disabled. Do not route it through autoplay.
+	if (resumePlayback && mFrames > 1 && mCurFrameID < mFrames - 1)
+		view->SetPlayTimer(this);
+	view->Invalidate(FALSE);
+	return true;
+}
+
+void CViewerDoc::CloseMediaForRecycle()
+{
+	SuspendMediaForRecycle();
+	auto* frame = static_cast<CMainFrame*>(AfxGetMainWnd());
+	auto* view = static_cast<CViewerView*>(frame->GetActiveView());
 	mFrames = mCurFrameID = 0;
 	mDocState = DOC_JUSTLOAD;
 	mPathName.Empty();
@@ -501,6 +541,7 @@ void CViewerDoc::CloseMediaForRecycle()
 	SetTitle(_T("Viewer"));
 	view->mSelRegions.clear();
 	view->Initialize(0, ROUNDUP_DWORD(mW), mW, mH);
+	frame->UpdateViewerStatus();
 	view->Invalidate(FALSE);
 }
 

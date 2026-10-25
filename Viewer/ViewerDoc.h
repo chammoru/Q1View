@@ -130,6 +130,11 @@ public:
 	void LoadSourceImage(LoadLayout layout = LOAD_RESIZE_WINDOW);
 	BOOL OpenNavigatedDocument(LPCTSTR path);
 	BOOL ReloadDocument();
+	// Release file/decoder handles without discarding the last presented image.
+	// The caller must either resume the same source after a failed recycle or
+	// close the document after success, provided its open generation is unchanged.
+	FrmSrc* SuspendMediaForRecycle();
+	bool ResumeMediaAfterRecycle(FrmSrc* source, bool resumePlayback);
 	void CloseMediaForRecycle();
 	void UpdateMenu();
 	void Rotate90();

@@ -615,6 +615,10 @@ struct GalleryIntegrationTests {
         auto* view = static_cast<CViewerView*>(frame->GetActiveView());
         const auto confirm = pane.mConfirmRecycle;
         const auto reportFailure = pane.mReportRecycle;
+        struct RestoreAutoplay {
+            bool enabled = theApp.IsVideoAutoplayEnabled();
+            ~RestoreAutoplay() { theApp.SetVideoAutoplayEnabled(enabled); }
+        } restoreAutoplay;
         wchar_t temp[MAX_PATH]; GetTempPathW(MAX_PATH, temp);
         CString root; root.Format(L"%sQ1View-recycle-%lu-%llu\\", temp, GetCurrentProcessId(), GetTickCount64());
         Require(CreateDirectoryW(root, nullptr) != FALSE, "isolated recycle fixture created");
@@ -812,21 +816,49 @@ struct GalleryIntegrationTests {
             Require(AfxGetApp()->OpenDocumentFile(files[1]) != nullptr, "active recycle photo opened"); Pump(.05);
             pane.SetCurrentFile(files[1]);
 #ifdef _WIN32
+            doc->Rotate90();
+            frame->ShowWindow(SW_SHOWNORMAL);
+            frame->MoveWindow(20, 20, 1200, 850);
+            view->Invalidate(FALSE);
+            Await([&] { return view->mStableRgbBufferInfo.addr != nullptr; }, "recycle photo is presented in a visible viewport");
+            ViewerSyncInputState recycleView = {}; recycleView.command = VIEWER_SYNC_VIEW_STATE;
+            // Enlarge the 16x16 fixture past both viewport dimensions so pan
+            // offsets are meaningful rather than intentionally auto-centered.
+            recycleView.scalar = 128; recycleView.x = 3; recycleView.y = -2;
+            view->ApplySyncInput(recycleView); Pump(.05);
+            QSelRegion recycleRoi; recycleRoi.SetRect(1, 2, 5, 6);
+            view->mSelRegions.push_back(recycleRoi);
+            const auto retainedPixels = view->mStableRgbBufferInfo.addr;
+            fprintf(this->report, "Recycle initial: zoom=%.3f pan=(%.3f,%.3f) rotation=%d pixels=%p\n",
+                view->mN, view->mXOff, view->mYOff, int(doc->mRot), retainedPixels);
+            Require(view->mN == 128.f && view->mXOff == 3.f && view->mYOff == -2.f &&
+                doc->mRot == QROT_090 && retainedPixels, "recycle failure starts from an actually presented custom view");
             HANDLE activeLock = CreateFileW(files[1], GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
                 nullptr, OPEN_EXISTING, 0, nullptr);
             Require(activeLock != INVALID_HANDLE_VALUE, "active recycle failure fixture opened");
             pane.RecycleSelected(); CloseHandle(activeLock); Pump(.05);
             Require(doc->mPathName == files[1] && doc->mFrmSrc &&
                 pane.SelectedMediaPaths() == std::vector<CString>{files[1]},
-                "failed active recycle reopens the image and preserves its selection");
+                "failed active recycle retains the image and preserves its selection");
+            fprintf(this->report, "Recycle recovery: zoom=%.3f pan=(%.3f,%.3f) fit=%d rotation=%d regions=%zu pixels=%p/%p\n",
+                view->mN, view->mXOff, view->mYOff, view->IsFitToWindow(), int(doc->mRot),
+                view->mSelRegions.size(), view->mStableRgbBufferInfo.addr, retainedPixels);
+            Require(view->mN == 128.f && view->mXOff == 3.f && view->mYOff == -2.f && !view->IsFitToWindow() &&
+                doc->mRot == QROT_090 && view->mSelRegions.size() == 1 &&
+                view->mSelRegions[0].mSelRect == recycleRoi.mSelRect && view->mStableRgbBufferInfo.addr == retainedPixels,
+                "failed active recycle retains the exact displayed pixels, rotation, zoom, pan and ROI");
 #endif
             CRect geometry; frame->GetWindowRect(&geometry);
+            CWnd* deleteTarget = mode ? static_cast<CWnd*>(&grid) : &pane;
+            deleteTarget->SetFocus();
+            Require(::GetFocus() == deleteTarget->m_hWnd, "recycle command starts with Browse keyboard focus");
             const unsigned oldWatch = doc->mFileChangeNotiThread->Generation();
             pane.mReportRecycle = [&](const CString&) { Require(false, "active file recycling should succeed"); };
             pane.RecycleSelected(); Pump(.1);
             CRect after; frame->GetWindowRect(&after);
             Require(doc->mPathName == files[2] && GetFileAttributes(files[1]) == INVALID_FILE_ATTRIBUTES && geometry == after,
                 "active photo deletion selects next survivor without resizing");
+            Require(::GetFocus() == deleteTarget->m_hWnd, "active photo deletion retains Browse keyboard focus for repeated Delete");
             const unsigned opened = doc->mOpenGeneration;
             frame->SendMessage(WM_RELOAD, oldWatch, 1);
             Require(doc->mOpenGeneration == opened, "stale watcher notification cannot reload the next document");
@@ -835,6 +867,8 @@ struct GalleryIntegrationTests {
             pane.RecycleSelected(); Pump(.05);
             Require(doc->mPathName.IsEmpty() && doc->mFrmSrc == nullptr && !view->mStableRgbBufferInfo.addr,
                 "deleting final photo leaves a safe empty view");
+            Require(frame->mStatusBar.ZoomText() == L"--" && frame->mStatusBar.SamplingText().empty(),
+                "deleting final photo clears stale zoom and sampling from the status bar");
         }
         const CString video = root + L"a-playing.avi";
         cv::VideoWriter writer(std::string(CW2A(video, CP_UTF8)), cv::VideoWriter::fourcc('M','J','P','G'), 30, cv::Size(64,48));
@@ -847,10 +881,73 @@ struct GalleryIntegrationTests {
         Pump(.1);
         if (!view->mIsPlaying) view->SetPlayTimer(doc);
         Await([&] { return view->mIsPlaying && view->mStableRgbBufferInfo.ID > 0; }, "recycle video is actively playing");
-        pane.ApplyViewStep(0, false); pane.SetCurrentFile(video);
+        theApp.SetVideoAutoplayEnabled(false);
+        for (int mode : {0, 1}) {
+            pane.ApplyViewStep(mode, false); pane.SetCurrentFile(video);
+            view->KillPlayTimerSafe();
+            Require(doc->SeekScene(42) == 42, "recycle video seeks to a nonzero paused frame");
+            view->Invalidate(FALSE);
+            Await([&] { return view->mStableRgbBufferInfo.ID == 42; }, "paused recycle video frame is presented");
+            auto pixels = view->mStableRgbBufferInfo.addr;
+            HANDLE locked = CreateFileW(video, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                nullptr, OPEN_EXISTING, 0, nullptr);
+            Require(locked != INVALID_HANDLE_VALUE, "paused video deletion failure lock acquired");
+            CString report;
+            pane.mReportRecycle = [&](const CString& message) { report = message; };
+            pane.RecycleSelected(); CloseHandle(locked); Pump(.1);
+            Require(doc->mPathName == video && doc->mFrmSrc && !view->mIsPlaying && doc->mCurFrameID == 42 &&
+                view->mStableRgbBufferInfo.addr == pixels && !report.IsEmpty(),
+                "failed paused video recycle retains the frame and never starts autoplay");
+            Require(doc->NextScene() == 43, "restored decoder can step to the next frame after failed recycling");
+            view->Invalidate(FALSE); Pump(.1);
+            view->SetPlayTimer(doc);
+            Await([&] { return view->mIsPlaying && view->mStableRgbBufferInfo.ID > 43; }, "restored video decoder resumes normally");
+            const auto frameBefore = view->mStableRgbBufferInfo.ID;
+            locked = CreateFileW(video, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                nullptr, OPEN_EXISTING, 0, nullptr);
+            Require(locked != INVALID_HANDLE_VALUE, "playing video deletion failure lock acquired");
+            pane.RecycleSelected(); CloseHandle(locked);
+            Await([&] { return view->mIsPlaying && view->mStableRgbBufferInfo.ID > frameBefore; },
+                "failed playing video recycle resumes from the retained frame even with autoplay disabled");
+        }
+        pane.mReportRecycle = [&](const CString&) { Require(false, "unlocked video recycling should succeed"); };
         pane.RecycleSelected(); Pump(.1);
         Require(GetFileAttributes(video) == INVALID_FILE_ATTRIBUTES && doc->mPathName == next && !view->mIsPlaying,
             "playing video releases decoder/audio handles before recycling and activates survivor");
+
+        const CString raw = root + L"c-raw_16x16_YUV420.yuv";
+        {
+            CFile file;
+            Require(file.Open(raw, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary), "recycle RAW fixture created");
+            const std::vector<BYTE> bytes(16 * 16 * 3 / 2 * 90, 128);
+            file.Write(bytes.data(), UINT(bytes.size()));
+        }
+        Require(AfxGetApp()->OpenDocumentFile(raw) != nullptr, "multi-frame RAW opens for recycle recovery"); Pump(.1);
+        // RAW intentionally has no visual Gallery tile. Test its real entry
+        // in the compact list rather than accepting a no-op on an empty grid selection.
+        {
+            pane.ApplyViewStep(0, false); pane.SetCurrentFile(raw);
+            Require(pane.SelectedMediaPaths() == std::vector<CString>{raw}, "RAW recycle test selects an actual compact-list entry");
+            if (view->mIsPlaying) view->KillPlayTimerSafe();
+            Require(doc->SeekScene(17) == 17, "RAW recycle test seeks to a nonzero frame");
+            view->Invalidate(FALSE);
+            Await([&] { return view->mStableRgbBufferInfo.ID == 17; }, "RAW recycle frame is presented");
+            const auto cs = doc->mColorSpace;
+            HANDLE locked = CreateFileW(raw, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                nullptr, OPEN_EXISTING, 0, nullptr);
+            Require(locked != INVALID_HANDLE_VALUE, "RAW deletion failure lock acquired");
+            pane.mReportRecycle = [](const CString&) {};
+            pane.RecycleSelected(); CloseHandle(locked); Pump(.1);
+            Require(doc->mPathName == raw && doc->mFrmSrc && !view->mIsPlaying && doc->mCurFrameID == 17 &&
+                doc->mW == 16 && doc->mH == 16 && doc->mColorSpace == cs && doc->mFrames == 90,
+                "failed RAW recycle preserves the paused frame and pixel interpretation");
+            Require(doc->NextScene() == 18, "restored RAW source can read the next frame");
+            view->Invalidate(FALSE); Pump(.05);
+        }
+        pane.mReportRecycle = [&](const CString&) { Require(false, "unlocked RAW recycling should succeed"); };
+        pane.RecycleSelected(); Pump(.1);
+        Require(GetFileAttributes(raw) == INVALID_FILE_ATTRIBUTES && doc->mPathName == next,
+            "RAW recycle releases file handles and returns to the previous survivor");
         pane.mConfirmRecycle = confirm;
         pane.mReportRecycle = reportFailure;
     }

@@ -12,6 +12,10 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 - Windows Viewer: expose full Gallery folder and file names, focus, selection and existing open/scroll actions through Windows UI Automation, with safe invalidation of removed or replaced items. (part of #122)
 
+### Fixed
+
+- Windows Viewer: retain image zoom, pan, rotation, selection regions and paused/playing frame state when recycling the displayed file fails; preserve Browse keyboard focus after successful deletion and reset the status bar when the last image is removed.
+
 ---
 
 ## [2.8.3] — 2026-10-19
