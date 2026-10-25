@@ -60,7 +60,8 @@ private:
     void TrimCache();
     bool EnsureDevice(int width, int height);
     bool CreateFolderTextLayout(const CString& label, float width, float height,
-        Ptr<IDWriteTextLayout>& layout);
+        Ptr<IDWriteTextLayout>& layout, bool parent = false);
+    static void DrawFolderCaptionGdi(CDC& dc, const CString& text, CRect bounds, bool parent);
     void DropDevice();
     bool PaintGpu(const std::vector<int>& visible, double now, bool& pending);
     void PaintFallback(CDC& dc, const std::vector<int>& visible, double now);

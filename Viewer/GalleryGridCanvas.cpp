@@ -184,13 +184,14 @@ void CGalleryGridCanvas::DrawFolderCardGpu(int index, const q1view::GalleryRect&
         r.x + r.size - pad, r.y + r.size - pad);
     Ptr<IDWriteTextLayout> layout;
     if (CreateFolderTextLayout(label, labelRect.right - labelRect.left,
-        labelRect.bottom - labelRect.top, layout)) {
-        mContext->DrawTextLayout(D2D1::Point2F(labelRect.left, labelRect.top), layout.Get(), mBrush.Get());
+        labelRect.bottom - labelRect.top, layout, mOwner.mEntries[index].kind == CThumbnailPane::ENTRY_PARENT)) {
+        mContext->DrawTextLayout(D2D1::Point2F(labelRect.left, labelRect.top), layout.Get(), mBrush.Get(),
+            D2D1_DRAW_TEXT_OPTIONS_CLIP);
     }
 }
 
 bool CGalleryGridCanvas::CreateFolderTextLayout(const CString& label, float width, float height,
-    Ptr<IDWriteTextLayout>& layout) {
+    Ptr<IDWriteTextLayout>& layout, bool parent) {
     layout.Reset();
     if (!mWriteFactory || !mText || width <= 0 || height <= 0 ||
         FAILED(mWriteFactory->CreateTextLayout(label, label.GetLength(), mText.Get(), width, height, &layout)))
@@ -201,8 +202,36 @@ bool CGalleryGridCanvas::CreateFolderTextLayout(const CString& label, float widt
         layout->SetTrimming(&trimming, ellipsis.Get());
     // Fill the card with wrapped text first. DirectWrite applies the trimming
     // sign only to the final visible line when the layout height overflows.
-    layout->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+    // Preserve normal word boundaries, but break an oversized word before
+    // trimming; the legacy WRAP mode can ellipsize intermediate narrow lines.
+    layout->SetWordWrapping(DWRITE_WORD_WRAPPING_EMERGENCY_BREAK);
+    layout->SetTextAlignment(parent ? DWRITE_TEXT_ALIGNMENT_CENTER : DWRITE_TEXT_ALIGNMENT_LEADING);
+    layout->SetParagraphAlignment(parent ? DWRITE_PARAGRAPH_ALIGNMENT_CENTER : DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+    // Do not paint a fraction of a final line at enlarged text sizes. Measure
+    // actual line metrics (including fallback glyphs), not a fixed line count.
+    UINT32 count = 0;
+    layout->GetLineMetrics(nullptr, 0, &count);
+    std::vector<DWRITE_LINE_METRICS> lines(count);
+    if (!count || FAILED(layout->GetLineMetrics(lines.data(), count, &count))) { layout.Reset(); return false; }
+    float completeHeight = 0;
+    for (const auto& line : lines) {
+        if (line.height <= 0 || completeHeight + line.height > height + .01f) break;
+        completeHeight += line.height;
+    }
+    if (completeHeight <= 0) { layout.Reset(); return false; }
+    if (!parent) layout->SetMaxHeight(completeHeight);
     return true;
+}
+void CGalleryGridCanvas::DrawFolderCaptionGdi(CDC& dc, const CString& text, CRect bounds, bool parent) {
+    if (bounds.IsRectEmpty()) return;
+    TEXTMETRIC metrics{};
+    if (!dc.GetTextMetrics(&metrics) || metrics.tmHeight <= 0 || bounds.Height() < metrics.tmHeight) return;
+    if (parent) {
+        dc.DrawText(text, bounds, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    } else {
+        bounds.bottom = bounds.top + bounds.Height() / metrics.tmHeight * metrics.tmHeight;
+        dc.DrawText(text, bounds, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_END_ELLIPSIS | DT_EDITCONTROL | DT_NOPREFIX);
+    }
 }
 void CGalleryGridCanvas::DrawFolderCardFallback(CDC& dc, int index, const CRect& rect) {
     dc.FillSolidRect(rect, Q1UI_COLOR_SURFACE);
@@ -211,11 +240,7 @@ void CGalleryGridCanvas::DrawFolderCardFallback(CDC& dc, int index, const CRect&
     const int pad = std::max(4, int(rect.Width() * .08f));
     CRect label = rect; label.DeflateRect(pad, pad);
     const CString text = Label(index);
-    CRect measured(0, 0, label.Width(), 0);
-    dc.DrawText(text, measured, DT_CENTER | DT_WORDBREAK | DT_CALCRECT | DT_NOPREFIX);
-    if (measured.Height() < label.Height())
-        label.top += (label.Height() - measured.Height()) / 2;
-    dc.DrawText(text, label, DT_CENTER | DT_WORDBREAK | DT_END_ELLIPSIS | DT_NOPREFIX);
+    DrawFolderCaptionGdi(dc, text, label, mOwner.mEntries[index].kind == CThumbnailPane::ENTRY_PARENT);
     dc.SelectObject(oldFont);
 }
 void CGalleryGridCanvas::DropDevice() {

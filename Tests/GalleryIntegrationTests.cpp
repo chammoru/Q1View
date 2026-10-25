@@ -53,6 +53,108 @@ struct GalleryIntegrationTests {
         while (!predicate() && CGalleryGridCanvas::Now() < end) Pump(.05);
         Require(predicate(), text);
     }
+    void FolderCaptionTests(CMainFrame* frame) {
+        auto& pane = *frame->mpDrawer;
+        auto& grid = *pane.mGrid;
+        const int oldStep = pane.mViewStep;
+        pane.ApplyViewStep(3, false); Pump(.1);
+        CRect viewport; grid.GetClientRect(viewport);
+        Require(grid.EnsureDevice(viewport.Width(), viewport.Height()), "folder caption checks use the real DirectWrite factory and bundled font");
+        const auto originalFormat = grid.mText;
+        struct Restore { std::function<void()> action; ~Restore() { action(); } } restore{
+            [&] { grid.mText = originalFormat; pane.ApplyViewStep(oldStep, false); }
+        };
+        const CString names[] = {
+            L"[Short]",
+            L"[\uAE34 \uD55C\uAE00 \uD3F4\uB354\uBA85 \uC5EC\uD589 \uC0AC\uC9C4 \uC6D0\uBCF8 \uBCF4\uC815 \uBAA8\uC74C]",
+            L"[This is a very long English folder name with spaces that should wrap before the final visible ellipsis]",
+            L"[ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345678901234567890123456789]",
+            L"[2026 \uCE90\uB098\uB2E4 Canada \uC5EC\uD589 Original photos 012345678901234567890123456789]",
+            L"[\U0001f4f7 cafe\u0301 \uC0AC\uC9C4 \U0001f1e8\U0001f1e6 \uBCF4\uC815 \U0001f4f7 cafe\u0301 original photos]",
+            L"[[Literal brackets] A&B && \uD3F4\uB354]"
+        };
+        CClientDC source(&grid);
+        CDC dc; dc.CreateCompatibleDC(&source);
+        BITMAPINFO info{}; info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+        info.bmiHeader.biWidth=512; info.bmiHeader.biHeight=-512; info.bmiHeader.biPlanes=1;
+        info.bmiHeader.biBitCount=32; info.bmiHeader.biCompression=BI_RGB;
+        void* raw=nullptr;
+        CBitmap bitmap; bitmap.Attach(CreateDIBSection(dc,&info,DIB_RGB_COLORS,&raw,nullptr,0));
+        Require(bitmap.GetSafeHandle() && raw, "fallback caption checks allocate an isolated bitmap, not desktop pixels");
+        CBitmap* oldBitmap=dc.SelectObject(&bitmap);
+        struct RestoreBitmap { CDC& dc; CBitmap* old; ~RestoreBitmap(){dc.SelectObject(old);} } restoreBitmap{dc,oldBitmap};
+        const auto pixels=static_cast<DWORD*>(raw);
+        for(UINT dpi : {96u,120u,144u,192u}) for(double scale : {1.0,1.5,2.0}) {
+            const float fontSize=float(q1view::WindowsUiPixels(13,dpi,scale));
+            Require(SUCCEEDED(grid.mWriteFactory->CreateTextFormat(pane.mFontFamily,grid.mFontCollection.Get(),DWRITE_FONT_WEIGHT_MEDIUM,
+                DWRITE_FONT_STYLE_NORMAL,DWRITE_FONT_STRETCH_NORMAL,fontSize,L"ko-kr",&grid.mText)), "caption matrix creates the unchanged medium caption font");
+            grid.mText->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+            grid.mText->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+            for(int drawer : {210,360}) for(int columns=1;columns<=5;++columns) {
+                const float edge=float(drawer)*dpi/96/columns-float(dpi)/96;
+                const float pad=std::max(4.f,edge*.08f), available=edge-2*pad;
+                for(const CString& name : names) {
+                    Microsoft::WRL::ComPtr<IDWriteTextLayout> layout;
+                    const bool created=grid.CreateFolderTextLayout(name,available,available,layout);
+                    if(!created) {
+                        Microsoft::WRL::ComPtr<IDWriteTextLayout> probe;
+                        grid.mWriteFactory->CreateTextLayout(name,name.GetLength(),grid.mText.Get(),available,10000,&probe);
+                        UINT32 count=0; probe->GetLineMetrics(nullptr,0,&count);
+                        std::vector<DWRITE_LINE_METRICS> lines(count); probe->GetLineMetrics(lines.data(),count,&count);
+                        Require(count && lines.front().height>available,"too-small cards suppress partial glyph rows without reducing font size");
+                        continue;
+                    }
+                    DWRITE_TEXT_METRICS metrics{}; layout->GetMetrics(&metrics);
+                    FLOAT actualFontSize=0; layout->GetFontSize(0,&actualFontSize);
+                    UINT32 count=0; layout->GetLineMetrics(nullptr,0,&count);
+                    std::vector<DWRITE_LINE_METRICS> lines(count); layout->GetLineMetrics(lines.data(),count,&count);
+                    // DirectWrite may retain zero-height clipped logical lines.
+                    // The last *visible* line, not vector.back(), must trim.
+                    float height=0; UINT32 visible=0;
+                    for(const auto& line : lines) {
+                        if(line.height<=0 || height+line.height>layout->GetMaxHeight()+.02f) break;
+                        height+=line.height; ++visible;
+                    }
+                    for(UINT32 i=0;i<visible;++i) {
+                        if(lines[i].isTrimmed && i!=visible-1) fprintf(report,"CAPTION: dpi=%u scale=%.1f drawer=%d columns=%d name=%d row=%u visible=%u logical=%u maxHeight=%.3f lineHeight=%.3f\n",
+                            dpi,scale,drawer,columns,int(&name-names),i,visible,count,layout->GetMaxHeight(),lines[i].height);
+                        Require(!lines[i].isTrimmed || i==visible-1,"only the final visible caption line can have an ellipsis");
+                    }
+                    if(visible<count) Require(visible && lines[visible-1].isTrimmed,"overflow text trims at the final visible line, not a clipped logical line");
+                    Require(layout->GetTextAlignment()==DWRITE_TEXT_ALIGNMENT_LEADING && layout->GetParagraphAlignment()==DWRITE_PARAGRAPH_ALIGNMENT_NEAR &&
+                        std::abs(metrics.left)<.01f && std::abs(metrics.top)<.01f && height<=available+.02f &&
+                        layout->GetMaxHeight()<=available+.02f && actualFontSize==fontSize,
+                        "ordinary Korean/English/unbroken/mixed captions are top-left aligned inside complete rows at every size and text scale");
+                    Require(visible>=1,"trimmed layouts retain a complete visible line");
+                }
+            }
+            Microsoft::WRL::ComPtr<IDWriteTextLayout> parent;
+            Require(grid.CreateFolderTextLayout(L"[..]",200,180,parent,true) && parent->GetTextAlignment()==DWRITE_TEXT_ALIGNMENT_CENTER &&
+                parent->GetParagraphAlignment()==DWRITE_PARAGRAPH_ALIGNMENT_CENTER && grid.mText->GetTextAlignment()==DWRITE_TEXT_ALIGNMENT_CENTER &&
+                grid.mText->GetParagraphAlignment()==DWRITE_PARAGRAPH_ALIGNMENT_CENTER,
+                "only parent captions stay centered; per-layout alignment never mutates the shared format");
+            CFont font; const LOGFONT lf=q1view::WindowsUiLogFont(q1view::WindowsUiFontRole::Folder,dpi,scale);
+            font.CreateFontIndirect(&lf); q1view::WindowsUiDcState fontState(dc.GetSafeHdc()); dc.SelectObject(&font);
+            TEXTMETRIC tm{}; dc.GetTextMetrics(&tm);
+            for(const CString& name : names) for(bool centered : {false,true}) {
+                dc.FillSolidRect(0,0,512,512,RGB(255,255,255)); dc.SetBkMode(TRANSPARENT); dc.SetTextColor(RGB(0,0,0));
+                const CRect bounds(12,14,232,14+tm.tmHeight*3+tm.tmHeight/2);
+                const CString text=centered ? CString(L"[..]") : name, saved=text;
+                grid.DrawFolderCaptionGdi(dc,text,bounds,centered); GdiFlush();
+                int left=512,top=512,right=-1,bottom=-1;
+                bool inside=true;
+                for(int y=0;y<bounds.bottom+4;++y) for(int x=0;x<bounds.right+4;++x) if((pixels[y*512+x]&0xffffff)!=0xffffff) {
+                    left=std::min(left,x);top=std::min(top,y);right=std::max(right,x);bottom=std::max(bottom,y);
+                    inside=inside && bounds.PtInRect(CPoint(x,y));
+                }
+                Require(inside && right>=left && bottom>=top && text==saved,"GDI captions stay inside their text bounds and preserve literal Unicode names");
+                if(centered) Require(std::abs((left+right)/2-bounds.CenterPoint().x)<fontSize/2 &&
+                    std::abs((top+bottom)/2-bounds.CenterPoint().y)<fontSize/2,"GDI parent caption stays horizontally and vertically centered");
+                else Require(left<bounds.left+fontSize/2 && top<bounds.top+tm.tmHeight/2 && bottom<bounds.top+tm.tmHeight*3,
+                    "GDI ordinary captions start at top left and leave the partial final row unpainted");
+            }
+        }
+    }
     void BrowserNavigationTests(CMainFrame* frame, const CString& fixture) {
         auto& pane = *frame->mpDrawer;
         auto& grid = *pane.mGrid;
@@ -1152,6 +1254,11 @@ struct GalleryIntegrationTests {
         frame->MoveWindow(20, 20, 1200, 850);
         if (!frame->mDrawerVisible) frame->OnToggleDrawer();
         Pump(.4);
+        wchar_t captionOnly[8] = {};
+        if (GetEnvironmentVariableW(L"Q1VIEW_FOLDER_CAPTION_ONLY",captionOnly,_countof(captionOnly))) {
+            FolderCaptionTests(frame);
+            fprintf(report,"Focused folder-caption alignment checks completed\n"); return;
+        }
         wchar_t browserOnly[8] = {};
         if (GetEnvironmentVariableW(L"Q1VIEW_BROWSER_NAVIGATION_ONLY",browserOnly,_countof(browserOnly))) {
             wchar_t fixture[MAX_PATH]; GetFullPathNameW(L"Tests\\fixtures\\sample_16x16.png",MAX_PATH,fixture,nullptr);
@@ -1221,9 +1328,15 @@ struct GalleryIntegrationTests {
         UINT32 lineCount = 0;
         longFolderLayout->GetLineMetrics(nullptr, 0, &lineCount);
         std::vector<DWRITE_LINE_METRICS> lineMetrics(lineCount);
-        Require(lineCount > 1 && SUCCEEDED(longFolderLayout->GetLineMetrics(
-            lineMetrics.data(), lineCount, &lineCount)) && lineMetrics.back().isTrimmed,
+        Require(SUCCEEDED(longFolderLayout->GetLineMetrics(lineMetrics.data(),lineCount,&lineCount)),"long-folder line metrics available");
+        UINT32 visibleLines=0; float visibleHeight=0;
+        for(const auto& line : lineMetrics) {
+            if(line.height<=0 || visibleHeight+line.height>longFolderLayout->GetMaxHeight()+.02f) break;
+            visibleHeight+=line.height; ++visibleLines;
+        }
+        Require(visibleLines > 1 && lineMetrics[visibleLines-1].isTrimmed,
             "long folder name wraps before the final visible line is ellipsized");
+        FolderCaptionTests(frame);
         Require(!grid.mCache.empty(), "worker results populate CPU thumbnail cache");
         bool uploaded = false;
         for (auto& p : grid.mCache) if (p.second.gpu) uploaded = true;
@@ -1286,8 +1399,14 @@ struct GalleryIntegrationTests {
                 std::equal(captureBytes.begin(),captureBytes.end(),captureBuffer)), "Viewer appearance switch leaves capture buffer and pixels unchanged");
             if (view->mRgbBuf && view->mWDst<view->mWCanvas && view->mHDst<view->mHCanvas) {
                 const COLORREF background = Q1UI_COLOR_CANVAS_BG;
-                Require(view->mRgbBuf[0]==GetBValue(background) && view->mRgbBuf[1]==GetGValue(background) &&
-                    view->mRgbBuf[2]==GetRValue(background), "actual scaled Viewer canvas repaints exposed pixels with matching theme background");
+                auto repainted=[&] { return view->mRgbBuf && view->mRgbBuf[0]==GetBValue(background) &&
+                    view->mRgbBuf[1]==GetGValue(background) && view->mRgbBuf[2]==GetRValue(background); };
+                if(!repainted()) fprintf(report,"THEME pending canvas paint=%d actual=%u/%u/%u expected=%u/%u/%u\n",
+                    GetUpdateRect(view->m_hWnd,nullptr,FALSE),view->mRgbBuf[0],view->mRgbBuf[1],view->mRgbBuf[2],
+                    GetBValue(background),GetGValue(background),GetRValue(background));
+                // Theme changes invalidate asynchronously; wait for the actual
+                // paint, without forcing one or weakening its pixel check.
+                Await(repainted,"actual scaled Viewer canvas repaints exposed pixels with matching theme background");
             }
             Require(pane.mGen==generation && pane.mEntries.data()==entries && pane.SelectedMediaPaths()==selectedMedia && grid.mLayout.scroll==scroll,
                 "appearance switch preserves folder entries, multi-selection and gallery scroll");
