@@ -27,6 +27,7 @@
 
 class CGalleryGridCanvas;
 struct BrowserNavigationState;
+namespace q1view { struct RecycleDialogText; }
 
 // Worker -> UI notification carrying a decoded thumbnail (see Result).
 #define WM_THUMB_READY (WM_APP + 200)
@@ -114,8 +115,8 @@ private:
 	std::atomic<unsigned> mDirectoryWatchGeneration{0};
 	void StartDirectoryWatch(const CString& folder);
 	void StopDirectoryWatch();
-	std::function<bool(size_t)> mConfirmRecycle;
-	std::function<void(const CString&)> mReportRecycle;
+	std::function<bool(const std::vector<CString>&)> mConfirmRecycle;
+	std::function<void(const q1view::RecycleDialogText&)> mReportRecycle;
 	std::unique_ptr<CGalleryGridCanvas> mGrid;
 	CBrowserPathHeader mPathHeader;
 	CBrowserPathBar mPathBar;

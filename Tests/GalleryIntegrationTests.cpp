@@ -10,6 +10,7 @@
 #include "../Viewer/ThumbnailPane.h"
 #include "../Viewer/GalleryGridCanvas.h"
 #include "../Viewer/GalleryUiaProvider.h"
+#include "../Viewer/RecycleFeedback.h"
 #include "QViewerCmn.h"
 #include "QImageStr.h"
 #include "QCvUtil.h"
@@ -43,6 +44,52 @@ struct GalleryUiaEvents : Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeCl
 struct GalleryIntegrationTests {
     FILE* report = nullptr;
     std::function<void()> afterMessage;
+    static void PrepareInteractiveReview() {
+        auto* frame=static_cast<CMainFrame*>(AfxGetMainWnd());
+        frame->ShowWindow(SW_SHOWNORMAL); frame->MoveWindow(20,20,1200,850);
+        if(!frame->mDrawerVisible) frame->OnToggleDrawer();
+        frame->mpDrawer->ApplyViewStep(3,false);
+        // Test binary only: keep the ordinary event loop for native OS-setting
+        // acceptance, using isolated preferences and a repository-owned fixture.
+        ::SetTimer(frame->m_hWnd,0x7c27,1000,[](HWND window,UINT,UINT_PTR,DWORD) {
+            auto* frame=static_cast<CMainFrame*>(CWnd::FromHandlePermanent(window));
+            if(!frame || !frame->mpDrawer) return;
+            auto* doc=static_cast<CViewerDoc*>(frame->GetActiveDocument());
+            auto* view=static_cast<CViewerView*>(frame->GetActiveView());
+            if(!doc || !view || !view->mStableRgbBufferInfo.addr) return;
+            struct Snapshot {
+                CString path; unsigned generation=0; BYTE* pixels=nullptr; std::vector<BYTE> bytes;
+                std::vector<CString> selected; std::wstring key;
+            };
+            static Snapshot saved;
+            const size_t length=std::min(size_t(65536),size_t(ROUNDUP_DWORD(doc->mW))*doc->mH*3);
+            if(saved.path.IsEmpty()) {
+                saved.path=doc->mPathName; saved.generation=doc->mOpenGeneration; saved.pixels=view->mStableRgbBufferInfo.addr;
+                saved.bytes.assign(saved.pixels,saved.pixels+length); saved.selected=frame->mpDrawer->SelectedMediaPaths();
+            }
+            LOGFONT font{}; frame->mpDrawer->mFolderFont.GetLogFont(&font);
+            const auto dpi=q1view::WindowsUiDpi(window);
+            const auto scale=q1view::WindowsUiSettings().Scale();
+            const bool contrast=q1view::WindowsUiAppearanceState().HighContrast();
+            const auto expected=q1view::WindowsUiLogFont(q1view::WindowsUiFontRole::Folder,dpi,scale);
+            if(font.lfHeight!=expected.lfHeight) return; // wait for asynchronous font refresh
+            const auto key=std::to_wstring(dpi)+L"/"+std::to_wstring(scale)+L"/"+std::to_wstring(contrast)+L"/"+
+                std::to_wstring(int(q1view::WindowsUiAppearanceState().Appearance()));
+            if(key==saved.key) return;
+            saved.key=key;
+            const bool stable=doc->mPathName==saved.path && doc->mOpenGeneration==saved.generation &&
+                view->mStableRgbBufferInfo.addr==saved.pixels && saved.bytes.size()==length &&
+                memcmp(saved.pixels,saved.bytes.data(),length)==0 && frame->mpDrawer->SelectedMediaPaths()==saved.selected;
+            wchar_t path[32768]={};
+            if(!GetEnvironmentVariableW(L"Q1VIEW_GALLERY_TEST_REPORT",path,_countof(path))) return;
+            FILE* report=nullptr;
+            if(!_wfopen_s(&report,path,L"a")) {
+                fprintf(report,"%s live OS: dpi=%u text=%.2f contrast=%d theme=%d fontHeight=%ld stableSourceAndSelection=%d\n",
+                    stable?"PASS":"FAIL",dpi,scale,contrast,int(q1view::WindowsUiAppearanceState().Appearance()),font.lfHeight,stable);
+                fclose(report);
+            }
+        });
+    }
     void Require(bool okay, const char* text) {
         fprintf(report, "%s: %s\n", okay ? "PASS" : "FAIL", text); fflush(report);
         if (!okay) throw std::runtime_error(text);
@@ -328,7 +375,7 @@ struct GalleryIntegrationTests {
         CClientDC source(&grid);
         CDC dc; dc.CreateCompatibleDC(&source);
         BITMAPINFO info{}; info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
-        info.bmiHeader.biWidth=512; info.bmiHeader.biHeight=-512; info.bmiHeader.biPlanes=1;
+        info.bmiHeader.biWidth=1024; info.bmiHeader.biHeight=-1024; info.bmiHeader.biPlanes=1;
         info.bmiHeader.biBitCount=32; info.bmiHeader.biCompression=BI_RGB;
         void* raw=nullptr;
         CBitmap bitmap; bitmap.Attach(CreateDIBSection(dc,&info,DIB_RGB_COLORS,&raw,nullptr,0));
@@ -388,22 +435,40 @@ struct GalleryIntegrationTests {
             CFont font; const LOGFONT lf=q1view::WindowsUiLogFont(q1view::WindowsUiFontRole::Folder,dpi,scale);
             font.CreateFontIndirect(&lf); q1view::WindowsUiDcState fontState(dc.GetSafeHdc()); dc.SelectObject(&font);
             TEXTMETRIC tm{}; dc.GetTextMetrics(&tm);
+            for (bool dark : {false,true}) for (int drawer : {210,360}) for (int columns=1;columns<=5;++columns)
             for(const CString& name : names) for(bool centered : {false,true}) {
-                dc.FillSolidRect(0,0,512,512,RGB(255,255,255)); dc.SetBkMode(TRANSPARENT); dc.SetTextColor(RGB(0,0,0));
-                const CRect bounds(12,14,232,14+tm.tmHeight*3+tm.tmHeight/2);
+                const auto palette=q1view::ResolveWindowsUiPalette(dark);
+                const COLORREF background=palette[size_t(q1view::WindowsUiColor::Surface)];
+                dc.FillSolidRect(0,0,1024,1024,background); dc.SetBkMode(TRANSPARENT);
+                dc.SetTextColor(palette[size_t(q1view::WindowsUiColor::Text)]);
+                const int edge=drawer*int(dpi)/96/columns-int(dpi)/96;
+                const int available=edge-2*std::max(4,int(edge*.08f));
+                const CRect bounds(12,14,12+available,14+available);
                 const CString text=centered ? CString(L"[..]") : name, saved=text;
                 grid.DrawFolderCaptionGdi(dc,text,bounds,centered); GdiFlush();
-                int left=512,top=512,right=-1,bottom=-1;
+                int left=1024,top=1024,right=-1,bottom=-1;
                 bool inside=true;
-                for(int y=0;y<bounds.bottom+4;++y) for(int x=0;x<bounds.right+4;++x) if((pixels[y*512+x]&0xffffff)!=0xffffff) {
+                std::set<int> inkRows;
+                const DWORD backgroundPixel=DWORD(GetRValue(background))<<16|DWORD(GetGValue(background))<<8|GetBValue(background);
+                for(int y=bounds.top-2;y<bounds.bottom+2;++y) for(int x=bounds.left-2;x<bounds.right+2;++x) if((pixels[y*1024+x]&0xffffff)!=backgroundPixel) {
                     left=std::min(left,x);top=std::min(top,y);right=std::max(right,x);bottom=std::max(bottom,y);
                     inside=inside && bounds.PtInRect(CPoint(x,y));
+                    if(y>=bounds.top) inkRows.insert((y-bounds.top)/tm.tmHeight);
+                }
+                if(available<tm.tmHeight) {
+                    Require(right<left && text==saved,"GDI small-card matrix paints no partial-height glyphs in either theme");
+                    continue;
                 }
                 Require(inside && right>=left && bottom>=top && text==saved,"GDI captions stay inside their text bounds and preserve literal Unicode names");
                 if(centered) Require(std::abs((left+right)/2-bounds.CenterPoint().x)<fontSize/2 &&
                     std::abs((top+bottom)/2-bounds.CenterPoint().y)<fontSize/2,"GDI parent caption stays horizontally and vertically centered");
-                else Require(left<bounds.left+fontSize/2 && top<bounds.top+tm.tmHeight/2 && bottom<bounds.top+tm.tmHeight*3,
-                    "GDI ordinary captions start at top left and leave the partial final row unpainted");
+                else {
+                    Require(left<bounds.left+fontSize/2 && top<bounds.top+tm.tmHeight/2 &&
+                        bottom<bounds.top+bounds.Height()/tm.tmHeight*tm.tmHeight,
+                        "GDI ordinary captions use actual card widths and only complete rows at every DPI/text scale in both themes");
+                    if(name==names[3] && dc.GetTextExtent(name).cx>available && available>=tm.tmHeight*2)
+                        Require(inkRows.size()>1,"GDI wraps long unbroken names before ellipsizing instead of wasting all but one row");
+                }
             }
         }
     }
@@ -608,7 +673,64 @@ struct GalleryIntegrationTests {
         }
         Require(DeleteFileW(image) && RemoveDirectoryW(child) && RemoveDirectoryW(root),"temporary navigation fixtures removed");
     }
+    void RecycleFeedbackTests(CMainFrame* frame) {
+        frame->ShowWindow(SW_SHOWNORMAL);
+        for (size_t count : {size_t(1),size_t(2),size_t(4),size_t(5),size_t(25)}) {
+            std::vector<std::wstring> paths;
+            for (size_t i=0;i<count;++i) paths.push_back(L"C:\\Temporary test fixtures\\"+std::to_wstring(i)+L" A&B \uC0AC\uC9C4 cafe\u0301 \U0001f4f7.png");
+            const auto text=q1view::RecycleConfirmationText(paths);
+            Require(text.instruction==(count==1 ? L"Move this item to the Recycle Bin?" :
+                L"Move "+std::to_wstring(count)+L" items to the Recycle Bin?"),"recycle confirmation uses the exact singular/plural target count");
+            for(size_t i=0;i<std::min(count,size_t(3));++i)
+                Require(text.content.find(q1view::RecycleFileName(paths[i]))!=std::wstring::npos,"confirmation preserves representative full Unicode filenames");
+            if(count>3) Require(text.content.find(L"And "+std::to_wstring(count-3)+(count==4?L" more item.":L" more items."))!=std::wstring::npos,
+                "bounded filename preview states exactly how many selected files are not shown");
+            if(count>10) Require(text.details.find(L"Showing 10 of 25 selected paths.")!=std::wstring::npos && text.details.find(paths.back())==std::wstring::npos,
+                "bounded expanded path list discloses its limit instead of implying all targets were listed");
+            auto config=q1view::RecycleDialogConfig(frame->m_hWnd,text,true);
+            Require(config.nDefaultButton==IDCANCEL && config.dwCommonButtons==TDCBF_CANCEL_BUTTON &&
+                config.cButtons==1 && config.pButtons[0].nButtonID==IDOK && wcscmp(config.pButtons[0].pszButtonText,L"Move to Recycle Bin")==0 &&
+                !config.pszMainIcon && wcscmp(config.pszCollapsedControlText,L"Show details")==0 && wcscmp(config.pszExpandedControlText,L"Hide details")==0 &&
+                !(config.dwFlags&(TDF_ENABLE_HYPERLINKS|TDF_SHOW_PROGRESS_BAR|TDF_SHOW_MARQUEE_PROGRESS_BAR)),
+                "native confirmation defaults to Cancel, names the neutral move action and has no progress or executable links");
+            struct Probe { bool called=false, fits=false; } probe;
+            config.dwFlags|=TDF_CALLBACK_TIMER;
+            config.lpCallbackData=reinterpret_cast<LONG_PTR>(&probe);
+            config.pfCallback=[](HWND window,UINT event,WPARAM,LPARAM,LONG_PTR data)->HRESULT {
+                if(event==TDN_TIMER) {
+                    auto& p=*reinterpret_cast<Probe*>(data); p.called=true;
+                    RECT rect; GetWindowRect(window,&rect);
+                    MONITORINFO monitor={sizeof(monitor)}; GetMonitorInfoW(MonitorFromWindow(window,MONITOR_DEFAULTTONEAREST),&monitor);
+                    p.fits=rect.left>=monitor.rcWork.left && rect.top>=monitor.rcWork.top && rect.right<=monitor.rcWork.right && rect.bottom<=monitor.rcWork.bottom;
+                    SendMessageW(window,TDM_CLICK_BUTTON,IDCANCEL,0);
+                }
+                return S_OK;
+            };
+            int button=0;
+            const auto hr=TaskDialogIndirect(&config,&button,nullptr,nullptr);
+            if(FAILED(hr) || !probe.called || !probe.fits || button!=IDCANCEL)
+                fprintf(report,"Native recycle dialog: hr=0x%08lx timer=%d fits=%d returned=%d\n",hr,probe.called,probe.fits,button);
+            // TaskDialog buttons are DirectUI elements, not GetDlgItem HWNDs.
+            // The default/button metadata was checked above; actual UIA focus
+            // is verified through the native accessibility tree, not fabricated IDs.
+            Require(SUCCEEDED(hr) && probe.called && probe.fits && button==IDCANCEL,
+                "real native confirmation fits the monitor and returns cancellation without a file operation");
+        }
+        const std::vector<q1view::RecycleResult> results={
+            {L"C:\\test\\moved.png",S_OK,true},
+            {L"C:\\test\\locked \uC0AC\uC9C4.png",HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION),false},
+            {L"C:\\test\\unconfirmed.png",S_OK,false}
+        };
+        const auto result=q1view::RecycleResultText(results);
+        Require(result.instruction==L"Moved 1 of 3 items to the Recycle Bin." && result.content.find(L"2 items could not be moved:")==0 &&
+            result.content.find(L"moved.png")==std::wstring::npos && result.details.find(results[1].path)!=std::wstring::npos &&
+            result.details.find(results[2].path)!=std::wstring::npos,"result counts actual Shell outcomes and names failed paths without presenting successful files as failures");
+        Require(result.details.find(L"Windows did not confirm that this item was moved.")!=std::wstring::npos &&
+            result.details.find(L"Undo")==std::wstring::npos && result.content.find(L"permanently")==std::wstring::npos,
+            "an unconfirmed Shell outcome never becomes a success claim, Undo promise or permanent-delete action");
+    }
     void RecycleTests(CMainFrame* frame, const CString& fixture) {
+        RecycleFeedbackTests(frame);
         auto& pane = *frame->mpDrawer;
         auto& grid = *pane.mGrid;
         auto* doc = static_cast<CViewerDoc*>(frame->GetActiveDocument());
@@ -759,7 +881,11 @@ struct GalleryIntegrationTests {
             pane.SelectIndex(first, false, false, false);
             pane.SelectIndex(last, true, false, false);
             int confirmations = 0;
-            pane.mConfirmRecycle = [&](size_t count) { ++confirmations; Require(count == 2, "MFC confirmation captures batch count"); return false; };
+            pane.mConfirmRecycle = [&](const std::vector<CString>& selected) {
+                ++confirmations;
+                Require(selected == std::vector<CString>{files[0],files[3]}, "MFC confirmation captures exact batch paths, not just a count");
+                return false;
+            };
             MSG key = {}; key.message = WM_KEYDOWN; key.wParam = VK_DELETE;
             key.hwnd = mode ? grid.m_hWnd : pane.m_hWnd;
             Require(mode ? grid.PreTranslateMessage(&key) : pane.PreTranslateMessage(&key), "Delete reaches drawer recycle handler");
@@ -776,7 +902,7 @@ struct GalleryIntegrationTests {
                 Require(pane.SelectedMediaPaths() == std::vector<CString>{files[0]},
                     "native list selection changes keep the shared selection model in sync");
             }
-            pane.mConfirmRecycle = [&](size_t) { pane.NavigateTo(child); return true; };
+            pane.mConfirmRecycle = [&](const std::vector<CString>&) { pane.NavigateTo(child); return true; };
             pane.RecycleSelected();
             Await([&] { return !pane.mNavigationBusy && pane.mFolder == child; }, "confirmation navigation completes without recycling old items");
             Require(pane.mFolder == child && GetFileAttributes(files[0]) != INVALID_FILE_ATTRIBUTES,
@@ -785,9 +911,9 @@ struct GalleryIntegrationTests {
             pane.SelectByPath(files[0]); pane.SelectIndex(indexOf(files[3]), true);
             const unsigned oldGeneration = pane.mGen.load();
             pane.ActivateIndex(indexOf(files[0]), true);
-            pane.mConfirmRecycle = [](size_t) { return true; };
+            pane.mConfirmRecycle = [](const std::vector<CString>&) { return true; };
             CString report;
-            pane.mReportRecycle = [&](const CString& message) { report = message; };
+            pane.mReportRecycle = [&](const q1view::RecycleDialogText& text) { report = (text.instruction + text.content + text.details).c_str(); };
             HANDLE locked = CreateFileW(files[0], GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
                 nullptr, OPEN_EXISTING, 0, nullptr);
             Require(locked != INVALID_HANDLE_VALUE, "locked file fixture opened");
@@ -853,7 +979,7 @@ struct GalleryIntegrationTests {
             deleteTarget->SetFocus();
             Require(::GetFocus() == deleteTarget->m_hWnd, "recycle command starts with Browse keyboard focus");
             const unsigned oldWatch = doc->mFileChangeNotiThread->Generation();
-            pane.mReportRecycle = [&](const CString&) { Require(false, "active file recycling should succeed"); };
+            pane.mReportRecycle = [&](const q1view::RecycleDialogText&) { Require(false, "active file recycling should succeed"); };
             pane.RecycleSelected(); Pump(.1);
             CRect after; frame->GetWindowRect(&after);
             Require(doc->mPathName == files[2] && GetFileAttributes(files[1]) == INVALID_FILE_ATTRIBUTES && geometry == after,
@@ -893,7 +1019,7 @@ struct GalleryIntegrationTests {
                 nullptr, OPEN_EXISTING, 0, nullptr);
             Require(locked != INVALID_HANDLE_VALUE, "paused video deletion failure lock acquired");
             CString report;
-            pane.mReportRecycle = [&](const CString& message) { report = message; };
+            pane.mReportRecycle = [&](const q1view::RecycleDialogText& text) { report = (text.instruction + text.content + text.details).c_str(); };
             pane.RecycleSelected(); CloseHandle(locked); Pump(.1);
             Require(doc->mPathName == video && doc->mFrmSrc && !view->mIsPlaying && doc->mCurFrameID == 42 &&
                 view->mStableRgbBufferInfo.addr == pixels && !report.IsEmpty(),
@@ -910,7 +1036,7 @@ struct GalleryIntegrationTests {
             Await([&] { return view->mIsPlaying && view->mStableRgbBufferInfo.ID > frameBefore; },
                 "failed playing video recycle resumes from the retained frame even with autoplay disabled");
         }
-        pane.mReportRecycle = [&](const CString&) { Require(false, "unlocked video recycling should succeed"); };
+        pane.mReportRecycle = [&](const q1view::RecycleDialogText&) { Require(false, "unlocked video recycling should succeed"); };
         pane.RecycleSelected(); Pump(.1);
         Require(GetFileAttributes(video) == INVALID_FILE_ATTRIBUTES && doc->mPathName == next && !view->mIsPlaying,
             "playing video releases decoder/audio handles before recycling and activates survivor");
@@ -936,7 +1062,7 @@ struct GalleryIntegrationTests {
             HANDLE locked = CreateFileW(raw, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
                 nullptr, OPEN_EXISTING, 0, nullptr);
             Require(locked != INVALID_HANDLE_VALUE, "RAW deletion failure lock acquired");
-            pane.mReportRecycle = [](const CString&) {};
+            pane.mReportRecycle = [](const q1view::RecycleDialogText&) {};
             pane.RecycleSelected(); CloseHandle(locked); Pump(.1);
             Require(doc->mPathName == raw && doc->mFrmSrc && !view->mIsPlaying && doc->mCurFrameID == 17 &&
                 doc->mW == 16 && doc->mH == 16 && doc->mColorSpace == cs && doc->mFrames == 90,
@@ -944,7 +1070,7 @@ struct GalleryIntegrationTests {
             Require(doc->NextScene() == 18, "restored RAW source can read the next frame");
             view->Invalidate(FALSE); Pump(.05);
         }
-        pane.mReportRecycle = [&](const CString&) { Require(false, "unlocked RAW recycling should succeed"); };
+        pane.mReportRecycle = [&](const q1view::RecycleDialogText&) { Require(false, "unlocked RAW recycling should succeed"); };
         pane.RecycleSelected(); Pump(.1);
         Require(GetFileAttributes(raw) == INVALID_FILE_ATTRIBUTES && doc->mPathName == next,
             "RAW recycle releases file handles and returns to the previous survivor");
@@ -2300,6 +2426,8 @@ struct GalleryIntegrationTests {
         fflush(report);
     }
 };
+
+void PrepareGalleryInteractiveReview() { GalleryIntegrationTests::PrepareInteractiveReview(); }
 
 int RunGalleryIntegrationTests() {
     wchar_t path[32768];

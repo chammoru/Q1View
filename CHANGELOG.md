@@ -8,6 +8,18 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.8.5] — 2026-10-25
+
+### Changed
+
+- Windows Viewer: show representative filenames and expandable target paths before moving Browse selections to the Recycle Bin, keep Cancel as the default action, and report actual partial failures with failed filenames and available Windows error details. (#127)
+
+### Tests
+
+- Windows Viewer: extend Gallery caption fallback coverage across actual card widths, all five grid sizes, DPI/text scales and both themes; verify native Windows scaling, enlarged text and high contrast without changing source images or selection. (#122)
+
+---
+
 ## [2.8.4] — 2026-10-25
 
 ### Changed
@@ -561,7 +573,8 @@ Native display checks passed at 100–175%; 200% layout/font calculations passed
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.4...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.5...HEAD
+[2.8.5]: https://github.com/chammoru/Q1View/compare/v2.8.4...v2.8.5
 [2.8.4]: https://github.com/chammoru/Q1View/compare/v2.8.3...v2.8.4
 [2.8.3]: https://github.com/chammoru/Q1View/compare/v2.8.2...v2.8.3
 [2.8.2]: https://github.com/chammoru/Q1View/compare/v2.8.1...v2.8.2

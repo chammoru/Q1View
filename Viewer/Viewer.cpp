@@ -99,6 +99,13 @@ BOOL CViewerApp::InitInstance()
 	// Enable drag/drop open
 	m_pMainWnd->DragAcceptFiles();
 #ifdef Q1VIEW_GALLERY_TESTS
+	wchar_t review[8] = {};
+	if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_INTERACTIVE_REVIEW", review, _countof(review))) {
+		extern void PrepareGalleryInteractiveReview();
+		PrepareGalleryInteractiveReview();
+		mTestExitCode = 0;
+		return TRUE;
+	}
 	extern int RunGalleryIntegrationTests();
 	mTestExitCode = RunGalleryIntegrationTests();
 	m_pMainWnd->SendMessage(WM_CLOSE);

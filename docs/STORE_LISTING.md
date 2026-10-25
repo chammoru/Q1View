@@ -61,7 +61,7 @@ In the Windows Viewer, right-click a single thumbnail to open it, copy the file 
 
 Choose Auto, Smooth (Bilinear), or Pixel Exact (Nearest) image scaling from Options > Image Scaling. Auto keeps scanned text clear at moderate reductions, suppresses aliasing when large photos are reduced substantially, and preserves exact pixels during close inspection.
 
-Windows Gallery folder and drive captions align at the top left, with the parent entry centered. Windows UI Automation exposes full item names, focus, selection and existing open/scroll actions to assistive tools. If moving the displayed file to the Recycle Bin fails, Viewer retains the image view and playback state; successful deletion keeps Browse keyboard focus and selects the next or previous surviving image, or clears the view when none remain.
+Windows Gallery folder and drive captions align at the top left, with the parent entry centered. Windows UI Automation exposes full item names, focus, selection and existing open/scroll actions to assistive tools. Recycle confirmations show the exact count, representative filenames and expandable target paths, with Cancel selected by default. Partial failures identify the files that could not be moved and provide available Windows error details, without promising an in-app Undo. If moving the displayed file to the Recycle Bin fails, Viewer retains the image view and playback state; successful deletion keeps Browse keyboard focus and selects the next or previous surviving image, or clears the view when none remain.
 
 COMPARATOR
 
