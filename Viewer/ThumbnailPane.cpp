@@ -1043,6 +1043,7 @@ void CThumbnailPane::CommitDirectory(const q1view::BrowserDirectory& snapshot, c
 	if (grid) {
 		mGrid->Reset();
 	} else {
+		if (mGrid) mGrid->AccessibilityEntries();
 		CRect rc; GetClientRect(&rc);
 		SetColumnWidth(0, rc.Width());
 	}
@@ -1140,6 +1141,7 @@ void CThumbnailPane::SyncSelection(bool reveal)
 		mGrid->mSelected = mSelection.focus;
 		if (reveal) { mGrid->mLayout.Reveal(mSelection.focus); mGrid->UpdateScrollBar(); }
 		mGrid->Invalidate(FALSE);
+		mGrid->AccessibilityView();
 	} else {
 		SetRedraw(FALSE);
 		SetItemState(-1, 0, LVIS_SELECTED | LVIS_FOCUSED);
@@ -1264,10 +1266,12 @@ void CThumbnailPane::RecycleSelected()
 	const CString folder = mFolder;
 	const unsigned generation = mGen.load();
 	mRecycleBusy = true;
+	if (IsGrid() && mGrid) mGrid->AccessibilityView();
 	struct Finish {
 		CThumbnailPane& pane;
 		~Finish() {
 			pane.mRecycleBusy = false;
+			if (pane.IsGrid() && pane.mGrid) pane.mGrid->AccessibilityView();
 			pane.RefreshDirectoryContents();
 			pane.QueueVisibleThumbs();
 		}

@@ -10,6 +10,8 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 - Windows Viewer: align Gallery folder and drive names at the top left while keeping [..] centered; retain existing card sizes and fonts and avoid drawing partial final caption lines. (part of #122)
 
+- Windows Viewer: expose full Gallery folder and file names, focus, selection and existing open/scroll actions through Windows UI Automation, with safe invalidation of removed or replaced items. (part of #122)
+
 ---
 
 ## [2.8.3] — 2026-10-19

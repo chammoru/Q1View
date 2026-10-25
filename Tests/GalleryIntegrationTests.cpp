@@ -9,6 +9,7 @@
 #include "../Viewer/Y4mReaderWin.h"
 #include "../Viewer/ThumbnailPane.h"
 #include "../Viewer/GalleryGridCanvas.h"
+#include "../Viewer/GalleryUiaProvider.h"
 #include "QViewerCmn.h"
 #include "QImageStr.h"
 #include "QCvUtil.h"
@@ -23,6 +24,21 @@
 #include <functional>
 #include <opencv2/videoio.hpp>
 #include "WindowsUiPaintTestProbe.h"
+#include <UIAutomation.h>
+#include <future>
+#include <wrl/implements.h>
+
+struct GalleryUiaEvents : Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,
+    IUIAutomationEventHandler, IUIAutomationStructureChangedEventHandler, IUIAutomationFocusChangedEventHandler, Microsoft::WRL::FtmBase> {
+    std::atomic<int> selection{0}, structure{0}, focus{0};
+    IFACEMETHODIMP HandleAutomationEvent(IUIAutomationElement*,EVENTID) override { ++selection; return S_OK; }
+    IFACEMETHODIMP HandleStructureChangedEvent(IUIAutomationElement*,StructureChangeType,SAFEARRAY*) override { ++structure; return S_OK; }
+    IFACEMETHODIMP HandleFocusChangedEvent(IUIAutomationElement* sender) override {
+        CComBSTR framework;
+        if (SUCCEEDED(sender->get_CurrentFrameworkId(&framework)) && framework && wcscmp(framework,L"Q1View")==0) ++focus;
+        return S_OK;
+    }
+};
 
 struct GalleryIntegrationTests {
     FILE* report = nullptr;
@@ -52,6 +68,242 @@ struct GalleryIntegrationTests {
         double end = CGalleryGridCanvas::Now() + 10;
         while (!predicate() && CGalleryGridCanvas::Now() < end) Pump(.05);
         Require(predicate(), text);
+    }
+    void AccessibilityTests(CMainFrame* frame, const CString& fixture) {
+        auto& pane=*frame->mpDrawer;
+        auto& grid=*pane.mGrid;
+        const CString oldFolder=pane.mFolder;
+        const int oldStep=pane.mViewStep;
+        wchar_t temp[MAX_PATH]; GetTempPathW(MAX_PATH,temp);
+        CString root; root.Format(L"%sQ1View-uia-%lu-%llu\\",temp,GetCurrentProcessId(),GetTickCount64());
+        Require(CreateDirectoryW(root,nullptr)!=FALSE,"UIA fixtures use an isolated directory, not user media");
+        const CString longName=L"[Literal] A&B \uD55C\uAE00 English folder name that wraps without shortening the accessible name";
+        const CString koreanName=L"\uC544\uC8FC \uAE34 \uD55C\uAE00 \uD3F4\uB354\uBA85 \uC5EC\uD589 \uC0AC\uC9C4 \uC6D0\uBCF8\uACFC \uBCF4\uC815\uBCF8 \uBAA8\uC74C \uB9C8\uC9C0\uB9C9 \uAE00\uC790\uAE4C\uC9C0 \uC77D\uC744 \uC218 \uC788\uC5B4\uC57C \uD558\uB294 \uC774\uB984";
+        const CString emojiName=L"\U0001f4f7 cafe\u0301 \uC0AC\uC9C4 \U0001f1e8\U0001f1e6";
+        std::vector<CString> folders;
+        for(int i=0;i<1200;++i) {
+            CString name; name.Format(L"folder-%03d",i);
+            if(i==0)name=longName;
+            if(i==1)name=koreanName;
+            if(i==2)name=emojiName;
+            folders.push_back(root+name);
+            Require(CreateDirectoryW(folders.back(),nullptr)!=FALSE,"UIA folder fixture created");
+        }
+        const CString firstFile=root+L"first original.png",secondFile=root+L"second \uC0AC\uC9C4.png";
+        Require(CopyFileW(fixture,firstFile,TRUE) && CopyFileW(fixture,secondFile,TRUE),"UIA media fixtures copied from the repository");
+        pane.ApplyViewStep(3,false); pane.NavigateTo(root);
+        Await([&] { return !pane.mNavigationBusy && pane.mFolder==root; },"UIA fixture metadata committed");
+        Pump(.4);
+        const HWND window=grid.GetSafeHwnd();
+        const HWND frameWindow=frame->GetSafeHwnd();
+        frame->SetForegroundWindow();
+        Await([&] { return ::GetForegroundWindow()==frame->GetSafeHwnd(); },"Viewer is foreground before keyboard-focus acceptance");
+        const int count=int(pane.mEntries.size());
+        Require(count==1203 && pane.GetItemCount()==0,"UIA Gallery has over a thousand folders and files but no native list rows");
+        const int liveProviders=grid.mAccessibility->LiveProviders();
+        fprintf(report,"UIA LAZY: entries=%d liveProviders=%d\n",count,liveProviders);
+        Require(liveProviders<64,"committing 1203 entries does not eagerly allocate a provider for every entry");
+        unsigned childWindows=0;
+        for(HWND child=::GetWindow(window,GW_CHILD);child;child=::GetWindow(child,GW_HWNDNEXT))++childWindows;
+        Require(childWindows<10,"Gallery does not allocate per-card HWNDs for a large folder");
+        auto* doc=static_cast<CViewerDoc*>(frame->GetActiveDocument());
+        const CString source=doc->mPathName;
+        const unsigned open=doc->mOpenGeneration;
+        const unsigned generation=pane.mGen.load();
+        const auto entries=pane.mEntries.data();
+        // A separate MTA client calls the public UIA API. The UI thread pumps
+        // normally; test-only mutations are handed back through this queue.
+        std::mutex queueMutex;
+        std::function<void()> queued;
+        auto onUi=[&](std::function<void()> action) {
+            auto promise=std::make_shared<std::promise<void>>(); auto result=promise->get_future();
+            { std::lock_guard<std::mutex> lock(queueMutex); queued=[promise,action] { try { action(); promise->set_value(); } catch(...) { promise->set_exception(std::current_exception()); } }; }
+            result.get();
+        };
+        std::atomic<bool> done{false};
+        std::exception_ptr failure;
+        std::unique_ptr<CGalleryGridCanvas> disposable;
+        std::thread client([&] {
+            const HRESULT initialized=CoInitializeEx(nullptr,COINIT_MULTITHREADED);
+            try {
+                using Microsoft::WRL::ComPtr;
+                Require(SUCCEEDED(initialized),"UIA client initialized on a separate MTA thread");
+                ComPtr<IUIAutomation> automation;
+                Require(SUCCEEDED(CoCreateInstance(CLSID_CUIAutomation,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&automation))),"real Windows UIA client created");
+                ComPtr<IUIAutomation2> timeouts;
+                if(SUCCEEDED(automation.As(&timeouts))) { timeouts->put_ConnectionTimeout(3000); timeouts->put_TransactionTimeout(3000); }
+                ComPtr<IUIAutomationElement> list;
+                ComPtr<IUIAutomationElement> frameElement;
+                Require(SUCCEEDED(automation->ElementFromHandle(frameWindow,&frameElement)),"UIA client discovers the own Viewer window");
+                VARIANT galleryId{}; galleryId.vt=VT_BSTR; galleryId.bstrVal=SysAllocString(L"ThumbnailGallery");
+                ComPtr<IUIAutomationCondition> galleryCondition;
+                automation->CreatePropertyCondition(UIA_AutomationIdPropertyId,galleryId,&galleryCondition); VariantClear(&galleryId);
+                Require(SUCCEEDED(frameElement->FindFirst(TreeScope_Descendants,galleryCondition.Get(),&list)) && list,"the actual Viewer accessibility tree exposes the Gallery provider");
+                CONTROLTYPEID type=0; const HRESULT typeResult=list->get_CurrentControlType(&type);
+                CComBSTR rootName,rootFramework; list->get_CurrentName(&rootName); list->get_CurrentFrameworkId(&rootFramework);
+                fprintf(report,"UIA ROOT: type=%d hr=%08lx name=%ls framework=%ls\n",type,typeResult,rootName?rootName.m_str:L"",rootFramework?rootFramework.m_str:L""); fflush(report);
+                onUi([&] { fprintf(report,"UIA HWND: queries=%u object=%lld response=%lld %ls\n",grid.mAccessibilityQueries,static_cast<long long>(grid.mAccessibilityQuery),static_cast<long long>(grid.mAccessibilityResponse),grid.mAccessibility->Diagnostics().c_str()); fflush(report); });
+                Require(type==UIA_ListControlTypeId,"Gallery root is an accessible List");
+                auto events=Microsoft::WRL::Make<GalleryUiaEvents>();
+                Require(SUCCEEDED(automation->AddAutomationEventHandler(UIA_SelectionItem_ElementSelectedEventId,list.Get(),TreeScope_Subtree,nullptr,events.Get())) &&
+                    SUCCEEDED(automation->AddStructureChangedEventHandler(list.Get(),TreeScope_Subtree,nullptr,events.Get())) &&
+                    SUCCEEDED(automation->AddFocusChangedEventHandler(nullptr,events.Get())),"UIA selection, structure and focus subscriptions registered on the MTA");
+                struct Unsubscribe { IUIAutomation* automation; ~Unsubscribe(){automation->RemoveAllEventHandlers();} } unsubscribe{automation.Get()};
+                VARIANT value{}; value.vt=VT_I4; value.lVal=UIA_ListItemControlTypeId;
+                ComPtr<IUIAutomationCondition> condition; automation->CreatePropertyCondition(UIA_ControlTypePropertyId,value,&condition);
+                ComPtr<IUIAutomationElementArray> children;
+                Require(SUCCEEDED(list->FindAll(TreeScope_Children,condition.Get(),&children)),"all committed entries can be queried, including offscreen entries");
+                int length=0; children->get_Length(&length);
+                Require(length==count,"folders, parent and media are all present in the UIA fragment");
+                ComPtr<IUIAutomationElement> parent,folder,file,other;
+                bool korean=false,emoji=false;
+                for(int i=0;i<length;++i) {
+                    ComPtr<IUIAutomationElement> item; children->GetElement(i,&item);
+                    CComBSTR name; Require(SUCCEEDED(item->get_CurrentName(&name)),"UIA Name can be read without activating an entry");
+                    if(wcscmp(name,L"Parent folder")==0)parent=item;
+                    if(wcscmp(name,longName)==0)folder=item;
+                    if(wcscmp(name,L"first original.png")==0)file=item;
+                    if(wcscmp(name,L"second \uC0AC\uC9C4.png")==0)other=item;
+                    korean=korean || wcscmp(name,koreanName)==0;
+                    emoji=emoji || wcscmp(name,emojiName)==0;
+                }
+                Require(parent && folder && file && other,"UIA keeps literal brackets, ampersands, full Korean/English names and filenames rather than extension badges");
+                Require(korean && emoji,"UIA also preserves long Korean names, surrogate pairs and combining characters exactly");
+                BOOL offscreen=FALSE; file->get_CurrentIsOffscreen(&offscreen);
+                Require(offscreen!=FALSE,"an unrevealed last-row file is correctly offscreen");
+                onUi([&] { Require(pane.mEntries.data()==entries && pane.mGen==generation && doc->mPathName==source && doc->mOpenGeneration==open && grid.mLayout.scroll==0,
+                    "metadata queries do not rebuild, navigate, open or scroll the Gallery");
+                    std::lock_guard<std::mutex> lock(pane.mMutex);
+                    Require(pane.mTasks.empty() && pane.mOutstanding==0 && grid.mCache.empty(),"reading offscreen names does not schedule or decode their thumbnails"); });
+                ComPtr<IUIAutomationSelectionPattern> selection;
+                Require(SUCCEEDED(list->GetCurrentPatternAs(UIA_SelectionPatternId,IID_PPV_ARGS(&selection))),"List exposes Selection pattern");
+                BOOL multiple=FALSE; selection->get_CurrentCanSelectMultiple(&multiple);
+                Require(multiple!=FALSE,"selection container reports the existing multi-media selection model");
+                ComPtr<IUIAutomationSelectionItemPattern> folderSelection,fileSelection,otherSelection;
+                folder->GetCurrentPatternAs(UIA_SelectionItemPatternId,IID_PPV_ARGS(&folderSelection));
+                file->GetCurrentPatternAs(UIA_SelectionItemPatternId,IID_PPV_ARGS(&fileSelection));
+                other->GetCurrentPatternAs(UIA_SelectionItemPatternId,IID_PPV_ARGS(&otherSelection));
+                Require(folderSelection && fileSelection && otherSelection,"Gallery items expose SelectionItem patterns");
+                Require(SUCCEEDED(folderSelection->Select()),"UIA single-selects a folder using the existing command path");
+                VARIANT selectionProperty{};
+                Require(SUCCEEDED(folder->GetCurrentPropertyValue(UIA_SelectionItemIsSelectedPropertyId,&selectionProperty)) && selectionProperty.vt==VT_BOOL && selectionProperty.boolVal==VARIANT_TRUE,
+                    "generic UIA property queries agree with SelectionItem state");
+                VariantClear(&selectionProperty);
+                Require(folderSelection->AddToSelection()==UIA_E_INVALIDOPERATION,"UIA cannot add folders to a media batch");
+                Require(SUCCEEDED(fileSelection->Select()) && SUCCEEDED(otherSelection->AddToSelection()) && SUCCEEDED(otherSelection->AddToSelection()),"UIA media add is multi-select and idempotent, not a toggle");
+                ComPtr<IUIAutomationElementArray> selected; selection->GetCurrentSelection(&selected); selected->get_Length(&length);
+                Require(length==2,"UIA selection reports exactly the two media files");
+                Require(SUCCEEDED(folder->SetFocus()),"UIA can focus an unselected folder without changing selection");
+                BOOL selectedFolder=TRUE,focused=FALSE; folderSelection->get_CurrentIsSelected(&selectedFolder); folder->get_CurrentHasKeyboardFocus(&focused);
+                Require(!selectedFolder && focused,"keyboard focus and selected state remain distinct");
+                ComPtr<IUIAutomationElement> focusedElement;
+                BOOL sameFocus=FALSE;
+                Require(SUCCEEDED(automation->GetFocusedElement(&focusedElement)) && focusedElement &&
+                    SUCCEEDED(automation->CompareElements(folder.Get(),focusedElement.Get(),&sameFocus)) && sameFocus,
+                    "global UIA focus resolves to the actual Gallery item, not the HWND or path header");
+                int keyboardIndex=-1;
+                onUi([&] { Require(pane.HandleSelectionKey(VK_RIGHT,true,false),"the real Ctrl+Right handler moves Gallery focus"); keyboardIndex=pane.mSelection.focus; });
+                ComPtr<IUIAutomationElement> keyboardItem; children->GetElement(keyboardIndex,&keyboardItem);
+                focusedElement.Reset(); sameFocus=FALSE;
+                Require(SUCCEEDED(automation->GetFocusedElement(&focusedElement)) && focusedElement &&
+                    SUCCEEDED(automation->CompareElements(keyboardItem.Get(),focusedElement.Get(),&sameFocus)) && sameFocus,
+                    "UIA follows Ctrl+arrow keyboard focus independently of media selection");
+                selected.Reset(); selection->GetCurrentSelection(&selected); selected->get_Length(&length);
+                Require(length==2,"Ctrl+arrow focus movement leaves the media selection intact");
+                Require(SUCCEEDED(otherSelection->RemoveFromSelection()) && SUCCEEDED(otherSelection->RemoveFromSelection()),"UIA removal is idempotent and uses existing media-selection rules");
+                ComPtr<IUIAutomationScrollItemPattern> scrollItem;
+                file->GetCurrentPatternAs(UIA_ScrollItemPatternId,IID_PPV_ARGS(&scrollItem));
+                Require(scrollItem && SUCCEEDED(scrollItem->ScrollIntoView()),"explicit UIA ScrollItem reveals an offscreen file");
+                file->get_CurrentIsOffscreen(&offscreen); RECT bounds{}; file->get_CurrentBoundingRectangle(&bounds);
+                Require(!offscreen && bounds.right>bounds.left && bounds.bottom>bounds.top,"revealed items expose real screen bounds");
+                ComPtr<IUIAutomationScrollPattern> scroll;
+                Require(SUCCEEDED(list->GetCurrentPatternAs(UIA_ScrollPatternId,IID_PPV_ARGS(&scroll))) && SUCCEEDED(scroll->SetScrollPercent(UIA_ScrollPatternNoScroll,0)),"UIA container scrolling uses the existing scroll path");
+                CComBSTR identity; folder->get_CurrentAutomationId(&identity);
+                SAFEARRAY* runtimeBefore=nullptr; folder->GetRuntimeId(&runtimeBefore);
+                onUi([&] { pane.ApplyViewStep(4,false); grid.DropDevice(); grid.Relayout(false); });
+                CComBSTR after; Require(SUCCEEDED(folder->get_CurrentAutomationId(&after)) && wcscmp(identity,after)==0,"resize, grid-size changes and GPU recreation preserve item identity");
+                SAFEARRAY* runtimeAfter=nullptr; folder->GetRuntimeId(&runtimeAfter); BOOL equal=FALSE;
+                automation->CompareRuntimeIds(runtimeBefore,runtimeAfter,&equal); SafeArrayDestroy(runtimeBefore); SafeArrayDestroy(runtimeAfter);
+                Require(equal!=FALSE,"UIA runtime identity also survives layout/device changes");
+                onUi([&] { Pump(.2); Require(events->selection>0 && events->focus>0,"actual UIA clients receive selection and keyboard-focus events"); });
+                const int selectionEvents=events->selection,focusEvents=events->focus,structureEvents=events->structure;
+                onUi([&] { for(int i=0;i<12;++i)grid.OnMouseMove(0,CPoint(2+i,2+i)); grid.Invalidate(FALSE); Pump(.2); });
+                Require(events->selection==selectionEvents && events->focus==focusEvents && events->structure==structureEvents,"hover and repaint do not flood selection, focus or structure events");
+                onUi([&] { frame->ShowWindow(SW_MINIMIZE); });
+                BOOL rootOffscreen=FALSE,itemOffscreen=FALSE;
+                list->get_CurrentIsOffscreen(&rootOffscreen); folder->get_CurrentIsOffscreen(&itemOffscreen);
+                Require(rootOffscreen && itemOffscreen,"a minimized Viewer exposes both the Gallery and its items as offscreen");
+                onUi([&] { frame->ShowWindow(SW_RESTORE); frame->SetForegroundWindow(); });
+                onUi([&] {
+                    const auto reporter=pane.mReportNavigation;
+                    struct RestoreReporter { CThumbnailPane& pane; std::function<void(const CString&)> reporter; ~RestoreReporter(){pane.mReportNavigation=reporter;} } restore{pane,reporter};
+                    pane.mReportNavigation=[](const CString&) {};
+                    pane.NavigateTo(root+L"missing-directory\\");
+                    Await([&] { return !pane.mNavigationBusy; },"failed navigation completes without replacing the committed UIA snapshot");
+                });
+                CComBSTR afterFailure;
+                Require(SUCCEEDED(folder->get_CurrentAutomationId(&afterFailure)) && wcscmp(identity,afterFailure)==0,"failed navigation preserves existing accessible item identity");
+                // Refresh retains existing path/kind IDs, but removed entries
+                // must never retarget a new file that reuses their index.
+                onUi([&] { Require(DeleteFileW(secondFile)!=FALSE,"remove an owned fixture for stale-element testing"); pane.RefreshDirectoryContents();
+                    Await([&] { return !pane.mNavigationBusy && int(pane.mEntries.size())==count-1; },"watcher/refresh commits the removed file");
+                    Require(CopyFileW(fixture,secondFile,TRUE)!=FALSE,"recreate the owned file after committed removal, reusing its path and index");
+                    pane.RefreshDirectoryContents();
+                    Await([&] { return !pane.mNavigationBusy && int(pane.mEntries.size())==count; },"the replacement entry commits before stale references are queried"); });
+                CComBSTR stale;
+                Require(other->get_CurrentName(&stale)==UIA_E_ELEMENTNOTAVAILABLE && otherSelection->Select()==UIA_E_ELEMENTNOTAVAILABLE,"removed nodes fail explicitly instead of selecting a replacement index");
+                Require(SUCCEEDED(folder->get_CurrentName(&stale)),"unchanged items survive a same-folder refresh");
+                onUi([&] { pane.mRecycleBusy=true; grid.AccessibilityView(); });
+                Require(fileSelection->Select()==UIA_E_ELEMENTNOTENABLED,"UIA cannot bypass the pane's recycle-busy guard");
+                onUi([&] { pane.mRecycleBusy=false; grid.AccessibilityView(); });
+                ComPtr<IUIAutomationInvokePattern> invoke;
+                folder->GetCurrentPatternAs(UIA_InvokePatternId,IID_PPV_ARGS(&invoke));
+                Require(invoke && SUCCEEDED(invoke->Invoke()),"UIA Invoke delegates to the existing deferred folder activation");
+                onUi([&] { Await([&] { return !pane.mNavigationBusy && pane.mFolder==folders.front()+L"\\"; },"UIA Invoke navigates to the intended folder"); });
+                BOOL canScroll=TRUE; scroll->get_CurrentVerticallyScrollable(&canScroll);
+                Require(!canScroll && scroll->SetScrollPercent(UIA_ScrollPatternNoScroll,50)==UIA_E_INVALIDOPERATION &&
+                    scroll->Scroll(ScrollAmount_NoAmount,ScrollAmount_SmallIncrement)==UIA_E_INVALIDOPERATION,
+                    "a non-scrollable folder rejects forced UIA scrolling rather than claiming success");
+                Require(file->get_CurrentName(&stale)==UIA_E_ELEMENTNOTAVAILABLE && fileSelection->Select()==UIA_E_ELEMENTNOTAVAILABLE,"navigation invalidates old-folder providers");
+                std::vector<CString> drives;
+                onUi([&] { Pump(.2); Require(events->structure>0,"committed membership changes raise UIA structure notifications");
+                    pane.NavigateTo(L""); Await([&] { return !pane.mNavigationBusy && pane.mFolder.IsEmpty(); },"UIA drive chooser metadata committed");
+                    for(const auto& entry:pane.mEntries)drives.push_back(entry.path); });
+                ComPtr<IUIAutomationElementArray> driveItems; list->FindAll(TreeScope_Children,condition.Get(),&driveItems);
+                driveItems->get_Length(&length); Require(length==int(drives.size()) && length>0,"UIA drive chooser exposes the committed logical-drive entries");
+                for(int i=0;i<length;++i) {
+                    ComPtr<IUIAutomationElement> drive; driveItems->GetElement(i,&drive); CComBSTR name; drive->get_CurrentName(&name);
+                    Require(name && wcscmp(name,drives[i])==0,"accessible drive names retain the root backslash without decorative brackets");
+                }
+                onUi([&] { pane.ApplyViewStep(0,false); });
+                Require(folder->get_CurrentName(&stale)==UIA_E_ELEMENTNOTAVAILABLE,"switching to native List invalidates Gallery items");
+                // Own disposable canvas: exercise destruction without closing
+                // the real Viewer or any user windows.
+                HWND disposableWindow=nullptr;
+                onUi([&] { disposable=std::make_unique<CGalleryGridCanvas>(pane); Require(disposable->CreateCanvas()!=FALSE,"disposable own canvas created");
+                    disposable->MoveWindow(pane.GridViewport()); disposable->ShowWindow(SW_SHOW); disposableWindow=disposable->GetSafeHwnd(); });
+                ComPtr<IUIAutomationElement> closed;
+                VARIANT nativeHandle{}; nativeHandle.vt=VT_I4; nativeHandle.lVal=HandleToLong(disposableWindow);
+                ComPtr<IUIAutomationCondition> handleCondition,disposableCondition;
+                automation->CreatePropertyCondition(UIA_NativeWindowHandlePropertyId,nativeHandle,&handleCondition);
+                automation->CreateAndCondition(galleryCondition.Get(),handleCondition.Get(),&disposableCondition);
+                Require(SUCCEEDED(frameElement->FindFirst(TreeScope_Descendants,disposableCondition.Get(),&closed)) && closed,"UIA retains the actual disposable own-window provider from the Viewer tree");
+                CONTROLTYPEID closedType=0; closed->get_CurrentControlType(&closedType);
+                Require(closedType==UIA_ListControlTypeId,"destruction test retains a custom Gallery List, not just a generic HWND proxy");
+                onUi([&] { disposable->DestroyWindow(); disposable.reset(); });
+                Require(closed->get_CurrentName(&stale)==UIA_E_ELEMENTNOTAVAILABLE,"destroyed canvas providers fail safely after window destruction");
+            } catch(...) { failure=std::current_exception(); }
+            if(SUCCEEDED(initialized)) CoUninitialize();
+            done=true;
+        });
+        while(!done) Pump(.01,[&] { std::function<void()> action; { std::lock_guard<std::mutex> lock(queueMutex); action=std::move(queued); } if(action)action(); });
+        client.join();
+        if(disposable) { disposable->DestroyWindow(); disposable.reset(); }
+        pane.ApplyViewStep(oldStep,false); pane.NavigateTo(oldFolder);
+        Await([&] { return !pane.mNavigationBusy && pane.mFolder==oldFolder; },"UIA tests restore the previous Gallery folder");
+        DeleteFileW(firstFile); DeleteFileW(secondFile);
+        for(const auto& path:folders)RemoveDirectoryW(path); RemoveDirectoryW(root);
+        if(failure)std::rethrow_exception(failure);
     }
     void FolderCaptionTests(CMainFrame* frame) {
         auto& pane = *frame->mpDrawer;
@@ -1254,6 +1506,12 @@ struct GalleryIntegrationTests {
         frame->MoveWindow(20, 20, 1200, 850);
         if (!frame->mDrawerVisible) frame->OnToggleDrawer();
         Pump(.4);
+        wchar_t accessibilityOnly[8] = {};
+        if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_UIA_ONLY",accessibilityOnly,_countof(accessibilityOnly))) {
+            wchar_t fixture[MAX_PATH]; GetFullPathNameW(L"Tests\\fixtures\\sample_16x16.png",MAX_PATH,fixture,nullptr);
+            AccessibilityTests(frame,fixture);
+            fprintf(report,"Focused Gallery UIA checks completed\n"); return;
+        }
         wchar_t captionOnly[8] = {};
         if (GetEnvironmentVariableW(L"Q1VIEW_FOLDER_CAPTION_ONLY",captionOnly,_countof(captionOnly))) {
             FolderCaptionTests(frame);
@@ -1267,6 +1525,10 @@ struct GalleryIntegrationTests {
             BrowserNavigationTests(frame,fixture);
             RecycleTests(frame,fixture);
             fprintf(report,"Focused Browse navigation and interaction checks completed\n"); return;
+        }
+        {
+            wchar_t fixture[MAX_PATH]; GetFullPathNameW(L"Tests\\fixtures\\sample_16x16.png",MAX_PATH,fixture,nullptr);
+            AccessibilityTests(frame,fixture);
         }
         // The shell/zoom checks below require a displayed image. A no-argument
         // startup run has deliberately just verified the empty -- status.

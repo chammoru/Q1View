@@ -36,3 +36,7 @@ No Windows DPI, text-size or high-contrast setting has been changed. Font/DPI pa
 The native Open dialog initially reported stale search-field focus despite the visible filename caret. The actual filename field was selected from the observed tree and its value was set directly; the visible repository preview path was verified before clicking Open. A source-open window-bounds change required refreshing the returned window before retrying Browse. These were automation observations, not new application input changes.
 
 A is ready for the user's visual review. B (Gallery UIA) is deliberately not included or claimed complete, and #122 remains open. No merge, tag, version bump or Store submission is part of this hand-off.
+
+## Subsequent review decision — 2026-10-25
+
+The user subsequently accepted the actual A appearance and explicitly authorized proceeding with B. A remains the separate `883764b` commit; the accessibility implementation and its evidence are tracked in [the stage B verification record](issue-122-gallery-uia.md). The earlier pending statements above describe the A-only hand-off, not a withdrawal of the user's later acceptance. Narrator was explicitly excluded by the user in favor of automatic UIA verification only. Merge/release and the remaining live OS-setting combinations are still separate decisions.
