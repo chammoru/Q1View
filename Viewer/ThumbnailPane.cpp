@@ -23,6 +23,7 @@
 #include "ViewerFileTypes.h"
 #include "QFileActionsWin.h"
 #include "QRecycleFilesWin.h"
+#include "RecycleFeedback.h"
 #include "Q1UiFontWin.h"
 
 #include <opencv2/imgproc/imgproc.hpp>
@@ -114,16 +115,13 @@ CThumbnailPane::CThumbnailPane()
 , mWorkerStarted(false)
 {
 	LoadViewStep();
-	mConfirmRecycle = [this](size_t count) {
-		CString prompt;
-		if (count == 1)
-			prompt = _T("Move this item to the Recycle Bin?");
-		else
-			prompt.Format(_T("Move %zu items to the Recycle Bin?"), count);
-		return MessageBox(prompt, _T("Move to Recycle Bin"), MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2) == IDOK;
+	mConfirmRecycle = [this](const std::vector<CString>& selected) {
+		std::vector<std::wstring> paths;
+		for (const auto& path : selected) paths.emplace_back(path.GetString());
+		return q1view::ShowRecycleDialog(m_hWnd, q1view::RecycleConfirmationText(paths), true);
 	};
-	mReportRecycle = [this](const CString& message) {
-		MessageBox(message, _T("Move to Recycle Bin"), MB_OK | MB_ICONINFORMATION);
+	mReportRecycle = [this](const q1view::RecycleDialogText& text) {
+		q1view::ShowRecycleDialog(m_hWnd, text, false);
 	};
 	mReadDirectory = q1view::ReadBrowserDirectory;
 	mReportNavigation = [this](const CString& message) {
@@ -1277,7 +1275,7 @@ void CThumbnailPane::RecycleSelected()
 			pane.QueueVisibleThumbs();
 		}
 	} finish{*this};
-	if (!mConfirmRecycle(paths.size()) || mNavigationBusy || generation != mGen.load() || folder != mFolder) return;
+	if (!mConfirmRecycle(paths) || mNavigationBusy || generation != mGen.load() || folder != mFolder) return;
 
 	std::vector<CString> before;
 	for (int i = 0; i < int(mEntries.size()); ++i) if (IsMediaEntry(i)) before.push_back(mEntries[i].path);
@@ -1343,11 +1341,7 @@ void CThumbnailPane::RecycleSelected()
 		}
 	}
 	if (!failed.empty()) {
-		CString message;
-		message.Format(_T("Moved %zu of %zu items to the Recycle Bin.\n%zu items could not be moved:"),
-			paths.size() - failed.size(), paths.size(), failed.size());
-		for (size_t i = 0; i < (std::min)(failed.size(), size_t(10)); ++i) message += _T("\n") + failed[i];
-		mReportRecycle(message);
+		mReportRecycle(q1view::RecycleResultText(results));
 	}
 }
 
