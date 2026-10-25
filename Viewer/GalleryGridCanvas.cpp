@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "GalleryGridCanvas.h"
 #include "ThumbnailPane.h"
+#include "GalleryUiaProvider.h"
 #include "MainFrm.h"
 #include "QViewerCmn.h"
 #include "QDebug.h"
@@ -36,6 +37,8 @@ BEGIN_MESSAGE_MAP(CGalleryGridCanvas, CWnd)
     ON_WM_CONTEXTMENU()
     ON_WM_MOUSEMOVE()
     ON_WM_DESTROY()
+    ON_WM_SETFOCUS()
+    ON_WM_KILLFOCUS()
     ON_MESSAGE(WM_MOUSELEAVE, OnMouseLeave)
     ON_MESSAGE(WM_DPICHANGED_AFTERPARENT, OnDpiChanged)
     ON_MESSAGE(q1view::WM_UI_TYPOGRAPHY_CHANGED, OnDpiChanged)
@@ -55,7 +58,90 @@ BOOL CGalleryGridCanvas::CreateCanvas() {
     mTooltip.Create(this, TTS_ALWAYSTIP | TTS_NOPREFIX);
     mTooltip.AddTool(this, _T(""), CRect(0, 0, 1, 1), 1);
     mTooltip.SetMaxTipWidth(600);
+    EnsureAccessibility();
     return TRUE;
+}
+void CGalleryGridCanvas::EnsureAccessibility() {
+    if (!mAccessibility) mAccessibility=std::make_unique<q1view::GalleryUiaBridge>(m_hWnd,
+        [this](q1view::GalleryAccessibleAction action, int index, double value) { return AccessibilityAction(action,index,value); });
+}
+LRESULT CGalleryGridCanvas::WindowProc(UINT message, WPARAM wp, LPARAM lp) {
+    // Accessibility can query synchronously during CreateEx, before it returns.
+    // Never cache a generic HWND proxy or replace an already-returned root.
+    if (message==WM_GETOBJECT) {
+        EnsureAccessibility();
+        const auto result=mAccessibility->GetObject(wp,lp);
+#ifdef Q1VIEW_GALLERY_TESTS
+        ++mAccessibilityQueries; mAccessibilityQuery=lp; mAccessibilityResponse=result;
+#endif
+        if (result) return result;
+    }
+    if (message==q1view::WM_GALLERY_UIA_ACTION && mAccessibility) { mAccessibility->Dispatch(wp); return 0; }
+    return CWnd::WindowProc(message,wp,lp);
+}
+void CGalleryGridCanvas::AccessibilityEntries() {
+    if (!mAccessibility) return;
+    std::vector<q1view::GalleryAccessibleEntry> entries;
+    if (mOwner.IsGrid()) {
+        entries.reserve(mOwner.mEntries.size());
+        for (int i=0;i<int(mOwner.mEntries.size());++i) {
+            const auto& entry=mOwner.mEntries[i];
+            CString name;
+            if (entry.kind==CThumbnailPane::ENTRY_PARENT) name=L"Parent folder";
+            else if (entry.kind==CThumbnailPane::ENTRY_DIR) name=Tooltip(i);
+            else name=PathFindFileName(entry.path);
+            entries.push_back({entry.path.GetString(),name.GetString(),int(entry.kind),mOwner.IsMediaEntry(i)});
+        }
+    }
+    mAccessibility->Entries(mOwner.mFolder.GetString(),std::move(entries));
+}
+void CGalleryGridCanvas::AccessibilityView(bool selection) {
+    if (!mAccessibility) return;
+    if (selection) mAccessibility->View(mLayout,mOwner.mSelection.selected,mOwner.mSelection.focus,!mOwner.mRecycleBusy && mOwner.IsGrid());
+    else mAccessibility->Layout(mLayout);
+}
+HRESULT CGalleryGridCanvas::AccessibilityAction(q1view::GalleryAccessibleAction action,int index,double value) {
+    using Action=q1view::GalleryAccessibleAction;
+    if (!mOwner.IsGrid() || mOwner.mRecycleBusy || !IsWindowVisible()) return UIA_E_ELEMENTNOTENABLED;
+    const bool item=index>=0 && index<int(mOwner.mEntries.size());
+    if (action!=Action::Focus && action!=Action::ScrollPercent && action!=Action::ScrollAmount && !item) return UIA_E_ELEMENTNOTAVAILABLE;
+    switch(action) {
+    case Action::Focus:
+        // UIA can request focus while this Viewer is in the background. Do
+        // not report thread-local Win32 focus as actual keyboard focus there.
+        if (::IsIconic(::GetAncestor(m_hWnd,GA_ROOT))) ::ShowWindow(::GetAncestor(m_hWnd,GA_ROOT),SW_RESTORE);
+        if (::GetForegroundWindow()!=::GetAncestor(m_hWnd,GA_ROOT)) ::SetForegroundWindow(::GetAncestor(m_hWnd,GA_ROOT));
+        if (::GetForegroundWindow()!=::GetAncestor(m_hWnd,GA_ROOT)) return UIA_E_INVALIDOPERATION;
+        if (item) { mOwner.mSelection.focus=index; mOwner.SyncSelection(true); }
+        SetFocus();
+        if (::GetFocus()!=m_hWnd) return UIA_E_INVALIDOPERATION;
+        break;
+    case Action::Select: mOwner.SelectIndex(index,false,false,true); break;
+    case Action::Add:
+    case Action::Remove:
+        // Ctrl-selection is media-only. Do not toggle an already-added item,
+        // or silently remove a folder to manufacture a new selection model.
+        if (!mOwner.IsMediaEntry(index)) return UIA_E_INVALIDOPERATION;
+        if (mOwner.mSelection.contains(index)!=(action==Action::Add)) mOwner.SelectIndex(index,true,false,true);
+        break;
+    case Action::Invoke: mOwner.ActivateIndex(index,true); break;
+    case Action::Reveal: mLayout.Reveal(index); UpdateScrollBar(); Invalidate(FALSE); SetTimer(DecodeTimer,90,nullptr); break;
+    case Action::ScrollPercent:
+        if (mLayout.MaxScroll()<=0) return UIA_E_INVALIDOPERATION;
+        Scroll(float(mLayout.MaxScroll()*value/100)); break;
+    case Action::ScrollAmount:
+        if (mLayout.MaxScroll()<=0 && ScrollAmount(int(value))!=ScrollAmount_NoAmount) return UIA_E_INVALIDOPERATION;
+        switch (ScrollAmount(int(value))) {
+        case ScrollAmount_LargeDecrement: Scroll(mLayout.scroll-mLayout.height); break;
+        case ScrollAmount_SmallDecrement: Scroll(mLayout.scroll-mLayout.Pitch()); break;
+        case ScrollAmount_LargeIncrement: Scroll(mLayout.scroll+mLayout.height); break;
+        case ScrollAmount_SmallIncrement: Scroll(mLayout.scroll+mLayout.Pitch()); break;
+        default: break;
+        }
+        break;
+    }
+    AccessibilityView(false);
+    return S_OK;
 }
 void CGalleryGridCanvas::ClearCache() {
     for (auto& p : mCache) if (p.second.cpu) DeleteObject(p.second.cpu);
@@ -67,6 +153,7 @@ void CGalleryGridCanvas::Reset() {
     CRect rc; GetClientRect(&rc);
     mLayout.Reset(int(mOwner.mEntries.size()), mOwner.GridColsForStep(mOwner.mViewStep),
         float(std::max(1, rc.Width())), float(std::max(1, rc.Height())), GetDpiForWindow(m_hWnd) / 96.0f);
+    AccessibilityEntries();
     Relayout(false);
 }
 void CGalleryGridCanvas::Relayout(bool animate) {
@@ -79,6 +166,7 @@ void CGalleryGridCanvas::Relayout(bool animate) {
     // Decode sizes are bounded even on very wide/high-DPI drawers.
     mOwner.mThumb = std::min(1024, std::max(16, int(std::ceil(mLayout.Pitch()))));
     UpdateScrollBar();
+    AccessibilityView(false);
     Invalidate(FALSE);
     SetTimer(AnimationTimer, 16, nullptr);
     SetTimer(DecodeTimer, 220, nullptr); // settle first, then replace low-resolution tiles
@@ -101,6 +189,7 @@ void CGalleryGridCanvas::UpdateScrollBar() {
 }
 void CGalleryGridCanvas::Scroll(float position) {
     mLayout.ScrollTo(position); UpdateScrollBar(); Invalidate(FALSE);
+    AccessibilityView(false);
     SetTimer(DecodeTimer, 90, nullptr);
 }
 void CGalleryGridCanvas::TrimCache() {
@@ -184,13 +273,14 @@ void CGalleryGridCanvas::DrawFolderCardGpu(int index, const q1view::GalleryRect&
         r.x + r.size - pad, r.y + r.size - pad);
     Ptr<IDWriteTextLayout> layout;
     if (CreateFolderTextLayout(label, labelRect.right - labelRect.left,
-        labelRect.bottom - labelRect.top, layout)) {
-        mContext->DrawTextLayout(D2D1::Point2F(labelRect.left, labelRect.top), layout.Get(), mBrush.Get());
+        labelRect.bottom - labelRect.top, layout, mOwner.mEntries[index].kind == CThumbnailPane::ENTRY_PARENT)) {
+        mContext->DrawTextLayout(D2D1::Point2F(labelRect.left, labelRect.top), layout.Get(), mBrush.Get(),
+            D2D1_DRAW_TEXT_OPTIONS_CLIP);
     }
 }
 
 bool CGalleryGridCanvas::CreateFolderTextLayout(const CString& label, float width, float height,
-    Ptr<IDWriteTextLayout>& layout) {
+    Ptr<IDWriteTextLayout>& layout, bool parent) {
     layout.Reset();
     if (!mWriteFactory || !mText || width <= 0 || height <= 0 ||
         FAILED(mWriteFactory->CreateTextLayout(label, label.GetLength(), mText.Get(), width, height, &layout)))
@@ -201,8 +291,36 @@ bool CGalleryGridCanvas::CreateFolderTextLayout(const CString& label, float widt
         layout->SetTrimming(&trimming, ellipsis.Get());
     // Fill the card with wrapped text first. DirectWrite applies the trimming
     // sign only to the final visible line when the layout height overflows.
-    layout->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+    // Preserve normal word boundaries, but break an oversized word before
+    // trimming; the legacy WRAP mode can ellipsize intermediate narrow lines.
+    layout->SetWordWrapping(DWRITE_WORD_WRAPPING_EMERGENCY_BREAK);
+    layout->SetTextAlignment(parent ? DWRITE_TEXT_ALIGNMENT_CENTER : DWRITE_TEXT_ALIGNMENT_LEADING);
+    layout->SetParagraphAlignment(parent ? DWRITE_PARAGRAPH_ALIGNMENT_CENTER : DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+    // Do not paint a fraction of a final line at enlarged text sizes. Measure
+    // actual line metrics (including fallback glyphs), not a fixed line count.
+    UINT32 count = 0;
+    layout->GetLineMetrics(nullptr, 0, &count);
+    std::vector<DWRITE_LINE_METRICS> lines(count);
+    if (!count || FAILED(layout->GetLineMetrics(lines.data(), count, &count))) { layout.Reset(); return false; }
+    float completeHeight = 0;
+    for (const auto& line : lines) {
+        if (line.height <= 0 || completeHeight + line.height > height + .01f) break;
+        completeHeight += line.height;
+    }
+    if (completeHeight <= 0) { layout.Reset(); return false; }
+    if (!parent) layout->SetMaxHeight(completeHeight);
     return true;
+}
+void CGalleryGridCanvas::DrawFolderCaptionGdi(CDC& dc, const CString& text, CRect bounds, bool parent) {
+    if (bounds.IsRectEmpty()) return;
+    TEXTMETRIC metrics{};
+    if (!dc.GetTextMetrics(&metrics) || metrics.tmHeight <= 0 || bounds.Height() < metrics.tmHeight) return;
+    if (parent) {
+        dc.DrawText(text, bounds, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    } else {
+        bounds.bottom = bounds.top + bounds.Height() / metrics.tmHeight * metrics.tmHeight;
+        dc.DrawText(text, bounds, DT_LEFT | DT_TOP | DT_WORDBREAK | DT_END_ELLIPSIS | DT_EDITCONTROL | DT_NOPREFIX);
+    }
 }
 void CGalleryGridCanvas::DrawFolderCardFallback(CDC& dc, int index, const CRect& rect) {
     dc.FillSolidRect(rect, Q1UI_COLOR_SURFACE);
@@ -211,11 +329,7 @@ void CGalleryGridCanvas::DrawFolderCardFallback(CDC& dc, int index, const CRect&
     const int pad = std::max(4, int(rect.Width() * .08f));
     CRect label = rect; label.DeflateRect(pad, pad);
     const CString text = Label(index);
-    CRect measured(0, 0, label.Width(), 0);
-    dc.DrawText(text, measured, DT_CENTER | DT_WORDBREAK | DT_CALCRECT | DT_NOPREFIX);
-    if (measured.Height() < label.Height())
-        label.top += (label.Height() - measured.Height()) / 2;
-    dc.DrawText(text, label, DT_CENTER | DT_WORDBREAK | DT_END_ELLIPSIS | DT_NOPREFIX);
+    DrawFolderCaptionGdi(dc, text, label, mOwner.mEntries[index].kind == CThumbnailPane::ENTRY_PARENT);
     dc.SelectObject(oldFont);
 }
 void CGalleryGridCanvas::DropDevice() {
@@ -476,7 +590,18 @@ void CGalleryGridCanvas::OnMouseMove(UINT, CPoint point) {
 }
 LRESULT CGalleryGridCanvas::OnMouseLeave(WPARAM, LPARAM) { mTracking = false; mHover = -1; Invalidate(FALSE); return 0; }
 LRESULT CGalleryGridCanvas::OnDpiChanged(WPARAM, LPARAM) { DropDevice(); Relayout(false); return 0; }
-void CGalleryGridCanvas::OnDestroy() { PauseAnimation(); ClearCache(); DropDevice(); CWnd::OnDestroy(); }
+void CGalleryGridCanvas::OnSetFocus(CWnd* old) {
+    CWnd::OnSetFocus(old);
+    if (mAccessibility) mAccessibility->FocusChanged();
+}
+void CGalleryGridCanvas::OnKillFocus(CWnd* next) {
+    CWnd::OnKillFocus(next);
+    if (mAccessibility) mAccessibility->FocusChanged();
+}
+void CGalleryGridCanvas::OnDestroy() {
+    if (mAccessibility) mAccessibility->Close();
+    PauseAnimation(); ClearCache(); DropDevice(); CWnd::OnDestroy();
+}
 BOOL CGalleryGridCanvas::PreTranslateMessage(MSG* message) {
     if (message->message == WM_KEYDOWN && message->wParam == VK_TAB) { mOwner.FocusPath(); return TRUE; }
     if (message->message == WM_KEYDOWN && mOwner.HandleSelectionKey(UINT(message->wParam),

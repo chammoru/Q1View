@@ -8,6 +8,20 @@ All notable changes to Q1View are documented here. Releases follow [semantic ver
 
 ---
 
+## [2.8.4] — 2026-10-25
+
+### Changed
+
+- Windows Viewer: align Gallery folder and drive names at the top left while keeping [..] centered; retain existing card sizes and fonts and avoid drawing partial final caption lines. (part of #122)
+
+- Windows Viewer: expose full Gallery folder and file names, focus, selection and existing open/scroll actions through Windows UI Automation, with safe invalidation of removed or replaced items. (part of #122)
+
+### Fixed
+
+- Windows Viewer: retain image zoom, pan, rotation, selection regions and paused/playing frame state when recycling the displayed file fails; preserve Browse keyboard focus after successful deletion and reset the status bar when the last image is removed.
+
+---
+
 ## [2.8.3] — 2026-10-19
 
 ### Changed
@@ -547,7 +561,8 @@ Native display checks passed at 100–175%; 200% layout/font calculations passed
 
 ---
 
-[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.3...HEAD
+[Unreleased]: https://github.com/chammoru/Q1View/compare/v2.8.4...HEAD
+[2.8.4]: https://github.com/chammoru/Q1View/compare/v2.8.3...v2.8.4
 [2.8.3]: https://github.com/chammoru/Q1View/compare/v2.8.2...v2.8.3
 [2.8.2]: https://github.com/chammoru/Q1View/compare/v2.8.1...v2.8.2
 [2.8.1]: https://github.com/chammoru/Q1View/compare/v2.8.0...v2.8.1

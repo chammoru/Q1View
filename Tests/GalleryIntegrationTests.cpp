@@ -9,6 +9,7 @@
 #include "../Viewer/Y4mReaderWin.h"
 #include "../Viewer/ThumbnailPane.h"
 #include "../Viewer/GalleryGridCanvas.h"
+#include "../Viewer/GalleryUiaProvider.h"
 #include "QViewerCmn.h"
 #include "QImageStr.h"
 #include "QCvUtil.h"
@@ -23,6 +24,21 @@
 #include <functional>
 #include <opencv2/videoio.hpp>
 #include "WindowsUiPaintTestProbe.h"
+#include <UIAutomation.h>
+#include <future>
+#include <wrl/implements.h>
+
+struct GalleryUiaEvents : Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,
+    IUIAutomationEventHandler, IUIAutomationStructureChangedEventHandler, IUIAutomationFocusChangedEventHandler, Microsoft::WRL::FtmBase> {
+    std::atomic<int> selection{0}, structure{0}, focus{0};
+    IFACEMETHODIMP HandleAutomationEvent(IUIAutomationElement*,EVENTID) override { ++selection; return S_OK; }
+    IFACEMETHODIMP HandleStructureChangedEvent(IUIAutomationElement*,StructureChangeType,SAFEARRAY*) override { ++structure; return S_OK; }
+    IFACEMETHODIMP HandleFocusChangedEvent(IUIAutomationElement* sender) override {
+        CComBSTR framework;
+        if (SUCCEEDED(sender->get_CurrentFrameworkId(&framework)) && framework && wcscmp(framework,L"Q1View")==0) ++focus;
+        return S_OK;
+    }
+};
 
 struct GalleryIntegrationTests {
     FILE* report = nullptr;
@@ -52,6 +68,344 @@ struct GalleryIntegrationTests {
         double end = CGalleryGridCanvas::Now() + 10;
         while (!predicate() && CGalleryGridCanvas::Now() < end) Pump(.05);
         Require(predicate(), text);
+    }
+    void AccessibilityTests(CMainFrame* frame, const CString& fixture) {
+        auto& pane=*frame->mpDrawer;
+        auto& grid=*pane.mGrid;
+        const CString oldFolder=pane.mFolder;
+        const int oldStep=pane.mViewStep;
+        wchar_t temp[MAX_PATH]; GetTempPathW(MAX_PATH,temp);
+        CString root; root.Format(L"%sQ1View-uia-%lu-%llu\\",temp,GetCurrentProcessId(),GetTickCount64());
+        Require(CreateDirectoryW(root,nullptr)!=FALSE,"UIA fixtures use an isolated directory, not user media");
+        const CString longName=L"[Literal] A&B \uD55C\uAE00 English folder name that wraps without shortening the accessible name";
+        const CString koreanName=L"\uC544\uC8FC \uAE34 \uD55C\uAE00 \uD3F4\uB354\uBA85 \uC5EC\uD589 \uC0AC\uC9C4 \uC6D0\uBCF8\uACFC \uBCF4\uC815\uBCF8 \uBAA8\uC74C \uB9C8\uC9C0\uB9C9 \uAE00\uC790\uAE4C\uC9C0 \uC77D\uC744 \uC218 \uC788\uC5B4\uC57C \uD558\uB294 \uC774\uB984";
+        const CString emojiName=L"\U0001f4f7 cafe\u0301 \uC0AC\uC9C4 \U0001f1e8\U0001f1e6";
+        std::vector<CString> folders;
+        for(int i=0;i<1200;++i) {
+            CString name; name.Format(L"folder-%03d",i);
+            if(i==0)name=longName;
+            if(i==1)name=koreanName;
+            if(i==2)name=emojiName;
+            folders.push_back(root+name);
+            Require(CreateDirectoryW(folders.back(),nullptr)!=FALSE,"UIA folder fixture created");
+        }
+        const CString firstFile=root+L"first original.png",secondFile=root+L"second \uC0AC\uC9C4.png";
+        Require(CopyFileW(fixture,firstFile,TRUE) && CopyFileW(fixture,secondFile,TRUE),"UIA media fixtures copied from the repository");
+        pane.ApplyViewStep(3,false); pane.NavigateTo(root);
+        Await([&] { return !pane.mNavigationBusy && pane.mFolder==root; },"UIA fixture metadata committed");
+        Pump(.4);
+        const HWND window=grid.GetSafeHwnd();
+        const HWND frameWindow=frame->GetSafeHwnd();
+        frame->SetForegroundWindow();
+        Await([&] { return ::GetForegroundWindow()==frame->GetSafeHwnd(); },"Viewer is foreground before keyboard-focus acceptance");
+        const int count=int(pane.mEntries.size());
+        Require(count==1203 && pane.GetItemCount()==0,"UIA Gallery has over a thousand folders and files but no native list rows");
+        const int liveProviders=grid.mAccessibility->LiveProviders();
+        fprintf(report,"UIA LAZY: entries=%d liveProviders=%d\n",count,liveProviders);
+        Require(liveProviders<64,"committing 1203 entries does not eagerly allocate a provider for every entry");
+        unsigned childWindows=0;
+        for(HWND child=::GetWindow(window,GW_CHILD);child;child=::GetWindow(child,GW_HWNDNEXT))++childWindows;
+        Require(childWindows<10,"Gallery does not allocate per-card HWNDs for a large folder");
+        auto* doc=static_cast<CViewerDoc*>(frame->GetActiveDocument());
+        const CString source=doc->mPathName;
+        const unsigned open=doc->mOpenGeneration;
+        const unsigned generation=pane.mGen.load();
+        const auto entries=pane.mEntries.data();
+        // A separate MTA client calls the public UIA API. The UI thread pumps
+        // normally; test-only mutations are handed back through this queue.
+        std::mutex queueMutex;
+        std::function<void()> queued;
+        auto onUi=[&](std::function<void()> action) {
+            auto promise=std::make_shared<std::promise<void>>(); auto result=promise->get_future();
+            { std::lock_guard<std::mutex> lock(queueMutex); queued=[promise,action] { try { action(); promise->set_value(); } catch(...) { promise->set_exception(std::current_exception()); } }; }
+            result.get();
+        };
+        std::atomic<bool> done{false};
+        std::exception_ptr failure;
+        std::unique_ptr<CGalleryGridCanvas> disposable;
+        std::thread client([&] {
+            const HRESULT initialized=CoInitializeEx(nullptr,COINIT_MULTITHREADED);
+            try {
+                using Microsoft::WRL::ComPtr;
+                Require(SUCCEEDED(initialized),"UIA client initialized on a separate MTA thread");
+                ComPtr<IUIAutomation> automation;
+                Require(SUCCEEDED(CoCreateInstance(CLSID_CUIAutomation,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&automation))),"real Windows UIA client created");
+                ComPtr<IUIAutomation2> timeouts;
+                if(SUCCEEDED(automation.As(&timeouts))) { timeouts->put_ConnectionTimeout(3000); timeouts->put_TransactionTimeout(3000); }
+                ComPtr<IUIAutomationElement> list;
+                ComPtr<IUIAutomationElement> frameElement;
+                Require(SUCCEEDED(automation->ElementFromHandle(frameWindow,&frameElement)),"UIA client discovers the own Viewer window");
+                VARIANT galleryId{}; galleryId.vt=VT_BSTR; galleryId.bstrVal=SysAllocString(L"ThumbnailGallery");
+                ComPtr<IUIAutomationCondition> galleryCondition;
+                automation->CreatePropertyCondition(UIA_AutomationIdPropertyId,galleryId,&galleryCondition); VariantClear(&galleryId);
+                Require(SUCCEEDED(frameElement->FindFirst(TreeScope_Descendants,galleryCondition.Get(),&list)) && list,"the actual Viewer accessibility tree exposes the Gallery provider");
+                CONTROLTYPEID type=0; const HRESULT typeResult=list->get_CurrentControlType(&type);
+                CComBSTR rootName,rootFramework; list->get_CurrentName(&rootName); list->get_CurrentFrameworkId(&rootFramework);
+                fprintf(report,"UIA ROOT: type=%d hr=%08lx name=%ls framework=%ls\n",type,typeResult,rootName?rootName.m_str:L"",rootFramework?rootFramework.m_str:L""); fflush(report);
+                onUi([&] { fprintf(report,"UIA HWND: queries=%u object=%lld response=%lld %ls\n",grid.mAccessibilityQueries,static_cast<long long>(grid.mAccessibilityQuery),static_cast<long long>(grid.mAccessibilityResponse),grid.mAccessibility->Diagnostics().c_str()); fflush(report); });
+                Require(type==UIA_ListControlTypeId,"Gallery root is an accessible List");
+                auto events=Microsoft::WRL::Make<GalleryUiaEvents>();
+                Require(SUCCEEDED(automation->AddAutomationEventHandler(UIA_SelectionItem_ElementSelectedEventId,list.Get(),TreeScope_Subtree,nullptr,events.Get())) &&
+                    SUCCEEDED(automation->AddStructureChangedEventHandler(list.Get(),TreeScope_Subtree,nullptr,events.Get())) &&
+                    SUCCEEDED(automation->AddFocusChangedEventHandler(nullptr,events.Get())),"UIA selection, structure and focus subscriptions registered on the MTA");
+                struct Unsubscribe { IUIAutomation* automation; ~Unsubscribe(){automation->RemoveAllEventHandlers();} } unsubscribe{automation.Get()};
+                VARIANT value{}; value.vt=VT_I4; value.lVal=UIA_ListItemControlTypeId;
+                ComPtr<IUIAutomationCondition> condition; automation->CreatePropertyCondition(UIA_ControlTypePropertyId,value,&condition);
+                ComPtr<IUIAutomationElementArray> children;
+                Require(SUCCEEDED(list->FindAll(TreeScope_Children,condition.Get(),&children)),"all committed entries can be queried, including offscreen entries");
+                int length=0; children->get_Length(&length);
+                Require(length==count,"folders, parent and media are all present in the UIA fragment");
+                ComPtr<IUIAutomationElement> parent,folder,file,other;
+                bool korean=false,emoji=false;
+                for(int i=0;i<length;++i) {
+                    ComPtr<IUIAutomationElement> item; children->GetElement(i,&item);
+                    CComBSTR name; Require(SUCCEEDED(item->get_CurrentName(&name)),"UIA Name can be read without activating an entry");
+                    if(wcscmp(name,L"Parent folder")==0)parent=item;
+                    if(wcscmp(name,longName)==0)folder=item;
+                    if(wcscmp(name,L"first original.png")==0)file=item;
+                    if(wcscmp(name,L"second \uC0AC\uC9C4.png")==0)other=item;
+                    korean=korean || wcscmp(name,koreanName)==0;
+                    emoji=emoji || wcscmp(name,emojiName)==0;
+                }
+                Require(parent && folder && file && other,"UIA keeps literal brackets, ampersands, full Korean/English names and filenames rather than extension badges");
+                Require(korean && emoji,"UIA also preserves long Korean names, surrogate pairs and combining characters exactly");
+                BOOL offscreen=FALSE; file->get_CurrentIsOffscreen(&offscreen);
+                Require(offscreen!=FALSE,"an unrevealed last-row file is correctly offscreen");
+                onUi([&] { Require(pane.mEntries.data()==entries && pane.mGen==generation && doc->mPathName==source && doc->mOpenGeneration==open && grid.mLayout.scroll==0,
+                    "metadata queries do not rebuild, navigate, open or scroll the Gallery");
+                    std::lock_guard<std::mutex> lock(pane.mMutex);
+                    Require(pane.mTasks.empty() && pane.mOutstanding==0 && grid.mCache.empty(),"reading offscreen names does not schedule or decode their thumbnails"); });
+                ComPtr<IUIAutomationSelectionPattern> selection;
+                Require(SUCCEEDED(list->GetCurrentPatternAs(UIA_SelectionPatternId,IID_PPV_ARGS(&selection))),"List exposes Selection pattern");
+                BOOL multiple=FALSE; selection->get_CurrentCanSelectMultiple(&multiple);
+                Require(multiple!=FALSE,"selection container reports the existing multi-media selection model");
+                ComPtr<IUIAutomationSelectionItemPattern> folderSelection,fileSelection,otherSelection;
+                folder->GetCurrentPatternAs(UIA_SelectionItemPatternId,IID_PPV_ARGS(&folderSelection));
+                file->GetCurrentPatternAs(UIA_SelectionItemPatternId,IID_PPV_ARGS(&fileSelection));
+                other->GetCurrentPatternAs(UIA_SelectionItemPatternId,IID_PPV_ARGS(&otherSelection));
+                Require(folderSelection && fileSelection && otherSelection,"Gallery items expose SelectionItem patterns");
+                Require(SUCCEEDED(folderSelection->Select()),"UIA single-selects a folder using the existing command path");
+                VARIANT selectionProperty{};
+                Require(SUCCEEDED(folder->GetCurrentPropertyValue(UIA_SelectionItemIsSelectedPropertyId,&selectionProperty)) && selectionProperty.vt==VT_BOOL && selectionProperty.boolVal==VARIANT_TRUE,
+                    "generic UIA property queries agree with SelectionItem state");
+                VariantClear(&selectionProperty);
+                Require(folderSelection->AddToSelection()==UIA_E_INVALIDOPERATION,"UIA cannot add folders to a media batch");
+                Require(SUCCEEDED(fileSelection->Select()) && SUCCEEDED(otherSelection->AddToSelection()) && SUCCEEDED(otherSelection->AddToSelection()),"UIA media add is multi-select and idempotent, not a toggle");
+                ComPtr<IUIAutomationElementArray> selected; selection->GetCurrentSelection(&selected); selected->get_Length(&length);
+                Require(length==2,"UIA selection reports exactly the two media files");
+                Require(SUCCEEDED(folder->SetFocus()),"UIA can focus an unselected folder without changing selection");
+                BOOL selectedFolder=TRUE,focused=FALSE; folderSelection->get_CurrentIsSelected(&selectedFolder); folder->get_CurrentHasKeyboardFocus(&focused);
+                Require(!selectedFolder && focused,"keyboard focus and selected state remain distinct");
+                ComPtr<IUIAutomationElement> focusedElement;
+                BOOL sameFocus=FALSE;
+                Require(SUCCEEDED(automation->GetFocusedElement(&focusedElement)) && focusedElement &&
+                    SUCCEEDED(automation->CompareElements(folder.Get(),focusedElement.Get(),&sameFocus)) && sameFocus,
+                    "global UIA focus resolves to the actual Gallery item, not the HWND or path header");
+                int keyboardIndex=-1;
+                onUi([&] { Require(pane.HandleSelectionKey(VK_RIGHT,true,false),"the real Ctrl+Right handler moves Gallery focus"); keyboardIndex=pane.mSelection.focus; });
+                ComPtr<IUIAutomationElement> keyboardItem; children->GetElement(keyboardIndex,&keyboardItem);
+                focusedElement.Reset(); sameFocus=FALSE;
+                Require(SUCCEEDED(automation->GetFocusedElement(&focusedElement)) && focusedElement &&
+                    SUCCEEDED(automation->CompareElements(keyboardItem.Get(),focusedElement.Get(),&sameFocus)) && sameFocus,
+                    "UIA follows Ctrl+arrow keyboard focus independently of media selection");
+                selected.Reset(); selection->GetCurrentSelection(&selected); selected->get_Length(&length);
+                Require(length==2,"Ctrl+arrow focus movement leaves the media selection intact");
+                Require(SUCCEEDED(otherSelection->RemoveFromSelection()) && SUCCEEDED(otherSelection->RemoveFromSelection()),"UIA removal is idempotent and uses existing media-selection rules");
+                ComPtr<IUIAutomationScrollItemPattern> scrollItem;
+                file->GetCurrentPatternAs(UIA_ScrollItemPatternId,IID_PPV_ARGS(&scrollItem));
+                Require(scrollItem && SUCCEEDED(scrollItem->ScrollIntoView()),"explicit UIA ScrollItem reveals an offscreen file");
+                file->get_CurrentIsOffscreen(&offscreen); RECT bounds{}; file->get_CurrentBoundingRectangle(&bounds);
+                Require(!offscreen && bounds.right>bounds.left && bounds.bottom>bounds.top,"revealed items expose real screen bounds");
+                ComPtr<IUIAutomationScrollPattern> scroll;
+                Require(SUCCEEDED(list->GetCurrentPatternAs(UIA_ScrollPatternId,IID_PPV_ARGS(&scroll))) && SUCCEEDED(scroll->SetScrollPercent(UIA_ScrollPatternNoScroll,0)),"UIA container scrolling uses the existing scroll path");
+                CComBSTR identity; folder->get_CurrentAutomationId(&identity);
+                SAFEARRAY* runtimeBefore=nullptr; folder->GetRuntimeId(&runtimeBefore);
+                onUi([&] { pane.ApplyViewStep(4,false); grid.DropDevice(); grid.Relayout(false); });
+                CComBSTR after; Require(SUCCEEDED(folder->get_CurrentAutomationId(&after)) && wcscmp(identity,after)==0,"resize, grid-size changes and GPU recreation preserve item identity");
+                SAFEARRAY* runtimeAfter=nullptr; folder->GetRuntimeId(&runtimeAfter); BOOL equal=FALSE;
+                automation->CompareRuntimeIds(runtimeBefore,runtimeAfter,&equal); SafeArrayDestroy(runtimeBefore); SafeArrayDestroy(runtimeAfter);
+                Require(equal!=FALSE,"UIA runtime identity also survives layout/device changes");
+                onUi([&] { Pump(.2); Require(events->selection>0 && events->focus>0,"actual UIA clients receive selection and keyboard-focus events"); });
+                const int selectionEvents=events->selection,focusEvents=events->focus,structureEvents=events->structure;
+                onUi([&] { for(int i=0;i<12;++i)grid.OnMouseMove(0,CPoint(2+i,2+i)); grid.Invalidate(FALSE); Pump(.2); });
+                Require(events->selection==selectionEvents && events->focus==focusEvents && events->structure==structureEvents,"hover and repaint do not flood selection, focus or structure events");
+                onUi([&] { frame->ShowWindow(SW_MINIMIZE); });
+                BOOL rootOffscreen=FALSE,itemOffscreen=FALSE;
+                list->get_CurrentIsOffscreen(&rootOffscreen); folder->get_CurrentIsOffscreen(&itemOffscreen);
+                Require(rootOffscreen && itemOffscreen,"a minimized Viewer exposes both the Gallery and its items as offscreen");
+                onUi([&] { frame->ShowWindow(SW_RESTORE); frame->SetForegroundWindow(); });
+                onUi([&] {
+                    const auto reporter=pane.mReportNavigation;
+                    struct RestoreReporter { CThumbnailPane& pane; std::function<void(const CString&)> reporter; ~RestoreReporter(){pane.mReportNavigation=reporter;} } restore{pane,reporter};
+                    pane.mReportNavigation=[](const CString&) {};
+                    pane.NavigateTo(root+L"missing-directory\\");
+                    Await([&] { return !pane.mNavigationBusy; },"failed navigation completes without replacing the committed UIA snapshot");
+                });
+                CComBSTR afterFailure;
+                Require(SUCCEEDED(folder->get_CurrentAutomationId(&afterFailure)) && wcscmp(identity,afterFailure)==0,"failed navigation preserves existing accessible item identity");
+                // Refresh retains existing path/kind IDs, but removed entries
+                // must never retarget a new file that reuses their index.
+                onUi([&] { Require(DeleteFileW(secondFile)!=FALSE,"remove an owned fixture for stale-element testing"); pane.RefreshDirectoryContents();
+                    Await([&] { return !pane.mNavigationBusy && int(pane.mEntries.size())==count-1; },"watcher/refresh commits the removed file");
+                    Require(CopyFileW(fixture,secondFile,TRUE)!=FALSE,"recreate the owned file after committed removal, reusing its path and index");
+                    pane.RefreshDirectoryContents();
+                    Await([&] { return !pane.mNavigationBusy && int(pane.mEntries.size())==count; },"the replacement entry commits before stale references are queried"); });
+                CComBSTR stale;
+                Require(other->get_CurrentName(&stale)==UIA_E_ELEMENTNOTAVAILABLE && otherSelection->Select()==UIA_E_ELEMENTNOTAVAILABLE,"removed nodes fail explicitly instead of selecting a replacement index");
+                Require(SUCCEEDED(folder->get_CurrentName(&stale)),"unchanged items survive a same-folder refresh");
+                onUi([&] { pane.mRecycleBusy=true; grid.AccessibilityView(); });
+                Require(fileSelection->Select()==UIA_E_ELEMENTNOTENABLED,"UIA cannot bypass the pane's recycle-busy guard");
+                onUi([&] { pane.mRecycleBusy=false; grid.AccessibilityView(); });
+                ComPtr<IUIAutomationInvokePattern> invoke;
+                folder->GetCurrentPatternAs(UIA_InvokePatternId,IID_PPV_ARGS(&invoke));
+                Require(invoke && SUCCEEDED(invoke->Invoke()),"UIA Invoke delegates to the existing deferred folder activation");
+                onUi([&] { Await([&] { return !pane.mNavigationBusy && pane.mFolder==folders.front()+L"\\"; },"UIA Invoke navigates to the intended folder"); });
+                BOOL canScroll=TRUE; scroll->get_CurrentVerticallyScrollable(&canScroll);
+                Require(!canScroll && scroll->SetScrollPercent(UIA_ScrollPatternNoScroll,50)==UIA_E_INVALIDOPERATION &&
+                    scroll->Scroll(ScrollAmount_NoAmount,ScrollAmount_SmallIncrement)==UIA_E_INVALIDOPERATION,
+                    "a non-scrollable folder rejects forced UIA scrolling rather than claiming success");
+                Require(file->get_CurrentName(&stale)==UIA_E_ELEMENTNOTAVAILABLE && fileSelection->Select()==UIA_E_ELEMENTNOTAVAILABLE,"navigation invalidates old-folder providers");
+                std::vector<CString> drives;
+                onUi([&] { Pump(.2); Require(events->structure>0,"committed membership changes raise UIA structure notifications");
+                    pane.NavigateTo(L""); Await([&] { return !pane.mNavigationBusy && pane.mFolder.IsEmpty(); },"UIA drive chooser metadata committed");
+                    for(const auto& entry:pane.mEntries)drives.push_back(entry.path); });
+                ComPtr<IUIAutomationElementArray> driveItems; list->FindAll(TreeScope_Children,condition.Get(),&driveItems);
+                driveItems->get_Length(&length); Require(length==int(drives.size()) && length>0,"UIA drive chooser exposes the committed logical-drive entries");
+                for(int i=0;i<length;++i) {
+                    ComPtr<IUIAutomationElement> drive; driveItems->GetElement(i,&drive); CComBSTR name; drive->get_CurrentName(&name);
+                    Require(name && wcscmp(name,drives[i])==0,"accessible drive names retain the root backslash without decorative brackets");
+                }
+                onUi([&] { pane.ApplyViewStep(0,false); });
+                Require(folder->get_CurrentName(&stale)==UIA_E_ELEMENTNOTAVAILABLE,"switching to native List invalidates Gallery items");
+                // Own disposable canvas: exercise destruction without closing
+                // the real Viewer or any user windows.
+                HWND disposableWindow=nullptr;
+                onUi([&] { disposable=std::make_unique<CGalleryGridCanvas>(pane); Require(disposable->CreateCanvas()!=FALSE,"disposable own canvas created");
+                    disposable->MoveWindow(pane.GridViewport()); disposable->ShowWindow(SW_SHOW); disposableWindow=disposable->GetSafeHwnd(); });
+                ComPtr<IUIAutomationElement> closed;
+                VARIANT nativeHandle{}; nativeHandle.vt=VT_I4; nativeHandle.lVal=HandleToLong(disposableWindow);
+                ComPtr<IUIAutomationCondition> handleCondition,disposableCondition;
+                automation->CreatePropertyCondition(UIA_NativeWindowHandlePropertyId,nativeHandle,&handleCondition);
+                automation->CreateAndCondition(galleryCondition.Get(),handleCondition.Get(),&disposableCondition);
+                Require(SUCCEEDED(frameElement->FindFirst(TreeScope_Descendants,disposableCondition.Get(),&closed)) && closed,"UIA retains the actual disposable own-window provider from the Viewer tree");
+                CONTROLTYPEID closedType=0; closed->get_CurrentControlType(&closedType);
+                Require(closedType==UIA_ListControlTypeId,"destruction test retains a custom Gallery List, not just a generic HWND proxy");
+                onUi([&] { disposable->DestroyWindow(); disposable.reset(); });
+                Require(closed->get_CurrentName(&stale)==UIA_E_ELEMENTNOTAVAILABLE,"destroyed canvas providers fail safely after window destruction");
+            } catch(...) { failure=std::current_exception(); }
+            if(SUCCEEDED(initialized)) CoUninitialize();
+            done=true;
+        });
+        while(!done) Pump(.01,[&] { std::function<void()> action; { std::lock_guard<std::mutex> lock(queueMutex); action=std::move(queued); } if(action)action(); });
+        client.join();
+        if(disposable) { disposable->DestroyWindow(); disposable.reset(); }
+        pane.ApplyViewStep(oldStep,false); pane.NavigateTo(oldFolder);
+        Await([&] { return !pane.mNavigationBusy && pane.mFolder==oldFolder; },"UIA tests restore the previous Gallery folder");
+        DeleteFileW(firstFile); DeleteFileW(secondFile);
+        for(const auto& path:folders)RemoveDirectoryW(path); RemoveDirectoryW(root);
+        if(failure)std::rethrow_exception(failure);
+    }
+    void FolderCaptionTests(CMainFrame* frame) {
+        auto& pane = *frame->mpDrawer;
+        auto& grid = *pane.mGrid;
+        const int oldStep = pane.mViewStep;
+        pane.ApplyViewStep(3, false); Pump(.1);
+        CRect viewport; grid.GetClientRect(viewport);
+        Require(grid.EnsureDevice(viewport.Width(), viewport.Height()), "folder caption checks use the real DirectWrite factory and bundled font");
+        const auto originalFormat = grid.mText;
+        struct Restore { std::function<void()> action; ~Restore() { action(); } } restore{
+            [&] { grid.mText = originalFormat; pane.ApplyViewStep(oldStep, false); }
+        };
+        const CString names[] = {
+            L"[Short]",
+            L"[\uAE34 \uD55C\uAE00 \uD3F4\uB354\uBA85 \uC5EC\uD589 \uC0AC\uC9C4 \uC6D0\uBCF8 \uBCF4\uC815 \uBAA8\uC74C]",
+            L"[This is a very long English folder name with spaces that should wrap before the final visible ellipsis]",
+            L"[ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345678901234567890123456789]",
+            L"[2026 \uCE90\uB098\uB2E4 Canada \uC5EC\uD589 Original photos 012345678901234567890123456789]",
+            L"[\U0001f4f7 cafe\u0301 \uC0AC\uC9C4 \U0001f1e8\U0001f1e6 \uBCF4\uC815 \U0001f4f7 cafe\u0301 original photos]",
+            L"[[Literal brackets] A&B && \uD3F4\uB354]"
+        };
+        CClientDC source(&grid);
+        CDC dc; dc.CreateCompatibleDC(&source);
+        BITMAPINFO info{}; info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+        info.bmiHeader.biWidth=512; info.bmiHeader.biHeight=-512; info.bmiHeader.biPlanes=1;
+        info.bmiHeader.biBitCount=32; info.bmiHeader.biCompression=BI_RGB;
+        void* raw=nullptr;
+        CBitmap bitmap; bitmap.Attach(CreateDIBSection(dc,&info,DIB_RGB_COLORS,&raw,nullptr,0));
+        Require(bitmap.GetSafeHandle() && raw, "fallback caption checks allocate an isolated bitmap, not desktop pixels");
+        CBitmap* oldBitmap=dc.SelectObject(&bitmap);
+        struct RestoreBitmap { CDC& dc; CBitmap* old; ~RestoreBitmap(){dc.SelectObject(old);} } restoreBitmap{dc,oldBitmap};
+        const auto pixels=static_cast<DWORD*>(raw);
+        for(UINT dpi : {96u,120u,144u,192u}) for(double scale : {1.0,1.5,2.0}) {
+            const float fontSize=float(q1view::WindowsUiPixels(13,dpi,scale));
+            Require(SUCCEEDED(grid.mWriteFactory->CreateTextFormat(pane.mFontFamily,grid.mFontCollection.Get(),DWRITE_FONT_WEIGHT_MEDIUM,
+                DWRITE_FONT_STYLE_NORMAL,DWRITE_FONT_STRETCH_NORMAL,fontSize,L"ko-kr",&grid.mText)), "caption matrix creates the unchanged medium caption font");
+            grid.mText->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+            grid.mText->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+            for(int drawer : {210,360}) for(int columns=1;columns<=5;++columns) {
+                const float edge=float(drawer)*dpi/96/columns-float(dpi)/96;
+                const float pad=std::max(4.f,edge*.08f), available=edge-2*pad;
+                for(const CString& name : names) {
+                    Microsoft::WRL::ComPtr<IDWriteTextLayout> layout;
+                    const bool created=grid.CreateFolderTextLayout(name,available,available,layout);
+                    if(!created) {
+                        Microsoft::WRL::ComPtr<IDWriteTextLayout> probe;
+                        grid.mWriteFactory->CreateTextLayout(name,name.GetLength(),grid.mText.Get(),available,10000,&probe);
+                        UINT32 count=0; probe->GetLineMetrics(nullptr,0,&count);
+                        std::vector<DWRITE_LINE_METRICS> lines(count); probe->GetLineMetrics(lines.data(),count,&count);
+                        Require(count && lines.front().height>available,"too-small cards suppress partial glyph rows without reducing font size");
+                        continue;
+                    }
+                    DWRITE_TEXT_METRICS metrics{}; layout->GetMetrics(&metrics);
+                    FLOAT actualFontSize=0; layout->GetFontSize(0,&actualFontSize);
+                    UINT32 count=0; layout->GetLineMetrics(nullptr,0,&count);
+                    std::vector<DWRITE_LINE_METRICS> lines(count); layout->GetLineMetrics(lines.data(),count,&count);
+                    // DirectWrite may retain zero-height clipped logical lines.
+                    // The last *visible* line, not vector.back(), must trim.
+                    float height=0; UINT32 visible=0;
+                    for(const auto& line : lines) {
+                        if(line.height<=0 || height+line.height>layout->GetMaxHeight()+.02f) break;
+                        height+=line.height; ++visible;
+                    }
+                    for(UINT32 i=0;i<visible;++i) {
+                        if(lines[i].isTrimmed && i!=visible-1) fprintf(report,"CAPTION: dpi=%u scale=%.1f drawer=%d columns=%d name=%d row=%u visible=%u logical=%u maxHeight=%.3f lineHeight=%.3f\n",
+                            dpi,scale,drawer,columns,int(&name-names),i,visible,count,layout->GetMaxHeight(),lines[i].height);
+                        Require(!lines[i].isTrimmed || i==visible-1,"only the final visible caption line can have an ellipsis");
+                    }
+                    if(visible<count) Require(visible && lines[visible-1].isTrimmed,"overflow text trims at the final visible line, not a clipped logical line");
+                    Require(layout->GetTextAlignment()==DWRITE_TEXT_ALIGNMENT_LEADING && layout->GetParagraphAlignment()==DWRITE_PARAGRAPH_ALIGNMENT_NEAR &&
+                        std::abs(metrics.left)<.01f && std::abs(metrics.top)<.01f && height<=available+.02f &&
+                        layout->GetMaxHeight()<=available+.02f && actualFontSize==fontSize,
+                        "ordinary Korean/English/unbroken/mixed captions are top-left aligned inside complete rows at every size and text scale");
+                    Require(visible>=1,"trimmed layouts retain a complete visible line");
+                }
+            }
+            Microsoft::WRL::ComPtr<IDWriteTextLayout> parent;
+            Require(grid.CreateFolderTextLayout(L"[..]",200,180,parent,true) && parent->GetTextAlignment()==DWRITE_TEXT_ALIGNMENT_CENTER &&
+                parent->GetParagraphAlignment()==DWRITE_PARAGRAPH_ALIGNMENT_CENTER && grid.mText->GetTextAlignment()==DWRITE_TEXT_ALIGNMENT_CENTER &&
+                grid.mText->GetParagraphAlignment()==DWRITE_PARAGRAPH_ALIGNMENT_CENTER,
+                "only parent captions stay centered; per-layout alignment never mutates the shared format");
+            CFont font; const LOGFONT lf=q1view::WindowsUiLogFont(q1view::WindowsUiFontRole::Folder,dpi,scale);
+            font.CreateFontIndirect(&lf); q1view::WindowsUiDcState fontState(dc.GetSafeHdc()); dc.SelectObject(&font);
+            TEXTMETRIC tm{}; dc.GetTextMetrics(&tm);
+            for(const CString& name : names) for(bool centered : {false,true}) {
+                dc.FillSolidRect(0,0,512,512,RGB(255,255,255)); dc.SetBkMode(TRANSPARENT); dc.SetTextColor(RGB(0,0,0));
+                const CRect bounds(12,14,232,14+tm.tmHeight*3+tm.tmHeight/2);
+                const CString text=centered ? CString(L"[..]") : name, saved=text;
+                grid.DrawFolderCaptionGdi(dc,text,bounds,centered); GdiFlush();
+                int left=512,top=512,right=-1,bottom=-1;
+                bool inside=true;
+                for(int y=0;y<bounds.bottom+4;++y) for(int x=0;x<bounds.right+4;++x) if((pixels[y*512+x]&0xffffff)!=0xffffff) {
+                    left=std::min(left,x);top=std::min(top,y);right=std::max(right,x);bottom=std::max(bottom,y);
+                    inside=inside && bounds.PtInRect(CPoint(x,y));
+                }
+                Require(inside && right>=left && bottom>=top && text==saved,"GDI captions stay inside their text bounds and preserve literal Unicode names");
+                if(centered) Require(std::abs((left+right)/2-bounds.CenterPoint().x)<fontSize/2 &&
+                    std::abs((top+bottom)/2-bounds.CenterPoint().y)<fontSize/2,"GDI parent caption stays horizontally and vertically centered");
+                else Require(left<bounds.left+fontSize/2 && top<bounds.top+tm.tmHeight/2 && bottom<bounds.top+tm.tmHeight*3,
+                    "GDI ordinary captions start at top left and leave the partial final row unpainted");
+            }
+        }
     }
     void BrowserNavigationTests(CMainFrame* frame, const CString& fixture) {
         auto& pane = *frame->mpDrawer;
@@ -261,6 +615,10 @@ struct GalleryIntegrationTests {
         auto* view = static_cast<CViewerView*>(frame->GetActiveView());
         const auto confirm = pane.mConfirmRecycle;
         const auto reportFailure = pane.mReportRecycle;
+        struct RestoreAutoplay {
+            bool enabled = theApp.IsVideoAutoplayEnabled();
+            ~RestoreAutoplay() { theApp.SetVideoAutoplayEnabled(enabled); }
+        } restoreAutoplay;
         wchar_t temp[MAX_PATH]; GetTempPathW(MAX_PATH, temp);
         CString root; root.Format(L"%sQ1View-recycle-%lu-%llu\\", temp, GetCurrentProcessId(), GetTickCount64());
         Require(CreateDirectoryW(root, nullptr) != FALSE, "isolated recycle fixture created");
@@ -458,21 +816,49 @@ struct GalleryIntegrationTests {
             Require(AfxGetApp()->OpenDocumentFile(files[1]) != nullptr, "active recycle photo opened"); Pump(.05);
             pane.SetCurrentFile(files[1]);
 #ifdef _WIN32
+            doc->Rotate90();
+            frame->ShowWindow(SW_SHOWNORMAL);
+            frame->MoveWindow(20, 20, 1200, 850);
+            view->Invalidate(FALSE);
+            Await([&] { return view->mStableRgbBufferInfo.addr != nullptr; }, "recycle photo is presented in a visible viewport");
+            ViewerSyncInputState recycleView = {}; recycleView.command = VIEWER_SYNC_VIEW_STATE;
+            // Enlarge the 16x16 fixture past both viewport dimensions so pan
+            // offsets are meaningful rather than intentionally auto-centered.
+            recycleView.scalar = 128; recycleView.x = 3; recycleView.y = -2;
+            view->ApplySyncInput(recycleView); Pump(.05);
+            QSelRegion recycleRoi; recycleRoi.SetRect(1, 2, 5, 6);
+            view->mSelRegions.push_back(recycleRoi);
+            const auto retainedPixels = view->mStableRgbBufferInfo.addr;
+            fprintf(this->report, "Recycle initial: zoom=%.3f pan=(%.3f,%.3f) rotation=%d pixels=%p\n",
+                view->mN, view->mXOff, view->mYOff, int(doc->mRot), retainedPixels);
+            Require(view->mN == 128.f && view->mXOff == 3.f && view->mYOff == -2.f &&
+                doc->mRot == QROT_090 && retainedPixels, "recycle failure starts from an actually presented custom view");
             HANDLE activeLock = CreateFileW(files[1], GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
                 nullptr, OPEN_EXISTING, 0, nullptr);
             Require(activeLock != INVALID_HANDLE_VALUE, "active recycle failure fixture opened");
             pane.RecycleSelected(); CloseHandle(activeLock); Pump(.05);
             Require(doc->mPathName == files[1] && doc->mFrmSrc &&
                 pane.SelectedMediaPaths() == std::vector<CString>{files[1]},
-                "failed active recycle reopens the image and preserves its selection");
+                "failed active recycle retains the image and preserves its selection");
+            fprintf(this->report, "Recycle recovery: zoom=%.3f pan=(%.3f,%.3f) fit=%d rotation=%d regions=%zu pixels=%p/%p\n",
+                view->mN, view->mXOff, view->mYOff, view->IsFitToWindow(), int(doc->mRot),
+                view->mSelRegions.size(), view->mStableRgbBufferInfo.addr, retainedPixels);
+            Require(view->mN == 128.f && view->mXOff == 3.f && view->mYOff == -2.f && !view->IsFitToWindow() &&
+                doc->mRot == QROT_090 && view->mSelRegions.size() == 1 &&
+                view->mSelRegions[0].mSelRect == recycleRoi.mSelRect && view->mStableRgbBufferInfo.addr == retainedPixels,
+                "failed active recycle retains the exact displayed pixels, rotation, zoom, pan and ROI");
 #endif
             CRect geometry; frame->GetWindowRect(&geometry);
+            CWnd* deleteTarget = mode ? static_cast<CWnd*>(&grid) : &pane;
+            deleteTarget->SetFocus();
+            Require(::GetFocus() == deleteTarget->m_hWnd, "recycle command starts with Browse keyboard focus");
             const unsigned oldWatch = doc->mFileChangeNotiThread->Generation();
             pane.mReportRecycle = [&](const CString&) { Require(false, "active file recycling should succeed"); };
             pane.RecycleSelected(); Pump(.1);
             CRect after; frame->GetWindowRect(&after);
             Require(doc->mPathName == files[2] && GetFileAttributes(files[1]) == INVALID_FILE_ATTRIBUTES && geometry == after,
                 "active photo deletion selects next survivor without resizing");
+            Require(::GetFocus() == deleteTarget->m_hWnd, "active photo deletion retains Browse keyboard focus for repeated Delete");
             const unsigned opened = doc->mOpenGeneration;
             frame->SendMessage(WM_RELOAD, oldWatch, 1);
             Require(doc->mOpenGeneration == opened, "stale watcher notification cannot reload the next document");
@@ -481,6 +867,8 @@ struct GalleryIntegrationTests {
             pane.RecycleSelected(); Pump(.05);
             Require(doc->mPathName.IsEmpty() && doc->mFrmSrc == nullptr && !view->mStableRgbBufferInfo.addr,
                 "deleting final photo leaves a safe empty view");
+            Require(frame->mStatusBar.ZoomText() == L"--" && frame->mStatusBar.SamplingText().empty(),
+                "deleting final photo clears stale zoom and sampling from the status bar");
         }
         const CString video = root + L"a-playing.avi";
         cv::VideoWriter writer(std::string(CW2A(video, CP_UTF8)), cv::VideoWriter::fourcc('M','J','P','G'), 30, cv::Size(64,48));
@@ -493,10 +881,73 @@ struct GalleryIntegrationTests {
         Pump(.1);
         if (!view->mIsPlaying) view->SetPlayTimer(doc);
         Await([&] { return view->mIsPlaying && view->mStableRgbBufferInfo.ID > 0; }, "recycle video is actively playing");
-        pane.ApplyViewStep(0, false); pane.SetCurrentFile(video);
+        theApp.SetVideoAutoplayEnabled(false);
+        for (int mode : {0, 1}) {
+            pane.ApplyViewStep(mode, false); pane.SetCurrentFile(video);
+            view->KillPlayTimerSafe();
+            Require(doc->SeekScene(42) == 42, "recycle video seeks to a nonzero paused frame");
+            view->Invalidate(FALSE);
+            Await([&] { return view->mStableRgbBufferInfo.ID == 42; }, "paused recycle video frame is presented");
+            auto pixels = view->mStableRgbBufferInfo.addr;
+            HANDLE locked = CreateFileW(video, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                nullptr, OPEN_EXISTING, 0, nullptr);
+            Require(locked != INVALID_HANDLE_VALUE, "paused video deletion failure lock acquired");
+            CString report;
+            pane.mReportRecycle = [&](const CString& message) { report = message; };
+            pane.RecycleSelected(); CloseHandle(locked); Pump(.1);
+            Require(doc->mPathName == video && doc->mFrmSrc && !view->mIsPlaying && doc->mCurFrameID == 42 &&
+                view->mStableRgbBufferInfo.addr == pixels && !report.IsEmpty(),
+                "failed paused video recycle retains the frame and never starts autoplay");
+            Require(doc->NextScene() == 43, "restored decoder can step to the next frame after failed recycling");
+            view->Invalidate(FALSE); Pump(.1);
+            view->SetPlayTimer(doc);
+            Await([&] { return view->mIsPlaying && view->mStableRgbBufferInfo.ID > 43; }, "restored video decoder resumes normally");
+            const auto frameBefore = view->mStableRgbBufferInfo.ID;
+            locked = CreateFileW(video, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                nullptr, OPEN_EXISTING, 0, nullptr);
+            Require(locked != INVALID_HANDLE_VALUE, "playing video deletion failure lock acquired");
+            pane.RecycleSelected(); CloseHandle(locked);
+            Await([&] { return view->mIsPlaying && view->mStableRgbBufferInfo.ID > frameBefore; },
+                "failed playing video recycle resumes from the retained frame even with autoplay disabled");
+        }
+        pane.mReportRecycle = [&](const CString&) { Require(false, "unlocked video recycling should succeed"); };
         pane.RecycleSelected(); Pump(.1);
         Require(GetFileAttributes(video) == INVALID_FILE_ATTRIBUTES && doc->mPathName == next && !view->mIsPlaying,
             "playing video releases decoder/audio handles before recycling and activates survivor");
+
+        const CString raw = root + L"c-raw_16x16_YUV420.yuv";
+        {
+            CFile file;
+            Require(file.Open(raw, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary), "recycle RAW fixture created");
+            const std::vector<BYTE> bytes(16 * 16 * 3 / 2 * 90, 128);
+            file.Write(bytes.data(), UINT(bytes.size()));
+        }
+        Require(AfxGetApp()->OpenDocumentFile(raw) != nullptr, "multi-frame RAW opens for recycle recovery"); Pump(.1);
+        // RAW intentionally has no visual Gallery tile. Test its real entry
+        // in the compact list rather than accepting a no-op on an empty grid selection.
+        {
+            pane.ApplyViewStep(0, false); pane.SetCurrentFile(raw);
+            Require(pane.SelectedMediaPaths() == std::vector<CString>{raw}, "RAW recycle test selects an actual compact-list entry");
+            if (view->mIsPlaying) view->KillPlayTimerSafe();
+            Require(doc->SeekScene(17) == 17, "RAW recycle test seeks to a nonzero frame");
+            view->Invalidate(FALSE);
+            Await([&] { return view->mStableRgbBufferInfo.ID == 17; }, "RAW recycle frame is presented");
+            const auto cs = doc->mColorSpace;
+            HANDLE locked = CreateFileW(raw, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                nullptr, OPEN_EXISTING, 0, nullptr);
+            Require(locked != INVALID_HANDLE_VALUE, "RAW deletion failure lock acquired");
+            pane.mReportRecycle = [](const CString&) {};
+            pane.RecycleSelected(); CloseHandle(locked); Pump(.1);
+            Require(doc->mPathName == raw && doc->mFrmSrc && !view->mIsPlaying && doc->mCurFrameID == 17 &&
+                doc->mW == 16 && doc->mH == 16 && doc->mColorSpace == cs && doc->mFrames == 90,
+                "failed RAW recycle preserves the paused frame and pixel interpretation");
+            Require(doc->NextScene() == 18, "restored RAW source can read the next frame");
+            view->Invalidate(FALSE); Pump(.05);
+        }
+        pane.mReportRecycle = [&](const CString&) { Require(false, "unlocked RAW recycling should succeed"); };
+        pane.RecycleSelected(); Pump(.1);
+        Require(GetFileAttributes(raw) == INVALID_FILE_ATTRIBUTES && doc->mPathName == next,
+            "RAW recycle releases file handles and returns to the previous survivor");
         pane.mConfirmRecycle = confirm;
         pane.mReportRecycle = reportFailure;
     }
@@ -1152,6 +1603,17 @@ struct GalleryIntegrationTests {
         frame->MoveWindow(20, 20, 1200, 850);
         if (!frame->mDrawerVisible) frame->OnToggleDrawer();
         Pump(.4);
+        wchar_t accessibilityOnly[8] = {};
+        if (GetEnvironmentVariableW(L"Q1VIEW_GALLERY_UIA_ONLY",accessibilityOnly,_countof(accessibilityOnly))) {
+            wchar_t fixture[MAX_PATH]; GetFullPathNameW(L"Tests\\fixtures\\sample_16x16.png",MAX_PATH,fixture,nullptr);
+            AccessibilityTests(frame,fixture);
+            fprintf(report,"Focused Gallery UIA checks completed\n"); return;
+        }
+        wchar_t captionOnly[8] = {};
+        if (GetEnvironmentVariableW(L"Q1VIEW_FOLDER_CAPTION_ONLY",captionOnly,_countof(captionOnly))) {
+            FolderCaptionTests(frame);
+            fprintf(report,"Focused folder-caption alignment checks completed\n"); return;
+        }
         wchar_t browserOnly[8] = {};
         if (GetEnvironmentVariableW(L"Q1VIEW_BROWSER_NAVIGATION_ONLY",browserOnly,_countof(browserOnly))) {
             wchar_t fixture[MAX_PATH]; GetFullPathNameW(L"Tests\\fixtures\\sample_16x16.png",MAX_PATH,fixture,nullptr);
@@ -1160,6 +1622,10 @@ struct GalleryIntegrationTests {
             BrowserNavigationTests(frame,fixture);
             RecycleTests(frame,fixture);
             fprintf(report,"Focused Browse navigation and interaction checks completed\n"); return;
+        }
+        {
+            wchar_t fixture[MAX_PATH]; GetFullPathNameW(L"Tests\\fixtures\\sample_16x16.png",MAX_PATH,fixture,nullptr);
+            AccessibilityTests(frame,fixture);
         }
         // The shell/zoom checks below require a displayed image. A no-argument
         // startup run has deliberately just verified the empty -- status.
@@ -1221,9 +1687,15 @@ struct GalleryIntegrationTests {
         UINT32 lineCount = 0;
         longFolderLayout->GetLineMetrics(nullptr, 0, &lineCount);
         std::vector<DWRITE_LINE_METRICS> lineMetrics(lineCount);
-        Require(lineCount > 1 && SUCCEEDED(longFolderLayout->GetLineMetrics(
-            lineMetrics.data(), lineCount, &lineCount)) && lineMetrics.back().isTrimmed,
+        Require(SUCCEEDED(longFolderLayout->GetLineMetrics(lineMetrics.data(),lineCount,&lineCount)),"long-folder line metrics available");
+        UINT32 visibleLines=0; float visibleHeight=0;
+        for(const auto& line : lineMetrics) {
+            if(line.height<=0 || visibleHeight+line.height>longFolderLayout->GetMaxHeight()+.02f) break;
+            visibleHeight+=line.height; ++visibleLines;
+        }
+        Require(visibleLines > 1 && lineMetrics[visibleLines-1].isTrimmed,
             "long folder name wraps before the final visible line is ellipsized");
+        FolderCaptionTests(frame);
         Require(!grid.mCache.empty(), "worker results populate CPU thumbnail cache");
         bool uploaded = false;
         for (auto& p : grid.mCache) if (p.second.gpu) uploaded = true;
@@ -1286,8 +1758,14 @@ struct GalleryIntegrationTests {
                 std::equal(captureBytes.begin(),captureBytes.end(),captureBuffer)), "Viewer appearance switch leaves capture buffer and pixels unchanged");
             if (view->mRgbBuf && view->mWDst<view->mWCanvas && view->mHDst<view->mHCanvas) {
                 const COLORREF background = Q1UI_COLOR_CANVAS_BG;
-                Require(view->mRgbBuf[0]==GetBValue(background) && view->mRgbBuf[1]==GetGValue(background) &&
-                    view->mRgbBuf[2]==GetRValue(background), "actual scaled Viewer canvas repaints exposed pixels with matching theme background");
+                auto repainted=[&] { return view->mRgbBuf && view->mRgbBuf[0]==GetBValue(background) &&
+                    view->mRgbBuf[1]==GetGValue(background) && view->mRgbBuf[2]==GetRValue(background); };
+                if(!repainted()) fprintf(report,"THEME pending canvas paint=%d actual=%u/%u/%u expected=%u/%u/%u\n",
+                    GetUpdateRect(view->m_hWnd,nullptr,FALSE),view->mRgbBuf[0],view->mRgbBuf[1],view->mRgbBuf[2],
+                    GetBValue(background),GetGValue(background),GetRValue(background));
+                // Theme changes invalidate asynchronously; wait for the actual
+                // paint, without forcing one or weakening its pixel check.
+                Await(repainted,"actual scaled Viewer canvas repaints exposed pixels with matching theme background");
             }
             Require(pane.mGen==generation && pane.mEntries.data()==entries && pane.SelectedMediaPaths()==selectedMedia && grid.mLayout.scroll==scroll,
                 "appearance switch preserves folder entries, multi-selection and gallery scroll");

@@ -1,0 +1,52 @@
+# Issue #122 — stage B: Gallery UI Automation
+
+## Scope and authorization — 2026-10-25
+
+The user accepted stage A's actual Viewer appearance and explicitly authorized continuing UIA stage B. This extends draft PR #144 on `codex/issue-122-gallery-alignment`, with a separate B commit. Stage A's caption geometry, fonts, colors, badges and centered parent stay intact. This is not authorization to merge, release, change the version, publish to the Store, or mark all of #122/C complete.
+
+## Implementation boundary
+
+- A Win32 UIA fragment provider is attached only to the Gallery HWND through WM_GETOBJECT. The container is List; its committed parent/folder/drive/media entries are ListItem elements. The existing Current folder header remains separate. No native list rows or per-card windows are added.
+- Names are the full original folder basename, drive root, `Parent folder`, or full filename. Decorative caption brackets and ellipses are not substituted for names; literal brackets, ampersands, surrogate pairs and combining characters remain part of the original name.
+- Providers are allocated on query/event demand. An immutable directory-metadata snapshot supplies names/path-kind identity; bounded layout copies supply animated geometry. Reading names does not enumerate a folder, open a source, scroll, or schedule thumbnail decoding. Layout/scroll publication does not copy all selected indices or folder strings on every frame.
+- The container exposes Selection and vertical Scroll; items expose SelectionItem, Invoke and ScrollItem. Existing SelectIndex, BrowserSelection, ActivateIndex and GalleryLayout routes execute on the UI thread. Single-folder selection, media-only multi-selection, idempotent add/remove and recycle-busy/modal guards are preserved. There is no new Delete pattern or bypass of batch-command eligibility.
+- UIA focus is independent of selection. Thread-local focus in a background Viewer is not claimed as actual keyboard focus. Explicit SetFocus owns its host activation and reports a failure if Windows does not permit real focus; metadata queries never activate a window.
+- Item identity combines the canvas lifetime with monotonic path/kind IDs. Same-folder refresh retains unchanged entries; removal, directory replacement, mode change and destruction invalidate stale nodes. Resize, grid-size changes and GPU recreation do not change identity. Thumbnail-generation counters are not used as accessibility identity.
+- Free-threaded COM callbacks read synchronized snapshots rather than CWnd or live vectors. Each UI-thread bridge balances its own COM initialization, including empty-document startup. Actions have a bounded two-second dispatch wait; a timed-out queued request is removed so it cannot run later. Dispatch revalidates the item ID and existing UI guards. No metadata lock is held while raising UIA events or waiting for an action.
+- Actual selection, focus and committed membership changes raise UIA events. Bulk selection sends a container invalidation rather than per-item event floods. Hover/repaint do not emit those events. Rename/removal creates a different path/kind identity and a membership notification rather than silently retargeting a cached item.
+
+## Verification protocol
+
+The instrumented actual Viewer runs a real `IUIAutomation` client on a separate MTA thread while the UI thread continues pumping messages. Test-only fixture mutations are dispatched to that UI thread. Event subscriptions and removal occur on the client apartment; retained elements exercise stale-reference behavior. The test uses only temporary repository-image copies and generated folders, not personal media.
+
+The focused mode is `Q1VIEW_GALLERY_UIA_ONLY=1`, with the existing `Q1VIEW_GALLERY_TEST_REPORT` report path. These checks are also called by the full Viewer integration suite. Keyboard-focus acceptance requires the test Viewer to be the foreground window; a background control's remembered thread focus is not enough.
+
+Covered cases include full long Korean/English/literal-symbol/emoji-combining names, complete filenames, parent and drive names, root/item roles and patterns, offscreen bounds/reveal/container scrolling, global UIA focus matching the real item rather than the HWND/header, Ctrl+arrow focus distinct from multi-selection, minimized-window offscreen state, explicit rejection of forced scrolling in a non-scrollable folder, idempotent selection changes, invalid folder batching, recycle-busy rejection, stable runtime IDs across layout/device changes, hover event suppression, failed navigation, watcher refresh/removal, successful invocation/navigation, native List transition, and canvas destruction.
+
+## Results and remaining acceptance
+
+Actual Viewer integration with a source-image launch passed **9,000 assertions** (`Tests/bin/x64/Release/issue-122-uia-gallery-full.txt`). The final production code, including minimized-window/unsupported-scroll handling and the re-entrant close guard, passed the full suite from an **empty-document launch**, **8,970 PASS, native exit 0** (`Tests/bin/x64/Release/issue-122-uia-final-full.txt`). Both reports end with `ALL INTEGRATION CHECKS PASSED`. Counts differ between startup paths and their conditional assertions; these are assertion counts, not thousands of independent user journeys.
+
+The UIA fixture contains **1,203 committed entries**, with **1–2 live provider objects before client enumeration** in these runs, no per-card HWNDs/native List rows, and no queued/decoded thumbnails after complete offscreen-name queries. Provider allocation while a client explicitly enumerates all entries is on demand, not a claim that an all-items UIA query allocates no objects. The full suite also retains the existing 3,000-image virtualization/cache, source/zoom/pan/ROI/playback, selection/recycle, watcher/navigation, themes and forced fallback/device-recreation checks. Global UIA focus, Ctrl+arrow/selection independence, minimization and non-scrollable error semantics passed in the final empty-start run.
+
+CoreRegressionTests, GalleryLayoutTests and WindowsUiTypographyTests passed again. GalleryLayout kept bounded work at 1,000 and 1,000,000 entries; common UI GDI objects stayed 55 before / 55 after. Ordinary and instrumented Windows Release/x64/v143 Viewer builds passed, as did the Comparator Release build. The reused instrumented intermediate directory emits the pre-existing MSB8028 shared-directory warning; it is not used for the ordinary review executable at `Viewer/x64/Release/Viewer.exe`. Local version remains `0.0.0-dev`.
+
+Early diagnostic runs are not counted as passing. They exposed two test/interop distinctions: remembered Win32 thread focus is not foreground keyboard focus, and direct child-HWND lookup could return a generic Win32 host proxy instead of the Gallery fragment. The final client discovers `ThumbnailGallery` in the actual Viewer accessibility tree, then strictly requires List/ListItem roles, the full entry count and working patterns/states/events. The disposable destruction test likewise locates and retains a real Gallery List in that tree, not merely a generic HWND wrapper. Direct-HWND proxy equivalence is not claimed. COM setup, canonical fragment-root identity, root-versus-item interface contracts and initial WM_GETOBJECT handling were also hardened during review.
+
+Computer Use observed the ordinary Dark Viewer accessibility tree: the separate Current folder header and Gallery List contain Parent folder, unabridged long Korean/English/mixed/literal-symbol folder names and the full sample filename. The earlier ordinary empty-document launch remained functional; its first hidden-start capture was not accepted as visual evidence until the Viewer was explicitly activated. A temporary saved ThumbStep preference was restored to its original value. The final empty-start automatic run and ordinary review hand-off are appended below.
+
+The user explicitly requested **automatic UIA verification only**, excluding temporary Narrator execution. Narrator was not started and speech acceptance is not claimed. No live Windows DPI/text-size/high-contrast settings were changed; the remaining C/live-OS combinations are not marked complete. No issue closure, merge, release, version bump or Store publication is part of B.
+
+### Final ordinary-app hand-off
+
+The final standard Release executable was inspected with the repository preview sample, in the user's Dark theme at Auto / 100.0%. Computer Use confirmed the actual Viewer tree exposes `ThumbnailGallery` as List and each full folder/filename as ListItem, separately from Current folder. The source image, card/font/color geometry and A alignment remain unchanged. The ordinary preview window is left open. Its saved ThumbStep was temporarily set to 3 through application initialization and restored to the original 0 in a finally block; no OS settings were changed.
+
+After the final production-code full run, the test-only stale-reference scenario was strengthened to recreate the deleted fixture at the same path and index before querying its old element. This specifically distinguishes snapshot lifetime from index-only or permanently path-hashed identity. Production code did not change for this test strengthening. The final empty-start focused run passed **2,602 assertions, native exit 0**, ending with `ALL INTEGRATION CHECKS PASSED` in `Tests/bin/x64/Release/issue-122-uia-final-focused.txt`. A preceding attempt failed only the required foreground-window precondition because automation activated it too late; it is not counted as passing. The final run activated the own test window at startup and passed all the stronger lifecycle, global-focus, minimization, scroll-error and existing UIA checks.
+
+## Primary implementation references
+
+- [Microsoft: server-side UIA providers](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-serversideprovider)
+- [Microsoft: ListItem properties and patterns](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-supportlistitemcontroltype)
+- [Microsoft: UIA client threading](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-threading)
+- [Microsoft: fragment SetFocus and host focus ownership](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcore/nf-uiautomationcore-irawelementproviderfragment-setfocus)
+- [Microsoft: disconnecting providers outside sent-message callbacks](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcoreapi/nf-uiautomationcoreapi-uiadisconnectprovider)

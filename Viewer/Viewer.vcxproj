@@ -239,6 +239,7 @@ copy /Y "$(ProjectDir)..\assets\fonts\Pretendard-LICENSE.txt" "$(TargetDir)Fonts
     </ClCompile>
     <ClCompile Include="ThumbnailPane.cpp" />
     <ClCompile Include="GalleryGridCanvas.cpp" />
+    <ClCompile Include="GalleryUiaProvider.cpp" />
     <ClCompile Include="HdrToneMap.cpp"><PrecompiledHeader>NotUsing</PrecompiledHeader></ClCompile>
     <ClCompile Include="VideoColorInfo.cpp"><PrecompiledHeader>NotUsing</PrecompiledHeader></ClCompile>
     <ClCompile Include="VideoOrientation.cpp"><PrecompiledHeader>NotUsing</PrecompiledHeader></ClCompile>
@@ -269,6 +270,7 @@ copy /Y "$(ProjectDir)..\assets\fonts\Pretendard-LICENSE.txt" "$(TargetDir)Fonts
     <ClInclude Include="StoreUpdate.h" />
     <ClInclude Include="ThumbnailPane.h" />
     <ClInclude Include="GalleryGridCanvas.h" />
+    <ClInclude Include="GalleryUiaProvider.h" />
     <ClInclude Include="GalleryLayout.h" />
     <ClInclude Include="HdrToneMap.h" />
     <ClInclude Include="VideoColorInfo.h" />

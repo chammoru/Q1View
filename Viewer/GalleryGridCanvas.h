@@ -7,8 +7,10 @@
 #include <dwrite_3.h>
 #include <wrl/client.h>
 #include <map>
+#include <memory>
 
 class CThumbnailPane;
+namespace q1view { class GalleryUiaBridge; enum class GalleryAccessibleAction; }
 
 // Grid-only child canvas. The parent retains folder identity, activation and
 // decode workers; this window owns layout, input and disposable GPU resources.
@@ -25,6 +27,7 @@ public:
     void QueueVisible();
     void PauseAnimation();
     virtual BOOL PreTranslateMessage(MSG* message);
+    virtual LRESULT WindowProc(UINT message, WPARAM wp, LPARAM lp) override;
 
 protected:
     DECLARE_MESSAGE_MAP()
@@ -42,6 +45,8 @@ protected:
     afx_msg LRESULT OnMouseLeave(WPARAM, LPARAM);
     afx_msg LRESULT OnDpiChanged(WPARAM, LPARAM);
     afx_msg void OnDestroy();
+    afx_msg void OnSetFocus(CWnd*);
+    afx_msg void OnKillFocus(CWnd*);
 private:
 	friend class CThumbnailPane;
 	friend struct GalleryIntegrationTests;
@@ -54,13 +59,24 @@ private:
         Ptr<ID2D1Bitmap1> gpu;
     };
     static double Now();
+    void EnsureAccessibility();
+    void AccessibilityEntries();
+    void AccessibilityView(bool selection = true);
+    HRESULT AccessibilityAction(q1view::GalleryAccessibleAction action, int index, double value);
+    std::unique_ptr<q1view::GalleryUiaBridge> mAccessibility;
+#ifdef Q1VIEW_GALLERY_TESTS
+    unsigned mAccessibilityQueries = 0;
+    LPARAM mAccessibilityQuery = 0;
+    LRESULT mAccessibilityResponse = 0;
+#endif
     void Scroll(float position);
     void UpdateScrollBar();
     void ClearCache();
     void TrimCache();
     bool EnsureDevice(int width, int height);
     bool CreateFolderTextLayout(const CString& label, float width, float height,
-        Ptr<IDWriteTextLayout>& layout);
+        Ptr<IDWriteTextLayout>& layout, bool parent = false);
+    static void DrawFolderCaptionGdi(CDC& dc, const CString& text, CRect bounds, bool parent);
     void DropDevice();
     bool PaintGpu(const std::vector<int>& visible, double now, bool& pending);
     void PaintFallback(CDC& dc, const std::vector<int>& visible, double now);
